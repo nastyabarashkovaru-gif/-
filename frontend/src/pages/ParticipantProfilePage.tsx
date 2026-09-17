@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, resolveMediaUrl } from '../api/client';
 import { UserProfile } from '../types';
 import Avatar from '../components/Avatar';
 
@@ -41,7 +41,7 @@ export default function ParticipantProfilePage() {
       {profile.beforePhoto && (
         <div className="card">
           <h3>«До»</h3>
-          <img className="preview" src={profile.beforePhoto} alt="до" />
+          <img className="preview" src={resolveMediaUrl(profile.beforePhoto) || undefined} alt="до" />
           {profile.beforeDescription && <p style={{ marginTop: 10 }}>{profile.beforeDescription}</p>}
         </div>
       )}

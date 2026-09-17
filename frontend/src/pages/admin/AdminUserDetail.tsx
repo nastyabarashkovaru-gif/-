@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { adminApi } from '../../api/client';
+import { adminApi, resolveMediaUrl } from '../../api/client';
 import { UserProfile, DayReport } from '../../types';
 import Avatar from '../../components/Avatar';
 
@@ -68,7 +68,7 @@ export default function AdminUserDetail() {
           <p>Цель: {data.goal || '—'}</p>
           <p>Цена слова: {data.priceOfWord ?? '—'} ₽</p>
           <p>Форс-мажор: {data.forceMajeureAllowed}</p>
-          {data.beforePhoto && <img className="preview" src={data.beforePhoto} alt="до" />}
+          {data.beforePhoto && <img className="preview" src={resolveMediaUrl(data.beforePhoto) || undefined} alt="до" />}
           {data.beforeDescription && <p style={{ marginTop: 8 }}>{data.beforeDescription}</p>}
           {data.measurements && <p>Замеры: {data.measurements}</p>}
         </div>

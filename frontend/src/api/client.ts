@@ -1,6 +1,9 @@
 import { getInitData } from '../telegram/webapp';
 
-const API_BASE = '/api';
+// В проде задаётся переменной окружения VITE_API_BASE (полный адрес backend, например
+// https://your-backend.up.railway.app/api). Локально при разработке остаётся относительный
+// /api — Vite сам проксирует его на localhost:4000 (см. vite.config.ts).
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 // Для локальной разработки в обычном браузере (вне Telegram) используем dev-заголовки,
 // чтобы backend в DEV_MODE=true мог сымитировать вход под тестовым пользователем.
@@ -37,6 +40,20 @@ async function request<T>(method: string, path: string, body?: unknown, isForm =
     throw new ApiError(res.status, errBody.error || 'request_failed', errBody.message);
   }
   return res.json() as Promise<T>;
+}
+
+// Загруженные файлы backend отдаёт по относительному пути (/uploads/xxx.jpg). Если
+// frontend и backend развёрнуты на разных доменах, такой путь нужно дополнить доменом backend.
+export function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (/^https?:\/\//.test(url) || /^data:/.test(url)) return url;
+  const base = import.meta.env.VITE_API_BASE as string | undefined;
+  if (!base) return url;
+  try {
+    return `${new URL(base).origin}${url}`;
+  } catch {
+    return url;
+  }
 }
 
 export class ApiError extends Error {

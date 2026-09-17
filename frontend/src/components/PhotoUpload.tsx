@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { api } from '../api/client';
+import { api, resolveMediaUrl } from '../api/client';
 
 interface Props {
   value: string | null;
@@ -43,9 +43,9 @@ export default function PhotoUpload({ value, onChange, accept = 'image/*,video/*
       </button>
       {error && <div className="error-text">{error}</div>}
       {value && (value.match(/\.(mp4|mov|webm)$/i) ? (
-        <video className="preview" src={value} controls />
+        <video className="preview" src={resolveMediaUrl(value) || undefined} controls />
       ) : (
-        <img className="preview" src={value} alt="preview" />
+        <img className="preview" src={resolveMediaUrl(value) || undefined} alt="preview" />
       ))}
     </div>
   );

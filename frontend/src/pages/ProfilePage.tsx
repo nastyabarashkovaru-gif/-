@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useUser } from '../context/UserContext';
-import { api } from '../api/client';
+import { api, resolveMediaUrl } from '../api/client';
 import Avatar from '../components/Avatar';
 import PhotoUpload from '../components/PhotoUpload';
 import { UserProfile } from '../types';
@@ -125,7 +125,7 @@ export default function ProfilePage() {
       {user.beforePhoto && (
         <div className="card">
           <h3>«До»</h3>
-          <img className="preview" src={user.beforePhoto} alt="до" />
+          <img className="preview" src={resolveMediaUrl(user.beforePhoto) || undefined} alt="до" />
           {user.beforeDescription && <p style={{ marginTop: 10 }}>{user.beforeDescription}</p>}
         </div>
       )}
