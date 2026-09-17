@@ -3,7 +3,9 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 
-const uploadsDir = path.join(__dirname, 'uploads');
+// Рядом с базой данных (backend/data/uploads) — не зависит от того, запущен код через
+// ts-node (src/) или собранным (dist/), и оба хранилища можно бэкапить/монтировать одним диском.
+const uploadsDir = path.join(__dirname, '..', 'data', 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const storage = multer.diskStorage({
