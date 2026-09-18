@@ -59,7 +59,7 @@ export default function FinalPage() {
           </div>
           <h2>{status.message}</h2>
           <p style={{ marginTop: 10 }}>Свяжитесь с организаторами, чтобы получить выплату призового фонда.</p>
-          <button className="btn btn-primary" onClick={() => window.open('https://t.me/', '_blank')}>
+          <button className="btn btn-primary" onClick={() => window.open('https://t.me/rud74507', '_blank')}>
             Связаться с организаторами
           </button>
         </div>
