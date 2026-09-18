@@ -42,8 +42,31 @@ export default function ProgressPage() {
 
   if (loading || !user || !progress) return <div className="screen">Загрузка…</div>;
 
+  if (dayIndexFromStart(progress.startDate) < 1) {
+    const startLabel = new Date(progress.startDate).toLocaleDateString('ru-RU', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    return (
+      <div className="screen">
+        <h1>Прогресс</h1>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <div className="badge accent" style={{ marginBottom: 10 }}>
+            Скоро старт
+          </div>
+          <h2>Челлендж ещё не начался</h2>
+          <p style={{ marginTop: 10 }}>
+            Твой поток стартует {startLabel} — трекер на 100 дней откроется в этот день. Анкета уже сохранена, просто загляни сюда {startLabel}.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const rawDayIndex = dayIndexFromStart(progress.startDate);
   const selectedReport: DayReport | null = selectedDay ? progress.grid[selectedDay - 1] : null;
-  const currentDay = Math.min(dayIndexFromStart(progress.startDate), progress.challengeDays);
+  const currentDay = Math.min(Math.max(rawDayIndex, 1), progress.challengeDays);
   const isFutureDay = selectedDay != null && selectedDay > currentDay;
 
   const toggleExtra = (id: string) => {

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db';
 import { requireTelegramAuth } from '../auth/telegramAuth';
 import { UserRow, ExtraTaskDef } from '../types';
+import { nextChallengeStartDate } from '../challengeSchedule';
 
 const router = Router();
 
@@ -105,7 +106,7 @@ router.put('/me', requireTelegramAuth, (req, res) => {
       force_majeure_allowed = COALESCE(?, force_majeure_allowed),
       extra_tasks = ?,
       onboarding_completed = 1,
-      challenge_start_date = CASE WHEN onboarding_completed = 0 THEN date('now') ELSE challenge_start_date END
+      challenge_start_date = CASE WHEN onboarding_completed = 0 THEN ? ELSE challenge_start_date END
     WHERE id = ?`
   ).run(
     age ?? null,
@@ -117,6 +118,7 @@ router.put('/me', requireTelegramAuth, (req, res) => {
     priceOfWord ?? null,
     forceMajeureAllowed ?? null,
     JSON.stringify(safeExtraTasks),
+    nextChallengeStartDate(),
     tg.id
   );
 
@@ -133,7 +135,7 @@ router.post('/me/restart', requireTelegramAuth, (req, res) => {
   db.prepare(
     `UPDATE users SET
       cycle = cycle + 1,
-      challenge_start_date = date('now'),
+      challenge_start_date = ?,
       onboarding_completed = 0,
       goal = NULL,
       before_photo = NULL,
@@ -142,7 +144,7 @@ router.post('/me/restart', requireTelegramAuth, (req, res) => {
       manual_rank = NULL,
       goal_confirmed_winner = 0
     WHERE id = ?`
-  ).run(tg.id);
+  ).run(nextChallengeStartDate(), tg.id);
 
   const row = db.prepare('SELECT * FROM users WHERE id = ?').get(tg.id) as UserRow;
   res.json(serializeUser(row));
