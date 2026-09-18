@@ -83,7 +83,9 @@ export default function ProgressPage() {
           <div className="label">Тренировок</div>
         </div>
         <div className="stat">
-          <div className="value">{Math.max(0, progress.forceMajeureAllowed - Math.max(0, currentDay - progress.completedTrainingDays))}</div>
+          <div className="value">
+            {Math.max(0, progress.forceMajeureAllowed - Math.max(0, currentDay - 1 - progress.completedTrainingDays))}
+          </div>
           <div className="label">Жизней осталось</div>
         </div>
         <div className="stat">

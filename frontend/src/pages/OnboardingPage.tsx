@@ -199,7 +199,7 @@ export default function OnboardingPage() {
       {error && <div className="error-text">{error}</div>}
 
       <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
-        {submitting ? 'Сохраняем…' : 'Начать челлендж'}
+        {submitting ? 'Сохраняем…' : 'Войти в приложение'}
       </button>
     </div>
   );
