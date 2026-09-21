@@ -31,12 +31,15 @@ export default function RatingPage() {
           Призовой фонд
         </div>
         <h2 style={{ fontSize: 30 }}>{prizeFund !== null ? `${prizeFund.toLocaleString('ru-RU')} ₽` : '…'}</h2>
-        <p style={{ marginTop: 6 }}>Победителя определяют организаторы вручную — на основе рейтинга и реального достижения цели.</p>
+        <p style={{ marginTop: 6 }}>1-е место забирает фонд цены слова всех проигравших участников.</p>
+        <p style={{ marginTop: 2, fontSize: 11 }}>
+          Проверка реального достижения цели победителем происходит вручную организаторами перед передачей выплаты.
+        </p>
       </div>
 
       <div className="tabs">
         <button className={tab === 'overall' ? 'active' : ''} onClick={() => setTab('overall')}>
-          Общий (100 дней)
+          По потоку
         </button>
         <button className={tab === 'monthly' ? 'active' : ''} onClick={() => setTab('monthly')}>
           Текущий месяц

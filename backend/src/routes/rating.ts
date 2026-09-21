@@ -14,8 +14,11 @@ interface RatingEntry {
   manualRank: number | null;
 }
 
-function buildRating(monthOnly: boolean): RatingEntry[] {
-  const users = db.prepare('SELECT * FROM users WHERE onboarding_completed = 1').all() as UserRow[];
+// Рейтинг видит только тех, кто в том же потоке (стартовал в тот же день — 1 или 14 число)
+function buildRating(monthOnly: boolean, streamStartDate: string): RatingEntry[] {
+  const users = db
+    .prepare('SELECT * FROM users WHERE onboarding_completed = 1 AND challenge_start_date = ?')
+    .all(streamStartDate) as UserRow[];
 
   const entries: RatingEntry[] = users.map((u) => {
     const count = monthOnly
@@ -51,19 +54,35 @@ function buildRating(monthOnly: boolean): RatingEntry[] {
   return entries;
 }
 
-router.get('/overall', requireTelegramAuth, (_req, res) => {
-  res.json(buildRating(false).map((e, i) => ({ ...e, place: i + 1 })));
+function currentUserStream(telegramId: number): string | null {
+  const row = db.prepare('SELECT challenge_start_date FROM users WHERE id = ?').get(telegramId) as
+    | { challenge_start_date: string }
+    | undefined;
+  return row?.challenge_start_date ?? null;
+}
+
+router.get('/overall', requireTelegramAuth, (req, res) => {
+  const stream = currentUserStream(req.tgUser!.id);
+  if (!stream) return res.json([]);
+  res.json(buildRating(false, stream).map((e, i) => ({ ...e, place: i + 1 })));
 });
 
-router.get('/monthly', requireTelegramAuth, (_req, res) => {
-  res.json(buildRating(true).map((e, i) => ({ ...e, place: i + 1 })));
+router.get('/monthly', requireTelegramAuth, (req, res) => {
+  const stream = currentUserStream(req.tgUser!.id);
+  if (!stream) return res.json([]);
+  res.json(buildRating(true, stream).map((e, i) => ({ ...e, place: i + 1 })));
 });
 
-// Призовой фонд — сумма "цены слова" всех участников
-router.get('/prize-fund', requireTelegramAuth, (_req, res) => {
+// Призовой фонд — сумма "цены слова" участников ТВОЕГО потока
+router.get('/prize-fund', requireTelegramAuth, (req, res) => {
+  const stream = currentUserStream(req.tgUser!.id);
+  if (!stream) return res.json({ total: 0 });
+
   const row = db
-    .prepare(`SELECT COALESCE(SUM(price_of_word), 0) as total FROM users WHERE onboarding_completed = 1`)
-    .get() as { total: number };
+    .prepare(
+      `SELECT COALESCE(SUM(price_of_word), 0) as total FROM users WHERE onboarding_completed = 1 AND challenge_start_date = ?`
+    )
+    .get(stream) as { total: number };
   res.json({ total: row.total });
 });
 

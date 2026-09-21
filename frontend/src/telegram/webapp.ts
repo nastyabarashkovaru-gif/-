@@ -9,11 +9,16 @@ export interface TelegramWebAppUser {
 interface TelegramWebApp {
   initData: string;
   initDataUnsafe: { user?: TelegramWebAppUser };
+  viewportHeight: number;
+  viewportStableHeight: number;
   ready: () => void;
   expand: () => void;
   setHeaderColor?: (color: string) => void;
   setBackgroundColor?: (color: string) => void;
   showAlert?: (message: string) => void;
+  disableVerticalSwipes?: () => void;
+  onEvent: (event: string, handler: () => void) => void;
+  offEvent: (event: string, handler: () => void) => void;
   HapticFeedback?: { notificationOccurred: (type: 'success' | 'error' | 'warning') => void };
 }
 
@@ -27,6 +32,12 @@ export function getTelegramWebApp(): TelegramWebApp | null {
   return window.Telegram?.WebApp || null;
 }
 
+function syncViewportHeight() {
+  const wa = getTelegramWebApp();
+  const height = wa?.viewportStableHeight || wa?.viewportHeight || window.innerHeight;
+  document.documentElement.style.setProperty('--tg-viewport-height', `${height}px`);
+}
+
 export function initTelegram() {
   const wa = getTelegramWebApp();
   if (!wa) return;
@@ -34,6 +45,13 @@ export function initTelegram() {
   wa.expand();
   wa.setHeaderColor?.('#0a0a0a');
   wa.setBackgroundColor?.('#0a0a0a');
+  wa.disableVerticalSwipes?.();
+
+  // Telegram репортит финальную высоту вьюпорта не сразу при открытии, а после
+  // события viewportChanged — без этого верхушка экрана обрезается/скачет при первом входе.
+  syncViewportHeight();
+  wa.onEvent('viewportChanged', syncViewportHeight);
+  window.addEventListener('resize', syncViewportHeight);
 }
 
 export function getInitData(): string {
