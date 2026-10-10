@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
+import { Eye, EyeOff, LockOpen } from 'lucide-react';
 import { api } from '@/api';
 import { haptic, isTelegram, openExternal } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { revealedIdentities, useResults } from '@/state/results';
-import { BigIcon, Cta, DotIcon, LoadingScreen, Modal, RhombusIcon, Screen, SettingsButton, SmallBack, Spacer, TopBar, useToast } from '@/ui';
+import { BigIcon, Cta, LoadingScreen, Modal, Screen, SettingsButton, SmallBack, Spacer, TopBar, useToast } from '@/ui';
 import { AnswerList } from './Dashboard';
 
 /** 07 — узнать автора; 07b — автор остался анонимным */
@@ -88,7 +89,7 @@ export function RevealScreen({ qid, respondentId }: { qid: string; respondentId:
           ) : (
             <motion.div key="ask" className="flex flex-col gap-[20px]" exit={{ opacity: 0, scale: 0.96 }}>
               <BigIcon size={60}>
-                <DotIcon size={28} />
+                <Eye size={28} strokeWidth={1.8} />
               </BigIcon>
               <h2 className="h2">Хочешь узнать, кто это написал? 👀</h2>
             </motion.div>
@@ -99,8 +100,8 @@ export function RevealScreen({ qid, respondentId }: { qid: string; respondentId:
             Следующий аноним
           </Cta>
         ) : (
-          <Cta onClick={reveal} loading={busy}>
-            🔓 Узнать автора 😍
+          <Cta leading={<LockOpen size={20} strokeWidth={1.8} className="text-green" />} onClick={reveal} loading={busy}>
+            Узнать автора 😍
           </Cta>
         )}
       </div>
@@ -110,7 +111,7 @@ export function RevealScreen({ qid, respondentId }: { qid: string; respondentId:
       <Modal open={anonymousOpen} onClose={() => setAnonymousOpen(false)} labelledBy="anon-title">
         <div className="card-purple flex flex-col gap-[18px] !px-[18px] !py-[28px] text-center">
           <BigIcon>
-            <RhombusIcon size={30} />
+            <EyeOff size={28} strokeWidth={1.8} />
           </BigIcon>
           <h2 id="anon-title" className="h2">
             Автор остался анонимным

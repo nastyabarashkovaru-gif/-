@@ -49,19 +49,19 @@ function HeaderIconButton({ label, onClick, children, className }: { label: stri
 
 export const CloseButton = ({ onClick }: { onClick: () => void }) => (
   <HeaderIconButton label="Закрыть" onClick={onClick} className="-mr-3.5">
-    <X size={20} strokeWidth={2.4} color="#aaa" />
+    <X size={22} strokeWidth={1.8} color="#a1a1aa" />
   </HeaderIconButton>
 );
 
 export const SettingsButton = ({ onClick }: { onClick: () => void }) => (
   <HeaderIconButton label="Настройки" onClick={onClick} className="-mr-[11px]">
-    <Settings size={20} strokeWidth={2.3} color="#aaa" />
+    <Settings size={22} strokeWidth={1.8} color="#a1a1aa" />
   </HeaderIconButton>
 );
 
 export const BackArrow = ({ onClick }: { onClick: () => void }) => (
   <HeaderIconButton label="Назад" onClick={onClick} className="-ml-3.5">
-    <ArrowLeft size={30} strokeWidth={1.6} color="#fff" />
+    <ArrowLeft size={28} strokeWidth={1.8} color="#fff" />
   </HeaderIconButton>
 );
 
@@ -72,11 +72,13 @@ type CtaIcon = 'right' | 'upRight' | 'none';
 interface CtaProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   children: ReactNode;
   icon?: CtaIcon;
+  /** Иконка слева от текста (Send, LockOpen…) */
+  leading?: ReactNode;
   loading?: boolean;
 }
 
 /** Главная белая кнопка (.cta из reference) */
-export function Cta({ children, icon = 'none', loading, disabled, onClick, className, ...rest }: CtaProps) {
+export function Cta({ children, icon = 'none', leading, loading, disabled, onClick, className, ...rest }: CtaProps) {
   return (
     <button
       type="button"
@@ -90,12 +92,17 @@ export function Cta({ children, icon = 'none', loading, disabled, onClick, class
       className={cn('cta', loading && '!opacity-90', className)}
     >
       {loading ? (
-        <Loader2 size={17} strokeWidth={2.6} className="animate-spin" aria-label="Загрузка" />
+        <Loader2 size={20} strokeWidth={2.2} className="animate-spin" aria-label="Загрузка" />
       ) : (
         <>
+          {leading && (
+            <span className="mr-[12px] flex shrink-0 text-purple" aria-hidden>
+              {leading}
+            </span>
+          )}
           <span>{children}</span>
-          {icon === 'right' && <ArrowRight size={16} strokeWidth={2.6} className="ml-[15px] shrink-0" aria-hidden />}
-          {icon === 'upRight' && <ArrowUpRight size={18} strokeWidth={2.6} className="ml-[13px] shrink-0" aria-hidden />}
+          {icon === 'right' && <ArrowRight size={18} strokeWidth={2} className="ml-[14px] shrink-0 text-purple" aria-hidden />}
+          {icon === 'upRight' && <ArrowUpRight size={18} strokeWidth={2} className="ml-[12px] shrink-0 text-purple" aria-hidden />}
         </>
       )}
     </button>
@@ -112,7 +119,7 @@ export function SmallBack({ onClick, label = 'Назад' }: { onClick: () => vo
       }}
       className="link-small -my-1"
     >
-      <ArrowLeft size={13} strokeWidth={1.8} aria-hidden />
+      <ArrowLeft size={15} strokeWidth={1.8} aria-hidden />
       {label}
     </button>
   );
@@ -123,7 +130,7 @@ export function SmallBack({ onClick, label = 'Назад' }: { onClick: () => vo
 export function Segments({ filled, total = 5, label }: { filled: number; total?: number; label?: string }) {
   return (
     <div
-      className="flex shrink-0 gap-[5px]"
+      className="flex shrink-0 gap-[8px]"
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={total}
@@ -133,8 +140,8 @@ export function Segments({ filled, total = 5, label }: { filled: number; total?:
       {Array.from({ length: total }, (_, i) => (
         <i
           key={i}
-          className="block h-[5px] flex-1 rounded-[9px] transition-colors duration-300 ease-out"
-          style={{ background: i < filled ? '#a855f7' : '#302a36' }}
+          className="block h-[7px] flex-1 rounded-full transition-colors duration-300 ease-out"
+          style={{ background: i < filled ? '#a855f7' : '#2c2a33' }}
         />
       ))}
     </div>
@@ -181,7 +188,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8 }}
               transition={{ duration: 0.22, ease: 'easeOut' }}
-              className="rounded-[12px] border border-[#2a2930] bg-[#1d1b23] px-4 py-3 text-center text-[13px] font-semibold leading-snug text-white shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
+              className="rounded-[12px] border border-[#2a2930] bg-[#1d1b23] px-4 py-3 text-center text-[15px] font-medium leading-snug text-white shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
             >
               {toast.text}
             </motion.div>
@@ -280,42 +287,5 @@ export function MessageScreen({
         {action}
       </Cta>
     </Screen>
-  );
-}
-
-/* ───────── Глифы из макета: ◉ ▣ ♢ ───────── */
-
-export function DotIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden>
-      <circle cx="10" cy="10" r="8.6" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <circle cx="10" cy="10" r="5.6" fill="currentColor" />
-    </svg>
-  );
-}
-
-export function SquareDotIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden>
-      <rect x="1.8" y="1.8" width="16.4" height="16.4" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="4.6" y="4.6" width="10.8" height="10.8" fill="currentColor" />
-    </svg>
-  );
-}
-
-export function RowsIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      <rect x="2" y="2" width="16" height="16" />
-      <path d="M2 6h16M2 10h16M2 14h16" />
-    </svg>
-  );
-}
-
-export function RhombusIcon({ size = 30 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 30 30" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" aria-hidden>
-      <path d="M15 4 L23.5 15 L15 26 L6.5 15 Z" />
-    </svg>
   );
 }

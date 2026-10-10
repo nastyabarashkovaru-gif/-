@@ -96,7 +96,7 @@ export function AnswerScreen({ qid }: { qid: string }) {
               <AnonymityChoice value={choice} onChange={setChoice} />
             ) : (
               <>
-                <div className="text-[14px] font-semibold text-purple-text">Вопрос {step + 1}</div>
+                <div className="text-[16px] font-medium text-purple-text">Вопрос {step + 1}</div>
                 <h1 className="h1" id={`q-${step}`}>
                   {form.questions[step].text}
                 </h1>
@@ -109,7 +109,7 @@ export function AnswerScreen({ qid }: { qid: string }) {
                     setAnswers((a) => a.map((item, i) => (i === step ? value : item)));
                   }}
                   placeholder="Отвечай максимально честно"
-                  className="min-h-[160px] w-full shrink-0 resize-none rounded-[13px] border border-[#514160] bg-[#131217] p-[17px] text-[14px] leading-[1.5] text-white outline-none transition-colors placeholder:text-[#77717f] focus:border-purple"
+                  className="min-h-[160px] w-full shrink-0 resize-none rounded-[18px] border border-[#514160] bg-[#131217] p-[16px] text-[16px] leading-[1.4] text-white outline-none transition-colors placeholder:text-[#77717f] focus:border-purple"
                 />
               </>
             )}
@@ -156,13 +156,13 @@ function AnonymityChoice({ value, onChange }: { value: Choice; onChange: (c: Cho
               }}
               className={cn('text-left transition-colors duration-200', on ? 'card-purple' : 'card')}
             >
-              <div className="flex items-center gap-[10px] text-[15px] font-bold">
+              <div className="flex items-center gap-[12px] text-[17px] font-medium">
                 <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 border-white" aria-hidden>
                   <motion.span className="h-[8px] w-[8px] rounded-full bg-white" initial={false} animate={{ scale: on ? 1 : 0 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }} />
                 </span>
                 {o.title}
               </div>
-              <div className="small ml-[28px] mt-[9px]">{o.text}</div>
+              <div className="small !text-[14px] ml-[30px] mt-[8px]">{o.text}</div>
             </button>
           );
         })}

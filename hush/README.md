@@ -1,7 +1,7 @@
 # hush. — Telegram Mini App
 
 Анонимные анкеты «что о тебе думают друзья». React + TypeScript + Vite + Tailwind CSS + Lucide + Motion.
-Дизайн — `design/` (скриншоты `design/screens/*.png`, `design/design-reference.html`, спецификация `design/CLAUDE.md`).
+Дизайн — `design/`: актуальные макеты шрифтов и иконок `design/v2/*.png`, исходные скриншоты `design/screens/*.png`, `design/design-reference.html`, спецификация `design/CLAUDE.md`.
 
 ## Запуск локально
 

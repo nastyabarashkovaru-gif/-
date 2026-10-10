@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, type PanInfo } from 'motion/react';
-import { ArrowRight, CircleDot } from 'lucide-react';
+import { ArrowRight, CircleDot, Lock, LockOpen, Send } from 'lucide-react';
 import { usingMock, type RespondentView } from '@/api';
 import { RESULTS_THRESHOLD } from '@/api/mock';
 import { cn } from '@/lib/cn';
@@ -63,46 +63,55 @@ export function DashboardScreen({ qid }: { qid: string }) {
 function WaitingView({ qid, count }: { qid: string; count: number }) {
   const nav = useNav();
   const share = useShare(qid);
-  const verb = count === 1 ? 'ответил' : 'ответили';
+  const left = RESULTS_THRESHOLD - count;
 
   return (
     <Screen fixed>
       <TopBar right={<SettingsButton onClick={() => nav.push({ name: 'settings' })} />} />
-      <h1 className="h1 mt-[35px]">Твои ответы уже близко 👀</h1>
-      <p className="muted">Друзья постепенно раскрывают, что думают о тебе.</p>
+      <div className="mt-[28px] flex flex-col gap-[8px] text-center">
+        <h1 className="h1">Твои ответы уже близко 👀</h1>
+        <p className="muted !text-[16px]">Друзья постепенно раскрывают, что думают о тебе.</p>
+      </div>
       <Spacer />
-      <div className="text-center">
-        <div className="h-[99px] text-[82px] font-extrabold leading-[99px] tracking-[-5px]" aria-label={`${count} из ${RESULTS_THRESHOLD}`}>
+      <div className="flex flex-col items-center gap-[10px] text-center">
+        <div className="flex items-baseline gap-[6px]" aria-label={`${count} из ${RESULTS_THRESHOLD}`}>
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.span
               key={count}
-              className="inline-block align-top"
-              initial={{ y: 24, opacity: 0 }}
+              className="inline-block text-[44px] font-semibold leading-none"
+              initial={{ y: 18, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -24, opacity: 0 }}
+              exit={{ y: -18, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 400, damping: 28 }}
             >
               {count}
             </motion.span>
           </AnimatePresence>
-          <span className="text-[38px] text-[#6c6574]">/{RESULTS_THRESHOLD}</span>
+          <span className="text-[26px] font-medium leading-none text-[#77737f]">/{RESULTS_THRESHOLD}</span>
         </div>
-        <p className="muted">
-          {plural(count, ['человек', 'человека', 'человек'])} уже {verb}
+        <p className="text-[18px] font-medium text-purple-text">
+          {plural(count, ['человек', 'человека', 'человек'])} {count === 1 ? 'ответил' : 'ответили'}
         </p>
       </div>
       <Segments filled={count} label="Ответили друзей" />
+      <p className="small !text-[14px] -mt-[4px] text-center">
+        Ещё {left} {plural(left, ['ответ', 'ответа', 'ответов'])} до открытия
+      </p>
       <Spacer />
-      <div className="card shrink-0">
-        <div className="mb-[10px] text-[15px] font-bold">Почему ответы пока скрыты?</div>
+      <div className="card flex shrink-0 flex-col gap-[8px]">
+        <div className="flex items-center gap-[10px] text-[17px] font-medium">
+          <Lock size={19} strokeWidth={1.8} className="shrink-0 text-purple" aria-hidden />
+          Почему ответы пока скрыты?
+        </div>
         <p className="muted">
-          Мы откроем ответы, когда анкету заполнят минимум 5 человек. Так сложнее догадаться, кто что написал, и проще
-          сохранить анонимность ответов.
+          Мы откроем ответы, когда анкету заполнят минимум 5 человек. Так сложнее догадаться, кто и что написал, и друзьям
+          проще отвечать честно.
         </p>
       </div>
-      <Cta icon="upRight" onClick={share}>
+      <Cta leading={<Send size={20} strokeWidth={1.8} />} onClick={share}>
         Поделиться ещё раз
       </Cta>
+      <p className="small !text-[14px] text-center">Отправь анкету ещё нескольким друзьям, чтобы быстрее открыть ответы.</p>
     </Screen>
   );
 }
@@ -195,10 +204,10 @@ function ResultsView({ qid, version }: { qid: string; version: string }) {
           onClick={() => go(1)}
           disabled={total < 2}
           aria-label="Следующий аноним"
-          className="small -mr-2 flex items-center gap-[14px] px-2 py-2 tabular-nums active:opacity-60"
+          className="small !text-[15px] -mr-2 flex items-center gap-[8px] px-2 py-2 tabular-nums active:opacity-60"
         >
           {index + 1} / {total}
-          <ArrowRight size={14} strokeWidth={2} aria-hidden />
+          <ArrowRight size={16} strokeWidth={1.8} className="text-purple" aria-hidden />
         </button>
       </div>
 
@@ -243,7 +252,7 @@ export function AnswerList({ answers, compact }: { answers: RespondentView['answ
         <div key={a.questionId} className="contents">
           {i > 0 && <div className={cn('divider', compact ? 'my-[7px]' : '!bg-transparent')} />}
           <p className="small">{a.question}</p>
-          <p className="text-[13px] leading-[1.6] text-[#f5f3f7]">{a.text}</p>
+          <p className="text-[16px] leading-[1.4] text-[#f5f3f7]">{a.text}</p>
         </div>
       ))}
     </>
@@ -264,8 +273,9 @@ function RespondentCard({ respondent, onUnlock, onReveal }: { respondent: Respon
           {locked.map((a) => (
             <button key={a.questionId} type="button" onClick={onUnlock} className="flex flex-col gap-[12px] text-left">
               <span className="small">{a.question}</span>
-              <span className="flex items-center gap-[9px] text-[12px] text-[#8f8b96]">
-                <span aria-hidden>🔒</span>Ответ доступен по подписке
+              <span className="flex items-center gap-[8px] text-[14px] text-[#8f8b96]">
+                <Lock size={15} strokeWidth={1.8} className="text-purple" aria-hidden />
+                Ответ доступен по подписке
               </span>
             </button>
           ))}
@@ -274,12 +284,12 @@ function RespondentCard({ respondent, onUnlock, onReveal }: { respondent: Respon
       <div className="mt-auto flex flex-col gap-[10px] pt-[4px]">
         {locked.length > 0 && (
           <button type="button" onClick={onUnlock} className="cta-dark">
-            <span aria-hidden>🔓</span> Посмотреть скрытые ответы
+            <LockOpen size={18} strokeWidth={1.8} className="text-purple" aria-hidden /> Посмотреть скрытые ответы
           </button>
         )}
-        <button type="button" onClick={onReveal} className="mx-auto flex items-center gap-[6px] px-2 py-1 text-[13px] font-semibold text-purple-text active:opacity-60">
+        <button type="button" onClick={onReveal} className="mx-auto flex items-center gap-[6px] px-2 py-1 text-[15px] font-medium text-purple-text active:opacity-60">
           Узнать, кто это написал 👀
-          <ArrowRight size={13} strokeWidth={2.4} aria-hidden />
+          <ArrowRight size={16} strokeWidth={1.8} aria-hidden />
         </button>
       </div>
     </div>

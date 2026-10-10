@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ChevronRight, Crown, User } from 'lucide-react';
+import { ChevronRight, CreditCard, Crown, ListChecks, LockOpen, MessageCircle, User } from 'lucide-react';
 import { config } from '@/config';
 import { PLAN_SUBTITLE, planById } from '@/data/plans';
 import { cn } from '@/lib/cn';
@@ -8,20 +8,20 @@ import { haptic, openExternal } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { api } from '@/api';
-import { BackArrow, BigIcon, Cta, DotIcon, RowsIcon, Screen, Spacer, SquareDotIcon, useToast } from '@/ui';
+import { BackArrow, BigIcon, Cta, Screen, Spacer, useToast } from '@/ui';
 
 function PageHeader({ title }: { title: string }) {
   const nav = useNav();
   return (
     <header className="top !justify-start">
       <BackArrow onClick={() => nav.back()} />
-      <h1 className="ml-[18px] text-[20px] font-bold">{title}</h1>
+      <h1 className="ml-[16px] text-[22px] font-bold">{title}</h1>
     </header>
   );
 }
 
 const Status = ({ active }: { active: boolean }) => (
-  <span className={cn('text-[12px]', active ? 'text-green' : 'text-small')}>{active ? 'Активна' : 'Не активна'}</span>
+  <span className={cn('text-[14px]', active ? 'text-green' : 'text-small')}>{active ? 'Активна' : 'Не активна'}</span>
 );
 
 /** Метка демо-состояния подписки — не от платёжного провайдера */
@@ -52,7 +52,7 @@ export function SettingsScreen() {
       <div className="card flex flex-col gap-[11px]">
         <div className="flex items-start justify-between">
           <b className="flex items-center gap-[7px]">
-            <Crown size={16} strokeWidth={2} fill="currentColor" aria-hidden /> HUSH Premium
+            <Crown size={19} strokeWidth={1.8} className="text-purple" aria-hidden /> HUSH Premium
           </b>
           <Status active={!!plan} />
         </div>
@@ -64,7 +64,7 @@ export function SettingsScreen() {
             haptic.tap();
             nav.push(plan ? { name: 'subscription' } : { name: 'premium' });
           }}
-          className="flex items-center justify-center gap-[12px] rounded-[12px] bg-[#1d1b23] p-[14px] text-center text-[13px] active:opacity-70"
+          className="flex items-center justify-center gap-[12px] rounded-[14px] bg-[#1f1d26] p-[14px] text-center text-[16px] active:opacity-70"
         >
           {plan ? 'Управлять подпиской' : 'Оформить подписку'}
           <ChevronRight size={14} strokeWidth={2} aria-hidden />
@@ -72,11 +72,11 @@ export function SettingsScreen() {
       </div>
 
       <nav className="card">
-        <SettingRow icon={<RowsIcon size={19} />} label="Мои анкеты" onClick={() => nav.push({ name: 'myQuestionnaires' })} />
+        <SettingRow icon={<ListChecks size={21} strokeWidth={1.8} />} label="Мои анкеты" onClick={() => nav.push({ name: 'myQuestionnaires' })} />
         <div className="divider" />
-        <SettingRow icon={<SquareDotIcon size={19} />} label="Подписка и платежи" onClick={() => nav.push({ name: 'subscription' })} />
+        <SettingRow icon={<CreditCard size={21} strokeWidth={1.8} />} label="Подписка и платежи" onClick={() => nav.push({ name: 'subscription' })} />
         <div className="divider" />
-        <SettingRow icon={<DotIcon size={19} />} label="Поддержка" onClick={support} />
+        <SettingRow icon={<MessageCircle size={21} strokeWidth={1.8} />} label="Поддержка" onClick={support} />
       </nav>
 
       <Spacer />
@@ -93,13 +93,13 @@ function SettingRow({ icon, label, onClick }: { icon: ReactNode; label: string; 
         haptic.tap();
         onClick();
       }}
-      className="flex min-h-[50px] w-full items-center gap-[13px] py-[13px] text-left text-[14px] active:opacity-60"
+      className="flex min-h-[52px] w-full items-center gap-[14px] py-[13px] text-left text-[17px] active:opacity-60"
     >
       <span className="text-purple-menu" aria-hidden>
         {icon}
       </span>
       {label}
-      <ChevronRight size={14} strokeWidth={2} className="ml-auto text-[#777]" aria-hidden />
+      <ChevronRight size={18} strokeWidth={1.8} className="ml-auto text-[#77737f]" aria-hidden />
     </button>
   );
 }
@@ -147,7 +147,9 @@ export function SubscriptionScreen() {
           <p className="muted">Отменить подписку можно в любой момент в настройках профиля.</p>
         </>
       ) : (
-        <Cta onClick={() => nav.push({ name: 'premium' })}>🔓 Открыть всё 😍</Cta>
+        <Cta leading={<LockOpen size={20} strokeWidth={1.8} className="text-green" />} onClick={() => nav.push({ name: 'premium' })}>
+          Открыть всё 😍
+        </Cta>
       )}
 
       <Spacer />
@@ -205,7 +207,7 @@ export function MyQuestionnairesScreen() {
                 <div className="min-w-0 flex-1">
                   <b className="block text-[14px]">Анкета от {date}</b>
                   <div className="small mt-[3px] truncate">{q.questions[0]?.text}</div>
-                  <div className={cn('mt-[8px] text-[12px] font-semibold', n >= 5 ? 'text-green' : 'text-purple-text')}>
+                  <div className={cn('mt-[8px] text-[14px] font-medium', n >= 5 ? 'text-green' : 'text-purple-text')}>
                     {n >= 5 ? `Ответы открыты · ${n} ${plural(n, ['ответ', 'ответа', 'ответов'])}` : `${n} из 5 ответов`}
                   </div>
                 </div>

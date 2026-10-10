@@ -95,10 +95,10 @@ export function SelectQuestionsScreen() {
       />
       <h1 className="h1">Что хочешь узнать о себе?</h1>
       <p className="muted">Выбери 5 вопросов, на которые друзья ответят анонимно.</p>
-      <motion.div animate={counter} className="flex shrink-0 justify-between text-[13px]">
-        <b>
+      <motion.div animate={counter} className="flex shrink-0 justify-between text-[15px]">
+        <span className="font-semibold">
           Выбрано {count} из {QUESTIONS_REQUIRED}
-        </b>
+        </span>
         <span className="text-purple-text">
           {count} / {QUESTIONS_REQUIRED}
         </span>
@@ -119,7 +119,7 @@ export function SelectQuestionsScreen() {
                 aria-pressed={isOn}
                 onClick={() => toggle(q)}
                 className={cn(
-                  'flex w-full shrink-0 items-center rounded-[12px] border px-[13px] py-[14px] text-left text-[13px] leading-[1.4] transition-colors duration-200 active:scale-[0.99]',
+                  'flex w-full shrink-0 items-center rounded-[12px] border px-[13px] py-[14px] text-left text-[15px] leading-[1.35] transition-colors duration-200 active:scale-[0.99]',
                   isOn ? 'border-purple bg-[#1a1223]' : 'border-line bg-[#101013]',
                 )}
               >
@@ -127,13 +127,13 @@ export function SelectQuestionsScreen() {
                   {isOn && (
                     <motion.span
                       initial={{ width: 0, opacity: 0 }}
-                      animate={{ width: 24, opacity: 1 }}
+                      animate={{ width: 28, opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.18 }}
                       className="flex shrink-0 overflow-hidden text-purple-check"
                       aria-hidden
                     >
-                      <Check size={14} strokeWidth={2.4} className="shrink-0" />
+                      <Check size={17} strokeWidth={2} className="shrink-0" />
                     </motion.span>
                   )}
                 </AnimatePresence>
@@ -154,7 +154,7 @@ export function SelectQuestionsScreen() {
               rows={2}
               placeholder="Напиши свой вопрос"
               aria-label="Свой вопрос"
-              className="w-full resize-none bg-transparent text-[13px] leading-[1.4] text-white outline-none placeholder:text-[#77717f]"
+              className="w-full resize-none bg-transparent text-[15px] leading-[1.35] text-white outline-none placeholder:text-[#77717f]"
             />
             <div className="flex items-center justify-between">
               <button type="button" onClick={() => setComposing(false)} className="small px-1 py-1">
@@ -164,7 +164,7 @@ export function SelectQuestionsScreen() {
                 type="button"
                 onClick={addCustom}
                 disabled={!draft.trim()}
-                className="rounded-[10px] bg-white px-4 py-2 text-[12px] font-extrabold text-[#121017] transition-opacity disabled:opacity-30"
+                className="rounded-[10px] bg-white px-4 py-2 text-[14px] font-medium text-[#121017] transition-opacity disabled:opacity-30"
               >
                 Добавить
               </button>
@@ -174,7 +174,7 @@ export function SelectQuestionsScreen() {
           <button
             type="button"
             onClick={openCustom}
-            className="flex w-full shrink-0 items-center gap-[10px] rounded-[12px] border border-dashed border-[#4a3b5c] bg-[#101013] px-[13px] py-[14px] text-left text-[13px] font-semibold leading-[1.4] text-purple-text active:scale-[0.99]"
+            className="flex w-full shrink-0 items-center gap-[10px] rounded-[12px] border border-dashed border-[#4a3b5c] bg-[#101013] px-[13px] py-[14px] text-left text-[15px] font-medium leading-[1.35] text-purple-text active:scale-[0.99]"
           >
             <Plus size={15} strokeWidth={2.4} aria-hidden />
             <span className="flex-1">Придумать свой вопрос</span>

@@ -16,7 +16,8 @@ export default {
         divider: '#2B2930',
       },
       fontFamily: {
-        sans: ['"Inter Variable"', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Arial', 'sans-serif'],
+        // Системный шрифт как в макетах: SF Pro на iOS/macOS, Roboto на Android; Inter — запасной
+        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', '"SF Pro Display"', '"Segoe UI"', 'Roboto', '"Inter Variable"', 'Inter', 'Arial', 'sans-serif'],
       },
       maxWidth: { app: '430px' },
     },
