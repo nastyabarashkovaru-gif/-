@@ -7,6 +7,7 @@ import { config } from './config';
 import { migrate, pool } from './db';
 import { legal } from './legal';
 import { api } from './routes';
+import { runTestSeed } from './testSeed';
 import { handleUpdate, setupBot, webhookSecret } from './telegram';
 
 async function main() {
@@ -64,7 +65,7 @@ async function main() {
   app.listen(config.port, () => {
     console.log(`[server] http://localhost:${config.port}`);
     console.log(`[billing] CloudPayments: ${billingEnabled ? 'подключён' : 'не настроен (CP_PUBLIC_ID / CP_API_SECRET)'}`);
-    void setupBot();
+    void setupBot().then(() => runTestSeed().catch((e) => console.error('[test] не удалось:', e)));
   });
 }
 
