@@ -7,7 +7,7 @@ export interface Question {
   custom?: boolean;
 }
 
-/** Каталог готовых вопросов (21+). Общий для приложения и сервера: shared/questions.json */
+/** Каталог вопросов (10, свои вопросы не задаются). Общий для приложения и сервера: shared/questions.json */
 export const QUESTIONS: Question[] = catalog;
 
 export const QUESTIONS_REQUIRED = 5;

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useAnimationControls } from 'motion/react';
-import { Check, Lock, Plus } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { api, ApiError } from '@/api';
-import { CUSTOM_QUESTION_MAX, QUESTIONS, QUESTIONS_REQUIRED, type Question } from '@/data/questions';
+import { QUESTIONS, QUESTIONS_REQUIRED, type Question } from '@/data/questions';
 import { cn } from '@/lib/cn';
 import { haptic, requestWriteAccess } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
@@ -10,28 +10,23 @@ import { useAppState } from '@/state/AppState';
 import { BackArrow, Cta, Screen, Segments, TopBar, useToast } from '@/ui';
 
 /** Черновик выбора переживает переход на Premium и обратно */
-const draftStore: { selected: Question[]; custom: Question[] } = { selected: [], custom: [] };
+const draftStore: { selected: Question[] } = { selected: [] };
 
 /** 02 — выбор ровно пяти вопросов */
 export function SelectQuestionsScreen() {
   const nav = useNav();
   const toast = useToast();
-  const { isPremium, refresh } = useAppState();
+  const { refresh } = useAppState();
   const [selected, setSelected] = useState<Question[]>(draftStore.selected);
-  const [custom, setCustom] = useState<Question[]>(draftStore.custom);
-  const [composing, setComposing] = useState(false);
-  const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const counter = useAnimationControls();
 
   useEffect(() => {
     draftStore.selected = selected;
-    draftStore.custom = custom;
-  }, [selected, custom]);
+  }, [selected]);
 
   const count = selected.length;
   const full = count >= QUESTIONS_REQUIRED;
-  const list = [...custom, ...QUESTIONS];
 
   const tooMany = () => {
     haptic.notify('warning');
@@ -50,33 +45,12 @@ export function SelectQuestionsScreen() {
     setSelected((s) => [...s, q]);
   };
 
-  const openCustom = () => {
-    if (!isPremium) {
-      nav.push({ name: 'premium' });
-      return;
-    }
-    if (full) return tooMany();
-    setComposing(true);
-  };
-
-  const addCustom = () => {
-    const text = draft.trim().replace(/\s+/g, ' ');
-    if (!text) return;
-    const q: Question = { id: `custom-${Date.now()}`, text, custom: true };
-    setCustom((c) => [q, ...c]);
-    setSelected((s) => [...s, q]);
-    setDraft('');
-    setComposing(false);
-    haptic.notify('success');
-  };
-
   const submit = async () => {
     if (!full) return;
     setSaving(true);
     try {
       const created = await api.createQuestionnaire(selected);
       draftStore.selected = [];
-      draftStore.custom = [];
       await refresh();
       haptic.notify('success');
       nav.reset({ name: 'share', qid: created.id });
@@ -111,14 +85,14 @@ export function SelectQuestionsScreen() {
 
       <div className="no-scrollbar -mx-[23px] flex min-h-[200px] !shrink flex-1 flex-col gap-[9px] overflow-y-auto px-[23px] pb-1" role="group" aria-label="Вопросы">
         <AnimatePresence initial={false}>
-          {list.map((q) => {
+          {QUESTIONS.map((q) => {
             const isOn = selected.some((s) => s.id === q.id);
             return (
               <motion.button
                 key={q.id}
                 type="button"
                 layout="position"
-                initial={q.custom ? { opacity: 0, y: -8 } : false}
+                initial={false}
                 animate={{ opacity: 1, y: 0 }}
                 aria-pressed={isOn}
                 onClick={() => toggle(q)}
@@ -147,44 +121,6 @@ export function SelectQuestionsScreen() {
           })}
         </AnimatePresence>
 
-        {/* Свои вопросы — только Premium */}
-        {composing ? (
-          <div className="flex shrink-0 flex-col gap-[10px] rounded-[12px] border border-purple bg-[#1a1223] p-[13px]">
-            <textarea
-              autoFocus
-              value={draft}
-              maxLength={CUSTOM_QUESTION_MAX}
-              onChange={(e) => setDraft(e.target.value)}
-              rows={2}
-              placeholder="Напиши свой вопрос"
-              aria-label="Свой вопрос"
-              className="w-full resize-none bg-transparent text-[15px] leading-[1.35] text-white outline-none placeholder:text-[#77717f]"
-            />
-            <div className="flex items-center justify-between">
-              <button type="button" onClick={() => setComposing(false)} className="small px-1 py-1">
-                Отмена
-              </button>
-              <button
-                type="button"
-                onClick={addCustom}
-                disabled={!draft.trim()}
-                className="rounded-[10px] bg-white px-4 py-2 text-[14px] font-medium text-[#121017] transition-opacity disabled:opacity-30"
-              >
-                Добавить
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={openCustom}
-            className="flex w-full shrink-0 items-center gap-[10px] rounded-[12px] border border-dashed border-[#4a3b5c] bg-[#101013] px-[13px] py-[14px] text-left text-[15px] font-medium leading-[1.35] text-purple-text active:scale-[0.99]"
-          >
-            <Plus size={15} strokeWidth={2.4} aria-hidden />
-            <span className="flex-1">Придумать свой вопрос</span>
-            {!isPremium && <Lock size={13} strokeWidth={2.2} className="text-small" aria-label="Premium" />}
-          </button>
-        )}
       </div>
 
       <Cta icon="right" disabled={!full} loading={saving} onClick={submit}>
