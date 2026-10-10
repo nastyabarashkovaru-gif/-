@@ -1,0 +1,70 @@
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/manrope';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  html,
+  body {
+    @apply bg-bg text-text font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    overscroll-behavior-y: none;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  #root {
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    background: rgba(137, 92, 246, 0.35);
+  }
+
+  :focus-visible {
+    outline: 2px solid theme('colors.accentSoft');
+    outline-offset: 2px;
+  }
+
+  button {
+    touch-action: manipulation;
+  }
+}
+
+@layer utilities {
+  .pt-safe {
+    padding-top: var(--safe-top);
+  }
+  .pb-safe {
+    padding-bottom: max(var(--safe-bottom), 12px);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
