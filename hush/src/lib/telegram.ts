@@ -16,7 +16,7 @@ export interface TelegramUser {
 
 interface TelegramWebApp {
   initData: string;
-  initDataUnsafe?: { user?: TelegramUser; start_param?: string };
+  initDataUnsafe?: { user?: TelegramUser & { allows_write_to_pm?: boolean }; start_param?: string };
   platform?: string;
   version?: string;
   ready?: () => void;
@@ -28,6 +28,7 @@ interface TelegramWebApp {
   setBottomBarColor?: (color: string) => void;
   openTelegramLink?: (url: string) => void;
   openLink?: (url: string) => void;
+  requestWriteAccess?: (cb?: (granted: boolean) => void) => void;
   BackButton?: {
     show: () => void;
     hide: () => void;
@@ -123,3 +124,17 @@ export const haptic = {
     safe(() => webApp()?.HapticFeedback?.notificationOccurred?.(type));
   },
 };
+
+/** Просим разрешение на сообщения от бота (уведомление «5 друзей ответили») */
+export function requestWriteAccess(): Promise<boolean> {
+  const app = webApp();
+  if (!app?.requestWriteAccess || !app.isVersionAtLeast?.('6.9')) return Promise.resolve(false);
+  if (app.initDataUnsafe?.user?.allows_write_to_pm) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    try {
+      app.requestWriteAccess!((granted) => resolve(granted));
+    } catch {
+      resolve(false);
+    }
+  });
+}

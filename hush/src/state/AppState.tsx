@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { api, type Bootstrap } from '@/api';
+import { api, ApiError, type ApiErrorCode, type Bootstrap } from '@/api';
+import { config } from '@/config';
 
 interface AppStateValue extends Bootstrap {
   isPremium: boolean;
@@ -8,7 +9,7 @@ interface AppStateValue extends Bootstrap {
 
 const AppStateContext = createContext<AppStateValue | null>(null);
 
-type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; data: Bootstrap };
+type LoadState = { status: 'loading' } | { status: 'error'; code: ApiErrorCode } | { status: 'ready'; data: Bootstrap };
 
 export function AppStateProvider({
   children,
@@ -17,16 +18,21 @@ export function AppStateProvider({
 }: {
   children: ReactNode;
   fallback: ReactNode;
-  error: (retry: () => void) => ReactNode;
+  error: (retry: () => void, code: ApiErrorCode) => ReactNode;
 }) {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
 
   const refresh = useCallback(async () => {
     try {
       const data = await api.bootstrap();
+      if (data.app) {
+        config.botUsername = data.app.botUsername || config.botUsername;
+        config.appShortName = data.app.appShortName || config.appShortName;
+      }
       setState({ status: 'ready', data });
-    } catch {
-      setState((s) => (s.status === 'ready' ? s : { status: 'error' }));
+    } catch (e) {
+      const code = e instanceof ApiError ? e.code : 'network';
+      setState((s) => (s.status === 'ready' ? s : { status: 'error', code }));
     }
   }, []);
 
@@ -45,7 +51,7 @@ export function AppStateProvider({
         {error(() => {
           setState({ status: 'loading' });
           void refresh();
-        })}
+        }, state.code)}
       </>
     );
 

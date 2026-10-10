@@ -1,7 +1,19 @@
-# Подключение backend
+# Backend
 
-Клиент уже готов: задайте `VITE_API_URL` и `VITE_DEMO=false` — вместо mock начнёт работать `src/api/http.ts`.
-Контракт и типы — `src/api/types.ts`. Эталонная реализация правил — `src/api/mock.ts`.
+Реализован в `hush/server/` (Node.js + Express + PostgreSQL), деплой — [`../DEPLOY.md`](../DEPLOY.md).
+Сервер раздаёт приложение (`npm run build:server-app` → `VITE_DEMO=false`) на том же домене, поэтому `VITE_API_URL` не нужен.
+Контракт и типы — `src/api/types.ts`; демо-mock `src/api/mock.ts` повторяет те же правила.
+
+| Файл | Что делает |
+|---|---|
+| `server/src/auth.ts` | проверка подписи initData, срок 24 ч, upsert пользователя |
+| `server/src/routes.ts` | все эндпоинты и бизнес-правила |
+| `server/src/db.ts` | схема (создаётся при старте) |
+| `server/src/telegram.ts` | webhook, `/start`, кнопка меню, уведомление о 5 ответах |
+| `shared/questions.json` | каталог вопросов, общий для приложения и сервера |
+
+Переменные: `BOT_TOKEN`, `DATABASE_URL` (обязательно), `PUBLIC_URL` (на Railway берётся из `RAILWAY_PUBLIC_DOMAIN`),
+`BOT_USERNAME` (иначе из getMe), `APP_SHORT_NAME`, `GRANT_PREMIUM_IDS` (годовой Premium для тестов, пока нет оплаты).
 
 ## Авторизация
 
@@ -19,6 +31,9 @@
 | POST | `/api/questionnaires/:id/respondents/:rid/reveal` | `RevealResult` |
 | GET | `/api/public/questionnaires/:id` | `PublicQuestionnaire`; ошибки `not_found`, `own_questionnaire`, `already_answered` |
 | POST | `/api/public/questionnaires/:id/responses` | `SubmitPayload` → 204 |
+| POST | `/api/me/write-access` | пользователь разрешил боту писать (для уведомлений) |
+| POST | `/api/telegram/webhook` | обновления бота, защищены `X-Telegram-Bot-Api-Secret-Token` |
+| GET | `/api/health` | `{ ok: true }` |
 
 Ошибки: HTTP 4xx с телом `{ "code": ApiErrorCode }`.
 

@@ -40,4 +40,5 @@ export const httpApi: HushApi = {
   startCheckout: async () => ({ status: 'unavailable' }),
   restorePurchases: async () => ({ status: 'unavailable' }),
   setAutoRenew: async () => ({ status: 'unavailable' }),
+  grantWriteAccess: () => request('POST', '/api/me/write-access'),
 };

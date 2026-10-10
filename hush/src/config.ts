@@ -1,5 +1,6 @@
 const env = import.meta.env;
 
+/** botUsername / appShortName обновляются из ответа backend (/api/me) */
 export const config = {
   /** Демо-режим: локальный mock API с явно помеченными демо-данными и панель DEMO. */
   demo: env.VITE_DEMO !== 'false',

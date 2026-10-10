@@ -18,6 +18,7 @@ import {
 import { getTelegramUser } from '@/lib/telegram';
 import {
   ApiError,
+  RESULTS_THRESHOLD,
   type BillingResult,
   type Bootstrap,
   type ConsentRecord,
@@ -30,7 +31,6 @@ import {
 } from './types';
 
 const STORAGE_KEY = 'hush.demo.v1';
-export const RESULTS_THRESHOLD = 5;
 const FREE_VISIBLE_ANSWERS = 2;
 const FREE_QUESTIONNAIRES = 1;
 
@@ -221,6 +221,7 @@ export const mockApi: HushApi = {
     await delay(200);
     return { status: 'unavailable' };
   },
+  async grantWriteAccess() {},
 };
 
 /* ───────────────────────── Управление демо-данными ───────────────────────── */

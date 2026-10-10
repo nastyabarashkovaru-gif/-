@@ -1,8 +1,8 @@
-import { useEffect, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion, MotionConfig } from 'motion/react';
+import { Send, WifiOff } from 'lucide-react';
 import { usingMock } from '@/api';
 import { config } from '@/config';
-import { DemoPanel } from '@/demo/DemoPanel';
 import { getStartParam } from '@/lib/telegram';
 import { NavigatorProvider, useNav } from '@/nav/Navigator';
 import { routeKey, type Route } from '@/nav/routes';
@@ -17,6 +17,9 @@ import { SuccessScreen } from '@/screens/Success';
 import { WelcomeScreen } from '@/screens/Welcome';
 import { AppStateProvider, useAppState } from '@/state/AppState';
 import { LoadingScreen, MessageScreen, ToastProvider } from '@/ui';
+
+// Демо-панель грузится отдельно и не попадает в production-сборку
+const DemoPanel = /* @__PURE__ */ lazy(() => import('@/demo/DemoPanel').then((m) => ({ default: m.DemoPanel })));
 
 function renderRoute(route: Route) {
   switch (route.name) {
@@ -92,7 +95,11 @@ function Root() {
   return (
     <NavigatorProvider initial={initial}>
       <Router />
-      {config.demo && usingMock && <DemoPanel />}
+      {usingMock && (
+        <Suspense fallback={null}>
+          <DemoPanel />
+        </Suspense>
+      )}
     </NavigatorProvider>
   );
 }
@@ -104,15 +111,25 @@ export function App() {
         <div className="relative mx-auto w-full max-w-app overflow-x-clip bg-black min-[470px]:border-x min-[470px]:border-[#1c1a21]">
           <AppStateProvider
             fallback={<LoadingScreen />}
-            error={(retry) => (
-              <MessageScreen
-                icon={<span className="text-[28px]">!</span>}
-                title="Не удалось загрузить"
-                text="Проверь соединение и попробуй ещё раз."
-                action="Повторить"
-                onAction={retry}
-              />
-            )}
+            error={(retry, code) =>
+              code === 'unauthorized' ? (
+                <MessageScreen
+                  icon={<Send size={26} strokeWidth={1.8} />}
+                  title="Открой hush. в Telegram"
+                  text="Приложение работает внутри Telegram — так мы узнаём, что это именно ты."
+                  action="Открыть в Telegram"
+                  onAction={() => window.location.assign(`https://t.me/${config.botUsername}/${config.appShortName}`)}
+                />
+              ) : (
+                <MessageScreen
+                  icon={<WifiOff size={26} strokeWidth={1.8} />}
+                  title="Не удалось загрузить"
+                  text="Проверь соединение и попробуй ещё раз."
+                  action="Повторить"
+                  onAction={retry}
+                />
+              )
+            }
           >
             <Root />
           </AppStateProvider>

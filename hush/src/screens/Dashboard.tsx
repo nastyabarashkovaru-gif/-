@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, type PanInfo } from 'motion/react';
 import { ArrowRight, CircleDot, Lock, LockOpen, Send } from 'lucide-react';
-import { usingMock, type RespondentView } from '@/api';
-import { RESULTS_THRESHOLD } from '@/api/mock';
+import { RESULTS_THRESHOLD, usingMock, type RespondentView } from '@/api';
 import { cn } from '@/lib/cn';
 import { plural } from '@/lib/plural';
 import { haptic } from '@/lib/telegram';

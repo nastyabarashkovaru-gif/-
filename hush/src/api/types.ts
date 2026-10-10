@@ -109,6 +109,8 @@ export interface Bootstrap {
   me: Me;
   entitlement: Entitlement;
   questionnaires: QuestionnaireSummary[];
+  /** Имя бота и short name Mini App — для ссылок на анкеты */
+  app?: { botUsername: string; appShortName: string };
 }
 
 export interface HushApi {
@@ -125,7 +127,12 @@ export interface HushApi {
   startCheckout(plan: PlanId): Promise<BillingResult>;
   restorePurchases(): Promise<BillingResult>;
   setAutoRenew(enabled: boolean): Promise<BillingResult>;
+  /** Пользователь разрешил боту присылать уведомления */
+  grantWriteAccess(): Promise<void>;
 }
+
+/** Порог уникальных ответов до открытия результатов */
+export const RESULTS_THRESHOLD = 5;
 
 /** Текущая версия текста согласия на экране 08b */
 export const DISCLOSURE_VERSION = '2026-10-v1';

@@ -66,4 +66,21 @@ src/
   screens/    экраны
 ```
 
-Подключение backend — см. [`docs/BACKEND.md`](docs/BACKEND.md).
+## Backend (`server/`)
+
+Node.js + Express + PostgreSQL. Сервер проверяет подпись Telegram initData, хранит анкеты, ответы и согласия,
+отдаёт собранное приложение и управляет ботом (webhook, `/start`, кнопка меню, уведомление о 5 ответах).
+Правила и эндпоинты — [`docs/BACKEND.md`](docs/BACKEND.md).
+
+**Запуск в Telegram (Railway, без терминала):** [`DEPLOY.md`](DEPLOY.md).
+
+Локально (нужен PostgreSQL):
+
+```bash
+cd hush && npm install && npm --prefix server install
+npm run build:server-app                      # приложение без демо-данных
+cp server/.env.example server/.env            # BOT_TOKEN, DATABASE_URL
+npm run server:dev                            # http://localhost:8080
+```
+
+Вне Telegram сервер отвечает 401 — приложение покажет «Открой hush. в Telegram».

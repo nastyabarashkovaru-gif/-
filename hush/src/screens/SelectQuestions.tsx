@@ -4,7 +4,7 @@ import { Check, Lock, Plus } from 'lucide-react';
 import { api, ApiError } from '@/api';
 import { CUSTOM_QUESTION_MAX, QUESTIONS, QUESTIONS_REQUIRED, type Question } from '@/data/questions';
 import { cn } from '@/lib/cn';
-import { haptic } from '@/lib/telegram';
+import { haptic, requestWriteAccess } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BackArrow, Cta, Screen, Segments, TopBar, useToast } from '@/ui';
@@ -80,6 +80,10 @@ export function SelectQuestionsScreen() {
       await refresh();
       haptic.notify('success');
       nav.reset({ name: 'share', qid: created.id });
+      // Разрешение нужно, чтобы бот прислал уведомление, когда ответят 5 друзей
+      void requestWriteAccess().then((granted) => {
+        if (granted) api.grantWriteAccess().catch(() => {});
+      });
     } catch (e) {
       setSaving(false);
       if (e instanceof ApiError && e.code === 'premium_required') nav.push({ name: 'premium' });
