@@ -1,24 +1,23 @@
 import type { Config } from 'tailwindcss';
-import { colors, fonts, radii, spacing, typeScale } from './src/design/tokens';
 
+/** Токены 1:1 из design/design-reference.html */
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
-      colors,
+      colors: {
+        purple: { DEFAULT: '#A855F7', 2: '#8B5CF6', text: '#B987FF', soft: '#BB91FF', check: '#C396FF', icon: '#C69CFF', menu: '#AE84F1' },
+        green: '#4ADE80',
+        muted: '#A1A1AA',
+        small: '#8E8B97',
+        step: '#A7A0B0',
+        panel: '#121216',
+        line: '#29272F',
+        divider: '#2B2930',
+      },
       fontFamily: {
-        sans: [...fonts.sans],
-        display: [...fonts.display],
+        sans: ['"Inter Variable"', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Arial', 'sans-serif'],
       },
-      fontSize: JSON.parse(JSON.stringify(typeScale)) as Record<string, [string, Record<string, string>]>,
-      borderRadius: radii,
-      spacing: {
-        gutter: spacing.gutter,
-        touch: spacing.touch,
-        btn: spacing.button,
-      },
-      minHeight: { touch: spacing.touch },
-      minWidth: { touch: spacing.touch },
       maxWidth: { app: '430px' },
     },
   },

@@ -7,6 +7,8 @@ Telegram Mini App для фитнес-клуба Андрея — трекер 1
 - **`backend/`** — Node.js + Express + SQLite API (анкеты, прогресс, рейтинг, платежи, админка).
 - **`frontend/`** — React + Vite мини-приложение для Telegram (тёмная тема, неоновый акцент).
 
+- **`hush/`** — отдельный проект: Telegram Mini App HUSH (анонимные анкеты), см. [`hush/README.md`](./hush/README.md).
+
 Подробная пошаговая инструкция по запуску, настройке бота, оплаты и деплою — в файле **[INSTRUCTIONS.md](./INSTRUCTIONS.md)**.
 
 ## Быстрый старт (локально)

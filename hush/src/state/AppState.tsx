@@ -1,107 +1,60 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { buildScenario, makeSurveyLink } from '@/data/scenarios';
-import type { PlanId } from '@/data/pricing';
-import { QUESTIONS_REQUIRED } from '@/data/questions';
-import type { AppData, ScenarioId, Survey } from './types';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { api, type Bootstrap } from '@/api';
 
-const STORAGE_KEY = 'hush.prototype.v1';
-
-function load(): AppData {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as AppData;
-  } catch {
-    /* хранилище недоступно — стартуем с нуля */
-  }
-  return buildScenario('new');
-}
-
-const PERIOD_END: Record<PlanId, string> = {
-  month: '10 ноября 2026',
-  quarter: '10 января 2027',
-  year: '10 октября 2027',
-};
-
-interface AppStateValue {
-  data: AppData;
-  activeSurvey: Survey | null;
+interface AppStateValue extends Bootstrap {
   isPremium: boolean;
-  applyScenario: (id: ScenarioId) => void;
-  toggleDraftQuestion: (id: string) => 'added' | 'removed' | 'limit';
-  createSurveyFromDraft: () => Survey;
-  purchase: (plan: PlanId) => void;
+  refresh(): Promise<void>;
 }
 
 const AppStateContext = createContext<AppStateValue | null>(null);
 
-export function AppStateProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<AppData>(load);
+type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; data: Bootstrap };
 
-  useEffect(() => {
+export function AppStateProvider({
+  children,
+  fallback,
+  error,
+}: {
+  children: ReactNode;
+  fallback: ReactNode;
+  error: (retry: () => void) => ReactNode;
+}) {
+  const [state, setState] = useState<LoadState>({ status: 'loading' });
+
+  const refresh = useCallback(async () => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      const data = await api.bootstrap();
+      setState({ status: 'ready', data });
     } catch {
-      /* noop */
+      setState((s) => (s.status === 'ready' ? s : { status: 'error' }));
     }
-  }, [data]);
-
-  const applyScenario = useCallback((id: ScenarioId) => setData(buildScenario(id)), []);
-
-  const toggleDraftQuestion = useCallback(
-    (id: string) => {
-      const selected = data.draftQuestionIds;
-      if (selected.includes(id)) {
-        setData((d) => ({ ...d, draftQuestionIds: d.draftQuestionIds.filter((q) => q !== id) }));
-        return 'removed' as const;
-      }
-      if (selected.length >= QUESTIONS_REQUIRED) return 'limit' as const;
-      setData((d) => ({ ...d, draftQuestionIds: [...d.draftQuestionIds, id] }));
-      return 'added' as const;
-    },
-    [data.draftQuestionIds],
-  );
-
-  const createSurveyFromDraft = useCallback((): Survey => {
-    const id = Math.random().toString(36).slice(2, 8);
-    const survey: Survey = {
-      id,
-      title: 'Что обо мне думают',
-      questionIds: data.draftQuestionIds,
-      link: makeSurveyLink(id),
-      responses: [],
-    };
-    setData((d) => ({
-      ...d,
-      scenarioId: 'created-empty',
-      surveys: [...d.surveys, survey],
-      activeSurveyId: survey.id,
-      draftQuestionIds: [],
-    }));
-    return survey;
-  }, [data.draftQuestionIds]);
-
-  const purchase = useCallback((plan: PlanId) => {
-    setData((d) => ({ ...d, subscription: { plan, autoRenew: true, periodEnd: PERIOD_END[plan] } }));
   }, []);
 
-  const value = useMemo<AppStateValue>(() => {
-    const activeSurvey = data.surveys.find((s) => s.id === data.activeSurveyId) ?? null;
-    return {
-      data,
-      activeSurvey,
-      isPremium: data.subscription !== null,
-      applyScenario,
-      toggleDraftQuestion,
-      createSurveyFromDraft,
-      purchase,
-    };
-  }, [data, applyScenario, toggleDraftQuestion, createSurveyFromDraft, purchase]);
+  useEffect(() => {
+    void refresh();
+    // Демо-панель и mock сообщают об изменениях данных
+    const onChange = () => void refresh();
+    window.addEventListener('hush:data-changed', onChange);
+    return () => window.removeEventListener('hush:data-changed', onChange);
+  }, [refresh]);
 
+  if (state.status === 'loading') return <>{fallback}</>;
+  if (state.status === 'error')
+    return (
+      <>
+        {error(() => {
+          setState({ status: 'loading' });
+          void refresh();
+        })}
+      </>
+    );
+
+  const value: AppStateValue = { ...state.data, isPremium: state.data.entitlement.plan !== null, refresh };
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 }
 
 export function useAppState(): AppStateValue {
   const ctx = useContext(AppStateContext);
-  if (!ctx) throw new Error('useAppState must be used inside AppStateProvider');
+  if (!ctx) throw new Error('useAppState outside AppStateProvider');
   return ctx;
 }

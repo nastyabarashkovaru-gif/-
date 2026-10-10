@@ -1,16 +1,19 @@
-export type CopyResult = 'copied' | 'failed';
-export type ShareResult = 'shared' | 'copied' | 'cancelled' | 'failed';
+import { openTelegramLink } from './telegram';
 
-export async function copyText(text: string): Promise<CopyResult> {
+/** Текст из макета 03 «Сообщение для друзей». */
+export const SHARE_INTRO = 'Привет! Ответь анонимно на 5 вопросов обо мне 👀';
+export const SHARE_BODY = 'Можно говорить всё, что думаешь — я не узнаю, кто ответил.';
+
+export function shareMessage(link: string): string {
+  return `${SHARE_INTRO}\n\n${SHARE_BODY}\n\n${link}`;
+}
+
+export async function copyText(text: string): Promise<boolean> {
   try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return 'copied';
-    }
+    await navigator.clipboard.writeText(text);
+    return true;
   } catch {
-    /* fallback ниже */
-  }
-  try {
+    // Фолбэк для WebView без Clipboard API
     const area = document.createElement('textarea');
     area.value = text;
     area.setAttribute('readonly', '');
@@ -19,23 +22,25 @@ export async function copyText(text: string): Promise<CopyResult> {
     document.body.appendChild(area);
     area.select();
     const ok = document.execCommand('copy');
-    document.body.removeChild(area);
-    return ok ? 'copied' : 'failed';
-  } catch {
-    return 'failed';
+    area.remove();
+    return ok;
   }
 }
 
-/** Системное «Поделиться», если доступно; иначе — копирование ссылки. */
-export async function shareLink(url: string, text: string): Promise<ShareResult> {
-  if (typeof navigator.share === 'function') {
+export type ShareResult = 'telegram' | 'native' | 'copied' | 'failed';
+
+/** Нативный шаринг Telegram → Web Share API → копирование в буфер. */
+export async function shareQuestionnaire(link: string): Promise<ShareResult> {
+  const text = `${SHARE_INTRO}\n\n${SHARE_BODY}`;
+  const tgUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+  if (openTelegramLink(tgUrl)) return 'telegram';
+  if (navigator.share) {
     try {
-      await navigator.share({ title: 'hush.', text, url });
-      return 'shared';
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled';
+      await navigator.share({ text, url: link });
+      return 'native';
+    } catch (e) {
+      if ((e as DOMException)?.name === 'AbortError') return 'native';
     }
   }
-  const copied = await copyText(`${text} ${url}`);
-  return copied === 'copied' ? 'copied' : 'failed';
+  return (await copyText(shareMessage(link))) ? 'copied' : 'failed';
 }
