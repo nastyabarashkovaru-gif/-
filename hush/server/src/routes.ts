@@ -3,7 +3,7 @@ import { Router, type Request, type Response } from 'express';
 import { catalogQuestion, type Question } from './catalog';
 import { config } from './config';
 import { pool, tx } from './db';
-import { getPlan } from './plans';
+import { getPlan, REVEAL_PRICE } from './plans';
 import { rateLimit } from './rateLimit';
 import { appLink, bot, notifyThresholdReached } from './telegram';
 
@@ -257,13 +257,22 @@ api.post(
       await log('anonymous');
       return { status: 'anonymous' };
     }
-    // 2) Безлимитное раскрытие — только годовой тариф
-    if ((await getPlan(req.user)).plan !== 'year') {
+    // 2) Без подписки раскрытие недоступно
+    const { plan } = await getPlan(req.user);
+    if (!plan) {
       await log('requires_plan');
       return { status: 'requires_plan' };
     }
+    // 3) Годовой — безлимит; 1 и 3 месяца — разовая покупка за 99 ₽ для каждого автора
+    if (plan !== 'year') {
+      const bought = await pool.query('SELECT 1 FROM reveal_purchases WHERE owner_id = $1 AND response_id = $2', [req.user.id, r.id]);
+      if (!bought.rowCount) {
+        await log('requires_purchase');
+        return { status: 'requires_purchase', price: REVEAL_PRICE };
+      }
+    }
     await log('revealed');
-    // 3) Только разрешённые поля профиля
+    // 4) Только разрешённые поля профиля
     return {
       status: 'revealed',
       identity: { firstName: r.first_name, lastName: r.last_name ?? undefined, username: r.username ?? undefined, photoUrl: r.photo_url ?? undefined },

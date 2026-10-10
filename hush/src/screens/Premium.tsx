@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { CircleCheck, LockOpen } from 'lucide-react';
+import { Check, CircleCheck, LockOpen } from 'lucide-react';
 import { api, type UpsellSource } from '@/api';
 import { config } from '@/config';
 import { DEFAULT_PLAN, PLANS, planById, type PlanId } from '@/data/plans';
@@ -17,8 +17,8 @@ const PERIOD: Record<PlanId, string> = { month: 'месяц', quarter: '3 мес
 const BENEFITS = [
   { title: 'Доступ ко всем ответам', text: 'Открой уже полученные и все новые ответы.' },
   { title: 'Безлимит на новые анкеты', text: 'Задавай друзьям новые вопросы сколько захочешь.' },
-  { title: 'Придумывай свои вопросы', text: 'В новых анкетах спрашивай именно то, что давно хотел узнать.' },
-  { title: 'Узнай, кто это написал 👀', text: 'Доступно только на годовом тарифе, если автор разрешил раскрыть профиль.' },
+  { title: 'Придумывай свои вопросы', text: 'Спрашивай именно то, что давно хотел узнать.' },
+  { title: 'Узнай, кто это написал 👀', text: 'Если автор разрешил: на годовом — без ограничений, на остальных — 99 ₽ за автора.', green: true },
 ];
 
 /**
@@ -72,8 +72,8 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
       const active = await waitForActivation();
       await refresh();
       haptic.notify('success');
-      toast.show(active ? 'Подписка оформлена 💜' : 'Оплата прошла — подписка включится в течение пары минут');
-      if (active) close();
+      // Экран поздравления вместо тарифов
+      nav.reset({ name: 'premiumSuccess', pending: !active });
     } catch {
       toast.show('Не удалось открыть оплату. Попробуй ещё раз');
     } finally {
@@ -119,7 +119,7 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.05 + i * 0.05, duration: 0.25 }}
           >
-            <CircleCheck size={20} strokeWidth={1.8} className="mt-[1px] shrink-0 text-purple" aria-hidden />
+            <CircleCheck size={20} strokeWidth={1.8} className={cn('mt-[1px] shrink-0', b.green ? 'text-green' : 'text-purple')} aria-hidden />
             <div className="flex flex-col gap-[4px]">
               <span className="text-[17px] leading-[1.25]">{b.title}</span>
               <span className="text-[14px] leading-[1.35] text-[#9a97a3]">{b.text}</span>
@@ -168,7 +168,7 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
               </div>
               {p.unlimitedReveals && (
                 <div className="mt-[2px] flex items-center gap-[8px] text-[14px] text-purple-text">
-                  <LockOpen size={15} strokeWidth={1.8} aria-hidden />
+                  <Check size={16} strokeWidth={2.2} className="text-green" aria-hidden />
                   Безлимит на раскрытие авторов
                 </div>
               )}

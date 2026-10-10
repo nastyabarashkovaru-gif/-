@@ -9,7 +9,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import express, { Router, type Request, type Response } from 'express';
 import { config } from './config';
 import { pool, tx } from './db';
-import { getPlan, isPlan, PLANS, type Plan } from './plans';
+import { getPlan, isPlan, PLANS, REVEAL_PRICE, type Plan } from './plans';
 import { rateLimit } from './rateLimit';
 import { newId } from './routes';
 
@@ -69,6 +69,65 @@ billingApi.post('/checkout', rateLimit('checkout', 20, 60 * 60_000), async (req:
           recurrent: { interval: 'Month', period: months, ...(receipt ? { customerReceipt: receipt } : {}) },
         },
       },
+    },
+  });
+});
+
+/**
+ * Разовое раскрытие автора за 99 ₽ (тарифы 1 и 3 месяца).
+ * Перед созданием заказа проверяем: анкета своя, автор дал согласие, подписка есть, автор ещё не куплен.
+ */
+billingApi.post('/reveal-checkout', rateLimit('checkout', 20, 60 * 60_000), async (req: Request, res: Response) => {
+  if (!billingEnabled) {
+    res.json({ status: 'unavailable' });
+    return;
+  }
+  const { questionnaireId, respondentId } = req.body ?? {};
+  const { rows } = await pool.query(
+    `SELECT r.id, r.consent_reveal FROM responses r JOIN questionnaires q ON q.id = r.questionnaire_id
+     WHERE r.id = $1 AND q.id = $2 AND q.owner_id = $3`,
+    [String(respondentId ?? ''), String(questionnaireId ?? ''), req.user.id],
+  );
+  const response = rows[0];
+  if (!response || !response.consent_reveal) {
+    res.status(404).json({ code: 'not_found' });
+    return;
+  }
+  const { plan } = await getPlan(req.user);
+  if (!plan || plan === 'year') {
+    res.status(409).json({ code: plan ? 'already_included' : 'premium_required' });
+    return;
+  }
+  const bought = await pool.query('SELECT 1 FROM reveal_purchases WHERE owner_id = $1 AND response_id = $2', [req.user.id, response.id]);
+  if (bought.rowCount) {
+    res.json({ status: 'ok' });
+    return;
+  }
+  const orderId = `R${newId(11)}`;
+  await pool.query(
+    "INSERT INTO orders (id, user_id, plan, amount, kind, response_id) VALUES ($1, $2, 'reveal', $3, 'reveal', $4)",
+    [orderId, req.user.id, REVEAL_PRICE, response.id],
+  );
+  const receipt = cp.receipts
+    ? {
+        Items: [{ label: 'hush. Раскрытие автора ответа', price: REVEAL_PRICE, quantity: 1, amount: REVEAL_PRICE, vat: cp.vat, method: 4, object: 4 }],
+        taxationSystem: cp.taxationSystem,
+        amounts: { electronic: REVEAL_PRICE },
+      }
+    : undefined;
+  res.json({
+    status: 'widget',
+    params: {
+      publicId: cp.publicId,
+      description: 'hush. Узнать, кто написал ответ',
+      amount: REVEAL_PRICE,
+      currency: 'RUB',
+      invoiceId: orderId,
+      accountId: String(req.user.id),
+      skin: 'mini',
+      requireEmail: cp.receipts,
+      // Разовый платёж: без recurrent
+      data: { kind: 'reveal', ...(receipt ? { CloudPayments: { CustomerReceipt: receipt } } : {}) },
     },
   });
 });
@@ -206,11 +265,26 @@ cloudPaymentsWebhooks.post(
       let plan: Plan | undefined;
       let orderId: string | null = null;
       if (f.InvoiceId) {
-        const { rows } = await db.query('SELECT id, user_id, plan, amount FROM orders WHERE id = $1 FOR UPDATE', [f.InvoiceId]);
+        const { rows } = await db.query('SELECT id, user_id, plan, amount, kind, response_id FROM orders WHERE id = $1 FOR UPDATE', [f.InvoiceId]);
         const order = rows[0];
         if (!order || String(order.user_id) !== f.AccountId || !sameAmount(order.amount, f.Amount)) {
           console.error('[billing] Pay не совпадает с заказом', f.InvoiceId, f.AccountId, f.Amount);
           return 0; // не просим повторять: данные не изменятся
+        }
+        if (order.kind === 'reveal') {
+          // Разовое раскрытие: подписку не трогаем
+          await db.query("UPDATE orders SET status = 'paid', paid_at = now() WHERE id = $1", [order.id]);
+          await db.query(
+            `INSERT INTO payments (transaction_id, user_id, order_id, plan, amount, test_mode, raw)
+             VALUES ($1, $2, $3, 'reveal', $4, $5, $6)`,
+            [transactionId, order.user_id, order.id, Number(f.Amount), f.TestMode === '1' || f.TestMode === 'true', JSON.stringify(f)],
+          );
+          await db.query(
+            'INSERT INTO reveal_purchases (owner_id, response_id, order_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+            [order.user_id, order.response_id, order.id],
+          );
+          console.log(`[billing] раскрытие автора оплачено: user ${order.user_id}, ${f.Amount} ₽`);
+          return 0;
         }
         userId = String(order.user_id);
         plan = order.plan;

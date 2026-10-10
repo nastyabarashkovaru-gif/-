@@ -63,8 +63,10 @@ export interface RevealedIdentity {
 export type RevealResult =
   /** Автор не давал согласия — показываем модалку, ничего не списываем */
   | { status: 'anonymous' }
-  /** Согласие есть, но нет права на раскрытие (нужен годовой тариф) */
+  /** Согласие есть, но подписки нет */
   | { status: 'requires_plan' }
+  /** Согласие есть, тариф 1 или 3 месяца — нужна разовая покупка */
+  | { status: 'requires_purchase'; price: number }
   | { status: 'revealed'; identity: RevealedIdentity };
 
 export interface PublicQuestionnaire {
@@ -145,6 +147,8 @@ export interface HushApi {
   /** Платежи не подключены: всегда { status: 'unavailable' } */
   startCheckout(plan: PlanId, source?: UpsellSource): Promise<BillingResult>;
   restorePurchases(): Promise<BillingResult>;
+  /** Разовое раскрытие автора (99 ₽) на тарифах 1 и 3 месяца */
+  startRevealCheckout(questionnaireId: string, respondentId: string): Promise<BillingResult>;
   setAutoRenew(enabled: boolean): Promise<BillingResult>;
   /** Пользователь разрешил боту присылать уведомления */
   grantWriteAccess(): Promise<void>;

@@ -126,6 +126,7 @@ const swipeVariants = {
 
 function ResultsView({ qid, version }: { qid: string; version: string }) {
   const nav = useNav();
+  const { isPremium } = useAppState();
   const { data, error, retry } = useResults(qid, version);
   const newQuestionnaire = useNewQuestionnaire('results');
   const [[index, dir], setPage] = useState<[number, number]>([0, 1]);
@@ -230,7 +231,8 @@ function ResultsView({ qid, version }: { qid: string; version: string }) {
             <RespondentCard
               respondent={current}
               onUnlock={() => nav.push({ name: 'premium' })}
-              onReveal={() => nav.push({ name: 'reveal', qid, respondentId: current.id })}
+              // Узнать автора — только после покупки подписки
+              onReveal={isPremium ? () => nav.push({ name: 'reveal', qid, respondentId: current.id }) : undefined}
             />
           </motion.div>
         </AnimatePresence>
@@ -259,7 +261,7 @@ export function AnswerList({ answers, compact }: { answers: RespondentView['answ
   );
 }
 
-function RespondentCard({ respondent, onUnlock, onReveal }: { respondent: RespondentView; onUnlock: () => void; onReveal: () => void }) {
+function RespondentCard({ respondent, onUnlock, onReveal }: { respondent: RespondentView; onUnlock: () => void; onReveal?: () => void }) {
   const open = respondent.answers.filter((a) => !a.locked);
   const locked = respondent.answers.filter((a) => a.locked);
 
@@ -287,10 +289,12 @@ function RespondentCard({ respondent, onUnlock, onReveal }: { respondent: Respon
             <LockOpen size={18} strokeWidth={1.8} className="text-purple" aria-hidden /> Посмотреть скрытые ответы
           </button>
         )}
-        <button type="button" onClick={onReveal} className="mx-auto flex items-center gap-[6px] px-2 py-1 text-[15px] font-medium text-purple-text active:opacity-60">
-          Узнать, кто это написал 👀
-          <ArrowRight size={16} strokeWidth={1.8} aria-hidden />
-        </button>
+        {onReveal && (
+          <button type="button" onClick={onReveal} className="mx-auto flex items-center gap-[6px] px-2 py-1 text-[15px] font-medium text-purple-text active:opacity-60">
+            Узнать, кто это написал 👀
+            <ArrowRight size={16} strokeWidth={1.8} aria-hidden />
+          </button>
+        )}
       </div>
     </div>
   );

@@ -17,6 +17,7 @@
 - `BOT_TOKEN` владелец вписывает сам в Variables сервиса Railway; в среде Claude его нет. Никогда не выводить и не коммитить токены.
 - Переменные сервиса: `BOT_TOKEN` (ссылкой `${{Postgres.BOT_TOKEN}}` — владелец добавил токен в карточку Postgres), `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `APP_SHORT_NAME=app`, `GRANT_PREMIUM_IDS`, оплата: `CP_PUBLIC_ID`, `CP_API_SECRET`, `CP_RECEIPTS`, `CP_TAXATION`, реквизиты `LEGAL_*`.
 - Свои вопросы и новые анкеты (кроме первой) — только Premium; без подписки — модальный апсейл (`screens/Upsell.tsx`), не отдельная страница. Каталог — 10 вопросов в `shared/questions.json`.
+- Раскрытие автора: только с подпиской и согласием автора; годовой — безлимит, 1/3 месяца — разовая покупка 99 ₽ за автора (`orders.kind = 'reveal'`, `reveal_purchases`). После оплаты подписки — экран `premiumSuccess`.
 - Аналитика: таблица `events` (POST /api/events, белый список имён), источник покупки — `orders.source`; конверсия — view `upsell_conversion`.
 - После выдачи домена — redeploy; проверка `GET /api/health`. `/newapp` в BotFather делает владелец (short name `app`).
 - Обновления приложения: push в ветку → Railway пересобирает автоматически.

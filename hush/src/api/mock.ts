@@ -184,8 +184,9 @@ export const mockApi: HushApi = {
     if (!r) throw new ApiError('not_found');
     // 1) Согласие проверяется ДО любых списаний
     if (!r.consent.revealIdentity) return { status: 'anonymous' };
-    // 2) Безлимитное раскрытие — только годовой тариф (разовая оплата — после подтверждения продукта)
-    if (db.plan !== 'year') return { status: 'requires_plan' };
+    // 2) Без подписки — недоступно; 1 и 3 месяца — разовая покупка 99 ₽
+    if (!db.plan) return { status: 'requires_plan' };
+    if (db.plan !== 'year') return { status: 'requires_purchase', price: 99 };
     // 3) Только разрешённые поля профиля
     return { status: 'revealed', identity: { firstName: r.identity.firstName, username: r.identity.username } };
   },
@@ -210,6 +211,10 @@ export const mockApi: HushApi = {
   },
 
   async startCheckout(): Promise<BillingResult> {
+    await delay(200);
+    return { status: 'unavailable' };
+  },
+  async startRevealCheckout(): Promise<BillingResult> {
     await delay(200);
     return { status: 'unavailable' };
   },

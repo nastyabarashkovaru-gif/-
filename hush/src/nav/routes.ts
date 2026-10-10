@@ -11,6 +11,8 @@ export type Route =
   /** 08 → 08b для респондента */
   | { name: 'answer'; qid: string }
   | { name: 'success' }
+  /** Поздравление после оплаты подписки */
+  | { name: 'premiumSuccess'; pending?: boolean }
   | { name: 'settings' }
   | { name: 'subscription' }
   | { name: 'myQuestionnaires' };

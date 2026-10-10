@@ -102,6 +102,17 @@ export async function migrate(): Promise<void> {
     );
 
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT;
+    -- kind: subscription | reveal (разовое раскрытие автора)
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'subscription';
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS response_id TEXT;
+
+    CREATE TABLE IF NOT EXISTS reveal_purchases (
+      owner_id     BIGINT NOT NULL REFERENCES users(id),
+      response_id  TEXT NOT NULL REFERENCES responses(id) ON DELETE CASCADE,
+      order_id     TEXT NOT NULL REFERENCES orders(id),
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (owner_id, response_id)
+    );
 
     -- События аналитики: кто, что, откуда, когда
     CREATE TABLE IF NOT EXISTS events (

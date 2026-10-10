@@ -11,6 +11,9 @@ export const PLANS: Record<Plan, { amount: number; months: number; title: string
   year: { amount: 1499, months: 12, title: 'hush. Premium — 1 год' },
 };
 
+/** Разовое раскрытие одного автора на тарифах 1 и 3 месяца */
+export const REVEAL_PRICE = 99;
+
 export const isPlan = (v: unknown): v is Plan => typeof v === 'string' && v in PLANS;
 
 export interface PlanState {

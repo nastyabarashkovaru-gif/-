@@ -9,6 +9,7 @@ import { routeKey, type Route } from '@/nav/routes';
 import { AnswerScreen } from '@/screens/Answer';
 import { DashboardScreen } from '@/screens/Dashboard';
 import { PremiumScreen } from '@/screens/Premium';
+import { PremiumSuccessScreen } from '@/screens/PremiumSuccess';
 import { RevealScreen } from '@/screens/Reveal';
 import { SelectQuestionsScreen } from '@/screens/SelectQuestions';
 import { MyQuestionnairesScreen, SettingsScreen, SubscriptionScreen } from '@/screens/Settings';
@@ -39,6 +40,8 @@ function renderRoute(route: Route) {
       return <RevealScreen qid={route.qid} respondentId={route.respondentId} />;
     case 'answer':
       return <AnswerScreen qid={route.qid} />;
+    case 'premiumSuccess':
+      return <PremiumSuccessScreen pending={route.pending} />;
     case 'success':
       return <SuccessScreen />;
     case 'settings':
