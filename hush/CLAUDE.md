@@ -12,8 +12,9 @@
 
 - Бот: @Hush_miniapp_bot. Ветка деплоя: `claude/app-and-instructions-ihq84m`, Root Directory `hush`, сборка из `railway.json`.
 - Один сервис (сервер отдаёт и API, и приложение) + PostgreSQL. Пошагово — `DEPLOY.md`.
-- Секреты среды: `RAILWAY_API_TOKEN` — токен аккаунта Railway (GraphQL API `https://backboard.railway.com/graphql/v2`),
-  `HUSH_BOT_TOKEN` — токен бота, переносится в переменную сервиса `BOT_TOKEN`. Никогда не выводить и не коммитить токены.
+- Доступ к Railway: network secret среды (Bearer) на хост `backboard.railway.com` — прокси сам добавляет
+  `Authorization`, сессия токен не видит. GraphQL API: `https://backboard.railway.com/graphql/v2`.
+- `BOT_TOKEN` владелец вписывает сам в Variables сервиса Railway; в среде Claude его нет. Никогда не выводить и не коммитить токены.
 - Переменные сервиса: `BOT_TOKEN`, `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `APP_SHORT_NAME=app`, опционально `GRANT_PREMIUM_IDS`.
 - После выдачи домена — redeploy; проверка `GET /api/health`. `/newapp` в BotFather делает владелец (short name `app`).
 - Обновления приложения: push в ветку → Railway пересобирает автоматически.
