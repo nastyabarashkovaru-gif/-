@@ -8,6 +8,7 @@ import { haptic, openExternal } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { api } from '@/api';
+import { useNewQuestionnaire } from './Upsell';
 import { BackArrow, BigIcon, Cta, Screen, Spacer, useToast } from '@/ui';
 
 function PageHeader({ title }: { title: string }) {
@@ -197,7 +198,8 @@ export function SubscriptionScreen() {
 /** Мои анкеты */
 export function MyQuestionnairesScreen() {
   const nav = useNav();
-  const { questionnaires, isPremium } = useAppState();
+  const { questionnaires } = useAppState();
+  const newQuestionnaire = useNewQuestionnaire('my_questionnaires');
 
   return (
     <Screen>
@@ -230,9 +232,8 @@ export function MyQuestionnairesScreen() {
         </div>
       )}
       <Spacer />
-      <Cta onClick={() => nav.push(isPremium || questionnaires.length === 0 ? { name: 'questions' } : { name: 'premium' })}>
-        Задать новые вопросы 😍
-      </Cta>
+      <Cta onClick={newQuestionnaire.onClick}>Задать новые вопросы 😍</Cta>
+      {newQuestionnaire.modal}
     </Screen>
   );
 }

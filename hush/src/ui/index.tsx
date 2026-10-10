@@ -203,17 +203,30 @@ export const useToast = () => useContext(ToastContext);
 
 /* ───────── Модалка (07b) ───────── */
 
-export function Modal({ open, onClose, children, labelledBy }: { open: boolean; onClose: () => void; children: ReactNode; labelledBy?: string }) {
+export function Modal({
+  open,
+  onClose,
+  children,
+  labelledBy,
+  align = 'center',
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+  labelledBy?: string;
+  /** top — для окон с полем ввода, чтобы клавиатура не перекрывала */
+  align?: 'center' | 'top';
+}) {
   return (
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-40 mx-auto flex max-w-app items-center px-[20px]"
+          className={cn('fixed inset-0 z-40 mx-auto flex max-w-app px-[20px]', align === 'top' ? 'items-start pt-[14vh]' : 'items-center')}
           style={{ background: 'rgba(0,0,0,0.86)' }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.25 }}
           onClick={onClose}
           role="dialog"
           aria-modal="true"
@@ -225,7 +238,7 @@ export function Modal({ open, onClose, children, labelledBy }: { open: boolean; 
             initial={{ opacity: 0, scale: 0.94, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 8 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+            transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
             onClick={(e) => e.stopPropagation()}
           >
             {children}
@@ -287,5 +300,49 @@ export function MessageScreen({
         {action}
       </Cta>
     </Screen>
+  );
+}
+
+/* ───────── Модальное предложение Premium (апсейл) ───────── */
+
+export function UpsellModal({
+  open,
+  onClose,
+  onOpenPremium,
+  icon,
+  title,
+  text,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onOpenPremium: () => void;
+  icon: ReactNode;
+  title: string;
+  text: string;
+}) {
+  return (
+    <Modal open={open} onClose={onClose} labelledBy="upsell-title">
+      <div className="card-purple relative flex flex-col gap-[16px] !px-[18px] !pb-[20px] !pt-[28px] text-center">
+        <button
+          type="button"
+          aria-label="Закрыть"
+          onClick={onClose}
+          className="absolute right-[6px] top-[6px] flex h-11 w-11 items-center justify-center rounded-full active:opacity-50"
+        >
+          <X size={20} strokeWidth={1.8} color="#a1a1aa" />
+        </button>
+        <BigIcon size={64}>{icon}</BigIcon>
+        <h2 id="upsell-title" className="h2">
+          {title}
+        </h2>
+        <p className="muted">{text}</p>
+        <Cta onClick={onOpenPremium} className="mt-[4px]">
+          Открыть Premium 😍
+        </Cta>
+        <button type="button" onClick={onClose} className="mx-auto -mt-[4px] px-3 py-2 text-[15px] text-[#a1a1aa] active:opacity-60">
+          Не сейчас
+        </button>
+      </div>
+    </Modal>
   );
 }

@@ -119,6 +119,27 @@ api.get(
   }),
 );
 
+const EVENTS = new Set([
+  'new_questionnaire_clicked',
+  'new_questionnaire_paywall_shown',
+  'custom_question_clicked',
+  'custom_question_paywall_shown',
+  'custom_question_created',
+  'premium_upsell_clicked',
+]);
+
+/** События аналитики: пользователь берётся из подписи Telegram, время — серверное */
+api.post(
+  '/events',
+  rateLimit('events', 120, 60_000),
+  handle(async (req) => {
+    const name = String(req.body?.name ?? '');
+    const source = String(req.body?.source ?? '').slice(0, 40) || null;
+    if (!EVENTS.has(name)) throw new HttpError('invalid');
+    await pool.query('INSERT INTO events (user_id, name, source) VALUES ($1, $2, $3)', [req.user.id, name, source]);
+  }),
+);
+
 /** Пользователь разрешил боту писать ему (WebApp.requestWriteAccess) */
 api.post(
   '/me/write-access',
@@ -139,11 +160,6 @@ api.post(
       if (!plan) {
         const { rows } = await db.query('SELECT count(*)::int AS n FROM questionnaires WHERE owner_id = $1', [req.user.id]);
         if (hasCustom || rows[0].n >= config.freeQuestionnaires) throw new HttpError('premium_required');
-      }
-      if (hasCustom) {
-        // Свои вопросы доступны только в новых анкетах (вторая и следующие)
-        const { rows } = await db.query('SELECT 1 FROM questionnaires WHERE owner_id = $1 LIMIT 1', [req.user.id]);
-        if (!rows.length) throw new HttpError('invalid');
       }
       const id = newId(8);
       const { rows } = await db.query<QRow>(

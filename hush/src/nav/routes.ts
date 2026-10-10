@@ -5,7 +5,8 @@ export type Route =
   | { name: 'share'; qid: string }
   /** 04 ожидание или 05 результаты — зависит от числа ответов */
   | { name: 'dashboard'; qid: string }
-  | { name: 'premium' }
+  /** source — откуда пришли (для конверсии апсейла в покупку) */
+  | { name: 'premium'; source?: import('@/api').UpsellSource }
   | { name: 'reveal'; qid: string; respondentId: string }
   /** 08 → 08b для респондента */
   | { name: 'answer'; qid: string }

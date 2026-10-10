@@ -34,7 +34,7 @@ function renderRoute(route: Route) {
     case 'dashboard':
       return <DashboardScreen qid={route.qid} />;
     case 'premium':
-      return <PremiumScreen />;
+      return <PremiumScreen source={route.source} />;
     case 'reveal':
       return <RevealScreen qid={route.qid} respondentId={route.respondentId} />;
     case 'answer':

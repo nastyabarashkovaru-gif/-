@@ -143,12 +143,26 @@ export interface HushApi {
   /** Все пять ответов + согласие отправляются атомарно одним запросом */
   submitResponses(payload: SubmitPayload): Promise<void>;
   /** Платежи не подключены: всегда { status: 'unavailable' } */
-  startCheckout(plan: PlanId): Promise<BillingResult>;
+  startCheckout(plan: PlanId, source?: UpsellSource): Promise<BillingResult>;
   restorePurchases(): Promise<BillingResult>;
   setAutoRenew(enabled: boolean): Promise<BillingResult>;
   /** Пользователь разрешил боту присылать уведомления */
   grantWriteAccess(): Promise<void>;
+  /** Событие аналитики (fire-and-forget) */
+  trackEvent(name: AnalyticsEvent, source: string): Promise<void>;
 }
+
+/** События воронки апсейла (ТЗ «Новые анкеты и собственные вопросы») */
+export type AnalyticsEvent =
+  | 'new_questionnaire_clicked'
+  | 'new_questionnaire_paywall_shown'
+  | 'custom_question_clicked'
+  | 'custom_question_paywall_shown'
+  | 'custom_question_created'
+  | 'premium_upsell_clicked';
+
+/** Откуда пользователь пришёл на экран Premium — для конверсии в покупку */
+export type UpsellSource = 'new_questionnaire' | 'custom_question';
 
 /** Порог уникальных ответов до открытия результатов */
 export const RESULTS_THRESHOLD = 5;

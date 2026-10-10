@@ -37,8 +37,9 @@ export const httpApi: HushApi = {
   openForResponse: (id) => request('GET', `/api/public/questionnaires/${encodeURIComponent(id)}`),
   submitResponses: (payload) => request('POST', `/api/public/questionnaires/${encodeURIComponent(payload.questionnaireId)}/responses`, payload),
   // Сервер создаёт заказ; доступ выдаётся только после уведомления CloudPayments
-  startCheckout: (plan) => request('POST', '/api/billing/checkout', { plan }),
+  startCheckout: (plan, source) => request('POST', '/api/billing/checkout', { plan, source }),
   restorePurchases: () => request('POST', '/api/billing/restore'),
   setAutoRenew: (enabled) => request('POST', '/api/billing/autorenew', { enabled }),
   grantWriteAccess: () => request('POST', '/api/me/write-access'),
+  trackEvent: (name, source) => request('POST', '/api/events', { name, source }),
 };

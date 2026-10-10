@@ -101,6 +101,18 @@ export async function migrate(): Promise<void> {
       created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT;
+
+    -- События аналитики: кто, что, откуда, когда
+    CREATE TABLE IF NOT EXISTS events (
+      id          BIGSERIAL PRIMARY KEY,
+      user_id     BIGINT NOT NULL REFERENCES users(id),
+      name        TEXT NOT NULL,
+      source      TEXT,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS events_name_idx ON events(name, created_at);
+
     CREATE TABLE IF NOT EXISTS reveals (
       id               BIGSERIAL PRIMARY KEY,
       questionnaire_id TEXT NOT NULL REFERENCES questionnaires(id) ON DELETE CASCADE,
@@ -109,5 +121,22 @@ export async function migrate(): Promise<void> {
       result           TEXT NOT NULL,
       created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+  `);
+
+  // Конверсия апсейла: попытка → предложение Premium → открыл Premium → купил (по уникальным пользователям)
+  await pool.query(`
+    CREATE OR REPLACE VIEW upsell_conversion AS
+    WITH flows(flow, clicked, shown) AS (
+      VALUES ('new_questionnaire', 'new_questionnaire_clicked', 'new_questionnaire_paywall_shown'),
+             ('custom_question', 'custom_question_clicked', 'custom_question_paywall_shown')
+    )
+    SELECT
+      f.flow,
+      (SELECT count(DISTINCT user_id) FROM events e WHERE e.name = f.clicked) AS attempted_users,
+      (SELECT count(DISTINCT user_id) FROM events e WHERE e.name = f.shown) AS paywall_shown_users,
+      (SELECT count(DISTINCT user_id) FROM events e WHERE e.name = 'premium_upsell_clicked' AND e.source = f.flow) AS opened_premium_users,
+      (SELECT count(DISTINCT user_id) FROM orders o WHERE o.source = f.flow AND o.status = 'paid') AS purchased_users,
+      (SELECT coalesce(sum(amount), 0) FROM orders o WHERE o.source = f.flow AND o.status = 'paid') AS revenue_rub
+    FROM flows f;
   `);
 }

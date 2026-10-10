@@ -32,11 +32,14 @@ billingApi.post('/checkout', rateLimit('checkout', 20, 60 * 60_000), async (req:
   }
   const { amount, months, title } = PLANS[plan];
   const orderId = `H${newId(11)}`;
-  await pool.query('INSERT INTO orders (id, user_id, plan, amount) VALUES ($1, $2, $3, $4)', [
+  // Откуда пришёл покупатель — для конверсии апсейла
+  const source = ['new_questionnaire', 'custom_question'].includes(req.body?.source) ? req.body.source : null;
+  await pool.query('INSERT INTO orders (id, user_id, plan, amount, source) VALUES ($1, $2, $3, $4, $5)', [
     orderId,
     req.user.id,
     plan,
     amount,
+    source,
   ]);
 
   const receipt = cp.receipts

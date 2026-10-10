@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { CircleCheck, LockOpen } from 'lucide-react';
-import { api } from '@/api';
+import { api, type UpsellSource } from '@/api';
 import { config } from '@/config';
 import { DEFAULT_PLAN, PLANS, planById, type PlanId } from '@/data/plans';
 import { cn } from '@/lib/cn';
@@ -27,7 +27,7 @@ const BENEFITS = [
  * только по подписанному уведомлению CloudPayments (server/src/billing.ts).
  * В демо-режиме и без ключей CloudPayments кнопка показывает «Оплата пока недоступна».
  */
-export function PremiumScreen() {
+export function PremiumScreen({ source }: { source?: UpsellSource }) {
   const nav = useNav();
   const toast = useToast();
   const { questionnaires, refresh } = useAppState();
@@ -57,7 +57,7 @@ export function PremiumScreen() {
   const checkout = async () => {
     setBusy(true);
     try {
-      const result = await api.startCheckout(plan);
+      const result = await api.startCheckout(plan, source);
       if (result.status !== 'widget') {
         unavailable();
         return;

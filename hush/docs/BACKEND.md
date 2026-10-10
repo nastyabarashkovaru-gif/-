@@ -34,6 +34,7 @@
 | POST | `/api/me/write-access` | пользователь разрешил боту писать (для уведомлений) |
 | POST | `/api/telegram/webhook` | обновления бота, защищены `X-Telegram-Bot-Api-Secret-Token` |
 | GET | `/api/health` | `{ ok: true }` |
+| POST | `/api/events` | `{ name, source }` — событие аналитики (только из белого списка) |
 | POST | `/api/billing/checkout` | `{ plan }` → параметры виджета CloudPayments (заказ создаётся на сервере) |
 | POST | `/api/billing/autorenew` | `{ enabled }` → отмена подписки через API CloudPayments |
 | POST | `/api/billing/restore` | `{ status: 'ok' \| 'none' }` |

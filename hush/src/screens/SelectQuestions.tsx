@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useAnimationControls } from 'motion/react';
 import { Check, Lock, Plus } from 'lucide-react';
+import { track } from '@/lib/analytics';
 import { api, ApiError } from '@/api';
 import { CUSTOM_QUESTION_MAX, QUESTIONS, QUESTIONS_REQUIRED, type Question } from '@/data/questions';
 import { cn } from '@/lib/cn';
 import { haptic, requestWriteAccess } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
-import { BackArrow, Cta, Screen, Segments, TopBar, useToast } from '@/ui';
+import { BackArrow, BigIcon, Cta, Modal, Screen, Segments, TopBar, useToast } from '@/ui';
+import { CustomQuestionUpsell } from './Upsell';
 
 /** Черновик выбора переживает переход на Premium и обратно */
 const draftStore: { selected: Question[]; custom: Question[] } = { selected: [], custom: [] };
@@ -16,9 +18,8 @@ const draftStore: { selected: Question[]; custom: Question[] } = { selected: [],
 export function SelectQuestionsScreen() {
   const nav = useNav();
   const toast = useToast();
-  const { isPremium, questionnaires, refresh } = useAppState();
-  // Свои вопросы — только при создании второй и следующих анкет (Premium)
-  const canAddCustom = questionnaires.length > 0;
+  const { isPremium, refresh } = useAppState();
+  const [upsellOpen, setUpsellOpen] = useState(false);
   const [selected, setSelected] = useState<Question[]>(draftStore.selected);
   const [custom, setCustom] = useState<Question[]>(draftStore.custom);
   const [composing, setComposing] = useState(false);
@@ -52,12 +53,14 @@ export function SelectQuestionsScreen() {
     setSelected((s) => [...s, q]);
   };
 
+  // Свои вопросы — только по подписке (сервер проверяет это же)
   const openCustom = () => {
+    track('custom_question_clicked', 'select_questions');
     if (!isPremium) {
-      nav.push({ name: 'premium' });
+      track('custom_question_paywall_shown', 'select_questions');
+      setUpsellOpen(true);
       return;
     }
-    if (full) return tooMany();
     setComposing(true);
   };
 
@@ -66,10 +69,13 @@ export function SelectQuestionsScreen() {
     if (!text) return;
     const q: Question = { id: `custom-${Date.now()}`, text, custom: true };
     setCustom((c) => [q, ...c]);
-    setSelected((s) => [...s, q]);
+    // Сразу выбираем, если есть свободное место из пяти
+    setSelected((s) => (s.length < QUESTIONS_REQUIRED ? [...s, q] : s));
     setDraft('');
     setComposing(false);
     haptic.notify('success');
+    track('custom_question_created', 'select_questions');
+    if (full) toast.show('Вопрос добавлен. Сними выбор с другого, чтобы выбрать его');
   };
 
   const submit = async () => {
@@ -149,50 +155,49 @@ export function SelectQuestionsScreen() {
           })}
         </AnimatePresence>
 
-        {/* Свои вопросы — для второй и следующих анкет, только Premium */}
-        {!canAddCustom ? null : composing ? (
-          <div className="flex shrink-0 flex-col gap-[10px] rounded-[12px] border border-purple bg-[#1a1223] p-[13px]">
-            <textarea
-              autoFocus
-              value={draft}
-              maxLength={CUSTOM_QUESTION_MAX}
-              onChange={(e) => setDraft(e.target.value)}
-              rows={2}
-              placeholder="Напиши свой вопрос"
-              aria-label="Свой вопрос"
-              className="w-full resize-none bg-transparent text-[15px] leading-[1.35] text-white outline-none placeholder:text-[#77717f]"
-            />
-            <div className="flex items-center justify-between">
-              <button type="button" onClick={() => setComposing(false)} className="small px-1 py-1">
-                Отмена
-              </button>
-              <button
-                type="button"
-                onClick={addCustom}
-                disabled={!draft.trim()}
-                className="rounded-[10px] bg-white px-4 py-2 text-[14px] font-medium text-[#121017] transition-opacity disabled:opacity-30"
-              >
-                Добавить
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={openCustom}
-            className="flex w-full shrink-0 items-center gap-[10px] rounded-[12px] border border-dashed border-[#4a3b5c] bg-[#101013] px-[13px] py-[14px] text-left text-[15px] font-medium leading-[1.35] text-purple-text active:scale-[0.99]"
-          >
-            <Plus size={15} strokeWidth={2.4} aria-hidden />
-            <span className="flex-1">Придумать свой вопрос</span>
-            {!isPremium && <Lock size={13} strokeWidth={2.2} className="text-small" aria-label="Premium" />}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={openCustom}
+          className="flex w-full shrink-0 items-center gap-[10px] rounded-[12px] border border-dashed border-[#4a3b5c] bg-[#101013] px-[13px] py-[14px] text-left text-[15px] font-medium leading-[1.35] text-purple-text active:scale-[0.99]"
+        >
+          <Plus size={17} strokeWidth={2} aria-hidden />
+          <span className="flex-1">Добавить свой вопрос</span>
+          {!isPremium && <Lock size={15} strokeWidth={1.8} className="text-[#8e8b97]" aria-label="Premium" />}
+        </button>
       </div>
 
       <Cta icon="right" disabled={!full} loading={saving} onClick={submit}>
         Продолжить
       </Cta>
       <p className="small text-center">Ответы увидишь только ты</p>
+
+      <Modal open={composing} onClose={() => setComposing(false)} labelledBy="custom-title" align="top">
+        <div className="card-purple flex flex-col gap-[16px] !px-[18px] !py-[24px] text-center">
+          <BigIcon size={56}>
+            <Plus size={26} strokeWidth={1.8} />
+          </BigIcon>
+          <h2 id="custom-title" className="h2">
+            О чём хочешь спросить? 👀
+          </h2>
+          <textarea
+            autoFocus
+            value={draft}
+            maxLength={CUSTOM_QUESTION_MAX}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={3}
+            placeholder="Напиши свой вопрос…"
+            aria-label="Свой вопрос"
+            className="w-full resize-none rounded-[14px] border border-[#514160] bg-[#131217] p-[14px] text-left text-[16px] leading-[1.4] text-white outline-none transition-colors placeholder:text-[#77717f] focus:border-purple"
+          />
+          <Cta onClick={addCustom} disabled={!draft.trim()}>
+            Добавить вопрос
+          </Cta>
+          <button type="button" onClick={() => setComposing(false)} className="mx-auto -mt-[4px] px-3 py-2 text-[15px] text-[#a1a1aa] active:opacity-60">
+            Отмена
+          </button>
+        </div>
+      </Modal>
+      <CustomQuestionUpsell open={upsellOpen} onClose={() => setUpsellOpen(false)} />
     </Screen>
   );
 }

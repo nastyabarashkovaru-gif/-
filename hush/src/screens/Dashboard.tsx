@@ -10,6 +10,7 @@ import { useAppState } from '@/state/AppState';
 import { carouselPosition, useResults } from '@/state/results';
 import { Cta, LoadingScreen, MessageScreen, Screen, Segments, SettingsButton, Spacer, TopBar } from '@/ui';
 import { useShare } from './Share';
+import { useNewQuestionnaire } from './Upsell';
 
 /** 04/05 — в зависимости от числа ответов */
 export function DashboardScreen({ qid }: { qid: string }) {
@@ -125,8 +126,8 @@ const swipeVariants = {
 
 function ResultsView({ qid, version }: { qid: string; version: string }) {
   const nav = useNav();
-  const { isPremium } = useAppState();
   const { data, error, retry } = useResults(qid, version);
+  const newQuestionnaire = useNewQuestionnaire('results');
   const [[index, dir], setPage] = useState<[number, number]>([0, 1]);
   const restored = useRef(false);
 
@@ -182,7 +183,6 @@ function ResultsView({ qid, version }: { qid: string; version: string }) {
   }
   if (!data || !current) return <LoadingScreen />;
 
-  const createNew = () => nav.push(isPremium ? { name: 'questions' } : { name: 'premium' });
 
   return (
     <Screen fixed>
@@ -236,10 +236,11 @@ function ResultsView({ qid, version }: { qid: string; version: string }) {
         </AnimatePresence>
       </div>
 
-      <Cta onClick={createNew}>Задать новые вопросы 😍</Cta>
+      <Cta onClick={newQuestionnaire.onClick}>Задать новые вопросы 😍</Cta>
       <p className="small text-center">
         Создай новую анкету, чтобы узнать о себе ещё больше. Выбирай другие вопросы или придумай свои.
       </p>
+      {newQuestionnaire.modal}
     </Screen>
   );
 }
