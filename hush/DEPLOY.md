@@ -39,7 +39,7 @@
 | `BOT_TOKEN` | токен из шага 1 |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` — так и впишите, Railway сам подставит адрес базы |
 | `APP_SHORT_NAME` | `app` |
-| `GRANT_PREMIUM_IDS` | *необязательно.* Ваш Telegram ID — чтобы проверить годовой Premium и раскрытие авторов, пока оплата не подключена. Свой ID можно узнать у @userinfobot |
+| `GRANT_PREMIUM_IDS` | *необязательно.* Ваш Telegram ID или @username — чтобы проверить годовой Premium и раскрытие авторов, пока оплата не подключена. Свой ID можно узнать у @userinfobot |
 
 ---
 

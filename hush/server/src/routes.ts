@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
+import type { TgUser } from './auth';
 import { catalogQuestion, type Question } from './catalog';
 import { config } from './config';
 import { pool, tx } from './db';
@@ -52,8 +53,12 @@ const newId = (len: number) => Array.from(randomBytes(len), (b) => ALPHABET[b % 
 
 type Plan = 'month' | 'quarter' | 'year';
 
-async function getPlan(userId: number): Promise<{ plan: Plan | null; autoRenew: boolean; renewsAt: string | null }> {
-  if (config.grantPremiumIds.has(String(userId))) return { plan: 'year', autoRenew: true, renewsAt: null };
+async function getPlan(user: TgUser): Promise<{ plan: Plan | null; autoRenew: boolean; renewsAt: string | null }> {
+  const userId = user.id;
+  const granted = config.grantPremiumIds;
+  if (granted.has(String(userId)) || (user.username && granted.has(user.username.toLowerCase()))) {
+    return { plan: 'year', autoRenew: true, renewsAt: null };
+  }
   const { rows } = await pool.query(
     `SELECT plan, auto_renew, renews_at FROM entitlements
      WHERE user_id = $1 AND (renews_at IS NULL OR renews_at > now())`,
@@ -120,7 +125,7 @@ api.get(
   handle(async (req) => {
     const u = req.user;
     const [plan, list] = await Promise.all([
-      getPlan(u.id),
+      getPlan(u),
       pool.query<QRow>(`${Q_SELECT} WHERE q.owner_id = $1 ORDER BY q.created_at DESC`, [u.id]),
     ]);
     return {
@@ -145,7 +150,7 @@ api.post(
   rateLimit('create', 10, 60 * 60_000),
   handle(async (req) => {
     const { questions, hasCustom } = parseQuestions(req.body?.questions);
-    const { plan } = await getPlan(req.user.id);
+    const { plan } = await getPlan(req.user);
     return tx(async (db) => {
       // Блокировка строки пользователя: две параллельные анкеты не обойдут бесплатный лимит
       await db.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
@@ -195,7 +200,7 @@ api.get(
     const q = await ownQuestionnaire(req.params.id, req.user.id);
     const responses = await orderedResponses(q.id);
     if (responses.length < config.resultsThreshold) throw new HttpError('threshold_not_met');
-    const premium = (await getPlan(req.user.id)).plan !== null;
+    const premium = (await getPlan(req.user)).plan !== null;
 
     return {
       questionnaireId: q.id,
@@ -250,7 +255,7 @@ api.post(
       return { status: 'anonymous' };
     }
     // 2) Безлимитное раскрытие — только годовой тариф
-    if ((await getPlan(req.user.id)).plan !== 'year') {
+    if ((await getPlan(req.user)).plan !== 'year') {
       await log('requires_plan');
       return { status: 'requires_plan' };
     }

@@ -17,11 +17,11 @@ export const config = {
   publicUrl: (process.env.PUBLIC_URL || (railwayDomain ? `https://${railwayDomain}` : '')).replace(/\/$/, ''),
   botUsername: (process.env.BOT_USERNAME || '').replace(/^@/, ''),
   appShortName: process.env.APP_SHORT_NAME || 'app',
-  /** Тестовая выдача годового Premium, пока оплата не подключена */
+  /** Тестовая выдача годового Premium, пока оплата не подключена: Telegram ID или @username */
   grantPremiumIds: new Set(
     (process.env.GRANT_PREMIUM_IDS || '')
       .split(',')
-      .map((s) => s.trim())
+      .map((s) => s.trim().replace(/^@/, '').toLowerCase())
       .filter(Boolean),
   ),
   /** Сколько живёт подпись initData */
