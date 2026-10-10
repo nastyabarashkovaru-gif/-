@@ -41,6 +41,10 @@ export const config = {
     inn: process.env.LEGAL_INN || '',
     ogrnip: process.env.LEGAL_OGRNIP || '',
     email: process.env.LEGAL_EMAIL || '',
+    account: process.env.LEGAL_ACCOUNT || '',
+    bank: process.env.LEGAL_BANK || '',
+    bik: process.env.LEGAL_BIK || '',
+    corrAccount: process.env.LEGAL_CORR_ACCOUNT || '',
   },
   /** Сколько живёт подпись initData */
   initDataMaxAgeSec: 24 * 60 * 60,

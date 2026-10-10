@@ -18,6 +18,9 @@ function details() {
     inn: field(l.inn, 'ИНН'),
     ogrnip: field(l.ogrnip, 'ОГРНИП'),
     email: l.email ? `<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>` : '<mark>[email для обращений]</mark>',
+    bank: l.account
+      ? `<br>Р/с ${esc(l.account)}<br>Банк: ${esc(l.bank)}<br>БИК ${esc(l.bik)}<br>К/с ${esc(l.corrAccount)}`
+      : '',
   };
 }
 
@@ -76,7 +79,7 @@ function offer() {
 <p>7.1. Обработка персональных данных осуществляется в соответствии с <a href="/legal/privacy">Политикой конфиденциальности</a>.</p>
 
 <h2>8. Реквизиты Исполнителя</h2>
-<p>ИП ${d.name}<br>ИНН ${d.inn}<br>ОГРНИП ${d.ogrnip}<br>Email: ${d.email}</p>`,
+<p>Индивидуальный предприниматель ${d.name}<br>ИНН ${d.inn}<br>ОГРНИП ${d.ogrnip}${d.bank}<br>Email: ${d.email}</p>`,
   );
 }
 
