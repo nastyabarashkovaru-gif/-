@@ -113,24 +113,22 @@ export function SubscriptionScreen() {
 
   const [busy, setBusy] = useState(false);
 
-  // Состояние меняется только после ответа CloudPayments
-  const toggleAutoRenew = async () => {
+  // Отмена — только через CloudPayments; состояние меняется после их ответа
+  const cancelSubscription = async () => {
     if (busy) return;
     setBusy(true);
     try {
-      const result = await api.setAutoRenew(!entitlement.autoRenew);
+      const result = await api.setAutoRenew(false);
       if (result.status === 'ok') {
         await refresh();
         haptic.notify('success');
-        toast.show(entitlement.autoRenew ? 'Автопродление выключено. Premium работает до конца периода' : 'Автопродление включено');
-      } else if (result.status === 'resubscribe') {
-        nav.push({ name: 'premium' });
+        toast.show('Подписка отменена. Premium работает до конца оплаченного периода');
       } else {
         haptic.notify('warning');
         toast.show('Оплата пока недоступна');
       }
     } catch {
-      toast.show('Не удалось изменить автопродление. Попробуй позже');
+      toast.show('Не удалось отменить подписку. Попробуй позже');
     } finally {
       setBusy(false);
     }
@@ -149,20 +147,38 @@ export function SubscriptionScreen() {
           <Status active={!!plan} />
         </div>
         <div className="h1 my-[18px]">{plan ? `${formatRub(plan.price)} / ${plan.periodLabel}` : 'Бесплатный тариф'}</div>
-        <div className="muted">{plan ? `Следующее списание: ${nextCharge}` : 'Все ответы и новые анкеты без ограничений. На годовом — узнавай авторов 😍'}</div>
+        <div className="muted">
+          {!plan
+            ? 'Все ответы и новые анкеты без ограничений. На годовом — узнавай авторов 😍'
+            : entitlement.autoRenew
+              ? `Следующее списание: ${nextCharge}`
+              : entitlement.renewsAt
+                ? `Действует до ${nextCharge}`
+                : 'Без автопродления'}
+        </div>
         {entitlement.demo && plan && <p className="small mt-[8px]">Демо-режим: оплата не подключена</p>}
       </div>
 
       {plan ? (
         <>
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <b>Автопродление</b>
-              <Switch on={entitlement.autoRenew} onToggle={toggleAutoRenew} label="Автопродление" />
-            </div>
-            <div className="small">Продлевать подписку автоматически</div>
-          </div>
-          <p className="muted">Отменить подписку можно в любой момент в настройках профиля.</p>
+          {entitlement.autoRenew ? (
+            <>
+              <p className="muted">Отменить подписку можно в любой момент в настройках профиля.</p>
+              <button
+                type="button"
+                onClick={cancelSubscription}
+                disabled={busy}
+                className="small -mt-[8px] self-start underline underline-offset-[3px] active:opacity-60 disabled:opacity-40"
+              >
+                Отменить подписку
+              </button>
+            </>
+          ) : (
+            <p className="muted">
+              Автопродление выключено — новых списаний не будет.
+              {entitlement.renewsAt ? ` Premium действует до ${nextCharge}.` : ''}
+            </p>
+          )}
         </>
       ) : (
         <Cta leading={<LockOpen size={20} strokeWidth={1.8} className="text-green" />} onClick={() => nav.push({ name: 'premium' })}>
@@ -175,28 +191,6 @@ export function SubscriptionScreen() {
         Назад к настройкам
       </button>
     </Screen>
-  );
-}
-
-function Switch({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={onToggle}
-      className="relative -m-2 h-[28px] w-[52px] shrink-0 p-2"
-    >
-      {/* Тонкий трек + кружок, как глиф ●━━ в макете 10b */}
-      <span className={cn('absolute left-2 right-2 top-1/2 h-[2px] -translate-y-1/2 rounded-full transition-colors duration-200', on ? 'bg-purple-text' : 'bg-[#4a4452]')} />
-      <span
-        className={cn(
-          'absolute top-1/2 h-[12px] w-[12px] -translate-y-1/2 rounded-full transition-[left,background-color] duration-200',
-          on ? 'left-[30px] bg-purple-text' : 'left-2 bg-[#8e8b97]',
-        )}
-      />
-    </button>
   );
 }
 
