@@ -6,7 +6,7 @@ export const config = {
   demo: env.VITE_DEMO !== 'false',
   /** Базовый URL backend. Пусто → mock (разрешён только в демо-режиме). */
   apiUrl: (env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '',
-  botUsername: (env.VITE_BOT_USERNAME as string | undefined) || 'hushbot',
+  botUsername: (env.VITE_BOT_USERNAME as string | undefined) || 'Hush_miniapp_bot',
   appShortName: (env.VITE_APP_SHORT_NAME as string | undefined) || 'app',
   supportUrl: (env.VITE_SUPPORT_URL as string | undefined) || '',
   termsUrl: (env.VITE_TERMS_URL as string | undefined) || '',
