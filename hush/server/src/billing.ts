@@ -1,0 +1,282 @@
+/**
+ * Оплата подписки через CloudPayments.
+ *
+ * Доступ выдаётся ТОЛЬКО по уведомлению Pay от CloudPayments с проверенной подписью HMAC —
+ * никогда по сигналу из приложения. Цены и тарифы берутся с сервера (plans.ts).
+ * Уведомления в ЛК CloudPayments: /api/billing/cloudpayments/{check,pay,fail,recurrent}
+ */
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import express, { Router, type Request, type Response } from 'express';
+import { config } from './config';
+import { pool, tx } from './db';
+import { getPlan, isPlan, PLANS, type Plan } from './plans';
+import { rateLimit } from './rateLimit';
+import { newId } from './routes';
+
+const cp = config.cloudPayments;
+export const billingEnabled = Boolean(cp.publicId && cp.apiSecret);
+
+/* ───────────────────────── API приложения ───────────────────────── */
+
+export const billingApi = Router();
+
+billingApi.post('/checkout', rateLimit('checkout', 20, 60 * 60_000), async (req: Request, res: Response) => {
+  if (!billingEnabled) {
+    res.json({ status: 'unavailable' });
+    return;
+  }
+  const plan = req.body?.plan;
+  if (!isPlan(plan)) {
+    res.status(400).json({ code: 'invalid' });
+    return;
+  }
+  const { amount, months, title } = PLANS[plan];
+  const orderId = `H${newId(11)}`;
+  await pool.query('INSERT INTO orders (id, user_id, plan, amount) VALUES ($1, $2, $3, $4)', [
+    orderId,
+    req.user.id,
+    plan,
+    amount,
+  ]);
+
+  const receipt = cp.receipts
+    ? {
+        Items: [{ label: title, price: amount, quantity: 1, amount, vat: cp.vat, method: 4, object: 4 }],
+        taxationSystem: cp.taxationSystem,
+        amounts: { electronic: amount },
+      }
+    : undefined;
+
+  res.json({
+    status: 'widget',
+    params: {
+      publicId: cp.publicId,
+      description: title,
+      amount,
+      currency: 'RUB',
+      invoiceId: orderId,
+      accountId: String(req.user.id),
+      skin: 'mini',
+      requireEmail: cp.receipts,
+      data: {
+        plan,
+        CloudPayments: {
+          ...(receipt ? { CustomerReceipt: receipt } : {}),
+          // Автопродление: следующее списание через период тарифа
+          recurrent: { interval: 'Month', period: months, ...(receipt ? { customerReceipt: receipt } : {}) },
+        },
+      },
+    },
+  });
+});
+
+/** Отмена автопродления — только через CloudPayments, состояние меняем после их ответа */
+billingApi.post('/autorenew', rateLimit('autorenew', 20, 60 * 60_000), async (req: Request, res: Response) => {
+  const enabled = req.body?.enabled === true;
+  const { rows } = await pool.query(
+    `SELECT subscription_id, auto_renew FROM entitlements
+     WHERE user_id = $1 AND (renews_at IS NULL OR renews_at > now())`,
+    [req.user.id],
+  );
+  const ent = rows[0];
+  if (enabled) {
+    // Возобновить отменённую подписку нельзя — только оформить новую
+    res.json({ status: ent?.auto_renew ? 'ok' : 'resubscribe' });
+    return;
+  }
+  if (!billingEnabled || !ent?.subscription_id) {
+    res.json({ status: 'unavailable' });
+    return;
+  }
+  try {
+    const r = await fetch('https://api.cloudpayments.ru/subscriptions/cancel', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Basic ${Buffer.from(`${cp.publicId}:${cp.apiSecret}`).toString('base64')}`,
+      },
+      body: JSON.stringify({ Id: ent.subscription_id }),
+    });
+    const data = (await r.json()) as { Success?: boolean; Message?: string };
+    if (!data.Success) throw new Error(data.Message || `HTTP ${r.status}`);
+    await pool.query('UPDATE entitlements SET auto_renew = FALSE, updated_at = now() WHERE user_id = $1', [req.user.id]);
+    res.json({ status: 'ok' });
+  } catch (e) {
+    console.error('[billing] отмена подписки не удалась:', (e as Error).message);
+    res.status(502).json({ code: 'billing_error' });
+  }
+});
+
+/** «Восстановить покупку»: заново читаем подписку из базы */
+billingApi.post('/restore', async (req: Request, res: Response) => {
+  const plan = await getPlan(req.user);
+  res.json({ status: plan.plan ? 'ok' : 'none' });
+});
+
+/* ───────────────────────── Уведомления CloudPayments ───────────────────────── */
+
+type Fields = Record<string, string>;
+
+function hmac(body: string): Buffer {
+  return createHmac('sha256', cp.apiSecret).update(body, 'utf8').digest();
+}
+
+function safeEqualB64(given: string | undefined, expected: Buffer): boolean {
+  if (!given) return false;
+  const buf = Buffer.from(given, 'base64');
+  return buf.length === expected.length && timingSafeEqual(buf, expected);
+}
+
+/** Content-HMAC — от тела как есть, X-Content-HMAC — от url-декодированного тела */
+function verify(req: Request, raw: string): boolean {
+  if (!cp.apiSecret) return false;
+  let decoded = raw;
+  try {
+    decoded = decodeURIComponent(raw.replace(/\+/g, ' '));
+  } catch {
+    /* тело не url-encoded */
+  }
+  const candidates = [hmac(raw), hmac(decoded)];
+  const headers = [req.get('content-hmac'), req.get('x-content-hmac')];
+  return headers.some((h) => candidates.some((c) => safeEqualB64(h, c)));
+}
+
+function parse(req: Request, raw: string): Fields {
+  if ((req.get('content-type') || '').includes('json')) {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]));
+  }
+  return Object.fromEntries(new URLSearchParams(raw));
+}
+
+const sameAmount = (a: unknown, b: unknown) => Math.abs(Number(a) - Number(b)) < 0.01;
+
+/** Обёртка: подпись → разбор → обработчик → { code } */
+function hook(handler: (f: Fields) => Promise<number>) {
+  return async (req: Request, res: Response) => {
+    const raw = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
+    if (!verify(req, raw)) {
+      console.warn('[billing] уведомление с неверной подписью отклонено');
+      res.status(401).json({ code: 13 });
+      return;
+    }
+    try {
+      res.json({ code: await handler(parse(req, raw)) });
+    } catch (e) {
+      console.error('[billing] ошибка обработки уведомления:', e);
+      // Не 0 — CloudPayments повторит уведомление позже
+      res.status(500).json({ code: 13 });
+    }
+  };
+}
+
+export const cloudPaymentsWebhooks = Router();
+cloudPaymentsWebhooks.use(express.raw({ type: '*/*', limit: '200kb' }));
+
+/** Check: перед списанием проверяем заказ, владельца и сумму */
+cloudPaymentsWebhooks.post(
+  '/check',
+  hook(async (f) => {
+    if (!f.InvoiceId) return f.SubscriptionId ? 0 : 10; // повторные списания подписки идут без заказа
+    const { rows } = await pool.query('SELECT user_id, amount FROM orders WHERE id = $1', [f.InvoiceId]);
+    const order = rows[0];
+    if (!order) return 10;
+    if (String(order.user_id) !== f.AccountId) return 11;
+    if (!sameAmount(order.amount, f.Amount)) return 12;
+    return 0;
+  }),
+);
+
+/** Pay: успешная оплата — первая или очередное автосписание */
+cloudPaymentsWebhooks.post(
+  '/pay',
+  hook(async (f) => {
+    if (f.Status && f.Status !== 'Completed') return 0; // двухстадийные платежи не используем
+    const transactionId = f.TransactionId;
+    if (!transactionId) return 13;
+
+    return tx(async (db) => {
+      const seen = await db.query('SELECT 1 FROM payments WHERE transaction_id = $1', [transactionId]);
+      if (seen.rowCount) return 0; // повтор уведомления
+
+      let userId: string | undefined;
+      let plan: Plan | undefined;
+      let orderId: string | null = null;
+      if (f.InvoiceId) {
+        const { rows } = await db.query('SELECT id, user_id, plan, amount FROM orders WHERE id = $1 FOR UPDATE', [f.InvoiceId]);
+        const order = rows[0];
+        if (!order || String(order.user_id) !== f.AccountId || !sameAmount(order.amount, f.Amount)) {
+          console.error('[billing] Pay не совпадает с заказом', f.InvoiceId, f.AccountId, f.Amount);
+          return 0; // не просим повторять: данные не изменятся
+        }
+        userId = String(order.user_id);
+        plan = order.plan;
+        orderId = order.id;
+        await db.query("UPDATE orders SET status = 'paid', paid_at = now() WHERE id = $1", [order.id]);
+      } else if (f.SubscriptionId) {
+        const { rows } = await db.query('SELECT user_id, plan FROM entitlements WHERE subscription_id = $1', [f.SubscriptionId]);
+        if (!rows[0]) {
+          console.error('[billing] автосписание по неизвестной подписке', f.SubscriptionId);
+          return 0;
+        }
+        userId = String(rows[0].user_id);
+        plan = rows[0].plan;
+      }
+      if (!userId || !plan || !isPlan(plan)) return 0;
+
+      await db.query(
+        `INSERT INTO payments (transaction_id, user_id, order_id, subscription_id, plan, amount, test_mode, raw)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [transactionId, userId, orderId, f.SubscriptionId || null, plan, Number(f.Amount), f.TestMode === '1' || f.TestMode === 'true', JSON.stringify(f)],
+      );
+      // Продлеваем от конца текущего периода (или от сегодня, если подписки нет)
+      await db.query(
+        `INSERT INTO entitlements (user_id, plan, auto_renew, renews_at, source, subscription_id)
+         VALUES ($1, $2, $3, now() + make_interval(months => $4), 'cloudpayments', $5)
+         ON CONFLICT (user_id) DO UPDATE SET
+           plan = EXCLUDED.plan,
+           auto_renew = EXCLUDED.auto_renew,
+           renews_at = GREATEST(COALESCE(entitlements.renews_at, now()), now()) + make_interval(months => $4),
+           source = 'cloudpayments',
+           subscription_id = COALESCE(EXCLUDED.subscription_id, entitlements.subscription_id),
+           updated_at = now()`,
+        [userId, plan, Boolean(f.SubscriptionId), PLANS[plan].months, f.SubscriptionId || null],
+      );
+      console.log(`[billing] оплачено: user ${userId}, ${plan}, ${f.Amount} ₽${f.TestMode === '1' ? ' (тест)' : ''}`);
+      return 0;
+    });
+  }),
+);
+
+/** Fail: оплата не прошла — доступ не меняем */
+cloudPaymentsWebhooks.post(
+  '/fail',
+  hook(async (f) => {
+    if (f.InvoiceId) await pool.query("UPDATE orders SET status = 'failed' WHERE id = $1 AND status = 'pending'", [f.InvoiceId]);
+    console.warn(`[billing] оплата не прошла: ${f.InvoiceId || f.SubscriptionId} — ${f.Reason || f.ReasonCode || ''}`);
+    return 0;
+  }),
+);
+
+/** Recurrent: изменение статуса подписки (отмена, просрочка и т. п.) */
+cloudPaymentsWebhooks.post(
+  '/recurrent',
+  hook(async (f) => {
+    if (!f.Id) return 0;
+    const active = f.Status === 'Active' || f.Status === 'PastDue';
+    const updated = await pool.query('UPDATE entitlements SET auto_renew = $1, updated_at = now() WHERE subscription_id = $2', [
+      active,
+      f.Id,
+    ]);
+    // Если Pay пришёл без SubscriptionId — привязываем подписку к пользователю по AccountId
+    if (!updated.rowCount && f.AccountId && /^\d+$/.test(f.AccountId)) {
+      await pool.query(
+        `UPDATE entitlements SET subscription_id = $1, auto_renew = $2, updated_at = now()
+         WHERE user_id = $3 AND subscription_id IS NULL AND source = 'cloudpayments'`,
+        [f.Id, active, f.AccountId],
+      );
+    }
+    console.log(`[billing] подписка ${f.Id}: ${f.Status}`);
+    return 0;
+  }),
+);

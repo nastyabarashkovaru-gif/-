@@ -9,7 +9,8 @@ export const config = {
   botUsername: (env.VITE_BOT_USERNAME as string | undefined) || 'Hush_miniapp_bot',
   appShortName: (env.VITE_APP_SHORT_NAME as string | undefined) || 'app',
   supportUrl: (env.VITE_SUPPORT_URL as string | undefined) || '',
-  termsUrl: (env.VITE_TERMS_URL as string | undefined) || '',
+  termsUrl: (env.VITE_TERMS_URL as string | undefined) || (env.VITE_DEMO === 'false' ? '/legal/offer' : ''),
+  privacyUrl: (env.VITE_PRIVACY_URL as string | undefined) || (env.VITE_DEMO === 'false' ? '/legal/privacy' : ''),
   version: '1.0',
 };
 

@@ -34,6 +34,11 @@
 | POST | `/api/me/write-access` | пользователь разрешил боту писать (для уведомлений) |
 | POST | `/api/telegram/webhook` | обновления бота, защищены `X-Telegram-Bot-Api-Secret-Token` |
 | GET | `/api/health` | `{ ok: true }` |
+| POST | `/api/billing/checkout` | `{ plan }` → параметры виджета CloudPayments (заказ создаётся на сервере) |
+| POST | `/api/billing/autorenew` | `{ enabled }` → отмена подписки через API CloudPayments |
+| POST | `/api/billing/restore` | `{ status: 'ok' \| 'none' }` |
+| POST | `/api/billing/cloudpayments/{check,pay,fail,recurrent}` | уведомления CloudPayments, подпись `Content-HMAC` |
+| GET | `/legal/offer`, `/legal/privacy` | оферта и политика (реквизиты из `LEGAL_*`) |
 
 Ошибки: HTTP 4xx с телом `{ "code": ApiErrorCode }`.
 

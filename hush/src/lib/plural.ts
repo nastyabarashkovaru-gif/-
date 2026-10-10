@@ -9,5 +9,5 @@ export function plural(n: number, forms: [string, string, string]): string {
 
 /** 1499 → «1 499 ₽» (неразрывный пробел, как в макете) */
 export function formatRub(value: number): string {
-  return `${value.toLocaleString('ru-RU').replace(/\s/g, '\u00a0')} ₽`;
+  return `${value.toLocaleString('ru-RU').replace(/\s/g, '\u00a0')}\u00a0₽`;
 }

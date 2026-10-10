@@ -74,6 +74,33 @@ export async function migrate(): Promise<void> {
       updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    ALTER TABLE entitlements ADD COLUMN IF NOT EXISTS subscription_id TEXT;
+    CREATE INDEX IF NOT EXISTS entitlements_sub_idx ON entitlements(subscription_id);
+
+    -- Заказы: сумма и тариф фиксируются на сервере до открытия виджета
+    CREATE TABLE IF NOT EXISTS orders (
+      id              TEXT PRIMARY KEY,
+      user_id         BIGINT NOT NULL REFERENCES users(id),
+      plan            TEXT NOT NULL,
+      amount          NUMERIC(10, 2) NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'pending',
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+      paid_at         TIMESTAMPTZ
+    );
+
+    -- Каждое уведомление об оплате учитывается ровно один раз (по TransactionId)
+    CREATE TABLE IF NOT EXISTS payments (
+      transaction_id  TEXT PRIMARY KEY,
+      user_id         BIGINT NOT NULL REFERENCES users(id),
+      order_id        TEXT REFERENCES orders(id),
+      subscription_id TEXT,
+      plan            TEXT NOT NULL,
+      amount          NUMERIC(10, 2) NOT NULL,
+      test_mode       BOOLEAN NOT NULL DEFAULT FALSE,
+      raw             JSONB NOT NULL,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     CREATE TABLE IF NOT EXISTS reveals (
       id               BIGSERIAL PRIMARY KEY,
       questionnaire_id TEXT NOT NULL REFERENCES questionnaires(id) ON DELETE CASCADE,

@@ -6,26 +6,31 @@ import { config } from '@/config';
 import { DEFAULT_PLAN, PLANS, planById, type PlanId } from '@/data/plans';
 import { cn } from '@/lib/cn';
 import { formatRub } from '@/lib/plural';
+import { payWithCloudPayments } from '@/lib/cloudpayments';
 import { haptic, openExternal } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BigIcon, CloseButton, Cta, Screen, Spacer, TopBar, useToast } from '@/ui';
 
+const PERIOD: Record<PlanId, string> = { month: 'месяц', quarter: '3 месяца', year: 'год' };
+
 const BENEFITS = [
   { title: 'Доступ ко всем ответам', text: 'Открой уже полученные и все новые ответы.' },
   { title: 'Безлимит на новые анкеты', text: 'Задавай друзьям новые вопросы сколько захочешь.' },
-  { title: 'Придумывай свои вопросы', text: 'Спрашивай именно то, что давно хотел узнать.' },
+  { title: 'Придумывай свои вопросы', text: 'В новых анкетах спрашивай именно то, что давно хотел узнать.' },
   { title: 'Узнай, кто это написал 👀', text: 'Доступно только на годовом тарифе, если автор разрешил раскрыть профиль.' },
 ];
 
 /**
  * 06 — Premium.
- * ВАЖНО: кнопки оплаты — визуальные заглушки. Никаких провайдеров, списаний и выдачи доступа.
+ * Оплата — виджет CloudPayments; заказ и сумму формирует сервер, доступ выдаётся
+ * только по подписанному уведомлению CloudPayments (server/src/billing.ts).
+ * В демо-режиме и без ключей CloudPayments кнопка показывает «Оплата пока недоступна».
  */
 export function PremiumScreen() {
   const nav = useNav();
   const toast = useToast();
-  const { questionnaires } = useAppState();
+  const { questionnaires, refresh } = useAppState();
   const [plan, setPlan] = useState<PlanId>(DEFAULT_PLAN);
   const [busy, setBusy] = useState(false);
 
@@ -39,21 +44,59 @@ export function PremiumScreen() {
     toast.show('Оплата пока недоступна');
   };
 
+  /** Ждём уведомление CloudPayments на сервере: доступ выдаётся только по нему */
+  const waitForActivation = async () => {
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const result = await api.restorePurchases().catch(() => null);
+      if (result?.status === 'ok') return true;
+    }
+    return false;
+  };
+
   const checkout = async () => {
     setBusy(true);
-    await api.startCheckout(plan);
-    setBusy(false);
-    unavailable();
+    try {
+      const result = await api.startCheckout(plan);
+      if (result.status !== 'widget') {
+        unavailable();
+        return;
+      }
+      const outcome = await payWithCloudPayments(result.params);
+      if (outcome.status === 'cancel') return;
+      if (outcome.status === 'fail') {
+        haptic.notify('error');
+        toast.show('Оплата не прошла. Попробуй другую карту');
+        return;
+      }
+      const active = await waitForActivation();
+      await refresh();
+      haptic.notify('success');
+      toast.show(active ? 'Подписка оформлена 💜' : 'Оплата прошла — подписка включится в течение пары минут');
+      if (active) close();
+    } catch {
+      toast.show('Не удалось открыть оплату. Попробуй ещё раз');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const restore = async () => {
-    await api.restorePurchases();
-    unavailable();
+    const result = await api.restorePurchases().catch(() => null);
+    if (result?.status === 'ok') {
+      await refresh();
+      toast.show('Подписка восстановлена 💜');
+      close();
+    } else if (result?.status === 'none') {
+      toast.show('Активная подписка не найдена');
+    } else {
+      unavailable();
+    }
   };
 
-  const terms = () => {
-    if (config.termsUrl) openExternal(config.termsUrl);
-    else toast.show('Условия подписки появятся перед запуском оплаты');
+  const openDoc = (url: string) => {
+    if (url) openExternal(new URL(url, window.location.origin).toString());
+    else toast.show('Документ появится перед запуском оплаты');
   };
 
   return (
@@ -138,9 +181,22 @@ export function PremiumScreen() {
       <Cta leading={<LockOpen size={20} strokeWidth={1.8} className="text-green" />} onClick={checkout} loading={busy}>
         Открыть всё за {formatRub(planById(plan).price)} 😍
       </Cta>
-      <p className="muted !text-[14px] mx-auto max-w-[300px] text-center">Отменить подписку можно в любой момент в настройках профиля</p>
+      <p className="muted !text-[14px] mx-auto max-w-[320px] text-center">
+        Подписка продлевается автоматически: {formatRub(planById(plan).price)} раз в {PERIOD[plan]}. Отменить подписку можно в любой момент в
+        настройках профиля
+      </p>
+      <p className="small !text-[12px] -mt-[8px] text-center">
+        Нажимая кнопку, ты принимаешь{' '}
+        <button type="button" onClick={() => openDoc(config.termsUrl)} className="underline underline-offset-[2px]">
+          оферту
+        </button>{' '}
+        и{' '}
+        <button type="button" onClick={() => openDoc(config.privacyUrl)} className="underline underline-offset-[2px]">
+          политику конфиденциальности
+        </button>
+      </p>
       <p className="small flex justify-center gap-[12px] text-center !text-[14px]">
-        <button type="button" onClick={terms} className="underline underline-offset-[3px] active:opacity-60">
+        <button type="button" onClick={() => openDoc(config.termsUrl)} className="underline underline-offset-[3px] active:opacity-60">
           Условия подписки
         </button>
         <span aria-hidden>·</span>

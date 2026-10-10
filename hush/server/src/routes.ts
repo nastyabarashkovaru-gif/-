@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
-import type { TgUser } from './auth';
 import { catalogQuestion, type Question } from './catalog';
 import { config } from './config';
 import { pool, tx } from './db';
+import { getPlan } from './plans';
 import { rateLimit } from './rateLimit';
 import { appLink, bot, notifyThresholdReached } from './telegram';
 
@@ -49,26 +49,8 @@ const handle =
 
 // Без похожих символов (0/O, 1/I) — id анкеты попадает в ссылку
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const newId = (len: number) => Array.from(randomBytes(len), (b) => ALPHABET[b % ALPHABET.length]).join('');
+export const newId = (len: number) => Array.from(randomBytes(len), (b) => ALPHABET[b % ALPHABET.length]).join('');
 
-type Plan = 'month' | 'quarter' | 'year';
-
-async function getPlan(user: TgUser): Promise<{ plan: Plan | null; autoRenew: boolean; renewsAt: string | null }> {
-  const userId = user.id;
-  const granted = config.grantPremiumIds;
-  if (granted.has(String(userId)) || (user.username && granted.has(user.username.toLowerCase()))) {
-    return { plan: 'year', autoRenew: true, renewsAt: null };
-  }
-  const { rows } = await pool.query(
-    `SELECT plan, auto_renew, renews_at FROM entitlements
-     WHERE user_id = $1 AND (renews_at IS NULL OR renews_at > now())`,
-    [userId],
-  );
-  const row = rows[0];
-  return row
-    ? { plan: row.plan, autoRenew: row.auto_renew, renewsAt: row.renews_at ? new Date(row.renews_at).toISOString() : null }
-    : { plan: null, autoRenew: false, renewsAt: null };
-}
 
 interface QRow {
   id: string;
@@ -130,7 +112,7 @@ api.get(
     ]);
     return {
       me: { id: String(u.id), firstName: u.first_name, lastName: u.last_name, username: u.username, photoUrl: u.photo_url },
-      entitlement: { ...plan, demo: false },
+      entitlement: { plan: plan.plan, autoRenew: plan.autoRenew, renewsAt: plan.renewsAt, demo: false },
       questionnaires: list.rows.map(summary),
       app: { botUsername: bot.username, appShortName: config.appShortName },
     };
@@ -157,6 +139,11 @@ api.post(
       if (!plan) {
         const { rows } = await db.query('SELECT count(*)::int AS n FROM questionnaires WHERE owner_id = $1', [req.user.id]);
         if (hasCustom || rows[0].n >= config.freeQuestionnaires) throw new HttpError('premium_required');
+      }
+      if (hasCustom) {
+        // Свои вопросы доступны только в новых анкетах (вторая и следующие)
+        const { rows } = await db.query('SELECT 1 FROM questionnaires WHERE owner_id = $1 LIMIT 1', [req.user.id]);
+        if (!rows.length) throw new HttpError('invalid');
       }
       const id = newId(8);
       const { rows } = await db.query<QRow>(

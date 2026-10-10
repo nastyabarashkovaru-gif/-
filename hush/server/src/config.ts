@@ -24,6 +24,24 @@ export const config = {
       .map((s) => s.trim().replace(/^@/, '').toLowerCase())
       .filter(Boolean),
   ),
+  /** CloudPayments: без обоих ключей кнопки оплаты показывают «Оплата пока недоступна» */
+  cloudPayments: {
+    publicId: process.env.CP_PUBLIC_ID || '',
+    apiSecret: process.env.CP_API_SECRET || '',
+    /** Чеки 54-ФЗ через CloudKassir */
+    receipts: process.env.CP_RECEIPTS === 'true',
+    /** Система налогообложения для чека: 0 ОСН, 1 УСН доход, 2 УСН доход-расход, 4 ЕСХН, 5 ПСН */
+    taxationSystem: Number(process.env.CP_TAXATION ?? 1),
+    /** Ставка НДС: пусто — без НДС */
+    vat: process.env.CP_VAT ? Number(process.env.CP_VAT) : null,
+  },
+  /** Реквизиты для оферты и политики (/legal/*) */
+  legal: {
+    name: process.env.LEGAL_NAME || '',
+    inn: process.env.LEGAL_INN || '',
+    ogrnip: process.env.LEGAL_OGRNIP || '',
+    email: process.env.LEGAL_EMAIL || '',
+  },
   /** Сколько живёт подпись initData */
   initDataMaxAgeSec: 24 * 60 * 60,
   resultsThreshold: 5,

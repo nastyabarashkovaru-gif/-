@@ -36,9 +36,9 @@ export const httpApi: HushApi = {
     request('POST', `/api/questionnaires/${encodeURIComponent(qid)}/respondents/${encodeURIComponent(rid)}/reveal`),
   openForResponse: (id) => request('GET', `/api/public/questionnaires/${encodeURIComponent(id)}`),
   submitResponses: (payload) => request('POST', `/api/public/questionnaires/${encodeURIComponent(payload.questionnaireId)}/responses`, payload),
-  // Платежи намеренно не подключены: никаких запросов на списание
-  startCheckout: async () => ({ status: 'unavailable' }),
-  restorePurchases: async () => ({ status: 'unavailable' }),
-  setAutoRenew: async () => ({ status: 'unavailable' }),
+  // Сервер создаёт заказ; доступ выдаётся только после уведомления CloudPayments
+  startCheckout: (plan) => request('POST', '/api/billing/checkout', { plan }),
+  restorePurchases: () => request('POST', '/api/billing/restore'),
+  setAutoRenew: (enabled) => request('POST', '/api/billing/autorenew', { enabled }),
   grantWriteAccess: () => request('POST', '/api/me/write-access'),
 };

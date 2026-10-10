@@ -87,7 +87,26 @@ export interface SubmitPayload {
   idempotencyKey: string;
 }
 
-export type BillingResult = { status: 'unavailable' };
+/** Параметры виджета CloudPayments — формирует сервер (сумма и тариф не задаются клиентом) */
+export interface CloudPaymentsParams {
+  publicId: string;
+  description: string;
+  amount: number;
+  currency: 'RUB';
+  invoiceId: string;
+  accountId: string;
+  skin?: string;
+  requireEmail?: boolean;
+  data?: Record<string, unknown>;
+}
+
+export type BillingResult =
+  | { status: 'unavailable' }
+  | { status: 'widget'; params: CloudPaymentsParams }
+  | { status: 'ok' }
+  | { status: 'none' }
+  /** Автопродление отключено — для продления нужно оформить подписку заново */
+  | { status: 'resubscribe' };
 
 export type ApiErrorCode =
   | 'not_found'

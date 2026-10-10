@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ChevronRight, CreditCard, Crown, ListChecks, LockOpen, MessageCircle, User } from 'lucide-react';
 import { config } from '@/config';
 import { PLAN_SUBTITLE, planById } from '@/data/plans';
@@ -108,14 +108,32 @@ function SettingRow({ icon, label, onClick }: { icon: ReactNode; label: string; 
 export function SubscriptionScreen() {
   const nav = useNav();
   const toast = useToast();
-  const { entitlement } = useAppState();
+  const { entitlement, refresh } = useAppState();
   const plan = entitlement.plan ? planById(entitlement.plan) : null;
 
+  const [busy, setBusy] = useState(false);
+
+  // Состояние меняется только после ответа CloudPayments
   const toggleAutoRenew = async () => {
-    // Не меняем состояние без подтверждения платёжного провайдера
-    await api.setAutoRenew(!entitlement.autoRenew);
-    haptic.notify('warning');
-    toast.show('Оплата пока недоступна');
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await api.setAutoRenew(!entitlement.autoRenew);
+      if (result.status === 'ok') {
+        await refresh();
+        haptic.notify('success');
+        toast.show(entitlement.autoRenew ? 'Автопродление выключено. Premium работает до конца периода' : 'Автопродление включено');
+      } else if (result.status === 'resubscribe') {
+        nav.push({ name: 'premium' });
+      } else {
+        haptic.notify('warning');
+        toast.show('Оплата пока недоступна');
+      }
+    } catch {
+      toast.show('Не удалось изменить автопродление. Попробуй позже');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const nextCharge = entitlement.renewsAt
