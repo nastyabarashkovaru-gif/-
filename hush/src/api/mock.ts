@@ -120,7 +120,13 @@ export const mockApi: HushApi = {
       me: tg
         ? { id: String(tg.id), firstName: tg.first_name, lastName: tg.last_name, username: tg.username, photoUrl: tg.photo_url }
         : { id: 'demo-user', firstName: '' },
-      entitlement: { plan: db.plan, autoRenew: db.autoRenew, renewsAt: null, demo: true },
+      entitlement: {
+        plan: db.plan,
+        autoRenew: db.autoRenew,
+        renewsAt: null,
+        demo: true,
+        retentionOfferAvailable: Boolean(db.plan && db.autoRenew),
+      },
       questionnaires: [...db.questionnaires].reverse().map(summary),
     };
   },
@@ -219,6 +225,10 @@ export const mockApi: HushApi = {
     return { status: 'unavailable' };
   },
   async restorePurchases(): Promise<BillingResult> {
+    await delay(200);
+    return { status: 'unavailable' };
+  },
+  async retentionDiscount(): Promise<BillingResult> {
     await delay(200);
     return { status: 'unavailable' };
   },

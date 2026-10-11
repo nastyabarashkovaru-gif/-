@@ -22,6 +22,12 @@ export interface Entitlement {
   renewsAt: string | null;
   /** true — состояние из демо-данных, а не от платёжного провайдера */
   demo: boolean;
+  /** Обычная сумма автосписания */
+  amount?: number | null;
+  /** Сумма следующего списания (со скидкой удержания, если она принята) */
+  nextChargeAmount?: number | null;
+  /** Можно предложить скидку −50% на следующий платёж при отмене */
+  retentionOfferAvailable?: boolean;
 }
 
 export interface QuestionnaireSummary {
@@ -132,6 +138,8 @@ export interface Bootstrap {
   questionnaires: QuestionnaireSummary[];
   /** Имя бота и short name Mini App — для ссылок на анкеты */
   app?: { botUsername: string; appShortName: string };
+  /** Множитель цен: после отмены подписки повторное оформление ×3 */
+  pricing?: { multiplier: number };
 }
 
 export interface HushApi {
@@ -150,6 +158,8 @@ export interface HushApi {
   /** Разовое раскрытие автора (99 ₽) на тарифах 1 и 3 месяца */
   startRevealCheckout(questionnaireId: string, respondentId: string): Promise<BillingResult>;
   setAutoRenew(enabled: boolean): Promise<BillingResult>;
+  /** Скидка удержания: −50% на один следующий платёж */
+  retentionDiscount(): Promise<BillingResult>;
   /** Пользователь разрешил боту присылать уведомления */
   grantWriteAccess(): Promise<void>;
   /** Событие аналитики (fire-and-forget) */

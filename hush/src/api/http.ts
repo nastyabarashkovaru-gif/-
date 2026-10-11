@@ -42,6 +42,7 @@ export const httpApi: HushApi = {
   startRevealCheckout: (questionnaireId, respondentId) =>
     request('POST', '/api/billing/reveal-checkout', { questionnaireId, respondentId }),
   setAutoRenew: (enabled) => request('POST', '/api/billing/autorenew', { enabled }),
+  retentionDiscount: () => request('POST', '/api/billing/retention-discount'),
   grantWriteAccess: () => request('POST', '/api/me/write-access'),
   trackEvent: (name, source) => request('POST', '/api/events', { name, source }),
 };

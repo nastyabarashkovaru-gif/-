@@ -9,12 +9,26 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import express, { Router, type Request, type Response } from 'express';
 import { config } from './config';
 import { pool, tx } from './db';
-import { getPlan, isPlan, PLANS, REVEAL_PRICE, type Plan } from './plans';
+import { getPlan, isPlan, PLANS, priceMultiplier, RETENTION_DISCOUNT, REVEAL_PRICE, type Plan } from './plans';
 import { rateLimit } from './rateLimit';
 import { newId } from './routes';
 
 const cp = config.cloudPayments;
 export const billingEnabled = Boolean(cp.publicId && cp.apiSecret);
+
+/** Вызов API CloudPayments (Basic-авторизация Public ID + API Secret) */
+async function cpApi(method: string, body: Record<string, unknown>): Promise<void> {
+  const r = await fetch(`${process.env.CP_API_URL || 'https://api.cloudpayments.ru'}/${method}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Basic ${Buffer.from(`${cp.publicId}:${cp.apiSecret}`).toString('base64')}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const data = (await r.json().catch(() => ({}))) as { Success?: boolean; Message?: string };
+  if (!data.Success) throw new Error(`${method}: ${data.Message || `HTTP ${r.status}`}`);
+}
 
 /* ───────────────────────── API приложения ───────────────────────── */
 
@@ -30,7 +44,9 @@ billingApi.post('/checkout', rateLimit('checkout', 20, 60 * 60_000), async (req:
     res.status(400).json({ code: 'invalid' });
     return;
   }
-  const { amount, months, title } = PLANS[plan];
+  const { months, title } = PLANS[plan];
+  // После отмены подписки повторное оформление — по тарифу ×3 (см. оферту)
+  const amount = PLANS[plan].amount * (await priceMultiplier(req.user.id));
   const orderId = `H${newId(11)}`;
   // Откуда пришёл покупатель — для конверсии апсейла
   const source = ['new_questionnaire', 'custom_question'].includes(req.body?.source) ? req.body.source : null;
@@ -151,20 +167,43 @@ billingApi.post('/autorenew', rateLimit('autorenew', 20, 60 * 60_000), async (re
     return;
   }
   try {
-    const r = await fetch('https://api.cloudpayments.ru/subscriptions/cancel', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${Buffer.from(`${cp.publicId}:${cp.apiSecret}`).toString('base64')}`,
-      },
-      body: JSON.stringify({ Id: ent.subscription_id }),
-    });
-    const data = (await r.json()) as { Success?: boolean; Message?: string };
-    if (!data.Success) throw new Error(data.Message || `HTTP ${r.status}`);
-    await pool.query('UPDATE entitlements SET auto_renew = FALSE, updated_at = now() WHERE user_id = $1', [req.user.id]);
+    await cpApi('subscriptions/cancel', { Id: ent.subscription_id });
+    await pool.query('UPDATE entitlements SET auto_renew = FALSE, discount_next = FALSE, updated_at = now() WHERE user_id = $1', [req.user.id]);
+    // Повторное оформление после отмены — по тройному тарифу
+    await pool.query('UPDATE users SET cancelled_at = now() WHERE id = $1', [req.user.id]);
     res.json({ status: 'ok' });
   } catch (e) {
     console.error('[billing] отмена подписки не удалась:', (e as Error).message);
+    res.status(502).json({ code: 'billing_error' });
+  }
+});
+
+/**
+ * Скидка удержания при попытке отменить подписку: −50% только на следующий платёж, один раз.
+ * Меняем сумму подписки в CloudPayments; после этого списания сумма возвращается к обычной.
+ */
+billingApi.post('/retention-discount', rateLimit('autorenew', 20, 60 * 60_000), async (req: Request, res: Response) => {
+  const { rows } = await pool.query(
+    `SELECT subscription_id, base_amount, auto_renew, retention_used FROM entitlements
+     WHERE user_id = $1 AND (renews_at IS NULL OR renews_at > now())`,
+    [req.user.id],
+  );
+  const ent = rows[0];
+  if (!billingEnabled || !ent?.subscription_id || !ent.base_amount || !ent.auto_renew || ent.retention_used) {
+    res.json({ status: 'unavailable' });
+    return;
+  }
+  const discounted = Math.round(Number(ent.base_amount) * RETENTION_DISCOUNT);
+  try {
+    await cpApi('subscriptions/update', { Id: ent.subscription_id, Amount: discounted, Currency: 'RUB' });
+    await pool.query(
+      'UPDATE entitlements SET discount_next = TRUE, retention_used = TRUE, updated_at = now() WHERE user_id = $1',
+      [req.user.id],
+    );
+    console.log(`[billing] скидка удержания: user ${req.user.id}, следующий платёж ${discounted} ₽`);
+    res.json({ status: 'ok' });
+  } catch (e) {
+    console.error('[billing] скидка удержания не применена:', (e as Error).message);
     res.status(502).json({ code: 'billing_error' });
   }
 });
@@ -264,6 +303,7 @@ cloudPaymentsWebhooks.post(
       let userId: string | undefined;
       let plan: Plan | undefined;
       let orderId: string | null = null;
+      let restoreAmount: { subscriptionId: string; amount: number } | null = null;
       if (f.InvoiceId) {
         const { rows } = await db.query('SELECT id, user_id, plan, amount, kind, response_id FROM orders WHERE id = $1 FOR UPDATE', [f.InvoiceId]);
         const order = rows[0];
@@ -291,13 +331,23 @@ cloudPaymentsWebhooks.post(
         orderId = order.id;
         await db.query("UPDATE orders SET status = 'paid', paid_at = now() WHERE id = $1", [order.id]);
       } else if (f.SubscriptionId) {
-        const { rows } = await db.query('SELECT user_id, plan FROM entitlements WHERE subscription_id = $1', [f.SubscriptionId]);
+        const { rows } = await db.query('SELECT user_id, plan, discount_next, base_amount FROM entitlements WHERE subscription_id = $1', [
+          f.SubscriptionId,
+        ]);
         if (!rows[0]) {
           console.error('[billing] автосписание по неизвестной подписке', f.SubscriptionId);
           return 0;
         }
         userId = String(rows[0].user_id);
         plan = rows[0].plan;
+        // Это был платёж со скидкой удержания — дальше снова обычная цена
+        if (rows[0].discount_next && rows[0].base_amount) {
+          restoreAmount = { subscriptionId: f.SubscriptionId, amount: Number(rows[0].base_amount) };
+          await db.query('UPDATE entitlements SET discount_next = FALSE WHERE subscription_id = $1', [f.SubscriptionId]);
+        } else if (rows[0].base_amount && Number(f.Amount) < Number(rows[0].base_amount) - 0.01) {
+          // Страховка: прошлый возврат суммы не удался — пробуем снова
+          restoreAmount = { subscriptionId: f.SubscriptionId, amount: Number(rows[0].base_amount) };
+        }
       }
       if (!userId || !plan || !isPlan(plan)) return 0;
 
@@ -308,17 +358,28 @@ cloudPaymentsWebhooks.post(
       );
       // Продлеваем от конца текущего периода (или от сегодня, если подписки нет)
       await db.query(
-        `INSERT INTO entitlements (user_id, plan, auto_renew, renews_at, source, subscription_id)
-         VALUES ($1, $2, $3, now() + make_interval(months => $4), 'cloudpayments', $5)
+        `INSERT INTO entitlements (user_id, plan, auto_renew, renews_at, source, subscription_id, base_amount)
+         VALUES ($1, $2, $3, now() + make_interval(months => $4), 'cloudpayments', $5, $6)
          ON CONFLICT (user_id) DO UPDATE SET
            plan = EXCLUDED.plan,
            auto_renew = EXCLUDED.auto_renew,
            renews_at = GREATEST(COALESCE(entitlements.renews_at, now()), now()) + make_interval(months => $4),
            source = 'cloudpayments',
            subscription_id = COALESCE(EXCLUDED.subscription_id, entitlements.subscription_id),
+           base_amount = COALESCE(EXCLUDED.base_amount, entitlements.base_amount),
            updated_at = now()`,
-        [userId, plan, Boolean(f.SubscriptionId), PLANS[plan].months, f.SubscriptionId || null],
+        // base_amount — сумма первого платежа по заказу (обычная цена этой подписки)
+        [userId, plan, Boolean(f.SubscriptionId), PLANS[plan].months, f.SubscriptionId || null, orderId ? Number(f.Amount) : null],
       );
+      if (restoreAmount) {
+        const { subscriptionId, amount } = restoreAmount;
+        // После коммита: вернуть обычную сумму следующих списаний
+        setImmediate(() => {
+          cpApi('subscriptions/update', { Id: subscriptionId, Amount: amount, Currency: 'RUB' })
+            .then(() => console.log(`[billing] подписка ${subscriptionId}: сумма возвращена к ${amount} ₽`))
+            .catch((e) => console.error(`[billing] НЕ удалось вернуть сумму подписки ${subscriptionId} к ${amount} ₽:`, e.message));
+        });
+      }
       console.log(`[billing] оплачено: user ${userId}, ${plan}, ${f.Amount} ₽${f.TestMode === '1' ? ' (тест)' : ''}`);
       return 0;
     });

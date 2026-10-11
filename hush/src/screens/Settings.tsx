@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { ChevronRight, CreditCard, Crown, ListChecks, LockOpen, MessageCircle, User } from 'lucide-react';
+import { ChevronRight, CreditCard, Crown, Gift, HeartCrack, ListChecks, LockOpen, MessageCircle, User } from 'lucide-react';
 import { config } from '@/config';
 import { PLAN_SUBTITLE, planById } from '@/data/plans';
 import { cn } from '@/lib/cn';
@@ -9,7 +9,7 @@ import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { api } from '@/api';
 import { useNewQuestionnaire } from './Upsell';
-import { BackArrow, BigIcon, Cta, Screen, Spacer, useToast } from '@/ui';
+import { BackArrow, BigIcon, Cta, Modal, Screen, Spacer, useToast } from '@/ui';
 
 function PageHeader({ title }: { title: string }) {
   const nav = useNav();
@@ -109,14 +109,49 @@ function SettingRow({ icon, label, onClick }: { icon: ReactNode; label: string; 
 export function SubscriptionScreen() {
   const nav = useNav();
   const toast = useToast();
-  const { entitlement, refresh } = useAppState();
+  const { entitlement, refresh, priceMultiplier } = useAppState();
   const plan = entitlement.plan ? planById(entitlement.plan) : null;
 
   const [busy, setBusy] = useState(false);
+  /** Удерживающие окна перед отменой: предупреждение о цене ×3 → скидка −50% на следующий платёж */
+  const [step, setStep] = useState<'none' | 'warning' | 'offer'>('none');
+  const amount = entitlement.amount ?? plan?.price ?? 0;
+  const discounted = Math.round(amount / 2);
+  // Предупреждение о тройной цене честно только для тех, кто сейчас платит обычную цену
+  const showWarning = priceMultiplier === 1;
+
+  const startCancel = () => {
+    if (showWarning) setStep('warning');
+    else if (entitlement.retentionOfferAvailable) setStep('offer');
+    else void cancelSubscription();
+  };
+  const afterWarning = () => {
+    if (entitlement.retentionOfferAvailable) setStep('offer');
+    else void cancelSubscription();
+  };
+
+  const acceptDiscount = async () => {
+    setBusy(true);
+    try {
+      const result = await api.retentionDiscount();
+      if (result.status === 'ok') {
+        await refresh();
+        setStep('none');
+        haptic.notify('success');
+        toast.show(`Готово! Следующий платёж — ${formatRub(discounted)} 💜`);
+      } else {
+        toast.show('Оплата пока недоступна');
+      }
+    } catch {
+      toast.show('Не удалось применить скидку. Попробуй позже');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // Отмена — только через CloudPayments; состояние меняется после их ответа
   const cancelSubscription = async () => {
-    if (busy) return;
+    setStep('none');
     setBusy(true);
     try {
       const result = await api.setAutoRenew(false);
@@ -147,12 +182,16 @@ export function SubscriptionScreen() {
           <b>{plan ? plan.settingsTitle : 'HUSH Premium'}</b>
           <Status active={!!plan} />
         </div>
-        <div className="h1 my-[18px]">{plan ? `${formatRub(plan.price)} / ${plan.periodLabel}` : 'Бесплатный тариф'}</div>
+        <div className="h1 my-[18px]">{plan ? `${formatRub(amount)} / ${plan.periodLabel}` : 'Бесплатный тариф'}</div>
         <div className="muted">
           {!plan
             ? 'Все ответы и новые анкеты без ограничений. На годовом — узнавай авторов 😍'
             : entitlement.autoRenew
-              ? `Следующее списание: ${nextCharge}`
+              ? `Следующее списание: ${nextCharge}${
+                  entitlement.nextChargeAmount && entitlement.nextChargeAmount !== amount
+                    ? ` · ${formatRub(entitlement.nextChargeAmount)} со скидкой`
+                    : ''
+                }`
               : entitlement.renewsAt
                 ? `Действует до ${nextCharge}`
                 : 'Без автопродления'}
@@ -167,7 +206,7 @@ export function SubscriptionScreen() {
               <p className="muted">Отменить подписку можно в любой момент в настройках профиля.</p>
               <button
                 type="button"
-                onClick={cancelSubscription}
+                onClick={startCancel}
                 disabled={busy}
                 className="small -mt-[8px] self-start underline underline-offset-[3px] active:opacity-60 disabled:opacity-40"
               >
@@ -191,6 +230,53 @@ export function SubscriptionScreen() {
       <button type="button" onClick={() => nav.back()} className="cta-dark">
         Назад к настройкам
       </button>
+
+      {/* Окно 1: жалко, что уходишь + предупреждение о цене ×3 */}
+      <Modal open={step === 'warning'} onClose={() => setStep('none')} labelledBy="leave-title">
+        <div className="card-purple flex flex-col gap-[14px] !px-[18px] !pb-[20px] !pt-[28px] text-center">
+          <BigIcon size={64}>
+            <HeartCrack size={28} strokeWidth={1.8} />
+          </BigIcon>
+          <h2 id="leave-title" className="h2">
+            Жалко, что ты уходишь 😢
+          </h2>
+          <p className="muted">
+            Создай новую анкету и спроси новых друзей — впереди ещё много ответов и новые вопросы.
+          </p>
+          <p className="muted">
+            Если отменишь подписку, вернуться можно будет только по цене в 3 раза выше —{' '}
+            <span className="text-white">{plan ? `${formatRub(amount * 3)} / ${plan.periodLabel}` : ''}</span>.
+          </p>
+          <Cta onClick={() => setStep('none')} className="mt-[6px]">
+            Остаться с Premium 💜
+          </Cta>
+          <button type="button" onClick={afterWarning} disabled={busy} className="mx-auto -mt-[4px] px-3 py-2 text-[15px] text-[#a1a1aa] active:opacity-60">
+            Всё равно отменить
+          </button>
+        </div>
+      </Modal>
+
+      {/* Окно 2: последнее предложение — скидка 50% только на следующий платёж */}
+      <Modal open={step === 'offer'} onClose={() => !busy && setStep('none')} labelledBy="offer-title">
+        <div className="card-purple flex flex-col gap-[14px] !px-[18px] !pb-[20px] !pt-[28px] text-center">
+          <BigIcon size={64}>
+            <Gift size={28} strokeWidth={1.8} />
+          </BigIcon>
+          <h2 id="offer-title" className="h2">
+            Мы не хотим тебя терять 💜
+          </h2>
+          <p className="muted">
+            Следующий платёж — <span className="font-semibold text-white">{formatRub(discounted)}</span>{' '}
+            <span className="line-through">{formatRub(amount)}</span>
+          </p>
+          <Cta onClick={acceptDiscount} loading={busy} className="mt-[6px]">
+            Остаться со скидкой 😍
+          </Cta>
+          <button type="button" onClick={() => void cancelSubscription()} disabled={busy} className="mx-auto -mt-[4px] px-3 py-2 text-[15px] text-[#a1a1aa] active:opacity-60">
+            Отменить подписку
+          </button>
+        </div>
+      </Modal>
     </Screen>
   );
 }

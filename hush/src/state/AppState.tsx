@@ -4,6 +4,8 @@ import { config } from '@/config';
 
 interface AppStateValue extends Bootstrap {
   isPremium: boolean;
+  /** Множитель цен тарифов для этого пользователя */
+  priceMultiplier: number;
   refresh(): Promise<void>;
 }
 
@@ -55,7 +57,12 @@ export function AppStateProvider({
       </>
     );
 
-  const value: AppStateValue = { ...state.data, isPremium: state.data.entitlement.plan !== null, refresh };
+  const value: AppStateValue = {
+    ...state.data,
+    isPremium: state.data.entitlement.plan !== null,
+    priceMultiplier: state.data.pricing?.multiplier ?? 1,
+    refresh,
+  };
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 }
 

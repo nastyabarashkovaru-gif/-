@@ -30,7 +30,7 @@ const BENEFITS = [
 export function PremiumScreen({ source }: { source?: UpsellSource }) {
   const nav = useNav();
   const toast = useToast();
-  const { questionnaires, refresh } = useAppState();
+  const { questionnaires, refresh, priceMultiplier: m } = useAppState();
   const [plan, setPlan] = useState<PlanId>(DEFAULT_PLAN);
   const [busy, setBusy] = useState(false);
 
@@ -147,10 +147,10 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
                   </span>
                   {p.title}
                 </span>
-                <span className="text-[20px] font-medium">{formatRub(p.price)}</span>
+                <span className="text-[20px] font-medium">{formatRub(p.price * m)}</span>
               </div>
               <div className="flex items-center justify-between gap-[10px] text-[14px]">
-                <span className="text-[#9a97a3]">{p.perMonth ? `${p.perMonth} ₽/мес` : p.caption}</span>
+                <span className="text-[#9a97a3]">{p.perMonth ? `${p.perMonth * m} ₽/мес` : p.caption}</span>
                 {p.savings && <span className="text-green">Выгода {p.savings}%</span>}
               </div>
               {p.unlimitedReveals && (
@@ -166,10 +166,10 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
 
       <Spacer />
       <Cta leading={<LockOpen size={20} strokeWidth={1.8} className="text-green" />} onClick={checkout} loading={busy}>
-        Открыть всё за {formatRub(planById(plan).price)} 😍
+        Открыть всё за {formatRub(planById(plan).price * m)} 😍
       </Cta>
       <p className="muted !text-[14px] mx-auto max-w-[320px] text-center">
-        Подписка продлевается автоматически: {formatRub(planById(plan).price)} раз в {PERIOD[plan]}. Отменить подписку можно в любой момент в
+        Подписка продлевается автоматически: {formatRub(planById(plan).price * m)} раз в {PERIOD[plan]}. Отменить подписку можно в любой момент в
         настройках профиля
       </p>
       <p className="small !text-[12px] -mt-[8px] text-center">
