@@ -191,6 +191,21 @@
     cursor: default;
   }
 
+  /* Переливающийся блик поверх белой кнопки — «манит» нажать */
+  .cta-shine {
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .cta-shine::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: linear-gradient(110deg, transparent 30%, rgba(74, 222, 128, 0.28) 45%, rgba(168, 85, 247, 0.22) 55%, transparent 70%);
+    transform: translateX(-120%);
+    animation: cta-shine 2.6s ease-in-out infinite;
+    pointer-events: none;
+  }
+
   .cta-dark {
     @apply flex w-full shrink-0 items-center justify-center gap-2 text-center transition-transform duration-150 active:scale-[0.985];
     border: 1px solid #8b5cf6;
@@ -221,6 +236,16 @@
   }
 }
 
+@keyframes cta-shine {
+  0% {
+    transform: translateX(-120%);
+  }
+  60%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
 @keyframes cta-spin {
   to {
     --cta-angle: 360deg;
@@ -228,6 +253,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .cta-shine::after {
+    animation: none;
+    display: none;
+  }
   .cta {
     animation: none;
     background:

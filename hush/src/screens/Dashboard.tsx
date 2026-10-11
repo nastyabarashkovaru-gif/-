@@ -290,9 +290,11 @@ function RespondentCard({ respondent, onUnlock, onReveal }: { respondent: Respon
           </button>
         )}
         {onReveal && (
-          <button type="button" onClick={onReveal} className="mx-auto flex items-center gap-[6px] px-2 py-1 text-[15px] font-medium text-purple-text active:opacity-60">
-            Узнать, кто это написал 👀
-            <ArrowRight size={16} strokeWidth={1.8} aria-hidden />
+          <button type="button" onClick={onReveal} className="cta cta-shine !text-[#16a34a] !font-semibold">
+            <span className="relative z-[1] flex items-center gap-[8px]">
+              Узнать, кто это написал 👀
+              <ArrowRight size={18} strokeWidth={2.2} aria-hidden />
+            </span>
           </button>
         )}
       </div>

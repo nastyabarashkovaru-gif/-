@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Eye, EyeOff, LockOpen } from 'lucide-react';
+import { Eye, EyeOff, LockOpen, X } from 'lucide-react';
 import { api } from '@/api';
 import { payWithCloudPayments } from '@/lib/cloudpayments';
 import { formatRub } from '@/lib/plural';
@@ -173,22 +173,26 @@ export function RevealScreen({ qid, respondentId }: { qid: string; respondentId:
       </Modal>
 
       <Modal open={purchase !== null} onClose={() => !paying && setPurchase(null)} labelledBy="buy-title">
-        <div className="card-purple flex flex-col gap-[16px] !px-[18px] !pb-[20px] !pt-[28px] text-center">
+        <div className="card-purple relative flex flex-col gap-[14px] !px-[18px] !pb-[22px] !pt-[28px] text-center">
+          <button
+            type="button"
+            aria-label="Закрыть"
+            onClick={() => setPurchase(null)}
+            disabled={paying}
+            className="absolute right-[6px] top-[6px] flex h-11 w-11 items-center justify-center rounded-full active:opacity-50"
+          >
+            <X size={20} strokeWidth={1.8} color="#a1a1aa" />
+          </button>
           <BigIcon size={64}>
             <Eye size={28} strokeWidth={1.8} />
           </BigIcon>
           <h2 id="buy-title" className="h2">
-            Автор разрешил узнать, кто он 👀
+            Узнай, кто это написал 👀
           </h2>
-          <p className="muted">
-            Узнай, кто это написал, за {formatRub(purchase?.price ?? 99)} — это разовый платёж. На годовом тарифе — без ограничений.
-          </p>
-          <Cta leading={<LockOpen size={20} strokeWidth={1.8} className="text-green" />} onClick={buyReveal} loading={paying} className="mt-[4px]">
-            Узнать за {formatRub(purchase?.price ?? 99)}
+          <p className="small !text-[14px]">{formatRub(purchase?.price ?? 99)}. Это не подписка, а разовый платёж.</p>
+          <Cta leading={<LockOpen size={20} strokeWidth={1.8} className="text-green" />} onClick={buyReveal} loading={paying} className="mt-[6px]">
+            Раскрыть автора
           </Cta>
-          <button type="button" onClick={() => setPurchase(null)} disabled={paying} className="mx-auto -mt-[4px] px-3 py-2 text-[15px] text-[#a1a1aa] active:opacity-60">
-            Не сейчас
-          </button>
         </div>
       </Modal>
     </Screen>
