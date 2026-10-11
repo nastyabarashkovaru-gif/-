@@ -67,6 +67,7 @@ export function DemoPanel() {
     ],
     ['09 Успех', () => go({ name: 'success' })],
     ['Оплата прошла', () => go({ name: 'premiumSuccess' })],
+    ['Ждём подтверждение', () => go({ name: 'premiumSuccess', pending: true })],
     ['10 Настройки', () => go({ name: 'settings' })],
     ['10b Подписка', () => go({ name: 'subscription' })],
   ];

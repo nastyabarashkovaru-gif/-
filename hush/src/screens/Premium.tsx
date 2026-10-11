@@ -44,16 +44,6 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
     toast.show('Оплата пока недоступна');
   };
 
-  /** Ждём уведомление CloudPayments на сервере: доступ выдаётся только по нему */
-  const waitForActivation = async () => {
-    for (let i = 0; i < 10; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
-      const result = await api.restorePurchases().catch(() => null);
-      if (result?.status === 'ok') return true;
-    }
-    return false;
-  };
-
   const checkout = async () => {
     setBusy(true);
     try {
@@ -69,11 +59,8 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
         toast.show('Оплата не прошла. Попробуй другую карту');
         return;
       }
-      const active = await waitForActivation();
-      await refresh();
-      haptic.notify('success');
-      // Экран поздравления вместо тарифов
-      nav.reset({ name: 'premiumSuccess', pending: !active });
+      // Подписку включает сервер по уведомлению CloudPayments — экран поздравления сам дождётся подтверждения
+      nav.reset({ name: 'premiumSuccess', pending: true });
     } catch {
       toast.show('Не удалось открыть оплату. Попробуй ещё раз');
     } finally {

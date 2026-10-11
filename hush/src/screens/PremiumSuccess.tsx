@@ -1,53 +1,123 @@
-import { useEffect } from 'react';
-import { motion } from 'motion/react';
-import { Check } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { Check, Clock } from 'lucide-react';
+import { api } from '@/api';
+import { config } from '@/config';
+import { haptic, openExternal } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BigIcon, Cta, Screen, Spacer, TopBar } from '@/ui';
 
-/** Поздравление после оплаты подписки */
+/** Сколько ждём уведомление CloudPayments, прежде чем предложить поддержку */
+const WAIT_MS = 2 * 60_000;
+
+type Phase = 'confirmed' | 'waiting' | 'delayed';
+
+/**
+ * После оплаты подписки.
+ * Виджет уже сообщил об успешной оплате, но Premium включает сервер — по уведомлению CloudPayments.
+ * Пока оно не пришло, честно показываем ожидание и сами переключаемся на поздравление.
+ */
 export function PremiumSuccessScreen({ pending }: { pending?: boolean }) {
   const nav = useNav();
   const { questionnaires, entitlement, refresh } = useAppState();
+  const [phase, setPhase] = useState<Phase>(pending ? 'waiting' : 'confirmed');
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (phase !== 'waiting') {
+      void refresh();
+      return;
+    }
+    let stopped = false;
+    const started = Date.now();
+    const poll = async () => {
+      while (!stopped && Date.now() - started < WAIT_MS) {
+        const result = await api.restorePurchases().catch(() => null);
+        if (stopped) return;
+        if (result?.status === 'ok') {
+          await refresh();
+          haptic.notify('success');
+          setPhase('confirmed');
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+      if (!stopped) setPhase('delayed');
+    };
+    void poll();
+    return () => {
+      stopped = true;
+    };
+  }, [phase, refresh]);
 
   const backToAnswers = () =>
     nav.reset(questionnaires[0] ? { name: 'dashboard', qid: questionnaires[0].id } : { name: 'questions' });
+  const support = () => openExternal(config.supportUrl || `https://t.me/${config.botUsername}`);
 
   const yearly = entitlement.plan === 'year';
+  const content = {
+    confirmed: {
+      title: 'Поздравляем! Premium твой 💜',
+      text: yearly
+        ? 'Теперь тебе доступны все ответы, новые анкеты, свои вопросы и безлимитное раскрытие авторов 👀'
+        : 'Теперь тебе доступны все ответы, новые анкеты и свои вопросы 👀',
+    },
+    waiting: {
+      title: 'Подтверждаем оплату…',
+      text: 'Обычно это занимает несколько секунд. Не закрывай приложение.',
+    },
+    delayed: {
+      title: 'Подтверждение задерживается',
+      text: 'Premium включится автоматически, как только платёжная система подтвердит оплату. Если этого не произошло в течение 10 минут — напиши нам, разберёмся.',
+    },
+  }[phase];
 
   return (
     <Screen fixed>
       <TopBar />
       <Spacer />
-      <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 320, damping: 18 }}>
-        <BigIcon>
-          <Check size={30} strokeWidth={2} />
-        </BigIcon>
-      </motion.div>
-      <motion.div
-        className="flex flex-col gap-[12px] text-center"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15, duration: 0.3 }}
-      >
-        <h1 className="h1">{pending ? 'Оплата прошла! 💜' : 'Поздравляем! Premium твой 💜'}</h1>
-        <p className="muted !text-[16px]">
-          {pending
-            ? 'Подписка включится в течение пары минут — ответы откроются автоматически.'
-            : yearly
-              ? 'Теперь тебе доступны все ответы, новые анкеты, свои вопросы и безлимитное раскрытие авторов 👀'
-              : 'Теперь тебе доступны все ответы, новые анкеты и свои вопросы 👀'}
-        </p>
-      </motion.div>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={phase}
+          className="flex flex-col items-center gap-[19px] text-center"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.3 }}
+        >
+          <BigIcon>
+            {phase === 'confirmed' ? (
+              <Check size={30} strokeWidth={2} />
+            ) : phase === 'waiting' ? (
+              <motion.span
+                className="block h-[30px] w-[30px] rounded-full border-[3px] border-[#b98cff] border-t-transparent"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 0.9, repeat: Infinity, ease: 'linear' }}
+                aria-label="Ожидание"
+              />
+            ) : (
+              <Clock size={28} strokeWidth={1.8} />
+            )}
+          </BigIcon>
+          <h1 className="h1">{content.title}</h1>
+          <p className="muted !text-[16px]" aria-live="polite">
+            {content.text}
+          </p>
+        </motion.div>
+      </AnimatePresence>
       <Spacer />
-      <Cta icon="right" onClick={backToAnswers}>
-        Вернуться к ответам
-      </Cta>
-      <div className="h-[24px] shrink-0" aria-hidden />
+      {phase !== 'waiting' && (
+        <Cta icon="right" onClick={backToAnswers}>
+          Вернуться к ответам
+        </Cta>
+      )}
+      {phase === 'delayed' ? (
+        <button type="button" onClick={support} className="mx-auto -my-1 px-2 py-1 text-[15px] text-[#a1a1aa] underline underline-offset-[3px]">
+          Написать в поддержку
+        </button>
+      ) : (
+        <div className="h-[24px] shrink-0" aria-hidden />
+      )}
     </Screen>
   );
 }
