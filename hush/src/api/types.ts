@@ -176,11 +176,13 @@ export type AnalyticsEvent =
   | 'custom_question_paywall_shown'
   | 'custom_question_created'
   | 'premium_upsell_clicked'
+  | 'question_library_clicked'
+  | 'question_library_paywall_shown'
   | 'story_sheet_opened'
   | 'story_shared';
 
 /** Откуда пользователь пришёл на экран Premium — для конверсии в покупку */
-export type UpsellSource = 'new_questionnaire' | 'custom_question';
+export type UpsellSource = 'new_questionnaire' | 'custom_question' | 'question_library';
 
 /** Порог уникальных ответов до открытия результатов */
 export const RESULTS_THRESHOLD = 5;

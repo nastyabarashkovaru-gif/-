@@ -145,7 +145,8 @@ export async function migrate(): Promise<void> {
     CREATE OR REPLACE VIEW upsell_conversion AS
     WITH flows(flow, clicked, shown) AS (
       VALUES ('new_questionnaire', 'new_questionnaire_clicked', 'new_questionnaire_paywall_shown'),
-             ('custom_question', 'custom_question_clicked', 'custom_question_paywall_shown')
+             ('custom_question', 'custom_question_clicked', 'custom_question_paywall_shown'),
+             ('question_library', 'question_library_clicked', 'question_library_paywall_shown')
     )
     SELECT
       f.flow,

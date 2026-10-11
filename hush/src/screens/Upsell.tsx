@@ -61,3 +61,22 @@ export function CustomQuestionUpsell({ open, onClose }: { open: boolean; onClose
     />
   );
 }
+
+/** Модалка «Расширенная библиотека вопросов» для бесплатного тарифа */
+export function LibraryUpsell({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const nav = useNav();
+  return (
+    <UpsellModal
+      open={open}
+      onClose={onClose}
+      onOpenPremium={() => {
+        track('premium_upsell_clicked', 'question_library');
+        onClose();
+        nav.push({ name: 'premium', source: 'question_library' });
+      }}
+      icon={<LockOpen size={28} strokeWidth={1.8} />}
+      title="Хочешь больше вопросов? 👀"
+      text="С Premium тебе доступна расширенная библиотека вопросов — и можно придумывать свои."
+    />
+  );
+}

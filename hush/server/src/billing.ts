@@ -49,7 +49,7 @@ billingApi.post('/checkout', rateLimit('checkout', 20, 60 * 60_000), async (req:
   const amount = PLANS[plan].amount * (await priceMultiplier(req.user.id));
   const orderId = `H${newId(11)}`;
   // Откуда пришёл покупатель — для конверсии апсейла
-  const source = ['new_questionnaire', 'custom_question'].includes(req.body?.source) ? req.body.source : null;
+  const source = ['new_questionnaire', 'custom_question', 'question_library'].includes(req.body?.source) ? req.body.source : null;
   await pool.query('INSERT INTO orders (id, user_id, plan, amount, source) VALUES ($1, $2, $3, $4, $5)', [
     orderId,
     req.user.id,

@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useAnimationControls } from 'motion/react';
-import { Check, Lock, Plus } from 'lucide-react';
+import { Check, Crown, Lock, Plus } from 'lucide-react';
 import { track } from '@/lib/analytics';
 import { api, ApiError } from '@/api';
-import { CUSTOM_QUESTION_MAX, QUESTIONS, QUESTIONS_REQUIRED, type Question } from '@/data/questions';
+import { BASE_QUESTIONS, CUSTOM_QUESTION_MAX, LIBRARY_QUESTIONS, QUESTIONS_REQUIRED, type Question } from '@/data/questions';
 import { cn } from '@/lib/cn';
 import { haptic, requestWriteAccess } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BackArrow, BigIcon, Cta, Modal, Screen, Segments, TopBar, useToast } from '@/ui';
-import { CustomQuestionUpsell } from './Upsell';
+import { CustomQuestionUpsell, LibraryUpsell } from './Upsell';
 
 /** Черновик выбора переживает переход на Premium и обратно */
 const draftStore: { selected: Question[]; custom: Question[] } = { selected: [], custom: [] };
@@ -20,6 +20,7 @@ export function SelectQuestionsScreen() {
   const toast = useToast();
   const { isPremium, refresh } = useAppState();
   const [upsellOpen, setUpsellOpen] = useState(false);
+  const [libraryUpsellOpen, setLibraryUpsellOpen] = useState(false);
   const [selected, setSelected] = useState<Question[]>(draftStore.selected);
   const [custom, setCustom] = useState<Question[]>(draftStore.custom);
   const [composing, setComposing] = useState(false);
@@ -34,7 +35,49 @@ export function SelectQuestionsScreen() {
 
   const count = selected.length;
   const full = count >= QUESTIONS_REQUIRED;
-  const list = [...custom, ...QUESTIONS];
+
+  const openLibraryUpsell = () => {
+    track('question_library_clicked', 'select_questions');
+    track('question_library_paywall_shown', 'select_questions');
+    setLibraryUpsellOpen(true);
+  };
+
+  const renderQuestion = (q: Question, locked = false) => {
+    const isOn = selected.some((s) => s.id === q.id);
+    return (
+      <motion.button
+        key={q.id}
+        type="button"
+        layout="position"
+        initial={q.custom ? { opacity: 0, y: -8 } : false}
+        animate={{ opacity: 1, y: 0 }}
+        aria-pressed={locked ? undefined : isOn}
+        onClick={() => (locked ? openLibraryUpsell() : toggle(q))}
+        className={cn(
+          'flex w-full shrink-0 items-center rounded-[12px] border px-[13px] py-[14px] text-left text-[15px] leading-[1.35] transition-colors duration-200 active:scale-[0.99]',
+          isOn ? 'border-purple bg-[#1a1223]' : 'border-line bg-[#101013]',
+          locked && 'text-[#a1a1aa]',
+        )}
+      >
+        <AnimatePresence initial={false}>
+          {isOn && (
+            <motion.span
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 28, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="flex shrink-0 overflow-hidden text-purple-check"
+              aria-hidden
+            >
+              <Check size={17} strokeWidth={2} className="shrink-0" />
+            </motion.span>
+          )}
+        </AnimatePresence>
+        <span className="flex-1">{q.text}</span>
+        {locked && <Lock size={15} strokeWidth={1.8} className="ml-[10px] shrink-0 text-[#8e8b97]" aria-label="Premium" />}
+      </motion.button>
+    );
+  };
 
   const tooMany = () => {
     haptic.notify('warning');
@@ -118,43 +161,14 @@ export function SelectQuestionsScreen() {
       <Segments filled={count} label="Выбрано вопросов" />
 
       <div className="no-scrollbar -mx-[23px] flex min-h-[200px] !shrink flex-1 flex-col gap-[9px] overflow-y-auto px-[23px] pb-1" role="group" aria-label="Вопросы">
-        <AnimatePresence initial={false}>
-          {list.map((q) => {
-            const isOn = selected.some((s) => s.id === q.id);
-            return (
-              <motion.button
-                key={q.id}
-                type="button"
-                layout="position"
-                initial={q.custom ? { opacity: 0, y: -8 } : false}
-                animate={{ opacity: 1, y: 0 }}
-                aria-pressed={isOn}
-                onClick={() => toggle(q)}
-                className={cn(
-                  'flex w-full shrink-0 items-center rounded-[12px] border px-[13px] py-[14px] text-left text-[15px] leading-[1.35] transition-colors duration-200 active:scale-[0.99]',
-                  isOn ? 'border-purple bg-[#1a1223]' : 'border-line bg-[#101013]',
-                )}
-              >
-                <AnimatePresence initial={false}>
-                  {isOn && (
-                    <motion.span
-                      initial={{ width: 0, opacity: 0 }}
-                      animate={{ width: 28, opacity: 1 }}
-                      exit={{ width: 0, opacity: 0 }}
-                      transition={{ duration: 0.18 }}
-                      className="flex shrink-0 overflow-hidden text-purple-check"
-                      aria-hidden
-                    >
-                      <Check size={17} strokeWidth={2} className="shrink-0" />
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-                <span>{q.text}</span>
-              </motion.button>
-            );
-          })}
-        </AnimatePresence>
+        {BASE_QUESTIONS.map((q) => renderQuestion(q))}
 
+        {/* Расширенная библиотека: свои вопросы и дополнительные вопросы — только по подписке */}
+        <div className="mt-[12px] flex shrink-0 items-center gap-[8px]">
+          <Crown size={16} strokeWidth={1.8} className="text-purple" aria-hidden />
+          <span className="step">Расширенная библиотека</span>
+          {!isPremium && <span className="ml-auto text-[12px] font-medium text-purple-text">Premium</span>}
+        </div>
         <button
           type="button"
           onClick={openCustom}
@@ -164,6 +178,8 @@ export function SelectQuestionsScreen() {
           <span className="flex-1">Добавить свой вопрос</span>
           {!isPremium && <Lock size={15} strokeWidth={1.8} className="text-[#8e8b97]" aria-label="Premium" />}
         </button>
+        <AnimatePresence initial={false}>{custom.map((q) => renderQuestion(q))}</AnimatePresence>
+        {LIBRARY_QUESTIONS.map((q) => renderQuestion(q, !isPremium))}
       </div>
 
       <Cta icon="right" disabled={!full} loading={saving} onClick={submit}>
@@ -198,6 +214,7 @@ export function SelectQuestionsScreen() {
         </div>
       </Modal>
       <CustomQuestionUpsell open={upsellOpen} onClose={() => setUpsellOpen(false)} />
+      <LibraryUpsell open={libraryUpsellOpen} onClose={() => setLibraryUpsellOpen(false)} />
     </Screen>
   );
 }

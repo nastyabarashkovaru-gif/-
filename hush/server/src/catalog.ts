@@ -5,6 +5,8 @@ export interface Question {
   id: string;
   text: string;
   custom?: boolean;
+  /** Расширенная библиотека — только по подписке */
+  premium?: boolean;
 }
 
 /** Общий каталог вопросов с приложением: hush/shared/questions.json */

@@ -136,7 +136,7 @@ export const mockApi: HushApi = {
     const unique = new Set(questions.map((q) => q.id));
     if (questions.length !== QUESTIONS_REQUIRED || unique.size !== QUESTIONS_REQUIRED) throw new ApiError('invalid');
     const premium = db.plan !== null;
-    if (!premium && (questions.some((q) => q.custom) || db.questionnaires.length >= FREE_QUESTIONNAIRES)) {
+    if (!premium && (questions.some((q) => q.custom || q.premium) || db.questionnaires.length >= FREE_QUESTIONNAIRES)) {
       throw new ApiError('premium_required');
     }
     const q: StoredQuestionnaire = { id: uid(), createdAt: new Date().toISOString(), questions };

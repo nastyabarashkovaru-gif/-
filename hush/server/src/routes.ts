@@ -77,9 +77,10 @@ async function ownQuestionnaire(id: string, userId: number): Promise<QRow> {
 }
 
 /** Нормализация вопросов из запроса: готовые — только из каталога, свои — только Premium */
-function parseQuestions(input: unknown): { questions: Question[]; hasCustom: boolean } {
+function parseQuestions(input: unknown): { questions: Question[]; hasCustom: boolean; hasLibrary: boolean } {
   if (!Array.isArray(input) || input.length !== 5) throw new HttpError('invalid');
   let hasCustom = false;
+  let hasLibrary = false;
   const questions = input.map((raw, i): Question => {
     const item = raw as Partial<Question>;
     if (item?.custom) {
@@ -90,11 +91,12 @@ function parseQuestions(input: unknown): { questions: Question[]; hasCustom: boo
     }
     const q = catalogQuestion(String(item?.id ?? ''));
     if (!q) throw new HttpError('invalid');
+    if (q.premium) hasLibrary = true;
     return { id: q.id, text: q.text };
   });
   const texts = new Set(questions.map((q) => q.text.toLowerCase()));
   if (new Set(questions.map((q) => q.id)).size !== 5 || texts.size !== 5) throw new HttpError('invalid');
-  return { questions, hasCustom };
+  return { questions, hasCustom, hasLibrary };
 }
 
 export const api = Router();
@@ -136,6 +138,8 @@ const EVENTS = new Set([
   'custom_question_paywall_shown',
   'custom_question_created',
   'premium_upsell_clicked',
+  'question_library_clicked',
+  'question_library_paywall_shown',
   'story_sheet_opened',
   'story_shared',
 ]);
@@ -164,14 +168,15 @@ api.post(
   '/questionnaires',
   rateLimit('create', 10, 60 * 60_000),
   handle(async (req) => {
-    const { questions, hasCustom } = parseQuestions(req.body?.questions);
+    const { questions, hasCustom, hasLibrary } = parseQuestions(req.body?.questions);
     const { plan } = await getPlan(req.user);
     return tx(async (db) => {
       // Блокировка строки пользователя: две параллельные анкеты не обойдут бесплатный лимит
       await db.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
       if (!plan) {
         const { rows } = await db.query('SELECT count(*)::int AS n FROM questionnaires WHERE owner_id = $1', [req.user.id]);
-        if (hasCustom || rows[0].n >= config.freeQuestionnaires) throw new HttpError('premium_required');
+        // Свои вопросы, расширенная библиотека и анкеты после первой — только по подписке
+        if (hasCustom || hasLibrary || rows[0].n >= config.freeQuestionnaires) throw new HttpError('premium_required');
       }
       const id = newId(8);
       const { rows } = await db.query<QRow>(
