@@ -162,6 +162,8 @@ export interface HushApi {
   retentionDiscount(): Promise<BillingResult>;
   /** Пользователь разрешил боту присылать уведомления */
   grantWriteAccess(): Promise<void>;
+  /** Загрузить PNG сторис и получить временную публичную ссылку (для Telegram) */
+  uploadStory(dataUrl: string): Promise<{ url: string }>;
   /** Событие аналитики (fire-and-forget) */
   trackEvent(name: AnalyticsEvent, source: string): Promise<void>;
 }
@@ -173,7 +175,9 @@ export type AnalyticsEvent =
   | 'custom_question_clicked'
   | 'custom_question_paywall_shown'
   | 'custom_question_created'
-  | 'premium_upsell_clicked';
+  | 'premium_upsell_clicked'
+  | 'story_sheet_opened'
+  | 'story_shared';
 
 /** Откуда пользователь пришёл на экран Premium — для конверсии в покупку */
 export type UpsellSource = 'new_questionnaire' | 'custom_question';

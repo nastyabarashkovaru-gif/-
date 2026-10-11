@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, type PanInfo } from 'motion/react';
-import { ArrowRight, CircleDot, Lock, LockOpen, Send } from 'lucide-react';
+import { ArrowRight, CircleDot, Instagram, Lock, LockOpen, Send } from 'lucide-react';
 import { RESULTS_THRESHOLD, usingMock, type RespondentView } from '@/api';
 import { cn } from '@/lib/cn';
 import { plural } from '@/lib/plural';
@@ -10,7 +10,9 @@ import { useAppState } from '@/state/AppState';
 import { carouselPosition, useResults } from '@/state/results';
 import { Cta, LoadingScreen, MessageScreen, Screen, Segments, SettingsButton, Spacer, TopBar } from '@/ui';
 import { useShare } from './Share';
+import { StoriesSheet } from './StoriesSheet';
 import { useNewQuestionnaire } from './Upsell';
+import { track } from '@/lib/analytics';
 
 /** 04/05 — в зависимости от числа ответов */
 export function DashboardScreen({ qid }: { qid: string }) {
@@ -129,6 +131,33 @@ function ResultsView({ qid, version }: { qid: string; version: string }) {
   const { isPremium } = useAppState();
   const { data, error, retry } = useResults(qid, version);
   const newQuestionnaire = useNewQuestionnaire('results');
+  const [storiesOpen, setStoriesOpen] = useState(false);
+
+  // Как только ответы открылись впервые — через секунду предлагаем поделиться в сторис
+  useEffect(() => {
+    if (!data) return;
+    const key = `hush.storiesAuto.${qid}`;
+    try {
+      if (localStorage.getItem(key)) return;
+    } catch {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(key, '1');
+      } catch {
+        /* приватный режим */
+      }
+      track('story_sheet_opened', 'auto');
+      setStoriesOpen(true);
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [data, qid]);
+
+  const openStories = () => {
+    track('story_sheet_opened', 'button');
+    setStoriesOpen(true);
+  };
   const [[index, dir], setPage] = useState<[number, number]>([0, 1]);
   const restored = useRef(false);
 
@@ -238,11 +267,16 @@ function ResultsView({ qid, version }: { qid: string; version: string }) {
         </AnimatePresence>
       </div>
 
+      <button type="button" onClick={openStories} className="cta-dark">
+        <Instagram size={18} strokeWidth={1.8} className="text-purple-text" aria-hidden />
+        Поделиться результатами в сторис
+      </button>
       <Cta onClick={newQuestionnaire.onClick}>Задать новые вопросы 😍</Cta>
       <p className="small text-center">
         Создай новую анкету, чтобы узнать о себе ещё больше. Выбирай другие вопросы или придумай свои.
       </p>
       {newQuestionnaire.modal}
+      <StoriesSheet open={storiesOpen} onClose={() => setStoriesOpen(false)} results={data} />
     </Screen>
   );
 }

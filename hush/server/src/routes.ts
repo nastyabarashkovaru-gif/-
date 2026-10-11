@@ -136,6 +136,8 @@ const EVENTS = new Set([
   'custom_question_paywall_shown',
   'custom_question_created',
   'premium_upsell_clicked',
+  'story_sheet_opened',
+  'story_shared',
 ]);
 
 /** События аналитики: пользователь берётся из подписи Telegram, время — серверное */

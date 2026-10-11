@@ -6,6 +6,7 @@ import { billingApi, billingEnabled, cloudPaymentsWebhooks } from './billing';
 import { config } from './config';
 import { migrate, pool } from './db';
 import { legal } from './legal';
+import { storiesApi, storiesPublic } from './stories';
 import { api } from './routes';
 import { runTestSeed } from './testSeed';
 import { handleUpdate, setupBot, webhookSecret } from './telegram';
@@ -18,6 +19,9 @@ async function main() {
   app.set('trust proxy', 1);
   // Уведомления CloudPayments — до JSON-парсера: подпись считается по сырому телу
   app.use('/api/billing/cloudpayments', cloudPaymentsWebhooks);
+  // Картинки сторис крупнее 64 КБ — свой парсер до общего
+  app.use('/api/stories', requireTelegram, storiesApi);
+  app.use('/s', storiesPublic);
   app.use(express.json({ limit: '64kb' }));
   app.use('/legal', legal);
 

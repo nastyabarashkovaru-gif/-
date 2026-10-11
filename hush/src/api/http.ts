@@ -45,4 +45,5 @@ export const httpApi: HushApi = {
   retentionDiscount: () => request('POST', '/api/billing/retention-discount'),
   grantWriteAccess: () => request('POST', '/api/me/write-access'),
   trackEvent: (name, source) => request('POST', '/api/events', { name, source }),
+  uploadStory: (image) => request('POST', '/api/stories', { image }),
 };

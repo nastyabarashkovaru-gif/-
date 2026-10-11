@@ -89,7 +89,8 @@ function Root() {
   // Стартовый экран: ссылка друга → ответы; есть анкета → её статус; иначе приветствие
   const initial = useMemo<Route>(() => {
     const startParam = getStartParam();
-    if (startParam) return { name: 'answer', qid: startParam };
+    // ref_* — рекламные метки (например, QR со сторис), а не id анкеты
+    if (startParam && !startParam.startsWith('ref_')) return { name: 'answer', qid: startParam };
     if (questionnaires[0]) return { name: 'dashboard', qid: questionnaires[0].id };
     return { name: 'welcome' };
     // eslint-disable-next-line react-hooks/exhaustive-deps

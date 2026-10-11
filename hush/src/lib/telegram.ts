@@ -16,7 +16,7 @@ export interface TelegramUser {
 
 interface TelegramWebApp {
   initData: string;
-  initDataUnsafe?: { user?: TelegramUser & { allows_write_to_pm?: boolean }; start_param?: string };
+  initDataUnsafe?: { user?: TelegramUser & { allows_write_to_pm?: boolean; is_premium?: boolean }; start_param?: string };
   platform?: string;
   version?: string;
   ready?: () => void;
@@ -29,6 +29,8 @@ interface TelegramWebApp {
   openTelegramLink?: (url: string) => void;
   openLink?: (url: string) => void;
   requestWriteAccess?: (cb?: (granted: boolean) => void) => void;
+  shareToStory?: (mediaUrl: string, params?: { text?: string; widget_link?: { url: string; name?: string } }) => void;
+  downloadFile?: (params: { url: string; file_name: string }, cb?: (accepted: boolean) => void) => void;
   BackButton?: {
     show: () => void;
     hide: () => void;
@@ -137,4 +139,34 @@ export function requestWriteAccess(): Promise<boolean> {
       resolve(false);
     }
   });
+}
+
+/** Сторис в Telegram (Bot API 7.8+). Ссылка-виджет доступна только пользователям Telegram Premium */
+export function canShareToStory(): boolean {
+  const app = webApp();
+  return Boolean(app?.shareToStory && app.isVersionAtLeast?.('7.8'));
+}
+
+export function shareToStory(mediaUrl: string, text: string, link: { url: string; name: string }): boolean {
+  const app = webApp();
+  if (!canShareToStory()) return false;
+  const premium = Boolean(app!.initDataUnsafe?.user?.is_premium);
+  try {
+    app!.shareToStory!(mediaUrl, premium ? { text, widget_link: link } : { text });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Скачивание файла через Telegram (Bot API 8.0+) — в WebView обычная ссылка не сохраняет файл */
+export function downloadFile(url: string, fileName: string): boolean {
+  const app = webApp();
+  if (!app?.downloadFile || !app.isVersionAtLeast?.('8.0')) return false;
+  try {
+    app.downloadFile({ url, file_name: fileName });
+    return true;
+  } catch {
+    return false;
+  }
 }

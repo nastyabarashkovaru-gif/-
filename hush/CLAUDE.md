@@ -19,6 +19,7 @@
 - Свои вопросы и новые анкеты (кроме первой) — только Premium; без подписки — модальный апсейл (`screens/Upsell.tsx`), не отдельная страница. Каталог — 10 вопросов в `shared/questions.json`.
 - Раскрытие автора: только с подпиской и согласием автора; годовой — безлимит, 1/3 месяца — разовая покупка 99 ₽ за автора (`orders.kind = 'reveal'`, `reveal_purchases`). После оплаты подписки — экран `premiumSuccess`.
 - Отмена подписки: окно «Жалко, что ты уходишь» (предупреждение: после отмены цена ×3, `users.cancelled_at`, `pricing.multiplier`) → окно «Мы не хотим тебя терять» (−50% только на следующий платёж, один раз: `subscriptions/update` к половине, после списания — обратно к `base_amount`) → отмена.
-- Аналитика: таблица `events` (POST /api/events, белый список имён), источник покупки — `orders.source`; конверсия — view `upsell_conversion`.
+- Сторис: `screens/StoriesSheet.tsx` + `lib/storyCard.ts` (canvas 1080×1920, QR `t.me/<bot>/app?startapp=ref_story`); авто-показ через 1 с при первом открытии результатов анкеты (localStorage), кнопка на экране результатов. PNG для Telegram (shareToStory/downloadFile) — временная ссылка `/s/<id>.png` (память сервера, 2 ч).
+- Аналитика: таблица `events` (POST /api/events, белый список имён), события `story_sheet_opened` (auto|button), `story_shared` (native|save|telegram_story); источник покупки — `orders.source`; конверсия — view `upsell_conversion`.
 - После выдачи домена — redeploy; проверка `GET /api/health`. `/newapp` в BotFather делает владелец (short name `app`).
 - Обновления приложения: push в ветку → Railway пересобирает автоматически.

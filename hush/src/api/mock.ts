@@ -237,6 +237,10 @@ export const mockApi: HushApi = {
     return { status: 'unavailable' };
   },
   async grantWriteAccess() {},
+  async uploadStory(dataUrl) {
+    const blob = await (await fetch(dataUrl)).blob();
+    return { url: URL.createObjectURL(blob) };
+  },
   async trackEvent(name, source) {
     if (import.meta.env.DEV) console.debug('[analytics]', name, source);
   },
