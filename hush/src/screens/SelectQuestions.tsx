@@ -19,7 +19,9 @@ export function SelectQuestionsScreen() {
   const nav = useNav();
   const toast = useToast();
   const { isPremium, questionnaires, refresh } = useAppState();
-  const firstQuestionnaire = questionnaires.length === 0;
+  // Фиксируем при открытии: после создания анкеты список обновляется, пока экран уезжает,
+  // и появление новых блоков посреди анимации выхода подвешивало переход (чёрный экран)
+  const [firstQuestionnaire] = useState(() => questionnaires.length === 0);
   const [upsellOpen, setUpsellOpen] = useState(false);
   const [libraryUpsellOpen, setLibraryUpsellOpen] = useState(false);
   const [selected, setSelected] = useState<Question[]>(draftStore.selected);

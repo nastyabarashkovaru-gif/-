@@ -5,7 +5,7 @@ import { questionnaireLink } from '@/config';
 import { track } from '@/lib/analytics';
 import { inviteVariants, renderInviteCard } from '@/lib/inviteCard';
 import { useAppState } from '@/state/AppState';
-import { StoryDeckSheet, type StoryImage } from './StoriesSheet';
+import { canvasToUrl, StoryDeckSheet, type StoryImage } from './StoriesSheet';
 import { copyText, SHARE_BODY, SHARE_INTRO, shareMessage, shareQuestionnaire } from '@/lib/share';
 import { haptic } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
@@ -56,7 +56,7 @@ export function ShareScreen({ qid }: { qid: string }) {
     const out: StoryImage[] = [];
     for (const v of inviteVariants(questions, link)) {
       const canvas = await renderInviteCard(v);
-      out.push({ src: canvas.toDataURL('image/png'), alt: v.headline });
+      out.push({ src: await canvasToUrl(canvas), alt: v.headline });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps

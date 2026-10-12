@@ -4,9 +4,11 @@ import { Download, Loader2, Send, Share, X } from 'lucide-react';
 import { api, type ResultsView } from '@/api';
 import { config } from '@/config';
 import { track } from '@/lib/analytics';
+import { reportError } from '@/lib/errorReport';
 import { renderStoryCard } from '@/lib/storyCard';
 import { canShareToStory, downloadFile, haptic, shareToStory } from '@/lib/telegram';
 import { Cta, useToast } from '@/ui';
+import { ErrorBoundary } from '@/ui/ErrorBoundary';
 
 const MAX_CARDS = 5;
 const STORY_TEXT = 'Узнай, что думают о тебе твои друзья 👀';
@@ -38,7 +40,7 @@ export function StoriesSheet({ open, onClose, results }: { open: boolean; onClos
     const out: StoryImage[] = [];
     for (const c of cards) {
       const canvas = await renderStoryCard({ ...c, link: storyLink(), handle: `@${config.botUsername}` });
-      out.push({ src: canvas.toDataURL('image/png'), alt: c.question });
+      out.push({ src: await canvasToUrl(canvas), alt: c.question });
     }
     return out;
   }, [cards]);
@@ -58,12 +60,54 @@ export function StoriesSheet({ open, onClose, results }: { open: boolean; onClos
 }
 
 export interface StoryImage {
+  /** blob:-ссылка на PNG */
   src: string;
   alt: string;
 }
 
+/**
+ * PNG из canvas → blob:-ссылка. Большие data:-строки и неосвобождённые canvas
+ * съедают память WebView на iPhone, поэтому canvas сразу обнуляем.
+ */
+export async function canvasToUrl(canvas: HTMLCanvasElement): Promise<string> {
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/png'),
+  );
+  canvas.width = 0;
+  canvas.height = 0;
+  return URL.createObjectURL(blob);
+}
+
+const blobToDataUrl = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+
+type DeckProps = Parameters<typeof StoryDeck>[0];
+
 /** Общее окно сторис: колода карточек, свайп, поделиться / сторис Telegram / сохранить */
-export function StoryDeckSheet({
+export function StoryDeckSheet(props: DeckProps) {
+  const toast = useToast();
+  // Сбой внутри окна закрывает только окно, приложение продолжает работать
+  return (
+    <ErrorBoundary
+      resetKey={props.open}
+      where={`story_${props.kind}`}
+      fallback={null}
+      onError={() => {
+        props.onClose();
+        toast.show('Не удалось подготовить карточки');
+      }}
+    >
+      <StoryDeck {...props} />
+    </ErrorBoundary>
+  );
+}
+
+function StoryDeck({
   open,
   onClose,
   title,
@@ -97,13 +141,26 @@ export function StoryDeckSheet({
   useEffect(() => {
     if (!open || cards.length) return;
     let cancelled = false;
-    render()
-      .then((out) => !cancelled && setCards(out))
-      .catch(() => toast.show('Не удалось подготовить карточки'));
+    // Рисуем после анимации появления окна, чтобы не тормозить её
+    const timer = window.setTimeout(() => {
+      render()
+        .then((out) => {
+          if (cancelled) out.forEach((c) => URL.revokeObjectURL(c.src));
+          else setCards(out);
+        })
+        .catch((e) => {
+          reportError(e, 'story_render');
+          toast.show('Не удалось подготовить карточки');
+        });
+    }, 300);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [open, cards.length, render, toast]);
+
+  // Освобождаем картинки при закрытии экрана
+  useEffect(() => () => cards.forEach((c) => URL.revokeObjectURL(c.src)), [cards]);
   const source = (method: string) => (kind === 'results' ? method : `${kind}_${method}`);
 
   const total = images.length;
@@ -126,7 +183,7 @@ export function StoryDeckSheet({
   };
 
   /** Временная публичная ссылка на картинку — нужна Telegram */
-  const uploadCurrent = async () => (await api.uploadStory(images[index])).url;
+  const uploadCurrent = async () => (await api.uploadStory(await blobToDataUrl((await currentFile())))).url;
 
   const save = async () => {
     setBusy('save');

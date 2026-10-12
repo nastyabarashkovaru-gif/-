@@ -156,6 +156,18 @@ api.post(
   }),
 );
 
+/** Ошибки приложения на устройствах — только в лог сервера */
+api.post(
+  '/client-errors',
+  rateLimit('client-errors', 20, 60 * 60_000),
+  handle(async (req) => {
+    const field = (key: string, max: number) => String(req.body?.[key] ?? '').slice(0, max);
+    console.error(
+      `[client-error] user=${req.user.id} where=${field('where', 40)} ${field('message', 300)}\n  ua=${field('ua', 200)}\n  ${field('stack', 1500)}`,
+    );
+  }),
+);
+
 /** Пользователь разрешил боту писать ему (WebApp.requestWriteAccess) */
 api.post(
   '/me/write-access',
