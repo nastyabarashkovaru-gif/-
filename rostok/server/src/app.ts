@@ -37,6 +37,7 @@ export async function buildApp() {
         frameAncestors: ["'self'", 'https://web.telegram.org', 'https://*.telegram.org'],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
+        upgradeInsecureRequests: null,
       },
     },
     frameguard: false,

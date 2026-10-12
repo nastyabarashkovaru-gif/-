@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--tg-content-safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
+  --nav-h: 76px;
+  color-scheme: light;
+}
+html, body, #root { height: 100%; background: #FFFFFF; }
+body {
+  margin: 0;
+  color: #26342C;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, "Segoe UI", Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  text-rendering: optimizeLegibility;
+}
+button { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2.5px solid #78BC8A; outline-offset: 2px; border-radius: 10px; }
+
+.pt-safe { padding-top: calc(var(--safe-top) + 12px); }
+.pb-nav { padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 24px); }
+.pb-safe { padding-bottom: calc(var(--safe-bottom) + 16px); }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+@keyframes sway { 0%, 100% { transform: rotate(-1.4deg); } 50% { transform: rotate(1.4deg); } }
+.tree-sway { animation: sway 4.6s ease-in-out infinite; }
+@keyframes flutter { 0%, 100% { transform: translate(0, 0) scaleX(1); } 25% { transform: translate(6px, -5px) scaleX(0.6); } 50% { transform: translate(10px, 2px) scaleX(1); } 75% { transform: translate(3px, 6px) scaleX(0.6); } }
+.butterfly { animation: flutter 3.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes drop-pulse { 0%, 100% { transform: translateY(0) scale(1); opacity: 1; } 50% { transform: translateY(-4px) scale(1.12); opacity: 0.85; } }
+.drop-pulse { animation: drop-pulse 1.6s ease-in-out infinite; }
+@keyframes splash-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+.splash-sway { animation: splash-sway 2.2s ease-in-out infinite; transform-origin: 50% 90%; }
+@keyframes loading-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+.loading-bar { animation: loading-bar 1.3s ease-in-out infinite; }
+@keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+.skeleton { background: linear-gradient(90deg, #F1F5F2 0px, #F8FBF8 80px, #F1F5F2 160px); background-size: 400px 100%; animation: shimmer 1.4s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tree-sway, .butterfly, .drop-pulse, .splash-sway, .loading-bar, .skeleton { animation: none !important; }
+}
+.reduce-motion .tree-sway, .reduce-motion .butterfly, .reduce-motion .drop-pulse, .reduce-motion .splash-sway { animation: none !important; }

@@ -185,7 +185,7 @@ export async function processPaymentSucceeded(e: PaymentSucceeded) {
     await c.query('UPDATE payment_events SET access_until=$2 WHERE id=$1', [ins.id, until]);
     await c.query(`UPDATE payment_intents SET status='paid', paid_at=now() WHERE id=$1 AND status='pending'`, [intent.id]);
     await c.query('UPDATE users SET activated_at=COALESCE(activated_at, $2) WHERE id=$1', [intent.user_id, now]);
-    await c.query(`UPDATE onboarding_progress SET completed_at=COALESCE(completed_at, now()), step='done' WHERE user_id=$1`, [intent.user_id]);
+    await c.query(`UPDATE onboarding_progress SET completed_at=COALESCE(completed_at, now()), step=CASE WHEN step='done' THEN 'done' ELSE 'first_task' END WHERE user_id=$1`, [intent.user_id]);
     await track(c, intent.user_id, 'purchase_success', { plan: effPlan.id, amount: e.amount, currency: e.currency, renewal }, `purchase:${e.eventKey}`);
     return { duplicate: false, userId: intent.user_id, until };
   });

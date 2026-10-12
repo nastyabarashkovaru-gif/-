@@ -13,7 +13,7 @@
     "typecheck": "npm --workspace packages/shared run typecheck && npm --workspace server run typecheck && npm --workspace web run typecheck"
   },
   "devDependencies": {
-    "@playwright/test": "1.48.2"
+    "@playwright/test": "1.56.1"
   },
   "engines": { "node": "22.x" }
 }
