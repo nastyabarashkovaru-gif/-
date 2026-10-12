@@ -3,6 +3,8 @@
  * TEST_SEED_USERNAME=<username> — при старте дополняет последнюю анкету этого пользователя
  *   тестовыми ответами до 5 (идемпотентно). Респонденты — фиктивные пользователи с id < 0 и именем «Тест: друг N».
  * TEST_CLEANUP=true — удаляет всех тестовых респондентов и их ответы.
+ * TEST_RESET_USERNAME=<username> — снимает у пользователя отметку об отмене (цены ×3) и Premium,
+ *   оплаченный только тестовыми платежами (если есть хоть один боевой платёж — подписку не трогает).
  */
 import { randomBytes } from 'node:crypto';
 import type { Question } from './catalog';
@@ -30,6 +32,23 @@ export async function runTestSeed(): Promise<void> {
     await pool.query('DELETE FROM users WHERE id < 0 AND NOT EXISTS (SELECT 1 FROM responses WHERE respondent_id = users.id)');
     console.log(`[test] удалено тестовых ответов: ${r.rowCount}`);
   }
+  const resetName = (process.env.TEST_RESET_USERNAME || '').replace(/^@/, '').toLowerCase();
+  if (resetName) {
+    const { rows } = await pool.query('SELECT id FROM users WHERE lower(username) = $1', [resetName]);
+    for (const { id } of rows) {
+      await pool.query('UPDATE users SET cancelled_at = NULL WHERE id = $1', [id]);
+      const real = await pool.query('SELECT 1 FROM payments WHERE user_id = $1 AND test_mode = FALSE LIMIT 1', [id]);
+      if (real.rowCount) {
+        console.log(`[test] @${resetName}: есть боевые платежи — подписку не трогаю, отметка отмены снята`);
+      } else {
+        const del = await pool.query('DELETE FROM entitlements WHERE user_id = $1', [id]);
+        const rev = await pool.query('DELETE FROM reveal_purchases WHERE owner_id = $1', [id]);
+        console.log(`[test] @${resetName}: отметка отмены снята, тестовых подписок удалено ${del.rowCount}, тестовых раскрытий ${rev.rowCount}`);
+      }
+    }
+    if (!rows.length) console.warn(`[test] @${resetName} не найден`);
+  }
+
   const username = (process.env.TEST_SEED_USERNAME || '').replace(/^@/, '').toLowerCase();
   if (!username) return;
 
