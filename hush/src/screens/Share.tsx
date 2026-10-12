@@ -135,8 +135,8 @@ export function ShareScreen({ qid }: { qid: string }) {
       <StoryDeckSheet
         open={storyOpen}
         onClose={() => setStoryOpen(false)}
-        title="Позови друзей через сторис 💜"
-        subtitle="Свайпай и выбери карточку — друзья отсканируют QR и ответят анонимно"
+        title="Выложи анкету к себе в сторис 💜"
+        subtitle="Свайпай и выбери карточку — друзья наведут камеру на QR или перейдут по ссылке"
         render={renderInvites}
         link={link}
         shareText="Ответь анонимно на 5 вопросов обо мне 👀"

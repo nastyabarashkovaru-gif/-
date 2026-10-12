@@ -37,7 +37,21 @@ export async function renderInviteCard(input: InviteCardInput): Promise<HTMLCanv
   const sub = fit(ctx, input.sub, inner, [38, 34], 3, 500);
   const subLH = Math.round(sub.size * 1.35);
   const qr = 300;
-  const captionH = 44;
+  const caption = { size: 34, lines: ['Наведи камеру на QR', 'или перейди по ссылке'] };
+  const captionLH = Math.round(caption.size * 1.3);
+  // Личная ссылка — текстом, её можно переписать или распознать со скриншота.
+  // В одну строку; если не влезает — перенос перед «?startapp», а не посреди кода анкеты
+  const linkText = input.link.replace(/^https?:\/\//, '');
+  const linkFit = { size: 26, lines: linkText.replace('?', '\n?').split('\n') };
+  for (const size of [34, 32, 30, 28]) {
+    ctx.font = `700 ${size}px ${FONT}`;
+    if (ctx.measureText(linkText).width <= inner) {
+      Object.assign(linkFit, { size, lines: [linkText] });
+      break;
+    }
+  }
+  const linkLH = Math.round(linkFit.size * 1.3);
+  const captionH = caption.lines.length * captionLH + 22 + linkFit.lines.length * linkLH;
 
   const cardH =
     pad + (label ? 38 + 28 : 0) + head.lines.length * headLH + 30 + sub.lines.length * subLH + 52 + qr + 28 + captionH + pad;
@@ -97,9 +111,19 @@ export async function renderInviteCard(input: InviteCardInput): Promise<HTMLCanv
   ctx.drawImage(qrCanvas, cx - qr / 2 + 20, y + 20, qr - 40, qr - 40);
   y += qr + 28;
 
-  ctx.font = `600 34px ${FONT}`;
+  ctx.font = `600 ${caption.size}px ${FONT}`;
   ctx.fillStyle = '#B987FF';
-  ctx.fillText('Наведи камеру и ответь анонимно', cx, y);
+  for (const line of caption.lines) {
+    ctx.fillText(line, cx, y);
+    y += captionLH;
+  }
+  y += 22;
+  ctx.font = `700 ${linkFit.size}px ${FONT}`;
+  ctx.fillStyle = '#fff';
+  for (const line of linkFit.lines) {
+    ctx.fillText(line, cx, y);
+    y += linkLH;
+  }
 
   return canvas;
 }
