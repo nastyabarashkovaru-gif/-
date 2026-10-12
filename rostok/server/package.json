@@ -1,0 +1,32 @@
+{
+  "name": "@rostok/server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=esm --packages=external --outfile=dist/index.js --alias:@rostok/shared=../packages/shared/src/index.ts && cp -r migrations dist/",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@fastify/helmet": "11.1.1",
+    "@fastify/rate-limit": "9.1.0",
+    "@fastify/static": "7.0.4",
+    "fastify": "4.28.1",
+    "luxon": "3.5.0",
+    "pg": "8.13.1",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@rostok/shared": "1.0.0",
+    "@types/luxon": "3.4.2",
+    "@types/node": "22.10.2",
+    "@types/pg": "8.11.10",
+    "esbuild": "0.24.0",
+    "tsx": "4.19.2",
+    "typescript": "5.6.3",
+    "vitest": "2.1.8"
+  }
+}

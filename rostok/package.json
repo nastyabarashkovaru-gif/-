@@ -1,0 +1,19 @@
+{
+  "name": "rostok",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": ["packages/shared", "server", "web"],
+  "scripts": {
+    "dev:server": "npm --workspace server run dev",
+    "dev:web": "npm --workspace web run dev",
+    "build": "npm --workspace web run build && npm --workspace server run build",
+    "start": "npm --workspace server run start",
+    "test": "npm --workspace packages/shared run test && npm --workspace server run test",
+    "test:e2e": "playwright test -c e2e/playwright.config.ts",
+    "typecheck": "npm --workspace packages/shared run typecheck && npm --workspace server run typecheck && npm --workspace web run typecheck"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.48.2"
+  },
+  "engines": { "node": "22.x" }
+}
