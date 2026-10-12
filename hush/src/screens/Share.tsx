@@ -157,7 +157,7 @@ export function InviteStoriesSheet({ qid, open, onClose }: { qid: string; open: 
       open={open}
       onClose={onClose}
       title="Выложи анкету к себе в сторис 💜"
-      subtitle="Свайпай и выбери карточку — друзья наведут камеру на QR или перейдут по ссылке"
+      subtitle="Ты можешь поделиться своей анкетой в сторис, чтобы получить больше ответов"
       render={render}
       link={link}
       shareText="Ответь анонимно на 5 вопросов обо мне 👀"
