@@ -4,9 +4,9 @@
  */
 import QRCode from 'qrcode';
 
-const W = 1080;
-const H = 1920;
-const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Inter Variable", Arial, sans-serif';
+export const W = 1080;
+export const H = 1920;
+export const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Inter Variable", Arial, sans-serif';
 
 export interface StoryCardInput {
   question: string;
@@ -17,7 +17,7 @@ export interface StoryCardInput {
   handle: string;
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -28,7 +28,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 /** Перенос по словам; длинные слова режутся посимвольно */
-function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+export function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const lines: string[] = [];
   for (const paragraph of text.split(/\n+/)) {
     let line = '';
@@ -58,7 +58,7 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): st
 }
 
 /** Подбирает размер шрифта, чтобы текст влез в заданное число строк */
-function fit(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, sizes: number[], maxLines: number, weight: number) {
+export function fit(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, sizes: number[], maxLines: number, weight: number) {
   for (const size of sizes) {
     ctx.font = `${weight} ${size}px ${FONT}`;
     const lines = wrap(ctx, text, maxWidth);

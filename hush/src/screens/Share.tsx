@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowRight, ArrowUpRight, Check, Copy, Send } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Check, Copy, Instagram, Send } from 'lucide-react';
 import { questionnaireLink } from '@/config';
+import { track } from '@/lib/analytics';
+import { inviteVariants, renderInviteCard } from '@/lib/inviteCard';
+import { useAppState } from '@/state/AppState';
+import { StoryDeckSheet, type StoryImage } from './StoriesSheet';
 import { copyText, SHARE_BODY, SHARE_INTRO, shareMessage, shareQuestionnaire } from '@/lib/share';
 import { haptic } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
@@ -24,6 +28,39 @@ export function ShareScreen({ qid }: { qid: string }) {
   const [copied, setCopied] = useState(false);
   const link = questionnaireLink(qid);
   const toDashboard = () => nav.reset({ name: 'dashboard', qid });
+  const { questionnaires } = useAppState();
+  const questions = questionnaires.find((q) => q.id === qid)?.questions.map((q) => q.text) ?? [];
+  const [storyOpen, setStoryOpen] = useState(false);
+
+  // Через секунду после создания анкеты предлагаем позвать друзей через сторис (один раз на анкету)
+  useEffect(() => {
+    const key = `hush.inviteStory.${qid}`;
+    try {
+      if (localStorage.getItem(key)) return;
+    } catch {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(key, '1');
+      } catch {
+        /* приватный режим */
+      }
+      track('story_sheet_opened', 'invite_auto');
+      setStoryOpen(true);
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [qid]);
+
+  const renderInvites = useCallback(async () => {
+    const out: StoryImage[] = [];
+    for (const v of inviteVariants(questions, link)) {
+      const canvas = await renderInviteCard(v);
+      out.push({ src: canvas.toDataURL('image/png'), alt: v.headline });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [link, questions.join('|')]);
 
   const copy = async (text: string, message: string) => {
     if (!(await copyText(text))) return;
@@ -79,11 +116,33 @@ export function ShareScreen({ qid }: { qid: string }) {
       <Cta leading={<Send size={20} strokeWidth={1.8} />} onClick={share}>
         Поделиться с друзьями
       </Cta>
+      <button
+        type="button"
+        onClick={() => {
+          track('story_sheet_opened', 'invite_button');
+          setStoryOpen(true);
+        }}
+        className="cta-dark -mt-[8px]"
+      >
+        <Instagram size={18} strokeWidth={1.8} className="text-purple-text" aria-hidden />
+        Поделиться в сторис
+      </button>
       <p className="small !text-[14px] text-center">Отправь ссылку 5–10 друзьям или опубликуй в соцсетях, чтобы получить ответы.</p>
       <button type="button" onClick={toDashboard} className="mx-auto -my-1 flex items-center gap-[6px] px-2 py-1 text-[15px] text-[#a1a1aa] active:opacity-60">
         Перейти к моим ответам
         <ArrowRight size={16} strokeWidth={1.8} aria-hidden />
       </button>
+      <StoryDeckSheet
+        open={storyOpen}
+        onClose={() => setStoryOpen(false)}
+        title="Позови друзей через сторис 💜"
+        subtitle="Свайпай и выбери карточку — друзья отсканируют QR и ответят анонимно"
+        render={renderInvites}
+        link={link}
+        shareText="Ответь анонимно на 5 вопросов обо мне 👀"
+        widgetName="Ответить анонимно"
+        kind="invite"
+      />
     </Screen>
   );
 }

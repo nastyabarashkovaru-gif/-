@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion, type PanInfo } from 'motion/react';
 import { Download, Loader2, Send, Share, X } from 'lucide-react';
 import { api, type ResultsView } from '@/api';
@@ -31,31 +31,80 @@ export function pickStoryCards(results: ResultsView): Card[] {
 
 const storyLink = () => `https://t.me/${config.botUsername}/${config.appShortName}?startapp=ref_story`;
 
-/** Окно «Поделись результатами в сторис»: колода карточек, свайп, поделиться / сохранить */
+/** Сторис с результатами анкеты */
 export function StoriesSheet({ open, onClose, results }: { open: boolean; onClose: () => void; results: ResultsView }) {
-  const toast = useToast();
   const cards = useMemo(() => pickStoryCards(results), [results]);
-  const [images, setImages] = useState<string[]>([]);
+  const render = useCallback(async () => {
+    const out: StoryImage[] = [];
+    for (const c of cards) {
+      const canvas = await renderStoryCard({ ...c, link: storyLink(), handle: `@${config.botUsername}` });
+      out.push({ src: canvas.toDataURL('image/png'), alt: c.question });
+    }
+    return out;
+  }, [cards]);
+  return (
+    <StoryDeckSheet
+      open={open}
+      onClose={onClose}
+      title="Поделись результатами в сторис 💜"
+      subtitle="Свайпай и выбери карточку с ответом, который нравится больше всего"
+      render={render}
+      link={storyLink()}
+      shareText={STORY_TEXT}
+      widgetName="Узнать о себе"
+      kind="results"
+    />
+  );
+}
+
+export interface StoryImage {
+  src: string;
+  alt: string;
+}
+
+/** Общее окно сторис: колода карточек, свайп, поделиться / сторис Telegram / сохранить */
+export function StoryDeckSheet({
+  open,
+  onClose,
+  title,
+  subtitle,
+  render,
+  link,
+  shareText,
+  widgetName,
+  kind,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle: string;
+  render: () => Promise<StoryImage[]>;
+  /** Ссылка в подписи и в виджете сторис Telegram */
+  link: string;
+  shareText: string;
+  widgetName: string;
+  /** Для аналитики: results | invite */
+  kind: string;
+}) {
+  const toast = useToast();
+  const [cards, setCards] = useState<StoryImage[]>([]);
+  const images = useMemo(() => cards.map((c) => c.src), [cards]);
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState(1);
   const [busy, setBusy] = useState<'share' | 'tg' | 'save' | null>(null);
 
   // Рисуем карточки при открытии
   useEffect(() => {
-    if (!open || images.length) return;
+    if (!open || cards.length) return;
     let cancelled = false;
-    (async () => {
-      const out: string[] = [];
-      for (const c of cards) {
-        const canvas = await renderStoryCard({ ...c, link: storyLink(), handle: `@${config.botUsername}` });
-        out.push(canvas.toDataURL('image/png'));
-      }
-      if (!cancelled) setImages(out);
-    })().catch(() => toast.show('Не удалось подготовить карточки'));
+    render()
+      .then((out) => !cancelled && setCards(out))
+      .catch(() => toast.show('Не удалось подготовить карточки'));
     return () => {
       cancelled = true;
     };
-  }, [open, cards, images.length, toast]);
+  }, [open, cards.length, render, toast]);
+  const source = (method: string) => (kind === 'results' ? method : `${kind}_${method}`);
 
   const total = images.length;
   const go = (delta: number) => {
@@ -91,7 +140,7 @@ export function StoriesSheet({ open, onClose, results }: { open: boolean; onClos
         a.target = '_blank';
         a.click();
       }
-      track('story_shared', 'save');
+      track('story_shared', source('save'));
       toast.show('Картинка сохранена — добавь её в сторис 💜');
     } catch {
       toast.show('Не удалось сохранить. Попробуй ещё раз');
@@ -105,8 +154,8 @@ export function StoriesSheet({ open, onClose, results }: { open: boolean; onClos
     try {
       const file = await currentFile();
       if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], text: `${STORY_TEXT} ${storyLink()}` });
-        track('story_shared', 'native');
+        await navigator.share({ files: [file], text: `${shareText} ${link}` });
+        track('story_shared', source('native'));
         return;
       }
     } catch (e) {
@@ -122,7 +171,7 @@ export function StoriesSheet({ open, onClose, results }: { open: boolean; onClos
     setBusy('tg');
     try {
       const url = await uploadCurrent();
-      if (shareToStory(url, STORY_TEXT, { url: storyLink(), name: 'Узнать о себе' })) track('story_shared', 'telegram_story');
+      if (shareToStory(url, shareText, { url: link, name: widgetName })) track('story_shared', source('telegram_story'));
       else toast.show('Обнови Telegram, чтобы публиковать сторис');
     } catch {
       toast.show('Не удалось открыть сторис. Попробуй ещё раз');
@@ -150,13 +199,13 @@ export function StoriesSheet({ open, onClose, results }: { open: boolean; onClos
         >
           <div className="flex shrink-0 items-start justify-between gap-[12px]">
             <h2 id="stories-title" className="h2 pt-[8px]">
-              Поделись результатами в сторис 💜
+              {title}
             </h2>
             <button type="button" aria-label="Закрыть" onClick={onClose} className="-mr-[10px] flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:opacity-50">
               <X size={22} strokeWidth={1.8} color="#a1a1aa" />
             </button>
           </div>
-          <p className="muted mt-[6px] shrink-0">Свайпай и выбери карточку с ответом, который нравится больше всего</p>
+          <p className="muted mt-[6px] shrink-0">{subtitle}</p>
 
           {/* Колода карточек */}
           <div className="relative my-[16px] flex min-h-0 flex-1 items-center justify-center">
@@ -174,7 +223,7 @@ export function StoriesSheet({ open, onClose, results }: { open: boolean; onClos
                       <motion.img
                         key={`${cardIndex}-${top ? 'top' : 'under'}`}
                         src={images[cardIndex]}
-                        alt={top ? `Карточка ${index + 1}: ${cards[cardIndex]?.question}` : ''}
+                        alt={top ? `Карточка ${index + 1}: ${cards[cardIndex]?.alt}` : ''}
                         draggable={false}
                         className="absolute inset-0 h-full w-full select-none rounded-[22px] border border-[#3a2d4d] object-cover shadow-[0_20px_50px_rgba(0,0,0,0.7)]"
                         style={{ zIndex: 10 - depth, touchAction: 'pan-y' }}
