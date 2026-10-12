@@ -18,7 +18,8 @@ const draftStore: { selected: Question[]; custom: Question[] } = { selected: [],
 export function SelectQuestionsScreen() {
   const nav = useNav();
   const toast = useToast();
-  const { isPremium, refresh } = useAppState();
+  const { isPremium, questionnaires, refresh } = useAppState();
+  const firstQuestionnaire = questionnaires.length === 0;
   const [upsellOpen, setUpsellOpen] = useState(false);
   const [libraryUpsellOpen, setLibraryUpsellOpen] = useState(false);
   const [selected, setSelected] = useState<Question[]>(draftStore.selected);
@@ -163,23 +164,28 @@ export function SelectQuestionsScreen() {
       <div className="no-scrollbar -mx-[23px] flex min-h-[200px] !shrink flex-1 flex-col gap-[9px] overflow-y-auto px-[23px] pb-1" role="group" aria-label="Вопросы">
         {BASE_QUESTIONS.map((q) => renderQuestion(q))}
 
-        {/* Расширенная библиотека: свои вопросы и дополнительные вопросы — только по подписке */}
-        <div className="mt-[12px] flex shrink-0 items-center gap-[8px]">
-          <Crown size={16} strokeWidth={1.8} className="text-purple" aria-hidden />
-          <span className="step">Расширенная библиотека</span>
-          {!isPremium && <span className="ml-auto text-[12px] font-medium text-purple-text">Premium</span>}
-        </div>
-        <button
-          type="button"
-          onClick={openCustom}
-          className="flex w-full shrink-0 items-center gap-[10px] rounded-[12px] border border-dashed border-[#4a3b5c] bg-[#101013] px-[13px] py-[14px] text-left text-[15px] font-medium leading-[1.35] text-purple-text active:scale-[0.99]"
-        >
-          <Plus size={17} strokeWidth={2} aria-hidden />
-          <span className="flex-1">Добавить свой вопрос</span>
-          {!isPremium && <Lock size={15} strokeWidth={1.8} className="text-[#8e8b97]" aria-label="Premium" />}
-        </button>
-        <AnimatePresence initial={false}>{custom.map((q) => renderQuestion(q))}</AnimatePresence>
-        {LIBRARY_QUESTIONS.map((q) => renderQuestion(q, !isPremium))}
+        {/* Первая анкета — только базовые вопросы, без упоминаний Premium */}
+        {!firstQuestionnaire && (
+          <>
+            {/* Расширенная библиотека: свои вопросы и дополнительные вопросы — только по подписке */}
+            <div className="mt-[12px] flex shrink-0 items-center gap-[8px]">
+              <Crown size={16} strokeWidth={1.8} className="text-purple" aria-hidden />
+              <span className="step">Расширенная библиотека</span>
+              {!isPremium && <span className="ml-auto text-[12px] font-medium text-purple-text">Premium</span>}
+            </div>
+            <button
+              type="button"
+              onClick={openCustom}
+              className="flex w-full shrink-0 items-center gap-[10px] rounded-[12px] border border-dashed border-[#4a3b5c] bg-[#101013] px-[13px] py-[14px] text-left text-[15px] font-medium leading-[1.35] text-purple-text active:scale-[0.99]"
+            >
+              <Plus size={17} strokeWidth={2} aria-hidden />
+              <span className="flex-1">Добавить свой вопрос</span>
+              {!isPremium && <Lock size={15} strokeWidth={1.8} className="text-[#8e8b97]" aria-label="Premium" />}
+            </button>
+            <AnimatePresence initial={false}>{custom.map((q) => renderQuestion(q))}</AnimatePresence>
+            {LIBRARY_QUESTIONS.map((q) => renderQuestion(q, !isPremium))}
+          </>
+        )}
       </div>
 
       <Cta icon="right" disabled={!full} loading={saving} onClick={submit}>
