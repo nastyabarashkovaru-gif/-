@@ -9,7 +9,7 @@ import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { carouselPosition, useResults } from '@/state/results';
 import { Cta, LoadingScreen, MessageScreen, Screen, Segments, SettingsButton, Spacer, TopBar } from '@/ui';
-import { useShare } from './Share';
+import { InviteStoriesSheet, InviteStoryButton, useInviteStoryAuto, useShare } from './Share';
 import { StoriesSheet } from './StoriesSheet';
 import { useNewQuestionnaire } from './Upsell';
 import { track } from '@/lib/analytics';
@@ -66,6 +66,7 @@ function WaitingView({ qid, count }: { qid: string; count: number }) {
   const nav = useNav();
   const share = useShare(qid);
   const left = RESULTS_THRESHOLD - count;
+  const [storyOpen, setStoryOpen] = useInviteStoryAuto(qid);
 
   return (
     <Screen fixed>
@@ -113,7 +114,9 @@ function WaitingView({ qid, count }: { qid: string; count: number }) {
       <Cta leading={<Send size={20} strokeWidth={1.8} />} onClick={share}>
         Поделиться ещё раз
       </Cta>
+      <InviteStoryButton onClick={() => setStoryOpen(true)} />
       <p className="small !text-[14px] text-center">Отправь анкету ещё нескольким друзьям, чтобы быстрее получить ответы.</p>
+      <InviteStoriesSheet qid={qid} open={storyOpen} onClose={() => setStoryOpen(false)} />
     </Screen>
   );
 }
