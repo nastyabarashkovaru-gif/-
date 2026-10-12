@@ -5,6 +5,7 @@
  * TEST_CLEANUP=true — удаляет всех тестовых респондентов и их ответы.
  * TEST_RESET_USERNAME=<username> — снимает у пользователя отметку об отмене (цены ×3) и Premium,
  *   оплаченный только тестовыми платежами (если есть хоть один боевой платёж — подписку не трогает).
+ * TEST_DELETE_QUESTIONNAIRES_USERNAME=<username> — удаляет все анкеты пользователя вместе с ответами (начать заново).
  */
 import { randomBytes } from 'node:crypto';
 import type { Question } from './catalog';
@@ -47,6 +48,15 @@ export async function runTestSeed(): Promise<void> {
       }
     }
     if (!rows.length) console.warn(`[test] @${resetName} не найден`);
+  }
+
+  const wipeName = (process.env.TEST_DELETE_QUESTIONNAIRES_USERNAME || '').replace(/^@/, '').toLowerCase();
+  if (wipeName) {
+    const r = await pool.query(
+      `DELETE FROM questionnaires WHERE owner_id IN (SELECT id FROM users WHERE lower(username) = $1) RETURNING id`,
+      [wipeName],
+    );
+    console.log(`[test] @${wipeName}: удалено анкет ${r.rowCount} (${r.rows.map((x) => x.id).join(', ')})`);
   }
 
   const username = (process.env.TEST_SEED_USERNAME || '').replace(/^@/, '').toLowerCase();
