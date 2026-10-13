@@ -84,13 +84,13 @@ function save() {
   window.dispatchEvent(new Event('hush:data-changed'));
 }
 
-/** Как на сервере: месяц 299 ₽ первые 3 часа после показа тарифов, потом 990 ₽ */
+/** Как на сервере: сниженные цены первые 3 часа после показа тарифов, потом обычные */
 function mockPricing(): Pricing {
   const endsAt = db.offerStartedAt ? db.offerStartedAt + 3 * 3600_000 : null;
   const active = endsAt === null || endsAt > Date.now();
   return {
-    prices: { month: active ? 299 : 990, quarter: 499, year: 1499 },
-    standardMonth: 990,
+    prices: active ? { month: 299, quarter: 499, year: 1490 } : { month: 990, quarter: 1490, year: 6990 },
+    standard: { month: 990, quarter: 1490, year: 6990 },
     offerEndsAt: active && endsAt ? new Date(endsAt).toISOString() : null,
     returning: false,
   };
@@ -264,6 +264,21 @@ export const mockApi: HushApi = {
   async uploadStory(dataUrl) {
     const blob = await (await fetch(dataUrl)).blob();
     return { url: URL.createObjectURL(blob) };
+  },
+  async adminStats() {
+    await delay(200);
+    const p = (n: number) => ({ today: n, d7: n * 4, d30: n * 12, total: n * 20 });
+    return {
+      users: p(12), questionnaires: p(7), responses: p(30), revenue: p(1495), paymentsCount: p(3),
+      byKind: [{ plan: 'year', count: 20, sum: 29800 }, { plan: 'month', count: 30, sum: 8970 }, { plan: 'reveal', count: 10, sum: 990 }],
+      testPayments: { count: 1, sum: 299 },
+      active: [{ plan: 'year', count: 18, renewing: 15 }, { plan: 'month', count: 22, renewing: 19 }],
+      cancelled: { count: 4 },
+      days: Array.from({ length: 14 }, (_, i) => ({ day: `${String(13 - i).padStart(2, '0')}.10`, users: 10 - (i % 5), responses: 20 + i, payments: i % 3, revenue: (i % 3) * 299 })),
+      upsell: [],
+      stories: [{ name: 'story_shared', source: 'invite_save', count: 9 }],
+      offers: { paywall_opened: 120, paying_users: 40 },
+    };
   },
   async trackEvent(name, source) {
     if (import.meta.env.DEV) console.debug('[analytics]', name, source);

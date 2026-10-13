@@ -4,22 +4,25 @@ import { pool } from './db';
 
 export type Plan = 'month' | 'quarter' | 'year';
 
-/** Цены — только на сервере: клиент не может их подменить */
-export const PLANS: Record<Plan, { amount: number; months: number; title: string }> = {
-  month: { amount: 299, months: 1, title: 'hush. Premium — 1 месяц' },
-  quarter: { amount: 499, months: 3, title: 'hush. Premium — 3 месяца' },
-  year: { amount: 1499, months: 12, title: 'hush. Premium — 1 год' },
+/**
+ * Цены — только на сервере: клиент не может их подменить.
+ * amount — цена по предложению (первые 3 часа после показа тарифов), standard — обычная цена.
+ */
+export const PLANS: Record<Plan, { amount: number; standard: number; months: number; title: string }> = {
+  month: { amount: 299, standard: 990, months: 1, title: 'hush. Premium — 1 месяц' },
+  quarter: { amount: 499, standard: 1490, months: 3, title: 'hush. Premium — 3 месяца' },
+  year: { amount: 1490, standard: 6990, months: 12, title: 'hush. Premium — 1 год' },
 };
 
-/** Стандартная цена месяца. 299 ₽ (PLANS.month) — предложение на первые 3 часа после показа тарифов */
-export const STANDARD_MONTH = 990;
+/** Предложение действует 3 часа с первого показа тарифов */
 export const OFFER_HOURS = 3;
 /** Скидка удержания: −50% на один следующий платёж */
 export const RETENTION_DISCOUNT = 0.5;
 
 export interface Pricing {
   prices: Record<Plan, number>;
-  standardMonth: number;
+  /** Обычные цены (зачёркнутые на экране тарифов) */
+  standard: Record<Plan, number>;
   /** Конец предложения 299 ₽ за месяц; null — предложения нет или оно ещё не началось */
   offerEndsAt: string | null;
   /** Пользователь отменял подписку — предложение ему не положено */
@@ -27,8 +30,8 @@ export interface Pricing {
 }
 
 /**
- * Цены для пользователя. Месяц: 299 ₽ в течение 3 часов с первого показа тарифов,
- * потом и после отмены подписки — стандартные 990 ₽. 3 месяца и год — без изменений.
+ * Цены для пользователя: по предложению в течение 3 часов с первого показа тарифов,
+ * потом и после отмены подписки — обычные.
  * start = true запускает таймер предложения, если он ещё не запущен.
  */
 export async function pricingFor(userId: number, start = false): Promise<Pricing> {
@@ -43,9 +46,10 @@ export async function pricingFor(userId: number, start = false): Promise<Pricing
   const endsAt = started === null ? null : started + OFFER_HOURS * 3600_000;
   // Пока таймер не запущен, предложение ещё впереди — показываем 299 ₽
   const offerActive = !returning && (endsAt === null || endsAt > Date.now());
+  const pick = (plan: Plan) => (offerActive ? PLANS[plan].amount : PLANS[plan].standard);
   return {
-    prices: { month: offerActive ? PLANS.month.amount : STANDARD_MONTH, quarter: PLANS.quarter.amount, year: PLANS.year.amount },
-    standardMonth: STANDARD_MONTH,
+    prices: { month: pick('month'), quarter: pick('quarter'), year: pick('year') },
+    standard: { month: PLANS.month.standard, quarter: PLANS.quarter.standard, year: PLANS.year.standard },
     offerEndsAt: offerActive && endsAt !== null ? new Date(endsAt).toISOString() : null,
     returning,
   };

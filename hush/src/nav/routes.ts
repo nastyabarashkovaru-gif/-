@@ -15,7 +15,9 @@ export type Route =
   | { name: 'premiumSuccess'; pending?: boolean }
   | { name: 'settings' }
   | { name: 'subscription' }
-  | { name: 'myQuestionnaires' };
+  | { name: 'myQuestionnaires' }
+  /** Статистика для владельца */
+  | { name: 'admin' };
 
 export const routeKey = (r: Route): string =>
   [r.name, 'qid' in r ? r.qid : '', 'respondentId' in r ? r.respondentId : ''].join(':');

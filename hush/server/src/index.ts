@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import { requireTelegram } from './auth';
+import { adminApi } from './admin';
 import { billingApi, billingEnabled, cloudPaymentsWebhooks } from './billing';
 import { config } from './config';
 import { migrate, pool } from './db';
@@ -42,6 +43,7 @@ async function main() {
 
   // Всё остальное API — только с проверенной подписью Telegram initData
   app.use('/api/billing', requireTelegram, billingApi);
+  app.use('/api/admin', requireTelegram, adminApi);
   app.use('/api', requireTelegram, api);
   app.use('/api', (_req, res) => {
     res.status(404).json({ code: 'not_found' });

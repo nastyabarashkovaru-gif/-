@@ -102,7 +102,7 @@ export async function migrate(): Promise<void> {
     );
 
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT;
-    -- Отмена подписки: повторное оформление — по тройному тарифу
+    -- Отмена подписки: повторное оформление — по обычной цене без скидки
     ALTER TABLE users ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS offer_started_at TIMESTAMPTZ;
     -- Обычная сумма автосписания и скидка удержания (−50% только на следующий платёж, один раз)

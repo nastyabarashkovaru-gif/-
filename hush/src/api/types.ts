@@ -13,6 +13,8 @@ export interface Me {
   lastName?: string;
   username?: string;
   photoUrl?: string;
+  /** Владелец: доступна статистика */
+  isAdmin?: boolean;
 }
 
 export interface Entitlement {
@@ -134,12 +136,30 @@ export class ApiError extends Error {
 
 export interface Pricing {
   prices: Record<PlanId, number>;
-  /** Стандартная цена месяца (990 ₽) */
-  standardMonth: number;
+  /** Обычные цены (зачёркнутые на экране тарифов) */
+  standard: Record<PlanId, number>;
   /** Конец предложения «месяц за 299 ₽»; null — таймер не запущен или предложения нет */
   offerEndsAt: string | null;
   /** Отменял подписку — предложение не положено */
   returning: boolean;
+}
+
+type Periods = { today: number | string; d7: number | string; d30: number | string; total: number | string };
+export interface AdminStats {
+  users: Periods;
+  questionnaires: Periods;
+  responses: Periods;
+  /** Сумма оплат, ₽ (без тестовых, до комиссий) */
+  revenue: Periods;
+  paymentsCount: Periods;
+  byKind: Array<{ plan: string; count: number; sum: number | string }>;
+  testPayments: { count: number; sum: number | string };
+  active: Array<{ plan: string; count: number; renewing: number }>;
+  cancelled: { count: number };
+  days: Array<{ day: string; users: number; responses: number; payments: number; revenue: number | string }>;
+  upsell: Array<Record<string, unknown>>;
+  stories: Array<{ name: string; source: string | null; count: number }>;
+  offers: { paywall_opened: number; paying_users: number };
 }
 
 export interface Bootstrap {
@@ -176,6 +196,8 @@ export interface HushApi {
   grantWriteAccess(): Promise<void>;
   /** Загрузить PNG сторис и получить временную публичную ссылку (для Telegram) */
   uploadStory(dataUrl: string): Promise<{ url: string }>;
+  /** Статистика для владельца */
+  adminStats(): Promise<AdminStats>;
   /** Событие аналитики (fire-and-forget) */
   trackEvent(name: AnalyticsEvent, source: string): Promise<void>;
 }

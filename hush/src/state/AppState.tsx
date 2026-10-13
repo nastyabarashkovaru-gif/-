@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { api, ApiError, type ApiErrorCode, type Bootstrap, type Pricing } from '@/api';
-import { PLANS, STANDARD_MONTH } from '@/data/plans';
+import { PLANS, STANDARD_PRICES } from '@/data/plans';
 import { config } from '@/config';
 
 interface AppStateValue extends Bootstrap {
@@ -63,7 +63,7 @@ export function AppStateProvider({
     isPremium: state.data.entitlement.plan !== null,
     pricing: state.data.pricing ?? {
       prices: { month: PLANS[0].price, quarter: PLANS[1].price, year: PLANS[2].price },
-      standardMonth: STANDARD_MONTH,
+      standard: STANDARD_PRICES,
       offerEndsAt: null,
       returning: false,
     },

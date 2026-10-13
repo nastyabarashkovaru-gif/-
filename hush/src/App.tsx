@@ -6,6 +6,7 @@ import { config } from '@/config';
 import { getStartParam } from '@/lib/telegram';
 import { NavigatorProvider, useNav } from '@/nav/Navigator';
 import { routeKey, type Route } from '@/nav/routes';
+import { AdminScreen } from '@/screens/Admin';
 import { AnswerScreen } from '@/screens/Answer';
 import { DashboardScreen } from '@/screens/Dashboard';
 import { PremiumScreen } from '@/screens/Premium';
@@ -50,6 +51,8 @@ function renderRoute(route: Route) {
       return <SubscriptionScreen />;
     case 'myQuestionnaires':
       return <MyQuestionnairesScreen />;
+    case 'admin':
+      return <AdminScreen />;
   }
 }
 
@@ -85,12 +88,14 @@ function Router() {
 }
 
 function Root() {
-  const { questionnaires } = useAppState();
+  const { questionnaires, me } = useAppState();
   // Стартовый экран: ссылка друга → ответы; есть анкета → её статус; иначе приветствие
   const initial = useMemo<Route>(() => {
     const startParam = getStartParam();
+    // Статистика для владельца: t.me/<bot>/app?startapp=admin
+    if (startParam === 'admin' && me.isAdmin) return { name: 'admin' };
     // ref_* — рекламные метки (например, QR со сторис), а не id анкеты
-    if (startParam && !startParam.startsWith('ref_')) return { name: 'answer', qid: startParam };
+    if (startParam && startParam !== 'admin' && !startParam.startsWith('ref_')) return { name: 'answer', qid: startParam };
     if (questionnaires[0]) return { name: 'dashboard', qid: questionnaires[0].id };
     return { name: 'welcome' };
     // eslint-disable-next-line react-hooks/exhaustive-deps

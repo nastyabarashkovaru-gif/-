@@ -45,6 +45,7 @@ export const httpApi: HushApi = {
   setAutoRenew: (enabled) => request('POST', '/api/billing/autorenew', { enabled }),
   retentionDiscount: () => request('POST', '/api/billing/retention-discount'),
   grantWriteAccess: () => request('POST', '/api/me/write-access'),
+  adminStats: () => request('GET', '/api/admin/stats'),
   trackEvent: (name, source) => request('POST', '/api/events', { name, source }),
   uploadStory: (image) => request('POST', '/api/stories', { image }),
 };

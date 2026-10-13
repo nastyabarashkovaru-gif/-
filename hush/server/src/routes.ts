@@ -3,6 +3,7 @@ import { Router, type Request, type Response } from 'express';
 import { catalogQuestion, type Question } from './catalog';
 import { config } from './config';
 import { pool, tx } from './db';
+import { isAdmin } from './admin';
 import { getPlan, pricingFor, REVEAL_PRICE } from './plans';
 import { rateLimit } from './rateLimit';
 import { appLink, bot, notifyThresholdReached } from './telegram';
@@ -113,7 +114,7 @@ api.get(
       pool.query<QRow>(`${Q_SELECT} WHERE q.owner_id = $1 ORDER BY q.created_at DESC`, [u.id]),
     ]);
     return {
-      me: { id: String(u.id), firstName: u.first_name, lastName: u.last_name, username: u.username, photoUrl: u.photo_url },
+      me: { id: String(u.id), firstName: u.first_name, lastName: u.last_name, username: u.username, photoUrl: u.photo_url, isAdmin: isAdmin(req.user) },
       entitlement: {
         plan: plan.plan,
         autoRenew: plan.autoRenew,

@@ -49,7 +49,8 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
   const months = (id: PlanId) => (id === 'month' ? 1 : id === 'quarter' ? 3 : 12);
   // Выгода относительно помесячной оплаты по текущей цене месяца
   const savings = (id: PlanId) => Math.round((1 - price(id) / (monthPrice * months(id))) * 100);
-  const offerOn = pricing.offerEndsAt !== null && left !== 0 && monthPrice < pricing.standardMonth;
+  const offerOn = pricing.offerEndsAt !== null && left !== 0 && monthPrice < pricing.standard.month;
+  const discount = (id: PlanId) => Math.round((1 - price(id) / pricing.standard[id]) * 100);
 
   const close = () => {
     if (nav.canGoBack) nav.back();
@@ -134,6 +135,18 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
 
       <div className="flex flex-col gap-[10px]" role="radiogroup" aria-label="Тариф">
         <div className="mb-[2px] mt-[2px] text-[17px] font-medium">Выбери подписку</div>
+        {offerOn && (
+          <div className="flex flex-col gap-[4px] rounded-[16px] border border-[#4a3a1a] bg-[#1f1910] px-[14px] py-[12px]">
+            <div className="flex items-center justify-between gap-[10px] text-[15px] font-medium text-[#ffcf7a]">
+              <span>Скидка при оплате в ближайшие 3 часа</span>
+              <span className="flex shrink-0 items-center gap-[5px] tabular-nums">
+                <Timer size={15} strokeWidth={2} aria-hidden />
+                {left === null ? '3:00:00' : formatLeft(left)}
+              </span>
+            </div>
+            <p className="text-[13px] leading-[1.35] text-[#c9b48a]">Цена закрепится за тобой: все следующие списания — по этой же цене, пока подписка активна.</p>
+          </div>
+        )}
         {PLANS.map((p) => {
           const active = p.id === plan;
           return (
@@ -165,31 +178,18 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
                   {p.title}
                 </span>
                 <span className="flex items-baseline gap-[8px]">
-                  {p.id === 'month' && offerOn && (
-                    <s className="text-[15px] text-[#77737f]">{formatRub(pricing.standardMonth)}</s>
-                  )}
+                  {offerOn && <s className="text-[15px] text-[#77737f]">{formatRub(pricing.standard[p.id])}</s>}
                   <span className="text-[20px] font-medium">{formatRub(price(p.id))}</span>
                 </span>
               </div>
               <div className="flex items-center justify-between gap-[10px] text-[14px]">
-                {p.id === 'month' && offerOn ? (
-                  <>
-                    <span className="text-green">Скидка {Math.round((1 - monthPrice / pricing.standardMonth) * 100)}%</span>
-                    <span className="flex items-center gap-[5px] font-medium tabular-nums text-[#ffcf7a]">
-                      <Timer size={15} strokeWidth={2} aria-hidden />
-                      {left === null ? '3:00:00' : formatLeft(left)}
-                    </span>
-                  </>
+                <span className="text-[#9a97a3]">{p.id === 'month' ? p.caption : `${Math.round(price(p.id) / months(p.id))} ₽/мес`}</span>
+                {offerOn ? (
+                  <span className="text-green">Скидка {discount(p.id)}%</span>
                 ) : (
-                  <>
-                    <span className="text-[#9a97a3]">{p.perMonth ? `${Math.round(price(p.id) / months(p.id))} ₽/мес` : p.caption}</span>
-                    {p.id !== 'month' && <span className="text-green">Выгода {savings(p.id)}%</span>}
-                  </>
+                  p.id !== 'month' && <span className="text-green">Выгода {savings(p.id)}%</span>
                 )}
               </div>
-              {p.id === 'month' && offerOn && (
-                <div className="text-[13px] leading-[1.35] text-[#9a97a3]">При оплате в ближайшие 3 часа, потом — <span className="whitespace-nowrap">{formatRub(pricing.standardMonth)}/мес</span></div>
-              )}
               {p.unlimitedReveals && (
                 <div className="mt-[2px] flex items-center gap-[8px] text-[14px] text-purple-text">
                   <Check size={16} strokeWidth={2.2} className="text-green" aria-hidden />
