@@ -3,7 +3,7 @@
  * TEST_SEED_USERNAME=<username> — при старте дополняет последнюю анкету этого пользователя
  *   тестовыми ответами до 5 (идемпотентно). Респонденты — фиктивные пользователи с id < 0 и именем «Тест: друг N».
  * TEST_CLEANUP=true — удаляет всех тестовых респондентов и их ответы.
- * TEST_RESET_USERNAME=<username> — снимает у пользователя отметку об отмене (цены ×3) и Premium,
+ * TEST_RESET_USERNAME=<username> — снимает у пользователя отметку об отмене и таймер предложения 299 ₽ и Premium,
  *   оплаченный только тестовыми платежами (если есть хоть один боевой платёж — подписку не трогает).
  * TEST_DELETE_QUESTIONNAIRES_USERNAME=<username> — удаляет все анкеты пользователя вместе с ответами (начать заново).
  */
@@ -37,7 +37,7 @@ export async function runTestSeed(): Promise<void> {
   if (resetName) {
     const { rows } = await pool.query('SELECT id FROM users WHERE lower(username) = $1', [resetName]);
     for (const { id } of rows) {
-      await pool.query('UPDATE users SET cancelled_at = NULL WHERE id = $1', [id]);
+      await pool.query('UPDATE users SET cancelled_at = NULL, offer_started_at = NULL WHERE id = $1', [id]);
       const real = await pool.query('SELECT 1 FROM payments WHERE user_id = $1 AND test_mode = FALSE LIMIT 1', [id]);
       if (real.rowCount) {
         console.log(`[test] @${resetName}: есть боевые платежи — подписку не трогаю, отметка отмены снята`);

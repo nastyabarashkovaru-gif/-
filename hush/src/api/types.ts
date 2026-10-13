@@ -132,14 +132,24 @@ export class ApiError extends Error {
   }
 }
 
+export interface Pricing {
+  prices: Record<PlanId, number>;
+  /** Стандартная цена месяца (990 ₽) */
+  standardMonth: number;
+  /** Конец предложения «месяц за 299 ₽»; null — таймер не запущен или предложения нет */
+  offerEndsAt: string | null;
+  /** Отменял подписку — предложение не положено */
+  returning: boolean;
+}
+
 export interface Bootstrap {
   me: Me;
   entitlement: Entitlement;
   questionnaires: QuestionnaireSummary[];
   /** Имя бота и short name Mini App — для ссылок на анкеты */
   app?: { botUsername: string; appShortName: string };
-  /** Множитель цен: после отмены подписки повторное оформление ×3 */
-  pricing?: { multiplier: number };
+  /** Цены для этого пользователя (считает сервер) */
+  pricing?: Pricing;
 }
 
 export interface HushApi {
@@ -154,6 +164,8 @@ export interface HushApi {
   submitResponses(payload: SubmitPayload): Promise<void>;
   /** Платежи не подключены: всегда { status: 'unavailable' } */
   startCheckout(plan: PlanId, source?: UpsellSource): Promise<BillingResult>;
+  /** Экран тарифов открыт: запускает 3-часовое предложение и возвращает цены */
+  startOffer(): Promise<Pricing>;
   restorePurchases(): Promise<BillingResult>;
   /** Разовое раскрытие автора (99 ₽) на тарифах 1 и 3 месяца */
   startRevealCheckout(questionnaireId: string, respondentId: string): Promise<BillingResult>;

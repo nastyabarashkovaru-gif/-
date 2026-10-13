@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Check, CircleCheck, LockOpen } from 'lucide-react';
+import { Check, CircleCheck, LockOpen, Timer } from 'lucide-react';
 import { api, type UpsellSource } from '@/api';
 import { config } from '@/config';
-import { DEFAULT_PLAN, PLANS, planById, type PlanId } from '@/data/plans';
+import { DEFAULT_PLAN, PLANS, type PlanId } from '@/data/plans';
 import { cn } from '@/lib/cn';
 import { formatRub } from '@/lib/plural';
 import { payWithCloudPayments } from '@/lib/cloudpayments';
@@ -30,9 +30,26 @@ const BENEFITS = [
 export function PremiumScreen({ source }: { source?: UpsellSource }) {
   const nav = useNav();
   const toast = useToast();
-  const { questionnaires, refresh, priceMultiplier: m } = useAppState();
+  const { questionnaires, refresh, pricing: initialPricing } = useAppState();
   const [plan, setPlan] = useState<PlanId>(DEFAULT_PLAN);
   const [busy, setBusy] = useState(false);
+  const [pricing, setPricing] = useState(initialPricing);
+  const price = (id: PlanId) => pricing.prices[id];
+  const monthPrice = price('month');
+
+  // Открытие тарифов запускает 3-часовое предложение (сервер запоминает время)
+  useEffect(() => {
+    api.startOffer().then(setPricing).catch(() => {});
+  }, []);
+  const left = useCountdown(pricing.offerEndsAt);
+  // Время вышло — берём актуальные цены у сервера
+  useEffect(() => {
+    if (left === 0) api.startOffer().then(setPricing).catch(() => {});
+  }, [left]);
+  const months = (id: PlanId) => (id === 'month' ? 1 : id === 'quarter' ? 3 : 12);
+  // Выгода относительно помесячной оплаты по текущей цене месяца
+  const savings = (id: PlanId) => Math.round((1 - price(id) / (monthPrice * months(id))) * 100);
+  const offerOn = pricing.offerEndsAt !== null && left !== 0 && monthPrice < pricing.standardMonth;
 
   const close = () => {
     if (nav.canGoBack) nav.back();
@@ -147,12 +164,32 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
                   </span>
                   {p.title}
                 </span>
-                <span className="text-[20px] font-medium">{formatRub(p.price * m)}</span>
+                <span className="flex items-baseline gap-[8px]">
+                  {p.id === 'month' && offerOn && (
+                    <s className="text-[15px] text-[#77737f]">{formatRub(pricing.standardMonth)}</s>
+                  )}
+                  <span className="text-[20px] font-medium">{formatRub(price(p.id))}</span>
+                </span>
               </div>
               <div className="flex items-center justify-between gap-[10px] text-[14px]">
-                <span className="text-[#9a97a3]">{p.perMonth ? `${p.perMonth * m} ₽/мес` : p.caption}</span>
-                {p.savings && <span className="text-green">Выгода {p.savings}%</span>}
+                {p.id === 'month' && offerOn ? (
+                  <>
+                    <span className="text-green">Скидка {Math.round((1 - monthPrice / pricing.standardMonth) * 100)}%</span>
+                    <span className="flex items-center gap-[5px] font-medium tabular-nums text-[#ffcf7a]">
+                      <Timer size={15} strokeWidth={2} aria-hidden />
+                      {left === null ? '3:00:00' : formatLeft(left)}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-[#9a97a3]">{p.perMonth ? `${Math.round(price(p.id) / months(p.id))} ₽/мес` : p.caption}</span>
+                    {p.id !== 'month' && <span className="text-green">Выгода {savings(p.id)}%</span>}
+                  </>
+                )}
               </div>
+              {p.id === 'month' && offerOn && (
+                <div className="text-[13px] leading-[1.35] text-[#9a97a3]">При оплате в ближайшие 3 часа, потом — <span className="whitespace-nowrap">{formatRub(pricing.standardMonth)}/мес</span></div>
+              )}
               {p.unlimitedReveals && (
                 <div className="mt-[2px] flex items-center gap-[8px] text-[14px] text-purple-text">
                   <Check size={16} strokeWidth={2.2} className="text-green" aria-hidden />
@@ -166,10 +203,10 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
 
       <Spacer />
       <Cta leading={<LockOpen size={20} strokeWidth={1.8} className="text-green" />} onClick={checkout} loading={busy}>
-        Открыть всё за {formatRub(planById(plan).price * m)} 😍
+        Открыть всё за {formatRub(price(plan))} 😍
       </Cta>
       <p className="muted !text-[14px] mx-auto max-w-[320px] text-center">
-        Подписка продлевается автоматически: {formatRub(planById(plan).price * m)} раз в {PERIOD[plan]}. Отменить подписку можно в любой момент в
+        Подписка продлевается автоматически: {formatRub(price(plan))} раз в {PERIOD[plan]}. Отменить подписку можно в любой момент в
         настройках профиля
       </p>
       <p className="small !text-[12px] -mt-[8px] text-center">
@@ -193,4 +230,25 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
       </p>
     </Screen>
   );
+}
+
+/** Секунд до конца предложения: null — таймер не запущен, 0 — время вышло */
+function useCountdown(endsAt: string | null): number | null {
+  const calc = () => (endsAt ? Math.max(0, Math.floor((new Date(endsAt).getTime() - Date.now()) / 1000)) : null);
+  const [left, setLeft] = useState(calc);
+  useEffect(() => {
+    setLeft(calc());
+    if (!endsAt) return;
+    const timer = window.setInterval(() => setLeft(calc()), 1000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endsAt]);
+  return left;
+}
+
+function formatLeft(sec: number) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }

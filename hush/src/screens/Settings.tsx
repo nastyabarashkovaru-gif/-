@@ -109,16 +109,16 @@ function SettingRow({ icon, label, onClick }: { icon: ReactNode; label: string; 
 export function SubscriptionScreen() {
   const nav = useNav();
   const toast = useToast();
-  const { entitlement, refresh, priceMultiplier } = useAppState();
+  const { entitlement, refresh, pricing } = useAppState();
   const plan = entitlement.plan ? planById(entitlement.plan) : null;
 
   const [busy, setBusy] = useState(false);
-  /** Удерживающие окна перед отменой: предупреждение о цене ×3 → скидка −50% на следующий платёж */
+  /** Удерживающие окна перед отменой: предупреждение о стандартной цене → скидка −50% на следующий платёж */
   const [step, setStep] = useState<'none' | 'warning' | 'offer'>('none');
   const amount = entitlement.amount ?? plan?.price ?? 0;
   const discounted = Math.round(amount / 2);
-  // Предупреждение о тройной цене честно только для тех, кто сейчас платит обычную цену
-  const showWarning = priceMultiplier === 1;
+  // Предупреждение честно, только для месячного тарифа дешевле стандартной цены (3 месяца и год не дорожают)
+  const showWarning = entitlement.plan === 'month' && !pricing.returning && amount < pricing.standardMonth;
 
   const startCancel = () => {
     if (showWarning) setStep('warning');
@@ -231,7 +231,7 @@ export function SubscriptionScreen() {
         Назад к настройкам
       </button>
 
-      {/* Окно 1: жалко, что уходишь + предупреждение о цене ×3 */}
+      {/* Окно 1: жалко, что уходишь + предупреждение о стандартной цене */}
       <Modal open={step === 'warning'} onClose={() => setStep('none')} labelledBy="leave-title">
         <div className="card-purple flex flex-col gap-[14px] !px-[18px] !pb-[20px] !pt-[28px] text-center">
           <BigIcon size={64}>
@@ -244,8 +244,8 @@ export function SubscriptionScreen() {
             Создай новую анкету и спроси новых друзей — впереди ещё много ответов и новые вопросы.
           </p>
           <p className="muted">
-            Если отменишь подписку, вернуться можно будет только по цене в 3 раза выше —{' '}
-            <span className="text-white">{plan ? `${formatRub(amount * 3)} / ${plan.periodLabel}` : ''}</span>.
+            Если отменишь подписку, вернуться можно будет только по стандартной цене —{' '}
+            <span className="text-white">{formatRub(pricing.standardMonth)}/мес</span>.
           </p>
           <Cta onClick={() => setStep('none')} className="mt-[6px]">
             Остаться с Premium 💜

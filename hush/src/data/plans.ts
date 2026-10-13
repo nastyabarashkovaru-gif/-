@@ -16,6 +16,9 @@ export interface Plan {
   unlimitedReveals: boolean;
 }
 
+/** Стандартная цена месяца; 299 ₽ — предложение на 3 часа (цены считает сервер) */
+export const STANDARD_MONTH = 990;
+
 export const PLANS: Plan[] = [
   { id: 'month', title: '1 месяц', caption: 'Попробовать', price: 299, settingsTitle: 'Месячный Premium', periodLabel: 'мес', unlimitedReveals: false },
   { id: 'quarter', title: '3 месяца', caption: 'Выгода 44%', price: 499, perMonth: 166, savings: 44, settingsTitle: 'Premium на 3 месяца', periodLabel: '3 мес', unlimitedReveals: false },

@@ -23,6 +23,7 @@ import {
   type Bootstrap,
   type ConsentRecord,
   type HushApi,
+  type Pricing,
   type PublicQuestionnaire,
   type QuestionnaireSummary,
   type ResultsView,
@@ -56,6 +57,8 @@ interface DB {
   autoRenew: boolean;
   /** Ответы, отправленные пользователем на чужие анкеты (аудит согласия) */
   sent: Array<{ questionnaireId: string; idempotencyKey: string; consent: ConsentRecord; answers: SubmitPayload['answers'] }>;
+  /** Начало 3-часового предложения 299 ₽ */
+  offerStartedAt?: number;
 }
 
 const emptyDB = (): DB => ({ questionnaires: [], responses: [], plan: null, autoRenew: true, sent: [] });
@@ -79,6 +82,18 @@ function save() {
     /* приватный режим — работаем в памяти */
   }
   window.dispatchEvent(new Event('hush:data-changed'));
+}
+
+/** Как на сервере: месяц 299 ₽ первые 3 часа после показа тарифов, потом 990 ₽ */
+function mockPricing(): Pricing {
+  const endsAt = db.offerStartedAt ? db.offerStartedAt + 3 * 3600_000 : null;
+  const active = endsAt === null || endsAt > Date.now();
+  return {
+    prices: { month: active ? 299 : 990, quarter: 499, year: 1499 },
+    standardMonth: 990,
+    offerEndsAt: active && endsAt ? new Date(endsAt).toISOString() : null,
+    returning: false,
+  };
 }
 
 const delay = (ms = 260) => new Promise((r) => setTimeout(r, ms + Math.random() * 120));
@@ -128,6 +143,7 @@ export const mockApi: HushApi = {
         retentionOfferAvailable: Boolean(db.plan && db.autoRenew),
       },
       questionnaires: [...db.questionnaires].reverse().map(summary),
+      pricing: mockPricing(),
     };
   },
 
@@ -216,6 +232,14 @@ export const mockApi: HushApi = {
     save();
   },
 
+  async startOffer(): Promise<Pricing> {
+    await delay(100);
+    if (!db.offerStartedAt) {
+      db.offerStartedAt = Date.now();
+      save();
+    }
+    return mockPricing();
+  },
   async startCheckout(): Promise<BillingResult> {
     await delay(200);
     return { status: 'unavailable' };

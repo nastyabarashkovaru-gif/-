@@ -1,11 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { api, ApiError, type ApiErrorCode, type Bootstrap } from '@/api';
+import { api, ApiError, type ApiErrorCode, type Bootstrap, type Pricing } from '@/api';
+import { PLANS, STANDARD_MONTH } from '@/data/plans';
 import { config } from '@/config';
 
 interface AppStateValue extends Bootstrap {
   isPremium: boolean;
-  /** Множитель цен тарифов для этого пользователя */
-  priceMultiplier: number;
+  /** Цены тарифов для этого пользователя */
+  pricing: Pricing;
   refresh(): Promise<void>;
 }
 
@@ -60,7 +61,12 @@ export function AppStateProvider({
   const value: AppStateValue = {
     ...state.data,
     isPremium: state.data.entitlement.plan !== null,
-    priceMultiplier: state.data.pricing?.multiplier ?? 1,
+    pricing: state.data.pricing ?? {
+      prices: { month: PLANS[0].price, quarter: PLANS[1].price, year: PLANS[2].price },
+      standardMonth: STANDARD_MONTH,
+      offerEndsAt: null,
+      returning: false,
+    },
     refresh,
   };
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

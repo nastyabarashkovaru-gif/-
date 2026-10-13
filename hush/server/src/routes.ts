@@ -3,7 +3,7 @@ import { Router, type Request, type Response } from 'express';
 import { catalogQuestion, type Question } from './catalog';
 import { config } from './config';
 import { pool, tx } from './db';
-import { getPlan, priceMultiplier, REVEAL_PRICE } from './plans';
+import { getPlan, pricingFor, REVEAL_PRICE } from './plans';
 import { rateLimit } from './rateLimit';
 import { appLink, bot, notifyThresholdReached } from './telegram';
 
@@ -123,8 +123,8 @@ api.get(
         retentionOfferAvailable: plan.retentionOfferAvailable,
         demo: false,
       },
-      // Цены, которые увидит и заплатит пользователь (после отмены — ×3)
-      pricing: { multiplier: await priceMultiplier(u.id) },
+      // Цены, которые увидит и заплатит пользователь
+      pricing: await pricingFor(u.id),
       questionnaires: list.rows.map(summary),
       app: { botUsername: bot.username, appShortName: config.appShortName },
     };

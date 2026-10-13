@@ -9,7 +9,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import express, { Router, type Request, type Response } from 'express';
 import { config } from './config';
 import { pool, tx } from './db';
-import { getPlan, isPlan, PLANS, priceMultiplier, RETENTION_DISCOUNT, REVEAL_PRICE, type Plan } from './plans';
+import { getPlan, isPlan, PLANS, pricingFor, RETENTION_DISCOUNT, REVEAL_PRICE, type Plan } from './plans';
 import { rateLimit } from './rateLimit';
 import { newId } from './routes';
 
@@ -34,6 +34,11 @@ async function cpApi(method: string, body: Record<string, unknown>): Promise<voi
 
 export const billingApi = Router();
 
+/** Экран тарифов открыт — запускаем 3-часовое предложение (один раз) и отдаём цены */
+billingApi.post('/offer', rateLimit('offer', 60, 60 * 60_000), async (req: Request, res: Response) => {
+  res.json(await pricingFor(req.user.id, true));
+});
+
 billingApi.post('/checkout', rateLimit('checkout', 20, 60 * 60_000), async (req: Request, res: Response) => {
   if (!billingEnabled) {
     res.json({ status: 'unavailable' });
@@ -45,8 +50,8 @@ billingApi.post('/checkout', rateLimit('checkout', 20, 60 * 60_000), async (req:
     return;
   }
   const { months, title } = PLANS[plan];
-  // После отмены подписки повторное оформление — по тарифу ×3 (см. оферту)
-  const amount = PLANS[plan].amount * (await priceMultiplier(req.user.id));
+  // Цена месяца зависит от предложения на 3 часа и от того, отменял ли пользователь подписку (см. оферту)
+  const amount = (await pricingFor(req.user.id, true)).prices[plan];
   const orderId = `H${newId(11)}`;
   // Откуда пришёл покупатель — для конверсии апсейла
   const source = ['new_questionnaire', 'custom_question', 'question_library'].includes(req.body?.source) ? req.body.source : null;

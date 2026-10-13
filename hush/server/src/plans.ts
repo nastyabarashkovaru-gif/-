@@ -11,14 +11,44 @@ export const PLANS: Record<Plan, { amount: number; months: number; title: string
   year: { amount: 1499, months: 12, title: 'hush. Premium — 1 год' },
 };
 
-/** Повторное оформление после отмены подписки — по тарифу ×3 */
-export const RETURNING_MULTIPLIER = 3;
+/** Стандартная цена месяца. 299 ₽ (PLANS.month) — предложение на первые 3 часа после показа тарифов */
+export const STANDARD_MONTH = 990;
+export const OFFER_HOURS = 3;
 /** Скидка удержания: −50% на один следующий платёж */
 export const RETENTION_DISCOUNT = 0.5;
 
-export async function priceMultiplier(userId: number): Promise<number> {
-  const { rows } = await pool.query('SELECT cancelled_at FROM users WHERE id = $1', [userId]);
-  return rows[0]?.cancelled_at ? RETURNING_MULTIPLIER : 1;
+export interface Pricing {
+  prices: Record<Plan, number>;
+  standardMonth: number;
+  /** Конец предложения 299 ₽ за месяц; null — предложения нет или оно ещё не началось */
+  offerEndsAt: string | null;
+  /** Пользователь отменял подписку — предложение ему не положено */
+  returning: boolean;
+}
+
+/**
+ * Цены для пользователя. Месяц: 299 ₽ в течение 3 часов с первого показа тарифов,
+ * потом и после отмены подписки — стандартные 990 ₽. 3 месяца и год — без изменений.
+ * start = true запускает таймер предложения, если он ещё не запущен.
+ */
+export async function pricingFor(userId: number, start = false): Promise<Pricing> {
+  const { rows } = await pool.query(
+    start
+      ? `UPDATE users SET offer_started_at = COALESCE(offer_started_at, now()) WHERE id = $1 RETURNING cancelled_at, offer_started_at`
+      : 'SELECT cancelled_at, offer_started_at FROM users WHERE id = $1',
+    [userId],
+  );
+  const returning = Boolean(rows[0]?.cancelled_at);
+  const started = rows[0]?.offer_started_at ? new Date(rows[0].offer_started_at).getTime() : null;
+  const endsAt = started === null ? null : started + OFFER_HOURS * 3600_000;
+  // Пока таймер не запущен, предложение ещё впереди — показываем 299 ₽
+  const offerActive = !returning && (endsAt === null || endsAt > Date.now());
+  return {
+    prices: { month: offerActive ? PLANS.month.amount : STANDARD_MONTH, quarter: PLANS.quarter.amount, year: PLANS.year.amount },
+    standardMonth: STANDARD_MONTH,
+    offerEndsAt: offerActive && endsAt !== null ? new Date(endsAt).toISOString() : null,
+    returning,
+  };
 }
 
 /** Разовое раскрытие одного автора на тарифах 1 и 3 месяца */

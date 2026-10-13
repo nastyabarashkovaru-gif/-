@@ -104,6 +104,7 @@ export async function migrate(): Promise<void> {
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT;
     -- Отмена подписки: повторное оформление — по тройному тарифу
     ALTER TABLE users ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS offer_started_at TIMESTAMPTZ;
     -- Обычная сумма автосписания и скидка удержания (−50% только на следующий платёж, один раз)
     ALTER TABLE entitlements ADD COLUMN IF NOT EXISTS base_amount NUMERIC(10, 2);
     ALTER TABLE entitlements ADD COLUMN IF NOT EXISTS discount_next BOOLEAN NOT NULL DEFAULT FALSE;
