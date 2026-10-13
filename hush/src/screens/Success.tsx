@@ -7,10 +7,12 @@ import { BigIcon, CloseButton, Cta, Screen, Spacer, TopBar } from '@/ui';
 /** 09 — ответы отправлены + вирусный CTA */
 export function SuccessScreen() {
   const nav = useNav();
-  const { questionnaires } = useAppState();
+  const { questionnaires, isPremium } = useAppState();
   const own = questionnaires[0];
-  // Приветствие пропускаем: сразу к выбору вопросов (или к своим ответам, если анкета уже есть)
-  const start = () => nav.reset(own ? { name: 'dashboard', qid: own.id } : { name: 'questions' });
+  // Приветствие пропускаем: сразу к выбору вопросов. Если своя анкета уже есть, без Premium новую не создать —
+  // ведём к ней и честно пишем об этом на кнопке
+  const toOwn = Boolean(own) && !isPremium;
+  const start = () => nav.reset(toOwn ? { name: 'dashboard', qid: own.id } : { name: 'questions' });
   const close = () => nav.reset(own ? { name: 'dashboard', qid: own.id } : { name: 'welcome' });
 
   return (
@@ -34,13 +36,17 @@ export function SuccessScreen() {
           <Sparkles size={17} strokeWidth={1.8} aria-hidden />А теперь твоя очередь
         </div>
         <h2 className="h2">А что друзья думают о тебе? 👀</h2>
-        <p className="muted">Выбери 5 вопросов, отправь друзьям и узнай, что они никогда не говорили тебе в лицо.</p>
+        <p className="muted">
+          {toOwn
+            ? 'У тебя уже есть анкета — отправь её друзьям и узнай, что они никогда не говорили тебе в лицо.'
+            : 'Выбери 5 вопросов, отправь друзьям и узнай, что они никогда не говорили тебе в лицо.'}
+        </p>
       </motion.div>
       <Spacer />
       <Cta icon="right" onClick={start}>
-        Узнать, что обо мне думают
+        {toOwn ? 'Перейти к моей анкете' : 'Узнать, что обо мне думают'}
       </Cta>
-      <p className="small text-center">Создай свою анкету за минуту</p>
+      <p className="small text-center">{toOwn ? 'Посмотри, сколько друзей уже ответили' : 'Создай свою анкету за минуту'}</p>
     </Screen>
   );
 }
