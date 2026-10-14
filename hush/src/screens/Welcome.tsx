@@ -27,7 +27,7 @@ export function WelcomeScreen() {
       <Spacer />
       <div className="flex flex-col items-center gap-[18px] text-center">
         <div className="step">О чём ты узнаешь</div>
-        <div className="relative flex min-h-[64px] w-full items-center justify-center" aria-live="polite">
+        <div className="relative flex min-h-[90px] w-full items-center justify-center" aria-live="polite">
           <AnimatePresence mode="wait" initial={false}>
             <motion.p
               key={index}
