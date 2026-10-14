@@ -156,7 +156,8 @@ export interface AdminStats {
   testPayments: { count: number; sum: number | string };
   active: Array<{ plan: string; count: number; renewing: number }>;
   cancelled: { count: number };
-  days: Array<{ day: string; users: number; responses: number; payments: number; revenue: number | string }>;
+  /** По дням (МСК), новые сверху; до 180 дней */
+  days: Array<{ date: string; day: string; users: number; questionnaires: number; responses: number; payments: number; revenue: number | string }>;
   upsell: Array<Record<string, unknown>>;
   stories: Array<{ name: string; source: string | null; count: number }>;
   offers: { paywall_opened: number; paying_users: number };

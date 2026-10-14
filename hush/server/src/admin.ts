@@ -43,15 +43,23 @@ adminApi.get('/stats', async (req: Request, res: Response) => {
       all(`SELECT plan, COUNT(*)::int AS count, COUNT(*) FILTER (WHERE auto_renew)::int AS renewing FROM entitlements
            WHERE source = 'provider' AND (renews_at IS NULL OR renews_at > now()) GROUP BY plan`),
       one(`SELECT COUNT(*)::int AS count FROM users WHERE cancelled_at IS NOT NULL`),
-      all(`SELECT to_char(d AT TIME ZONE 'Europe/Moscow', 'DD.MM') AS day,
+      // По дням (МСК) с первого пользователя, но не больше 180 дней: для графика и таблицы
+      all(`WITH bounds AS (
+             SELECT date_trunc('day', now() AT TIME ZONE 'Europe/Moscow') AS today,
+                    GREATEST(
+                      date_trunc('day', COALESCE(MIN(created_at), now()) AT TIME ZONE 'Europe/Moscow'),
+                      date_trunc('day', now() AT TIME ZONE 'Europe/Moscow') - interval '179 days'
+                    ) AS first
+             FROM users
+           )
+           SELECT to_char(d AT TIME ZONE 'Europe/Moscow', 'YYYY-MM-DD') AS date,
+             to_char(d AT TIME ZONE 'Europe/Moscow', 'DD.MM') AS day,
              (SELECT COUNT(*) FROM users WHERE created_at >= d AND created_at < d + interval '1 day')::int AS users,
+             (SELECT COUNT(*) FROM questionnaires WHERE created_at >= d AND created_at < d + interval '1 day')::int AS questionnaires,
              (SELECT COUNT(*) FROM responses WHERE created_at >= d AND created_at < d + interval '1 day')::int AS responses,
              (SELECT COUNT(*) FROM payments WHERE NOT test_mode AND created_at >= d AND created_at < d + interval '1 day')::int AS payments,
              (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE NOT test_mode AND created_at >= d AND created_at < d + interval '1 day') AS revenue
-           FROM generate_series(
-             (date_trunc('day', now() AT TIME ZONE 'Europe/Moscow') - interval '13 days') AT TIME ZONE 'Europe/Moscow',
-             date_trunc('day', now() AT TIME ZONE 'Europe/Moscow') AT TIME ZONE 'Europe/Moscow',
-             interval '1 day') AS d
+           FROM bounds, generate_series(bounds.first AT TIME ZONE 'Europe/Moscow', bounds.today AT TIME ZONE 'Europe/Moscow', interval '1 day') AS d
            ORDER BY d DESC`),
       all(`SELECT * FROM upsell_conversion`).catch(() => []),
       all(`SELECT name, source, COUNT(*)::int AS count FROM events WHERE name IN ('story_sheet_opened', 'story_shared')

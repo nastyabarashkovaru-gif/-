@@ -274,7 +274,10 @@ export const mockApi: HushApi = {
       testPayments: { count: 1, sum: 299 },
       active: [{ plan: 'year', count: 18, renewing: 15 }, { plan: 'month', count: 22, renewing: 19 }],
       cancelled: { count: 4 },
-      days: Array.from({ length: 14 }, (_, i) => ({ day: `${String(13 - i).padStart(2, '0')}.10`, users: 10 - (i % 5), responses: 20 + i, payments: i % 3, revenue: (i % 3) * 299 })),
+      days: Array.from({ length: 40 }, (_, i) => {
+        const d = new Date(Date.now() - i * 86400_000);
+        return { date: d.toISOString().slice(0, 10), day: d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }), users: 8 + ((i * 7) % 11), questionnaires: 3 + ((i * 5) % 7), responses: 20 + i, payments: i % 3, revenue: (i % 3) * 299 };
+      }),
       upsell: [],
       stories: [{ name: 'story_shared', source: 'invite_save', count: 9 }],
       offers: { paywall_opened: 120, paying_users: 40 },

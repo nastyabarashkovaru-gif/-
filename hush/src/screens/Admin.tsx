@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { RotateCw } from 'lucide-react';
 import { api, type AdminStats } from '@/api';
 import { formatRub } from '@/lib/plural';
@@ -89,6 +89,10 @@ export function AdminScreen() {
             <PeriodRow label="Ответы" values={stats.responses} />
           </Section>
 
+          <Section title="Рост по дням">
+            <GrowthChart days={stats.days} />
+          </Section>
+
           <Section title="По дням (МСК)">
             <div className="grid grid-cols-[52px_1fr_1fr_1fr_1.4fr] gap-y-[8px] text-[14px] tabular-nums">
               {['', 'Новые', 'Ответы', 'Оплаты', '₽'].map((h) => (
@@ -96,7 +100,7 @@ export function AdminScreen() {
                   {h}
                 </span>
               ))}
-              {stats.days.map((d) => (
+              {stats.days.slice(0, 14).map((d) => (
                 <DayRow key={d.day} d={d} />
               ))}
             </div>
@@ -177,3 +181,114 @@ function DayRow({ d }: { d: AdminStats['days'][number] }) {
     </>
   );
 }
+
+const SERIES = [
+  { key: 'users', label: 'Новые пользователи', color: '#A855F7' },
+  { key: 'questionnaires', label: 'Новые анкеты', color: '#22A3C9' },
+] as const;
+const DAY_W = 44;
+const CHART_H = 170;
+const PAD_T = 12;
+const PAD_B = 28;
+
+/** Линейный график по дням: листается вправо-влево, сразу показывает последние дни; тап по дню — значения */
+function GrowthChart({ days }: { days: AdminStats['days'] }) {
+  const points = [...days].reverse(); // старые слева
+  const scroller = useRef<HTMLDivElement>(null);
+  const [selected, setSelected] = useState(points.length - 1);
+  useLayoutEffect(() => {
+    if (scroller.current) scroller.current.scrollLeft = scroller.current.scrollWidth;
+  }, [points.length]);
+
+  const rawMax = Math.max(1, ...points.flatMap((p) => [p.users, p.questionnaires]));
+  const step = niceStep(rawMax);
+  const max = Math.ceil(rawMax / step) * step;
+  const ticks = Array.from({ length: Math.round(max / step) + 1 }, (_, i) => i * step);
+  const plotH = CHART_H - PAD_T - PAD_B;
+  const y = (v: number) => PAD_T + plotH - (v / max) * plotH;
+  const x = (i: number) => i * DAY_W + DAY_W / 2;
+  const width = points.length * DAY_W;
+  const sel = points[selected];
+
+  return (
+    <div className="flex flex-col gap-[10px]">
+      <div className="flex flex-wrap gap-x-[16px] gap-y-[6px] text-[13px] text-[#c9c6d1]">
+        {SERIES.map((s) => (
+          <span key={s.key} className="flex items-center gap-[6px]">
+            <span className="h-[3px] w-[14px] rounded-full" style={{ background: s.color }} aria-hidden />
+            {s.label}
+          </span>
+        ))}
+      </div>
+
+      {sel && (
+        <div className="flex items-center justify-between rounded-[12px] bg-[#1f1d26] px-[12px] py-[8px] text-[14px] tabular-nums" aria-live="polite">
+          <span className="text-[#9a97a3]">{formatDate(sel.date)}</span>
+          <span className="flex gap-[14px]">
+            {SERIES.map((s) => (
+              <span key={s.key} className="flex items-center gap-[6px]">
+                <span className="h-[8px] w-[8px] rounded-full" style={{ background: s.color }} aria-hidden />
+                {sel[s.key]}
+              </span>
+            ))}
+          </span>
+        </div>
+      )}
+
+      <div className="relative flex">
+        {/* Ось Y остаётся на месте при прокрутке */}
+        <div className="relative w-[28px] shrink-0" style={{ height: CHART_H }} aria-hidden>
+          {ticks.map((t) => (
+            <span key={t} className="absolute right-[6px] -translate-y-1/2 text-[11px] tabular-nums text-[#77737f]" style={{ top: y(t) }}>
+              {t}
+            </span>
+          ))}
+        </div>
+        <div ref={scroller} className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <svg width={width} height={CHART_H} role="img" aria-label="Новые пользователи и анкеты по дням" className="block">
+            {ticks.map((t) => (
+              <line key={t} x1={0} x2={width} y1={y(t)} y2={y(t)} stroke="#2a2930" strokeWidth={1} />
+            ))}
+            {selected >= 0 && <line x1={x(selected)} x2={x(selected)} y1={PAD_T} y2={PAD_T + plotH} stroke="#4a4752" strokeWidth={1} />}
+            {SERIES.map((s) => (
+              <polyline
+                key={s.key}
+                points={points.map((p, i) => `${x(i)},${y(p[s.key])}`).join(' ')}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={2}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            ))}
+            {sel &&
+              SERIES.map((s) => (
+                <circle key={s.key} cx={x(selected)} cy={y(sel[s.key])} r={4.5} fill={s.color} stroke="#141318" strokeWidth={2} />
+              ))}
+            {points.map((p, i) => (
+              <g key={p.date}>
+                <text x={x(i)} y={CHART_H - 8} textAnchor="middle" fontSize={11} fill={i === selected ? '#ffffff' : '#77737f'}>
+                  {p.day.slice(0, 5)}
+                </text>
+                {/* Зона нажатия — весь столбец дня */}
+                <rect x={i * DAY_W} y={0} width={DAY_W} height={CHART_H} fill="transparent" onClick={() => setSelected(i)} onPointerEnter={(e) => e.pointerType === 'mouse' && setSelected(i)}>
+                  <title>{`${formatDate(p.date)}: пользователи ${p.users}, анкеты ${p.questionnaires}`}</title>
+                </rect>
+              </g>
+            ))}
+          </svg>
+        </div>
+      </div>
+      <p className="text-[12px] text-[#77737f]">Листай график влево к прошлым дням, нажми на день — увидишь цифры. Время московское.</p>
+    </div>
+  );
+}
+
+function niceStep(max: number) {
+  const rough = max / 4;
+  const pow = 10 ** Math.floor(Math.log10(rough || 1));
+  return ([1, 2, 5, 10].map((m) => m * pow).find((s) => s >= rough) ?? pow * 10) || 1;
+}
+
+const formatDate = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' });
