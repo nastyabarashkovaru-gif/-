@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion, type PanInfo } from 'motion/react';
-import { Download, Loader2, Send, Share, X } from 'lucide-react';
-import { api, type ResultsView } from '@/api';
+import { ArrowLeft, Check, Download, Loader2, Lock, Send, Share, X } from 'lucide-react';
+import { api, type RespondentView } from '@/api';
+import { cn } from '@/lib/cn';
 import { config } from '@/config';
 import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/errorReport';
@@ -10,32 +11,34 @@ import { canShareToStory, downloadFile, haptic, shareToStory } from '@/lib/teleg
 import { Cta, useToast } from '@/ui';
 import { ErrorBoundary } from '@/ui/ErrorBoundary';
 
-const MAX_CARDS = 5;
 const STORY_TEXT = 'Узнай, что думают о тебе твои друзья 👀';
-
-interface Card {
-  question: string;
-  answer: string;
-}
-
-/** По одной карточке на вопрос: самый развёрнутый открытый ответ */
-export function pickStoryCards(results: ResultsView): Card[] {
-  const best = new Map<string, Card>();
-  for (const r of results.respondents) {
-    for (const a of r.answers) {
-      if (a.locked || !a.text) continue;
-      const prev = best.get(a.questionId);
-      if (!prev || a.text.length > prev.answer.length) best.set(a.questionId, { question: a.question, answer: a.text });
-    }
-  }
-  return [...best.values()].slice(0, MAX_CARDS);
-}
 
 const storyLink = () => `https://t.me/${config.botUsername}/${config.appShortName}?startapp=ref_story`;
 
-/** Сторис с результатами анкеты */
-export function StoriesSheet({ open, onClose, results }: { open: boolean; onClose: () => void; results: ResultsView }) {
-  const cards = useMemo(() => pickStoryCards(results), [results]);
+/**
+ * Сторис с ответами конкретного анонима: сначала выбираешь, какими ответами поделиться,
+ * потом для каждого выбранного ответа — своя карточка.
+ */
+export function StoriesSheet({ open, onClose, respondent }: { open: boolean; onClose: () => void; respondent: RespondentView }) {
+  const [chosen, setChosen] = useState<string[] | null>(null);
+  // Последний выбор — чтобы «назад» к выбору не сбрасывал отметки
+  const [lastPicked, setLastPicked] = useState<string[]>([]);
+  // Новый аноним или повторное открытие — снова к выбору с чистого листа
+  useEffect(() => {
+    if (!open) {
+      setChosen(null);
+      setLastPicked([]);
+    }
+  }, [open]);
+  useEffect(() => {
+    setChosen(null);
+    setLastPicked([]);
+  }, [respondent.id]);
+
+  const cards = useMemo(
+    () => (chosen ?? []).flatMap((id) => respondent.answers.filter((a) => a.questionId === id && a.text).map((a) => ({ question: a.question, answer: a.text! }))),
+    [chosen, respondent],
+  );
   const render = useCallback(async () => {
     const out: StoryImage[] = [];
     for (const c of cards) {
@@ -44,18 +47,129 @@ export function StoriesSheet({ open, onClose, results }: { open: boolean; onClos
     }
     return out;
   }, [cards]);
+
   return (
-    <StoryDeckSheet
-      open={open}
-      onClose={onClose}
-      title="Поделись результатами в сторис 💜"
-      subtitle="Свайпай и выбери карточку с ответом, который нравится больше всего"
-      render={render}
-      link={storyLink()}
-      shareText={STORY_TEXT}
-      widgetName="Узнать о себе"
-      kind="results"
-    />
+    <>
+      <AnswerPicker
+        open={open && chosen === null}
+        onClose={onClose}
+        respondent={respondent}
+        initial={lastPicked}
+        onDone={(ids) => {
+          setLastPicked(ids);
+          setChosen(ids);
+        }}
+      />
+      <StoryDeckSheet
+        key={(chosen ?? []).join('|')}
+        open={open && chosen !== null}
+        onClose={onClose}
+        onBack={() => setChosen(null)}
+        title={cards.length > 1 ? 'Твои карточки для сторис 💜' : 'Твоя карточка для сторис 💜'}
+        subtitle={cards.length > 1 ? 'Свайпай — по карточке на каждый выбранный ответ' : 'Поделись ей или сохрани, чтобы выложить в сторис'}
+        render={render}
+        link={storyLink()}
+        shareText={STORY_TEXT}
+        widgetName="Узнать о себе"
+        kind="results"
+      />
+    </>
+  );
+}
+
+/** Шаг 1: выбор ответов анонима — как выбор вопросов при создании анкеты */
+function AnswerPicker({
+  open,
+  onClose,
+  respondent,
+  initial,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  respondent: RespondentView;
+  initial: string[];
+  onDone: (ids: string[]) => void;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  useEffect(() => {
+    if (open) setSelected(initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, respondent.id]);
+  const toggle = (id: string) => {
+    haptic.select();
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  };
+  const lockedCount = respondent.answers.filter((a) => a.locked || !a.text).length;
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-50 mx-auto flex max-w-app flex-col bg-black px-[23px]"
+          style={{ paddingTop: 'calc(16px + var(--safe-top))', paddingBottom: 'calc(20px + var(--safe-bottom))' }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25 }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pick-title"
+        >
+          <div className="flex shrink-0 items-start justify-between gap-[12px]">
+            <h2 id="pick-title" className="h2 pt-[8px]">
+              Поделись ответами в сторис 💜
+            </h2>
+            <button type="button" aria-label="Закрыть" onClick={onClose} className="-mr-[10px] flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:opacity-50">
+              <X size={22} strokeWidth={1.8} color="#a1a1aa" />
+            </button>
+          </div>
+          <p className="muted mt-[6px] shrink-0">
+            Выбери ответы Анонима №{respondent.number}, которыми хочешь поделиться — для каждого будет своя карточка
+          </p>
+
+          <div className="-mx-[4px] my-[16px] flex min-h-0 flex-1 flex-col gap-[10px] overflow-y-auto px-[4px]">
+            {respondent.answers.map((a) => {
+              const locked = a.locked || !a.text;
+              const isOn = selected.includes(a.questionId);
+              return (
+                <button
+                  key={a.questionId}
+                  type="button"
+                  aria-pressed={locked ? undefined : isOn}
+                  disabled={locked}
+                  onClick={() => toggle(a.questionId)}
+                  className={cn(
+                    'flex w-full shrink-0 items-start gap-[12px] rounded-[12px] border px-[13px] py-[14px] text-left transition-colors duration-200 active:scale-[0.99]',
+                    isOn ? 'border-purple bg-[#1a1223]' : 'border-line bg-[#101013]',
+                    locked && 'opacity-60',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'mt-[2px] flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border transition-colors',
+                      isOn ? 'border-purple bg-purple text-white' : 'border-[#4a4752]',
+                    )}
+                    aria-hidden
+                  >
+                    {locked ? <Lock size={12} strokeWidth={2} className="text-[#8e8b97]" /> : isOn && <Check size={14} strokeWidth={2.5} />}
+                  </span>
+                  <span className="flex min-w-0 flex-col gap-[4px]">
+                    <span className="text-[13px] leading-[1.3] text-[#9a97a3]">{a.question}</span>
+                    <span className="text-[15px] leading-[1.35] text-[#f5f3f7]">{locked ? 'Ответ откроется с Premium' : a.text}</span>
+                  </span>
+                </button>
+              );
+            })}
+            {lockedCount > 0 && <p className="small text-center">Скрытыми ответами поделиться нельзя</p>}
+          </div>
+
+          <Cta disabled={!selected.length} onClick={() => onDone(respondent.answers.map((a) => a.questionId).filter((id) => selected.includes(id)))}>
+            {selected.length ? `Создать ${selected.length === 1 ? 'карточку' : `карточки (${selected.length})`}` : 'Выбери хотя бы один ответ'}
+          </Cta>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -117,9 +231,12 @@ function StoryDeck({
   shareText,
   widgetName,
   kind,
+  onBack,
 }: {
   open: boolean;
   onClose: () => void;
+  /** Стрелка «назад» у заголовка (например, к выбору ответов) */
+  onBack?: () => void;
   title: string;
   subtitle: string;
   render: () => Promise<StoryImage[]>;
@@ -255,9 +372,16 @@ function StoryDeck({
           aria-labelledby="stories-title"
         >
           <div className="flex shrink-0 items-start justify-between gap-[12px]">
-            <h2 id="stories-title" className="h2 pt-[8px]">
-              {title}
-            </h2>
+            <div className="flex items-start gap-[6px]">
+              {onBack && (
+                <button type="button" aria-label="Выбрать другие ответы" onClick={onBack} className="-ml-[10px] flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:opacity-50">
+                  <ArrowLeft size={22} strokeWidth={1.8} color="#a1a1aa" />
+                </button>
+              )}
+              <h2 id="stories-title" className="h2 pt-[8px]">
+                {title}
+              </h2>
+            </div>
             <button type="button" aria-label="Закрыть" onClick={onClose} className="-mr-[10px] flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:opacity-50">
               <X size={22} strokeWidth={1.8} color="#a1a1aa" />
             </button>

@@ -272,14 +272,14 @@ function ResultsView({ qid, version }: { qid: string; version: string }) {
 
       <button type="button" onClick={openStories} className="cta-dark">
         <Instagram size={18} strokeWidth={1.8} className="text-purple-text" aria-hidden />
-        Поделиться результатами в сторис
+        Поделиться ответами в сторис
       </button>
       <Cta onClick={newQuestionnaire.onClick}>Задать новые вопросы 😍</Cta>
       <p className="small text-center">
         Создай новую анкету, чтобы узнать о себе ещё больше. Выбирай другие вопросы или придумай свои.
       </p>
       {newQuestionnaire.modal}
-      <StoriesSheet open={storiesOpen} onClose={() => setStoriesOpen(false)} results={data} />
+      <StoriesSheet open={storiesOpen} onClose={() => setStoriesOpen(false)} respondent={current} />
     </Screen>
   );
 }
