@@ -2,6 +2,7 @@
  * Тестовые ответы для проверки экранов владельцем (по его просьбе).
  * TEST_SEED_USERNAME=<username> — при старте дополняет последнюю анкету этого пользователя
  *   тестовыми ответами до 5 (идемпотентно). Респонденты — фиктивные пользователи с id < 0 и именем «Тест: друг N».
+ *   TEST_SEED_COUNT=N — вместо этого добавить ровно N ответов.
  * TEST_CLEANUP=true — удаляет всех тестовых респондентов и их ответы.
  * TEST_RESET_USERNAME=<username> — снимает у пользователя отметку об отмене и таймер предложения 299 ₽ и Premium,
  *   оплаченный только тестовыми платежами (если есть хоть один боевой платёж — подписку не трогает).
@@ -85,7 +86,9 @@ export async function runTestSeed(): Promise<void> {
 
   const notify = await tx(async (db) => {
     const { rows: c } = await db.query('SELECT count(*)::int AS n FROM responses WHERE questionnaire_id = $1', [q.id]);
-    const need = config.resultsThreshold - c[0].n;
+    // TEST_SEED_COUNT=N — добавить ровно N ответов; иначе дополнить до порога
+    const extra = Number(process.env.TEST_SEED_COUNT) || 0;
+    const need = extra > 0 ? Math.min(extra, 20) : config.resultsThreshold - c[0].n;
     for (let i = 0; i < need; i++) {
       const n = c[0].n + i + 1;
       const fakeId = -Number(BigInt('0x' + randomBytes(5).toString('hex')) % 1_000_000_000n) - 1;
