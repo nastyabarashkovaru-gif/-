@@ -240,7 +240,7 @@ api.get(
       respondentCount: responses.length,
       respondents: responses.map((r, index) => {
         const open =
-          premium || index === 0
+          premium || index < config.freeOpenRespondents
             ? new Set(r.answers.map((a) => a.questionId))
             : new Set(
                 [...r.answers]

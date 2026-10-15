@@ -56,8 +56,11 @@ export const config = {
   /** Сколько живёт подпись initData */
   initDataMaxAgeSec: 24 * 60 * 60,
   resultsThreshold: 5,
+  /** Без подписки: первые N ответивших открыты полностью, у остальных — freeVisibleAnswers ответов */
+  freeOpenRespondents: 3,
   freeVisibleAnswers: 2,
-  freeQuestionnaires: 1,
+  /** Бесплатных анкет (во второй уже видны свои вопросы и библиотека — под замком) */
+  freeQuestionnaires: 2,
   answerMaxLength: 1000,
   customQuestionMaxLength: 140,
 };

@@ -5,6 +5,9 @@ import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { UpsellModal } from '@/ui';
 
+/** Сколько анкет можно создать без подписки (сервер проверяет то же) */
+export const FREE_QUESTIONNAIRES = 2;
+
 /**
  * «Задать новые вопросы 😍»: с подпиской — создание анкеты,
  * без подписки — модальное предложение Premium поверх текущего экрана.
@@ -16,8 +19,8 @@ export function useNewQuestionnaire(source: 'results' | 'my_questionnaires') {
 
   const onClick = () => {
     track('new_questionnaire_clicked', source);
-    // Первая анкета бесплатная
-    if (isPremium || questionnaires.length === 0) {
+    // Первые две анкеты бесплатные
+    if (isPremium || questionnaires.length < FREE_QUESTIONNAIRES) {
       nav.push({ name: 'questions' });
       return;
     }

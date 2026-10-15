@@ -9,7 +9,7 @@ import { haptic, requestWriteAccess } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BackArrow, BigIcon, Cta, Modal, Screen, Segments, TopBar, useToast } from '@/ui';
-import { CustomQuestionUpsell, LibraryUpsell } from './Upsell';
+import { LibraryUpsell } from './Upsell';
 
 /** Черновик выбора переживает переход на Premium и обратно */
 const draftStore: { selected: Question[]; custom: Question[] } = { selected: [], custom: [] };
@@ -22,7 +22,6 @@ export function SelectQuestionsScreen() {
   // Фиксируем при открытии: после создания анкеты список обновляется, пока экран уезжает,
   // и появление новых блоков посреди анимации выхода подвешивало переход (чёрный экран)
   const [firstQuestionnaire] = useState(() => questionnaires.length === 0);
-  const [upsellOpen, setUpsellOpen] = useState(false);
   const [libraryUpsellOpen, setLibraryUpsellOpen] = useState(false);
   const [selected, setSelected] = useState<Question[]>(draftStore.selected);
   const [custom, setCustom] = useState<Question[]>(draftStore.custom);
@@ -103,8 +102,10 @@ export function SelectQuestionsScreen() {
   const openCustom = () => {
     track('custom_question_clicked', 'select_questions');
     if (!isPremium) {
+      // Без подписки — сразу на тарифы (выбранные вопросы сохраняются в draftStore)
       track('custom_question_paywall_shown', 'select_questions');
-      setUpsellOpen(true);
+      track('premium_upsell_clicked', 'custom_question');
+      nav.push({ name: 'premium', source: 'custom_question' });
       return;
     }
     setComposing(true);
@@ -181,7 +182,10 @@ export function SelectQuestionsScreen() {
               className="flex w-full shrink-0 items-center gap-[10px] rounded-[12px] border border-dashed border-[#4a3b5c] bg-[#101013] px-[13px] py-[14px] text-left text-[15px] font-medium leading-[1.35] text-purple-text active:scale-[0.99]"
             >
               <Plus size={17} strokeWidth={2} aria-hidden />
-              <span className="flex-1">Добавить свой вопрос</span>
+              <span className="flex flex-1 flex-col gap-[2px]">
+                Добавить свой вопрос
+                {!isPremium && <span className="text-[13px] font-normal text-[#9a97a3]">Доступно по подписке</span>}
+              </span>
               {!isPremium && <Lock size={15} strokeWidth={1.8} className="text-[#8e8b97]" aria-label="Premium" />}
             </button>
             <AnimatePresence initial={false}>{custom.map((q) => renderQuestion(q))}</AnimatePresence>
@@ -221,7 +225,6 @@ export function SelectQuestionsScreen() {
           </button>
         </div>
       </Modal>
-      <CustomQuestionUpsell open={upsellOpen} onClose={() => setUpsellOpen(false)} />
       <LibraryUpsell open={libraryUpsellOpen} onClose={() => setLibraryUpsellOpen(false)} />
     </Screen>
   );

@@ -33,7 +33,8 @@ import {
 
 const STORAGE_KEY = 'hush.demo.v1';
 const FREE_VISIBLE_ANSWERS = 2;
-const FREE_QUESTIONNAIRES = 1;
+const FREE_QUESTIONNAIRES = 2;
+const FREE_OPEN_RESPONDENTS = 3;
 
 interface StoredQuestionnaire {
   id: string;
@@ -177,9 +178,9 @@ export const mockApi: HushApi = {
       questionnaireId: id,
       respondentCount: responses.length,
       respondents: responses.map((r, index) => {
-        // Бесплатно: первый (самый содержательный) — полностью, остальные — 2 самых длинных ответа
+        // Бесплатно: первые трое — полностью, остальные — 2 самых длинных ответа
         const openIds =
-          premium || index === 0
+          premium || index < FREE_OPEN_RESPONDENTS
             ? new Set(r.answers.map((a) => a.questionId))
             : new Set(
                 [...r.answers]
