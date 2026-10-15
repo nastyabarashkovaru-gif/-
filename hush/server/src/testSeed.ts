@@ -6,12 +6,15 @@
  * TEST_CLEANUP=true — удаляет всех тестовых респондентов и их ответы.
  * TEST_RESET_USERNAME=<username> — снимает у пользователя отметку об отмене и таймер предложения 299 ₽ и Premium,
  *   оплаченный только тестовыми платежами (если есть хоть один боевой платёж — подписку не трогает).
+ * TEST_GRANT_YEAR_USERNAME=<username> — выдаёт годовой Premium вручную (source 'manual', без автопродления) на год;
+ *   подписку с автосписанием в CloudPayments при этом отменяет, чтобы она не списывала поверх.
  * TEST_DELETE_QUESTIONNAIRES_USERNAME=<username> — удаляет все анкеты пользователя вместе с ответами (начать заново).
  */
 import { randomBytes } from 'node:crypto';
 import { CATALOG, type Question } from './catalog';
 import { newId } from './routes';
 import { config } from './config';
+import { cpApi } from './billing';
 import { pool, tx } from './db';
 import { notifyThresholdReached } from './telegram';
 
@@ -50,6 +53,33 @@ export async function runTestSeed(): Promise<void> {
       }
     }
     if (!rows.length) console.warn(`[test] @${resetName} не найден`);
+  }
+
+  const grantName = (process.env.TEST_GRANT_YEAR_USERNAME || '').replace(/^@/, '').toLowerCase();
+  if (grantName) {
+    const { rows } = await pool.query(
+      'SELECT u.id, e.subscription_id FROM users u LEFT JOIN entitlements e ON e.user_id = u.id WHERE lower(u.username) = $1',
+      [grantName],
+    );
+    for (const { id, subscription_id } of rows) {
+      if (subscription_id) {
+        try {
+          await cpApi('subscriptions/cancel', { Id: subscription_id });
+          console.log(`[test] @${grantName}: подписка ${subscription_id} в CloudPayments отменена`);
+        } catch (e) {
+          console.warn(`[test] @${grantName}: не удалось отменить подписку ${subscription_id}: ${(e as Error).message}`);
+        }
+      }
+      await pool.query(
+        `INSERT INTO entitlements (user_id, plan, auto_renew, renews_at, source)
+         VALUES ($1, 'year', FALSE, now() + interval '1 year', 'manual')
+         ON CONFLICT (user_id) DO UPDATE SET plan = 'year', auto_renew = FALSE, renews_at = now() + interval '1 year',
+           source = 'manual', subscription_id = NULL, base_amount = NULL, discount_next = FALSE, updated_at = now()`,
+        [id],
+      );
+      console.log(`[test] @${grantName}: выдан годовой Premium до ${new Date(Date.now() + 365 * 864e5).toLocaleDateString('ru-RU')}`);
+    }
+    if (!rows.length) console.warn(`[test] @${grantName} не найден`);
   }
 
   const wipeName = (process.env.TEST_DELETE_QUESTIONNAIRES_USERNAME || '').replace(/^@/, '').toLowerCase();

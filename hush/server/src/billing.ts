@@ -17,7 +17,7 @@ const cp = config.cloudPayments;
 export const billingEnabled = Boolean(cp.publicId && cp.apiSecret);
 
 /** Вызов API CloudPayments (Basic-авторизация Public ID + API Secret) */
-async function cpApi(method: string, body: Record<string, unknown>): Promise<void> {
+export async function cpApi(method: string, body: Record<string, unknown>): Promise<void> {
   const r = await fetch(`${process.env.CP_API_URL || 'https://api.cloudpayments.ru'}/${method}`, {
     method: 'POST',
     headers: {
