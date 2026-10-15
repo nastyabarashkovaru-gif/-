@@ -3,10 +3,11 @@ import { AnimatePresence, motion, type PanInfo } from 'motion/react';
 import { ArrowLeft, Check, Download, Loader2, Lock, Send, Share, X } from 'lucide-react';
 import { api, type RespondentView } from '@/api';
 import { cn } from '@/lib/cn';
+import { plural } from '@/lib/plural';
 import { config } from '@/config';
 import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/errorReport';
-import { renderStoryCard } from '@/lib/storyCard';
+import { renderMultiStoryCard } from '@/lib/storyCard';
 import { canShareToStory, downloadFile, haptic, shareToStory } from '@/lib/telegram';
 import { Cta, useToast } from '@/ui';
 import { ErrorBoundary } from '@/ui/ErrorBoundary';
@@ -39,13 +40,11 @@ export function StoriesSheet({ open, onClose, respondent }: { open: boolean; onC
     () => (chosen ?? []).flatMap((id) => respondent.answers.filter((a) => a.questionId === id && a.text).map((a) => ({ question: a.question, answer: a.text! }))),
     [chosen, respondent],
   );
+  // Одна карточка со всеми выбранными ответами
   const render = useCallback(async () => {
-    const out: StoryImage[] = [];
-    for (const c of cards) {
-      const canvas = await renderStoryCard({ ...c, link: storyLink(), handle: `@${config.botUsername}` });
-      out.push({ src: await canvasToUrl(canvas), alt: c.question });
-    }
-    return out;
+    if (!cards.length) return [];
+    const canvas = await renderMultiStoryCard({ items: cards, link: storyLink(), handle: `@${config.botUsername}` });
+    return [{ src: await canvasToUrl(canvas), alt: cards.map((c) => c.question).join(' · ') }];
   }, [cards]);
 
   return (
@@ -65,8 +64,8 @@ export function StoriesSheet({ open, onClose, respondent }: { open: boolean; onC
         open={open && chosen !== null}
         onClose={onClose}
         onBack={() => setChosen(null)}
-        title={cards.length > 1 ? 'Твои карточки для сторис 💜' : 'Твоя карточка для сторис 💜'}
-        subtitle={cards.length > 1 ? 'Свайпай — по карточке на каждый выбранный ответ' : 'Поделись ей или сохрани, чтобы выложить в сторис'}
+        title="Твоя карточка для сторис 💜"
+        subtitle={`${cards.length === 1 ? 'Выбранный ответ' : 'Все выбранные ответы'} на одной карточке — поделись ей или сохрани, чтобы выложить в сторис`}
         render={render}
         link={storyLink()}
         shareText={STORY_TEXT}
@@ -125,7 +124,7 @@ function AnswerPicker({
             </button>
           </div>
           <p className="muted mt-[6px] shrink-0">
-            Выбери ответы Анонима №{respondent.number}, которыми хочешь поделиться — для каждого будет своя карточка
+            Выбери ответы Анонима №{respondent.number}, которыми хочешь поделиться — все они будут на одной карточке
           </p>
 
           <div className="-mx-[4px] my-[16px] flex min-h-0 flex-1 flex-col gap-[10px] overflow-y-auto px-[4px]">
@@ -165,7 +164,7 @@ function AnswerPicker({
           </div>
 
           <Cta disabled={!selected.length} onClick={() => onDone(respondent.answers.map((a) => a.questionId).filter((id) => selected.includes(id)))}>
-            {selected.length ? `Создать ${selected.length === 1 ? 'карточку' : `карточки (${selected.length})`}` : 'Выбери хотя бы один ответ'}
+            {selected.length ? `Создать карточку (${selected.length} ${plural(selected.length, ['ответ', 'ответа', 'ответов'])})` : 'Выбери хотя бы один ответ'}
           </Cta>
         </motion.div>
       )}

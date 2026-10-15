@@ -173,3 +173,126 @@ export async function renderStoryCard(input: StoryCardInput): Promise<HTMLCanvas
 
   return canvas;
 }
+
+/**
+ * Одна карточка с несколькими ответами одного анонима (1–5): каждый ответ — своим блоком,
+ * шрифт подбирается так, чтобы всё влезло между заголовком и QR.
+ */
+export async function renderMultiStoryCard(input: { items: Array<{ question: string; answer: string }>; link: string; handle: string }) {
+  if (input.items.length === 1) return renderStoryCard({ ...input.items[0], link: input.link, handle: input.handle });
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.font = `700 84px ${FONT}`;
+  ctx.fillStyle = '#fff';
+  ctx.fillText('hush', 90, 130);
+  const logoW = ctx.measureText('hush').width;
+  ctx.fillStyle = '#A855F7';
+  ctx.fillText('.', 90 + logoW, 130);
+  ctx.font = `600 40px ${FONT}`;
+  ctx.fillStyle = '#B987FF';
+  ctx.fillText('Мне ответили анонимно 👀', 90, 270);
+
+  const n = input.items.length;
+  const cardX = 70;
+  const cardW = W - 140;
+  const pad = n > 3 ? 34 : 44;
+  const inner = cardW - pad * 2;
+  const gap = n > 3 ? 18 : 24;
+  const qaGap = 12;
+  const top = 360;
+  const bottom = H - 150 - 300 - 60;
+  const available = bottom - top - gap * (n - 1) - pad * 2 * n;
+
+  type Laid = { q: string[]; a: string[] };
+  const layout = (aSize: number, maxALines = 99): { laid: Laid[]; height: number; qSize: number } => {
+    const qSize = Math.max(24, Math.round(aSize * 0.62));
+    let height = 0;
+    const laid = input.items.map((it) => {
+      ctx.font = `500 ${qSize}px ${FONT}`;
+      const q = wrap(ctx, it.question, inner).slice(0, 2);
+      ctx.font = `700 ${aSize}px ${FONT}`;
+      let a = wrap(ctx, `«${it.answer}»`, inner);
+      if (a.length > maxALines) {
+        a = a.slice(0, maxALines);
+        a[maxALines - 1] = `${a[maxALines - 1].replace(/\s*\S*$/, '')}…»`;
+      }
+      height += q.length * Math.round(qSize * 1.3) + qaGap + a.length * Math.round(aSize * 1.25);
+      return { q, a };
+    });
+    return { laid, height, qSize };
+  };
+
+  const sizes = [60, 54, 48, 44, 40, 36, 33, 30, 28];
+  let aSize = sizes[sizes.length - 1];
+  let res = layout(aSize);
+  for (const size of sizes) {
+    const r = layout(size);
+    if (r.height <= available) {
+      aSize = size;
+      res = r;
+      break;
+    }
+  }
+  // Даже мелким шрифтом не влезает — укорачиваем длинные ответы поровну
+  for (let lines = 6; res.height > available && lines >= 1; lines--) res = layout(aSize, lines);
+
+  const totalH = res.height + pad * 2 * n + gap * (n - 1);
+  let y = top + Math.max(0, Math.round((bottom - top - totalH) / 2));
+  const qLH = Math.round(res.qSize * 1.3);
+  const aLH = Math.round(aSize * 1.25);
+  for (const block of res.laid) {
+    const h = pad * 2 + block.q.length * qLH + qaGap + block.a.length * aLH;
+    roundRect(ctx, cardX, y, cardW, h, 40);
+    ctx.fillStyle = '#17101f';
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#6a45a0';
+    ctx.stroke();
+    let ty = y + pad;
+    ctx.font = `500 ${res.qSize}px ${FONT}`;
+    ctx.fillStyle = '#a1a1aa';
+    for (const line of block.q) {
+      ctx.fillText(line, cardX + pad, ty);
+      ty += qLH;
+    }
+    ty += qaGap;
+    ctx.font = `700 ${aSize}px ${FONT}`;
+    ctx.fillStyle = '#fff';
+    for (const line of block.a) {
+      ctx.fillText(line, cardX + pad, ty);
+      ty += aLH;
+    }
+    y += h + gap;
+  }
+
+  // Низ: QR + призыв — как на одиночной карточке
+  const qrSize = 300;
+  const qrX = 90;
+  const qrY = H - 150 - qrSize;
+  const qrCanvas = document.createElement('canvas');
+  await QRCode.toCanvas(qrCanvas, input.link, { margin: 1, width: qrSize - 40, color: { dark: '#000000', light: '#ffffff' } });
+  roundRect(ctx, qrX, qrY, qrSize, qrSize, 36);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.drawImage(qrCanvas, qrX + 20, qrY + 20, qrSize - 40, qrSize - 40);
+  const textX = qrX + qrSize + 56;
+  const cta = fit(ctx, 'Узнай, что думают о тебе твои друзья 👀', W - textX - 80, [50, 46, 42], 3, 700);
+  ctx.font = `700 ${cta.size}px ${FONT}`;
+  ctx.fillStyle = '#fff';
+  const ctaLH = Math.round(cta.size * 1.22);
+  let cy = qrY + 10;
+  for (const line of cta.lines) {
+    ctx.fillText(line, textX, cy);
+    cy += ctaLH;
+  }
+  ctx.font = `500 38px ${FONT}`;
+  ctx.fillStyle = '#B987FF';
+  ctx.fillText(input.handle, textX, cy + 24);
+  return canvas;
+}
