@@ -141,6 +141,70 @@ export async function migrate(): Promise<void> {
     );
   `);
 
+  // HUSH 2.0: анонимные вопросы и ответы (только добавление — старые данные не трогаем, см. docs/HUSH2_MIGRATION.md)
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS ask_slug TEXT UNIQUE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS link_created_at TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS ref_source TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by BIGINT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_last_at DATE;
+
+    -- Входящие: kind user — от другого человека, self — сам себе (не считается активностью), system — вопрос дня от hush
+    CREATE TABLE IF NOT EXISTS inbox (
+      id               TEXT PRIMARY KEY,
+      recipient_id     BIGINT NOT NULL REFERENCES users(id),
+      sender_id        BIGINT REFERENCES users(id),
+      kind             TEXT NOT NULL CHECK (kind IN ('user', 'self', 'system')),
+      text             TEXT NOT NULL,
+      answer           TEXT,
+      answered_at      TIMESTAMPTZ,
+      idempotency_key  TEXT UNIQUE,
+      reported_at      TIMESTAMPTZ,
+      deleted_at       TIMESTAMPTZ,
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS inbox_recipient_idx ON inbox(recipient_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS inbox_sender_idx ON inbox(sender_id, created_at DESC);
+
+    -- «Задать свой вопрос»: вопрос аудитории и анонимные ответы на него
+    CREATE TABLE IF NOT EXISTS asks (
+      id          TEXT PRIMARY KEY,
+      owner_id    BIGINT NOT NULL REFERENCES users(id),
+      text        TEXT NOT NULL,
+      deleted_at  TIMESTAMPTZ,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS asks_owner_idx ON asks(owner_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS ask_answers (
+      id               TEXT PRIMARY KEY,
+      ask_id           TEXT NOT NULL REFERENCES asks(id) ON DELETE CASCADE,
+      respondent_id    BIGINT NOT NULL REFERENCES users(id),
+      kind             TEXT NOT NULL CHECK (kind IN ('user', 'self')),
+      text             TEXT NOT NULL,
+      idempotency_key  TEXT UNIQUE,
+      deleted_at       TIMESTAMPTZ,
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (ask_id, respondent_id)
+    );
+    CREATE INDEX IF NOT EXISTS ask_answers_ask_idx ON ask_answers(ask_id, created_at DESC);
+
+    -- Блокировки и жалобы: владелец блокирует отправителя, не узнавая, кто это
+    CREATE TABLE IF NOT EXISTS blocks (
+      owner_id    BIGINT NOT NULL REFERENCES users(id),
+      blocked_id  BIGINT NOT NULL REFERENCES users(id),
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (owner_id, blocked_id)
+    );
+    CREATE TABLE IF NOT EXISTS reports (
+      id           BIGSERIAL PRIMARY KEY,
+      reporter_id  BIGINT NOT NULL REFERENCES users(id),
+      target_kind  TEXT NOT NULL,
+      target_id    TEXT NOT NULL,
+      reason       TEXT,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
   // Конверсия апсейла: попытка → предложение Premium → открыл Premium → купил (по уникальным пользователям)
   await pool.query(`
     CREATE OR REPLACE VIEW upsell_conversion AS

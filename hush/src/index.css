@@ -218,6 +218,22 @@
     line-height: 1.2;
   }
 
+  /* Большая фиолетовая кнопка (HUSH 2.0: «Поделиться ссылкой ↗») */
+  .cta-purple {
+    @apply flex w-full shrink-0 items-center justify-center gap-2 text-center transition-transform duration-150 active:scale-[0.985];
+    border-radius: 18px;
+    padding: 15px 14px;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #fff;
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    box-shadow: 0 8px 24px rgba(124, 58, 237, 0.35);
+  }
+  .cta-purple:disabled {
+    opacity: 0.5;
+  }
+
   .link-small {
     @apply mx-auto flex items-center justify-center gap-1 transition-opacity active:opacity-60;
     font-size: 14px;

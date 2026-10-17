@@ -13,7 +13,7 @@ const rub = (v: number | string) => formatRub(Math.round(num(v)));
 /** Статистика для владельца (доступ проверяет сервер по ADMIN_IDS) */
 export function AdminScreen() {
   const nav = useNav();
-  const { me, questionnaires } = useAppState();
+  const { me } = useAppState();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -30,7 +30,7 @@ export function AdminScreen() {
   useEffect(load, []);
 
   const close = () =>
-    nav.canGoBack ? nav.back() : nav.reset(questionnaires[0] ? { name: 'dashboard', qid: questionnaires[0].id } : { name: 'welcome' });
+    nav.canGoBack ? nav.back() : nav.reset({ name: 'inbox' });
 
   return (
     <Screen className="!gap-[16px]">
@@ -53,6 +53,8 @@ export function AdminScreen() {
         <p className="muted">Загружаем…</p>
       ) : (
         <>
+          {stats.qa && <QaSections qa={stats.qa} />}
+
           <Section title="Оплаты, ₽" note="Без тестовых платежей, до комиссии CloudPayments и чеков">
             <PeriodRow values={stats.revenue} format={rub} big />
             <PeriodRow label="Платежей" values={stats.paymentsCount} />
@@ -184,7 +186,7 @@ function DayRow({ d }: { d: AdminStats['days'][number] }) {
 
 const SERIES = [
   { key: 'users', label: 'Новые пользователи', color: '#A855F7' },
-  { key: 'questionnaires', label: 'Новые анкеты', color: '#22A3C9' },
+  { key: 'questions', label: 'Вопросы от подписчиков', color: '#22A3C9' },
 ] as const;
 const DAY_W = 44;
 const CHART_H = 170;
@@ -193,14 +195,14 @@ const PAD_B = 28;
 
 /** Линейный график по дням: листается вправо-влево, сразу показывает последние дни; тап по дню — значения */
 function GrowthChart({ days }: { days: AdminStats['days'] }) {
-  const points = [...days].reverse(); // старые слева
+  const points = [...days].reverse().map((d) => ({ ...d, questions: d.questions ?? 0 })); // старые слева
   const scroller = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState(points.length - 1);
   useLayoutEffect(() => {
     if (scroller.current) scroller.current.scrollLeft = scroller.current.scrollWidth;
   }, [points.length]);
 
-  const rawMax = Math.max(1, ...points.flatMap((p) => [p.users, p.questionnaires]));
+  const rawMax = Math.max(1, ...points.flatMap((p) => [p.users, p.questions]));
   const step = niceStep(rawMax);
   const max = Math.ceil(rawMax / step) * step;
   const ticks = Array.from({ length: Math.round(max / step) + 1 }, (_, i) => i * step);
@@ -245,7 +247,7 @@ function GrowthChart({ days }: { days: AdminStats['days'] }) {
           ))}
         </div>
         <div ref={scroller} className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <svg width={width} height={CHART_H} role="img" aria-label="Новые пользователи и анкеты по дням" className="block">
+          <svg width={width} height={CHART_H} role="img" aria-label="Новые пользователи и вопросы по дням" className="block">
             {ticks.map((t) => (
               <line key={t} x1={0} x2={width} y1={y(t)} y2={y(t)} stroke="#2a2930" strokeWidth={1} />
             ))}
@@ -272,7 +274,7 @@ function GrowthChart({ days }: { days: AdminStats['days'] }) {
                 </text>
                 {/* Зона нажатия — весь столбец дня */}
                 <rect x={i * DAY_W} y={0} width={DAY_W} height={CHART_H} fill="transparent" onClick={() => setSelected(i)} onPointerEnter={(e) => e.pointerType === 'mouse' && setSelected(i)}>
-                  <title>{`${formatDate(p.date)}: пользователи ${p.users}, анкеты ${p.questionnaires}`}</title>
+                  <title>{`${formatDate(p.date)}: пользователи ${p.users}, вопросы ${p.questions}`}</title>
                 </rect>
               </g>
             ))}
@@ -292,3 +294,75 @@ function niceStep(max: number) {
 
 const formatDate = (iso: string) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' });
+
+const EVENT_NAMES: Record<string, string> = {
+  app_open: 'Открыли приложение',
+  start_choice: 'Выбрали сценарий',
+  link_created: 'Создали личную ссылку',
+  share_clicked: 'Нажали «Поделиться»',
+  link_copied: 'Скопировали ссылку',
+  link_opened: 'Открыли чужую ссылку',
+  question_typing_started: 'Начали писать',
+  question_sent: 'Отправили вопрос',
+  ask_created: 'Создали свой вопрос',
+  ask_answer_sent: 'Ответили на чужой вопрос',
+  inbox_answered: 'Ответили на входящий',
+  guest_create_link: 'Гость → создать ссылку',
+  paywall_opened: 'Открыли тарифы',
+  story_shared: 'Сторис: поделились / сохранили',
+};
+
+function QaSections({ qa }: { qa: NonNullable<AdminStats['qa']> }) {
+  // Воронка: события по названию (сумма по источникам), уникальные пользователи
+  const byName = new Map<string, { count: number; users: number; sources: string[] }>();
+  for (const e of qa.funnel) {
+    const cur = byName.get(e.name) ?? { count: 0, users: 0, sources: [] };
+    cur.count += e.count;
+    cur.users = Math.max(cur.users, e.users);
+    if (e.source) cur.sources.push(`${e.source}: ${e.count}`);
+    byName.set(e.name, cur);
+  }
+  const conv = qa.guestConversion;
+  return (
+    <>
+      <Section title="Вопросы и ответы" note="Без вопросов самому себе и вопросов дня от hush.">
+        <PeriodRow label="Создали личную ссылку" values={qa.links} />
+        <PeriodRow label="Вопросы от подписчиков" values={qa.questions} />
+        <PeriodRow label="Ответы на входящие" values={qa.inboxAnswers} />
+        <PeriodRow label="Свои вопросы аудитории" values={qa.asks} />
+        <PeriodRow label="Ответы подписчиков на них" values={qa.askAnswers} />
+      </Section>
+
+      <Section title="Вирусность">
+        <Line label="Пришли по чужой ссылке" value={String(conv.guests)} />
+        <Line
+          label="Из них создали свою ссылку"
+          value={`${conv.guests_with_link}${conv.guests ? ` · ${Math.round((conv.guests_with_link / conv.guests) * 100)}%` : ''}`}
+        />
+      </Section>
+
+      <Section title="Кто приводит людей" note="По чьей ссылке пришли новые пользователи (блогеры и все остальные)">
+        {qa.referrers.length === 0 && <p className="muted">Пока никого</p>}
+        {qa.referrers.map((r) => (
+          <Line key={r.id} label={r.username ? `@${r.username}` : r.first_name} value={`${r.invited} чел. · ${r.made_link} со своей ссылкой`} />
+        ))}
+      </Section>
+
+      <Section title="Откуда пришли">
+        {qa.sources.map((s) => (
+          <Line key={s.source} label={s.source} value={String(s.users)} />
+        ))}
+      </Section>
+
+      <Section title="Воронка за 30 дней" note="Событий · уникальных пользователей">
+        {Object.keys(EVENT_NAMES)
+          .filter((n) => byName.has(n))
+          .map((n) => {
+            const v = byName.get(n)!;
+            return <Line key={n} label={EVENT_NAMES[n]} value={`${v.count} · ${v.users}`} />;
+          })}
+        {byName.size === 0 && <p className="muted">Событий пока нет</p>}
+      </Section>
+    </>
+  );
+}

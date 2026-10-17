@@ -1,56 +1,15 @@
-import { randomBytes } from 'node:crypto';
-import { Router, type Request, type Response } from 'express';
+import { Router } from 'express';
 import { catalogQuestion, type Question } from './catalog';
 import { config } from './config';
 import { pool, tx } from './db';
 import { isAdmin } from './admin';
+import { qaApi, qaSummary } from './qa';
 import { getPlan, pricingFor, REVEAL_PRICE } from './plans';
 import { rateLimit } from './rateLimit';
 import { appLink, bot, notifyThresholdReached } from './telegram';
 
-type ErrorCode =
-  | 'not_found'
-  | 'own_questionnaire'
-  | 'already_answered'
-  | 'premium_required'
-  | 'threshold_not_met'
-  | 'invalid';
-
-const STATUS: Record<ErrorCode, number> = {
-  not_found: 404,
-  own_questionnaire: 409,
-  already_answered: 409,
-  premium_required: 402,
-  threshold_not_met: 409,
-  invalid: 400,
-};
-
-class HttpError extends Error {
-  constructor(public code: ErrorCode) {
-    super(code);
-  }
-}
-
-/** Обёртка: ошибки бизнес-логики → { code }, прочие → 500 */
-const handle =
-  (fn: (req: Request, res: Response) => Promise<unknown>) =>
-  async (req: Request, res: Response) => {
-    try {
-      const body = await fn(req, res);
-      if (!res.headersSent) body === undefined ? res.status(204).end() : res.json(body);
-    } catch (e) {
-      if (e instanceof HttpError) {
-        res.status(STATUS[e.code]).json({ code: e.code });
-        return;
-      }
-      console.error('[api]', req.method, req.path, e);
-      res.status(500).json({ code: 'server_error' });
-    }
-  };
-
-// Без похожих символов (0/O, 1/I) — id анкеты попадает в ссылку
-const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-export const newId = (len: number) => Array.from(randomBytes(len), (b) => ALPHABET[b % ALPHABET.length]).join('');
+import { handle, HttpError, newId } from './http';
+export { handle, HttpError, newId };
 
 
 interface QRow {
@@ -101,6 +60,8 @@ function parseQuestions(input: unknown): { questions: Question[]; hasCustom: boo
 }
 
 export const api = Router();
+// HUSH 2.0: вопросы и ответы (личная ссылка, входящие, свои вопросы)
+api.use(qaApi);
 
 /* ───────────────────────── Владелец ───────────────────────── */
 
@@ -115,6 +76,8 @@ api.get(
     ]);
     return {
       me: { id: String(u.id), firstName: u.first_name, lastName: u.last_name, username: u.username, photoUrl: u.photo_url, isAdmin: isAdmin(req.user) },
+      // HUSH 2.0: личная ссылка и счётчики вопросов
+      qa: await qaSummary(u.id),
       entitlement: {
         plan: plan.plan,
         autoRenew: plan.autoRenew,
@@ -143,6 +106,15 @@ const EVENTS = new Set([
   'question_library_paywall_shown',
   'story_sheet_opened',
   'story_shared',
+  // HUSH 2.0
+  'app_open',
+  'start_choice',
+  'share_clicked',
+  'link_copied',
+  'question_typing_started',
+  'guest_create_link',
+  'paywall_opened',
+  'card_shared',
 ]);
 
 /** События аналитики: пользователь берётся из подписи Telegram, время — серверное */

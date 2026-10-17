@@ -31,6 +31,8 @@ import {
   type SubmitPayload,
 } from './types';
 
+import { mockQa, mockQaSummary } from './mockQa';
+
 const STORAGE_KEY = 'hush.demo.v1';
 const FREE_VISIBLE_ANSWERS = 2;
 const FREE_QUESTIONNAIRES = 2;
@@ -129,6 +131,7 @@ function orderedResponses(questionnaireId: string): StoredResponse[] {
 }
 
 export const mockApi: HushApi = {
+  ...mockQa,
   async bootstrap(): Promise<Bootstrap> {
     await delay(200);
     const tg = getTelegramUser();
@@ -145,6 +148,7 @@ export const mockApi: HushApi = {
       },
       questionnaires: [...db.questionnaires].reverse().map(summary),
       pricing: mockPricing(),
+      qa: mockQaSummary(),
     };
   },
 

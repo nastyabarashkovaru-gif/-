@@ -4,6 +4,7 @@ import { Check, CircleCheck, LockOpen, Timer } from 'lucide-react';
 import { api, type UpsellSource } from '@/api';
 import { config } from '@/config';
 import { DEFAULT_PLAN, PLANS, type PlanId } from '@/data/plans';
+import { track } from '@/lib/analytics';
 import { cn } from '@/lib/cn';
 import { formatRub } from '@/lib/plural';
 import { payWithCloudPayments } from '@/lib/cloudpayments';
@@ -30,7 +31,7 @@ const BENEFITS = [
 export function PremiumScreen({ source }: { source?: UpsellSource }) {
   const nav = useNav();
   const toast = useToast();
-  const { questionnaires, refresh, pricing: initialPricing } = useAppState();
+  const { refresh, pricing: initialPricing } = useAppState();
   const [plan, setPlan] = useState<PlanId>(DEFAULT_PLAN);
   const [busy, setBusy] = useState(false);
   const [pricing, setPricing] = useState(initialPricing);
@@ -39,6 +40,7 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
 
   // Открытие тарифов запускает 3-часовое предложение (сервер запоминает время)
   useEffect(() => {
+    track('paywall_opened', source ?? 'direct');
     api.startOffer().then(setPricing).catch(() => {});
   }, []);
   const left = useCountdown(pricing.offerEndsAt);
@@ -54,7 +56,7 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
 
   const close = () => {
     if (nav.canGoBack) nav.back();
-    else nav.reset(questionnaires[0] ? { name: 'dashboard', qid: questionnaires[0].id } : { name: 'welcome' });
+    else nav.reset({ name: 'inbox' });
   };
 
   const unavailable = () => {

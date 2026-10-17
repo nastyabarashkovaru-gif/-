@@ -31,6 +31,34 @@ adminApi.get('/stats', async (req: Request, res: Response) => {
     COALESCE(SUM(amount) FILTER (WHERE created_at >= now() - interval '30 days'), 0) AS d30,
     COALESCE(SUM(amount), 0) AS total`;
 
+  // HUSH 2.0: вопросы-ответы без самостоятельных и системных (они не активность подписчиков)
+  const [links, questions, inboxAnswers, asks, askAnswers, funnel, referrers, sources, guestConversion] = await Promise.all([
+    one(`SELECT ${period('link_created_at')} FROM users WHERE ask_slug IS NOT NULL`),
+    one(`SELECT ${period('created_at')} FROM inbox WHERE kind = 'user'`),
+    one(`SELECT ${period('answered_at')} FROM inbox WHERE answered_at IS NOT NULL AND kind <> 'self'`),
+    one(`SELECT ${period('created_at')} FROM asks`),
+    one(`SELECT ${period('created_at')} FROM ask_answers WHERE kind = 'user'`),
+    all(`SELECT name, NULL AS source, COUNT(*)::int AS count, COUNT(DISTINCT user_id)::int AS users FROM events
+         WHERE name IN ('app_open','start_choice','link_created','share_clicked','link_copied','link_opened','question_typing_started',
+                        'question_sent','ask_created','ask_answer_sent','inbox_answered','guest_create_link','paywall_opened','story_shared')
+           AND created_at >= now() - interval '30 days'
+         GROUP BY name ORDER BY name`),
+    all(`SELECT r.id, r.username, r.first_name, COUNT(u.id)::int AS invited,
+           COUNT(u.id) FILTER (WHERE u.ask_slug IS NOT NULL)::int AS made_link
+         FROM users u JOIN users r ON r.id = u.referred_by
+         GROUP BY r.id, r.username, r.first_name ORDER BY invited DESC LIMIT 20`),
+    all(`SELECT CASE WHEN ref_source IS NULL THEN 'Напрямую'
+                     WHEN ref_source LIKE 'u\\_%' THEN 'Личная ссылка'
+                     WHEN ref_source LIKE 'a\\_%' THEN 'Свой вопрос'
+                     WHEN ref_source LIKE 'ref\\_%' THEN ref_source
+                     ELSE 'Анкета (старая)' END AS source,
+           COUNT(*)::int AS users
+         FROM users WHERE id > 0 GROUP BY 1 ORDER BY users DESC LIMIT 20`),
+    one(`SELECT COUNT(*) FILTER (WHERE referred_by IS NOT NULL)::int AS guests,
+           COUNT(*) FILTER (WHERE referred_by IS NOT NULL AND ask_slug IS NOT NULL)::int AS guests_with_link
+         FROM users`),
+  ]);
+
   const [users, questionnaires, responses, revenue, paymentsCount, byKind, testPayments, active, cancelled, days, upsell, stories, offers] =
     await Promise.all([
       one(`SELECT ${period('created_at')} FROM users`),
@@ -56,6 +84,7 @@ adminApi.get('/stats', async (req: Request, res: Response) => {
              to_char(d AT TIME ZONE 'Europe/Moscow', 'DD.MM') AS day,
              (SELECT COUNT(*) FROM users WHERE created_at >= d AND created_at < d + interval '1 day')::int AS users,
              (SELECT COUNT(*) FROM questionnaires WHERE created_at >= d AND created_at < d + interval '1 day')::int AS questionnaires,
+             (SELECT COUNT(*) FROM inbox WHERE kind = 'user' AND created_at >= d AND created_at < d + interval '1 day')::int AS questions,
              (SELECT COUNT(*) FROM responses WHERE created_at >= d AND created_at < d + interval '1 day')::int AS responses,
              (SELECT COUNT(*) FROM payments WHERE NOT test_mode AND created_at >= d AND created_at < d + interval '1 day')::int AS payments,
              (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE NOT test_mode AND created_at >= d AND created_at < d + interval '1 day') AS revenue
@@ -68,5 +97,5 @@ adminApi.get('/stats', async (req: Request, res: Response) => {
              (SELECT COUNT(DISTINCT user_id) FROM payments WHERE NOT test_mode AND plan <> 'reveal')::int AS paying_users
            FROM users`),
     ]);
-  res.json({ users, questionnaires, responses, revenue, paymentsCount, byKind, testPayments, active, cancelled, days, upsell, stories, offers });
+  res.json({ qa: { links, questions, inboxAnswers, asks, askAnswers, funnel, referrers, sources, guestConversion }, users, questionnaires, responses, revenue, paymentsCount, byKind, testPayments, active, cancelled, days, upsell, stories, offers });
 });

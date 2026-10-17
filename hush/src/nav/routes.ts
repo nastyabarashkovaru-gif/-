@@ -17,7 +17,36 @@ export type Route =
   | { name: 'subscription' }
   | { name: 'myQuestionnaires' }
   /** Статистика для владельца */
-  | { name: 'admin' };
+  | { name: 'admin' }
+  /* ───── HUSH 2.0 ───── */
+  /** Первый экран нового пользователя: две механики */
+  | { name: 'start' }
+  /** Вкладки нижней панели */
+  | { name: 'inbox' }
+  | { name: 'asks' }
+  | { name: 'profile' }
+  /** «Твоя ссылка готова!» */
+  | { name: 'myLink' }
+  /** Форма вопроса по личной ссылке (u_<slug>) */
+  | { name: 'askMe'; slug: string }
+  /** Отправлено: вопрос по личной ссылке или ответ на чужой вопрос */
+  | { name: 'sent'; kind: 'question' | 'answer'; slug?: string }
+  | { name: 'answerInbox'; id: string }
+  | { name: 'createAsk' }
+  /** Свой вопрос: ответы; fresh — только что создан */
+  | { name: 'askDetail'; id: string; fresh?: boolean }
+  /** Ответ подписчика на чужой вопрос (a_<id>) */
+  | { name: 'askReply'; id: string };
+
+/** Вкладки нижней панели */
+export const TAB_ROUTES = ['inbox', 'asks', 'profile'] as const;
 
 export const routeKey = (r: Route): string =>
-  [r.name, 'qid' in r ? r.qid : '', 'respondentId' in r ? r.respondentId : ''].join(':');
+  [
+    r.name,
+    'qid' in r ? r.qid : '',
+    'respondentId' in r ? r.respondentId : '',
+    'id' in r ? r.id : '',
+    'slug' in r ? r.slug : '',
+    'kind' in r ? r.kind : '',
+  ].join(':');

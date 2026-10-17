@@ -10,6 +10,8 @@ export interface TgUser {
   username?: string;
   photo_url?: string;
   allows_write_to_pm?: boolean;
+  /** start_param из подписанного initData (по какой ссылке открыли приложение) */
+  start_param?: string;
 }
 
 declare global {
@@ -45,7 +47,10 @@ export function validateInitData(initData: string, now = Date.now()): TgUser | n
 
   try {
     const user = JSON.parse(params.get('user') || 'null') as TgUser | null;
-    return user && typeof user.id === 'number' ? user : null;
+    if (!user || typeof user.id !== 'number') return null;
+    const startParam = params.get('start_param');
+    if (startParam) user.start_param = startParam.slice(0, 64);
+    return user;
   } catch {
     return null;
   }
@@ -61,17 +66,37 @@ export async function requireTelegram(req: Request, res: Response, next: NextFun
   }
   req.user = user;
   try {
-    await pool.query(
+    const { rows } = await pool.query<{ inserted: boolean }>(
       `INSERT INTO users (id, first_name, last_name, username, photo_url, allows_write)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (id) DO UPDATE SET
          first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name,
          username = EXCLUDED.username, photo_url = EXCLUDED.photo_url,
-         allows_write = users.allows_write OR EXCLUDED.allows_write, updated_at = now()`,
+         allows_write = users.allows_write OR EXCLUDED.allows_write, updated_at = now()
+       RETURNING (xmax = 0) AS inserted`,
       [user.id, user.first_name || 'Без имени', user.last_name ?? null, user.username ?? null, user.photo_url ?? null, Boolean(user.allows_write_to_pm)],
     );
+    // Новый пользователь — запоминаем, откуда пришёл и кто привёл (для статистики блогеров)
+    if (rows[0]?.inserted && user.start_param) await recordReferral(user.id, user.start_param).catch(() => {});
     next();
   } catch (e) {
     next(e);
   }
+}
+
+/** Источник привлечения: start_param первого входа и владелец ссылки, по которой пришёл */
+async function recordReferral(userId: number, startParam: string): Promise<void> {
+  let owner: string | null = null;
+  if (startParam.startsWith('u_')) {
+    owner = (await pool.query('SELECT id FROM users WHERE ask_slug = $1', [startParam.slice(2)])).rows[0]?.id ?? null;
+  } else if (startParam.startsWith('a_')) {
+    owner = (await pool.query('SELECT owner_id AS id FROM asks WHERE id = $1', [startParam.slice(2)])).rows[0]?.id ?? null;
+  } else if (/^[A-Z2-9]{8}$/.test(startParam)) {
+    owner = (await pool.query('SELECT owner_id AS id FROM questionnaires WHERE id = $1', [startParam])).rows[0]?.id ?? null;
+  }
+  await pool.query('UPDATE users SET ref_source = $2, referred_by = $3 WHERE id = $1 AND ref_source IS NULL', [
+    userId,
+    startParam,
+    owner && Number(owner) !== userId ? owner : null,
+  ]);
 }

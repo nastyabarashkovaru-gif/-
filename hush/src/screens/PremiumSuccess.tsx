@@ -20,7 +20,7 @@ type Phase = 'confirmed' | 'waiting' | 'delayed';
  */
 export function PremiumSuccessScreen({ pending }: { pending?: boolean }) {
   const nav = useNav();
-  const { questionnaires, entitlement, refresh } = useAppState();
+  const { entitlement, refresh } = useAppState();
   const [phase, setPhase] = useState<Phase>(pending ? 'waiting' : 'confirmed');
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export function PremiumSuccessScreen({ pending }: { pending?: boolean }) {
   }, [phase, refresh]);
 
   const backToAnswers = () =>
-    nav.reset(questionnaires[0] ? { name: 'dashboard', qid: questionnaires[0].id } : { name: 'questions' });
+    nav.reset({ name: 'inbox' });
   const support = () => openExternal(config.supportUrl || `https://t.me/${config.botUsername}`);
 
   const yearly = entitlement.plan === 'year';

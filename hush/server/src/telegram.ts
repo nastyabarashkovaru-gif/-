@@ -76,8 +76,8 @@ export async function handleUpdate(update: TgUpdate): Promise<void> {
   if (msg.from) await pool.query('UPDATE users SET allows_write = TRUE WHERE id = $1', [msg.from.id]);
   await call('sendMessage', {
     chat_id: msg.chat.id,
-    text: 'Узнай анонимно, что о тебе думают люди 👀\n\nВыбери 5 вопросов, отправь друзьям — и увидишь, что они никогда не говорили тебе в лицо.',
-    reply_markup: openAppButton('Узнать, что обо мне думают'),
+    text: 'Узнай, что о тебе думают. И что хотят спросить 🤫\n\nПолучи личную ссылку, собирай анонимные вопросы от подписчиков и отвечай на них в соцсетях.',
+    reply_markup: openAppButton('Открыть hush.'),
   });
 }
 
@@ -92,5 +92,19 @@ export async function notifyThresholdReached(ownerId: number): Promise<void> {
   } catch (e) {
     // 403 — пользователь не разрешил боту писать; результаты всё равно откроются в приложении
     console.warn(`[bot] уведомление ${ownerId} не отправлено:`, (e as Error).message);
+  }
+}
+
+/** Короткие уведомления в бота (новый вопрос, новый ответ); не чаще раза в 2 минуты на человека */
+const lastNotified = new Map<number, number>();
+export async function notifyUser(userId: number, text: string, button: string): Promise<void> {
+  const now = Date.now();
+  if (now - (lastNotified.get(userId) ?? 0) < 2 * 60_000) return;
+  lastNotified.set(userId, now);
+  if (lastNotified.size > 50_000) lastNotified.clear();
+  try {
+    await call('sendMessage', { chat_id: userId, text, reply_markup: openAppButton(button) });
+  } catch (e) {
+    console.warn(`[bot] уведомление ${userId} не отправлено:`, (e as Error).message);
   }
 }

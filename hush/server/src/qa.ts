@@ -1,0 +1,451 @@
+/**
+ * HUSH 2.0 — анонимные вопросы и ответы.
+ * А) «Пусть меня спрашивают»: постоянная личная ссылка u_<slug> → входящие вопросы.
+ * Б) «Задать свой вопрос»: вопрос аудитории a_<id> → анонимные ответы.
+ * Отправитель никогда не раскрывается: в ответах API нет его id, блокировка и жалоба — по id вопроса.
+ */
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { Router } from 'express';
+import { pool, tx } from './db';
+import { rateLimit } from './rateLimit';
+import { handle, HttpError, newId } from './http';
+import { appLink, notifyUser } from './telegram';
+
+const QUESTION_MAX = 300;
+const ANSWER_MAX = 1000;
+const ASK_MAX = 200;
+/** Не больше 10 вопросов одному человеку от одного отправителя за час */
+const PER_PAIR_PER_HOUR = 10;
+
+const DAILY: string[] = JSON.parse(readFileSync(path.join(__dirname, '../../shared/daily.json'), 'utf8'));
+
+const clean = (v: unknown) => String(v ?? '').trim().replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
+const validKey = (v: unknown) => /^[\w-]{8,100}$/.test(String(v ?? ''));
+
+export const personalLink = (slug: string) => appLink(`u_${slug}`);
+export const askLink = (id: string) => appLink(`a_${id}`);
+
+export async function logEvent(userId: number, name: string, source: string | null = null) {
+  await pool.query('INSERT INTO events (user_id, name, source) VALUES ($1, $2, $3)', [userId, name, source]).catch(() => {});
+}
+
+/** Для /api/me: личная ссылка и счётчики */
+export async function qaSummary(userId: number) {
+  const { rows } = await pool.query(
+    `SELECT u.ask_slug,
+       (SELECT count(*) FROM inbox i WHERE i.recipient_id = u.id AND i.deleted_at IS NULL AND i.answer IS NULL)::int AS unanswered,
+       (SELECT count(*) FROM asks a WHERE a.owner_id = u.id AND a.deleted_at IS NULL)::int AS asks
+     FROM users u WHERE u.id = $1`,
+    [userId],
+  );
+  const r = rows[0] ?? {};
+  return {
+    askSlug: r.ask_slug ?? null,
+    link: r.ask_slug ? personalLink(r.ask_slug) : null,
+    unanswered: r.unanswered ?? 0,
+    asks: r.asks ?? 0,
+  };
+}
+
+async function isBlocked(ownerId: number, senderId: number) {
+  const { rowCount } = await pool.query('SELECT 1 FROM blocks WHERE owner_id = $1 AND blocked_id = $2', [ownerId, senderId]);
+  return Boolean(rowCount);
+}
+
+/** Вопрос дня от hush: не больше одного в день (МСК), только у тех, кто завёл личную ссылку */
+async function deliverDaily(userId: number) {
+  const { rows } = await pool.query(
+    `UPDATE users SET daily_last_at = (now() AT TIME ZONE 'Europe/Moscow')::date
+     WHERE id = $1 AND ask_slug IS NOT NULL
+       AND (daily_last_at IS NULL OR daily_last_at < (now() AT TIME ZONE 'Europe/Moscow')::date)
+     RETURNING id`,
+    [userId],
+  );
+  if (!rows.length) return;
+  const got = await pool.query("SELECT text FROM inbox WHERE recipient_id = $1 AND kind = 'system'", [userId]);
+  const used = new Set(got.rows.map((r) => r.text));
+  const fresh = DAILY.filter((q) => !used.has(q));
+  const pool_ = fresh.length ? fresh : DAILY;
+  const text = pool_[Math.floor(Math.random() * pool_.length)];
+  await pool.query("INSERT INTO inbox (id, recipient_id, sender_id, kind, text) VALUES ($1, $2, NULL, 'system', $3)", [newId(12), userId, text]);
+}
+
+interface InboxRow {
+  id: string;
+  kind: string;
+  text: string;
+  answer: string | null;
+  answered_at: Date | null;
+  created_at: Date;
+}
+const inboxView = (r: InboxRow) => ({
+  id: r.id,
+  text: r.text,
+  // self не выделяем: отправка самому себе не рекламируется
+  from: r.kind === 'system' ? 'hush' : 'anon',
+  status: r.answer ? 'answered' : 'new',
+  answer: r.answer,
+  answeredAt: r.answered_at?.toISOString() ?? null,
+  createdAt: r.created_at.toISOString(),
+});
+
+async function ownInbox(id: string, userId: number): Promise<InboxRow & { sender_id: string | null }> {
+  const { rows } = await pool.query('SELECT * FROM inbox WHERE id = $1 AND recipient_id = $2 AND deleted_at IS NULL', [id, userId]);
+  if (!rows[0]) throw new HttpError('not_found');
+  return rows[0];
+}
+
+async function ownAsk(id: string, userId: number) {
+  const { rows } = await pool.query('SELECT * FROM asks WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL', [id, userId]);
+  if (!rows[0]) throw new HttpError('not_found');
+  return rows[0] as { id: string; owner_id: string; text: string; created_at: Date };
+}
+
+export const qaApi = Router();
+
+/* ───────────── Личная ссылка ───────────── */
+
+qaApi.post(
+  '/me/link',
+  rateLimit('link', 30, 60 * 60_000),
+  handle(async (req) => {
+    const existing = await pool.query('SELECT ask_slug FROM users WHERE id = $1', [req.user.id]);
+    let slug: string | null = existing.rows[0]?.ask_slug ?? null;
+    if (!slug) {
+      // Постоянный код создаётся один раз; при редком совпадении — новая попытка
+      for (let i = 0; i < 5 && !slug; i++) {
+        const candidate = newId(8);
+        const { rows } = await pool.query(
+          'UPDATE users SET ask_slug = $2, link_created_at = now() WHERE id = $1 AND ask_slug IS NULL AND NOT EXISTS (SELECT 1 FROM users WHERE ask_slug = $2) RETURNING ask_slug',
+          [req.user.id, candidate],
+        );
+        slug = rows[0]?.ask_slug ?? (await pool.query('SELECT ask_slug FROM users WHERE id = $1', [req.user.id])).rows[0]?.ask_slug ?? null;
+      }
+      if (!slug) throw new Error('slug allocation failed');
+      await logEvent(req.user.id, 'link_created', String(req.body?.source ?? '').slice(0, 40) || null);
+    }
+    return { slug, link: personalLink(slug) };
+  }),
+);
+
+/* ───────────── Входящие ───────────── */
+
+qaApi.get(
+  '/inbox',
+  rateLimit('read', 240, 60_000),
+  handle(async (req) => {
+    await deliverDaily(req.user.id);
+    const { rows } = await pool.query<InboxRow>(
+      'SELECT id, kind, text, answer, answered_at, created_at FROM inbox WHERE recipient_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 300',
+      [req.user.id],
+    );
+    return { items: rows.map(inboxView) };
+  }),
+);
+
+qaApi.post(
+  '/inbox/:id/answer',
+  rateLimit('answer', 120, 60 * 60_000),
+  handle(async (req) => {
+    const q = await ownInbox(req.params.id, req.user.id);
+    const text = clean(req.body?.text);
+    if (!text || text.length > ANSWER_MAX) throw new HttpError('invalid');
+    const { rows } = await pool.query<InboxRow>(
+      'UPDATE inbox SET answer = $2, answered_at = now() WHERE id = $1 RETURNING id, kind, text, answer, answered_at, created_at',
+      [q.id, text],
+    );
+    if (!q.answer) await logEvent(req.user.id, 'inbox_answered', q.kind);
+    return inboxView(rows[0]);
+  }),
+);
+
+qaApi.delete(
+  '/inbox/:id/answer',
+  handle(async (req) => {
+    const q = await ownInbox(req.params.id, req.user.id);
+    const { rows } = await pool.query<InboxRow>(
+      'UPDATE inbox SET answer = NULL, answered_at = NULL WHERE id = $1 RETURNING id, kind, text, answer, answered_at, created_at',
+      [q.id],
+    );
+    return inboxView(rows[0]);
+  }),
+);
+
+qaApi.delete(
+  '/inbox/:id',
+  handle(async (req) => {
+    const q = await ownInbox(req.params.id, req.user.id);
+    await pool.query('UPDATE inbox SET deleted_at = now() WHERE id = $1', [q.id]);
+  }),
+);
+
+qaApi.post(
+  '/inbox/:id/report',
+  rateLimit('report', 60, 60 * 60_000),
+  handle(async (req) => {
+    const q = await ownInbox(req.params.id, req.user.id);
+    await pool.query('INSERT INTO reports (reporter_id, target_kind, target_id, reason) VALUES ($1, $2, $3, $4)', [
+      req.user.id,
+      'inbox',
+      q.id,
+      clean(req.body?.reason).slice(0, 200) || null,
+    ]);
+    await pool.query('UPDATE inbox SET reported_at = now(), deleted_at = now() WHERE id = $1', [q.id]);
+    console.warn(`[report] inbox ${q.id} от пользователя ${req.user.id}`);
+  }),
+);
+
+qaApi.post(
+  '/inbox/:id/block',
+  rateLimit('report', 60, 60 * 60_000),
+  handle(async (req) => {
+    const q = await ownInbox(req.params.id, req.user.id);
+    // Вопрос дня и свои вопросы блокировать некого — просто убираем
+    if (q.kind === 'user' && q.sender_id) {
+      await pool.query('INSERT INTO blocks (owner_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.user.id, q.sender_id]);
+    }
+    await pool.query('UPDATE inbox SET deleted_at = now() WHERE recipient_id = $1 AND sender_id = $2 AND kind = $3', [req.user.id, q.sender_id, 'user']);
+    await pool.query('UPDATE inbox SET deleted_at = now() WHERE id = $1', [q.id]);
+  }),
+);
+
+/* ───────────── Форма вопроса по личной ссылке ───────────── */
+
+async function recipientBySlug(slug: string) {
+  const { rows } = await pool.query('SELECT id, first_name, photo_url FROM users WHERE ask_slug = $1', [slug]);
+  if (!rows[0]) throw new HttpError('not_found');
+  return rows[0] as { id: string; first_name: string; photo_url: string | null };
+}
+
+qaApi.get(
+  '/public/u/:slug',
+  rateLimit('read', 240, 60_000),
+  handle(async (req) => {
+    const r = await recipientBySlug(req.params.slug);
+    const own = Number(r.id) === req.user.id;
+    if (!own) await logEvent(req.user.id, 'link_opened', 'personal');
+    return { firstName: r.first_name, photoUrl: r.photo_url, own };
+  }),
+);
+
+qaApi.post(
+  '/public/u/:slug/questions',
+  rateLimit('send', 30, 10 * 60_000),
+  handle(async (req) => {
+    const r = await recipientBySlug(req.params.slug);
+    const recipientId = Number(r.id);
+    const text = clean(req.body?.text);
+    const key = String(req.body?.idempotencyKey ?? '');
+    if (!text || text.length > QUESTION_MAX || !validKey(key)) throw new HttpError('invalid');
+    const self = recipientId === req.user.id;
+
+    // Заблокированный отправитель видит обычный успех — вопрос просто не доходит
+    if (!self && (await isBlocked(recipientId, req.user.id))) return { status: 'sent' };
+
+    const created = await tx(async (db) => {
+      const dup = await db.query('SELECT 1 FROM inbox WHERE idempotency_key = $1 AND sender_id = $2', [key, req.user.id]);
+      if (dup.rowCount) return false;
+      const recent = await db.query(
+        "SELECT count(*)::int AS n FROM inbox WHERE recipient_id = $1 AND sender_id = $2 AND created_at > now() - interval '1 hour'",
+        [recipientId, req.user.id],
+      );
+      if (recent.rows[0].n >= PER_PAIR_PER_HOUR) throw new HttpError('rate_limited');
+      await db.query('INSERT INTO inbox (id, recipient_id, sender_id, kind, text, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6)', [
+        newId(12),
+        recipientId,
+        req.user.id,
+        self ? 'self' : 'user',
+        text,
+        key,
+      ]);
+      return true;
+    });
+    if (created && !self) {
+      await logEvent(req.user.id, 'question_sent', 'personal');
+      void notifyUser(recipientId, `Тебе пришёл новый анонимный вопрос 🤫\n\n«${text.slice(0, 200)}»`, 'Ответить');
+    }
+    return { status: 'sent' };
+  }),
+);
+
+/* ───────────── Свои вопросы аудитории ───────────── */
+
+qaApi.post(
+  '/asks',
+  rateLimit('ask-create', 30, 60 * 60_000),
+  handle(async (req) => {
+    const text = clean(req.body?.text);
+    if (text.length < 3 || text.length > ASK_MAX) throw new HttpError('invalid');
+    const id = newId(8);
+    await pool.query('INSERT INTO asks (id, owner_id, text) VALUES ($1, $2, $3)', [id, req.user.id, text]);
+    await logEvent(req.user.id, 'ask_created', String(req.body?.source ?? '').slice(0, 40) || null);
+    return { id, text, createdAt: new Date().toISOString(), answerCount: 0, link: askLink(id) };
+  }),
+);
+
+qaApi.get(
+  '/asks',
+  rateLimit('read', 240, 60_000),
+  handle(async (req) => {
+    const { rows } = await pool.query(
+      `SELECT a.id, a.text, a.created_at,
+         (SELECT count(*) FROM ask_answers x WHERE x.ask_id = a.id AND x.deleted_at IS NULL)::int AS answer_count,
+         (SELECT max(created_at) FROM ask_answers x WHERE x.ask_id = a.id AND x.deleted_at IS NULL) AS last_answer_at
+       FROM asks a WHERE a.owner_id = $1 AND a.deleted_at IS NULL ORDER BY a.created_at DESC`,
+      [req.user.id],
+    );
+    return {
+      items: rows.map((a) => ({
+        id: a.id,
+        text: a.text,
+        createdAt: a.created_at.toISOString(),
+        answerCount: a.answer_count,
+        lastAnswerAt: a.last_answer_at?.toISOString() ?? null,
+        link: askLink(a.id),
+      })),
+    };
+  }),
+);
+
+qaApi.get(
+  '/asks/:id',
+  rateLimit('read', 240, 60_000),
+  handle(async (req) => {
+    const a = await ownAsk(req.params.id, req.user.id);
+    // Результаты видны сразу, без порога ответивших
+    const { rows } = await pool.query(
+      'SELECT id, text, created_at FROM ask_answers WHERE ask_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 500',
+      [a.id],
+    );
+    return {
+      ask: { id: a.id, text: a.text, createdAt: a.created_at.toISOString(), answerCount: rows.length, link: askLink(a.id) },
+      answers: rows.map((x) => ({ id: x.id, text: x.text, createdAt: x.created_at.toISOString() })),
+    };
+  }),
+);
+
+qaApi.delete(
+  '/asks/:id',
+  handle(async (req) => {
+    const a = await ownAsk(req.params.id, req.user.id);
+    await pool.query('UPDATE asks SET deleted_at = now() WHERE id = $1', [a.id]);
+  }),
+);
+
+async function ownAskAnswer(askId: string, answerId: string, userId: number) {
+  const a = await ownAsk(askId, userId);
+  const { rows } = await pool.query('SELECT * FROM ask_answers WHERE id = $1 AND ask_id = $2 AND deleted_at IS NULL', [answerId, a.id]);
+  if (!rows[0]) throw new HttpError('not_found');
+  return rows[0] as { id: string; respondent_id: string; kind: string };
+}
+
+qaApi.delete(
+  '/asks/:id/answers/:aid',
+  handle(async (req) => {
+    const x = await ownAskAnswer(req.params.id, req.params.aid, req.user.id);
+    await pool.query('UPDATE ask_answers SET deleted_at = now() WHERE id = $1', [x.id]);
+  }),
+);
+
+qaApi.post(
+  '/asks/:id/answers/:aid/report',
+  rateLimit('report', 60, 60 * 60_000),
+  handle(async (req) => {
+    const x = await ownAskAnswer(req.params.id, req.params.aid, req.user.id);
+    await pool.query('INSERT INTO reports (reporter_id, target_kind, target_id, reason) VALUES ($1, $2, $3, $4)', [
+      req.user.id,
+      'ask_answer',
+      x.id,
+      clean(req.body?.reason).slice(0, 200) || null,
+    ]);
+    await pool.query('UPDATE ask_answers SET deleted_at = now() WHERE id = $1', [x.id]);
+    console.warn(`[report] ask_answer ${x.id} от пользователя ${req.user.id}`);
+  }),
+);
+
+qaApi.post(
+  '/asks/:id/answers/:aid/block',
+  rateLimit('report', 60, 60 * 60_000),
+  handle(async (req) => {
+    const x = await ownAskAnswer(req.params.id, req.params.aid, req.user.id);
+    if (x.kind === 'user') {
+      await pool.query('INSERT INTO blocks (owner_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.user.id, x.respondent_id]);
+    }
+    await pool.query('UPDATE ask_answers SET deleted_at = now() WHERE id = $1', [x.id]);
+  }),
+);
+
+/* ───────────── Ответ подписчика на чужой вопрос ───────────── */
+
+async function publicAsk(id: string) {
+  const { rows } = await pool.query(
+    'SELECT a.id, a.owner_id, a.text, u.first_name, u.photo_url FROM asks a JOIN users u ON u.id = a.owner_id WHERE a.id = $1 AND a.deleted_at IS NULL',
+    [id],
+  );
+  if (!rows[0]) throw new HttpError('not_found');
+  return rows[0] as { id: string; owner_id: string; text: string; first_name: string; photo_url: string | null };
+}
+
+qaApi.get(
+  '/public/asks/:id',
+  rateLimit('read', 240, 60_000),
+  handle(async (req) => {
+    const a = await publicAsk(req.params.id);
+    const own = Number(a.owner_id) === req.user.id;
+    const answered = await pool.query('SELECT 1 FROM ask_answers WHERE ask_id = $1 AND respondent_id = $2', [a.id, req.user.id]);
+    if (!own) await logEvent(req.user.id, 'link_opened', 'ask');
+    return { id: a.id, text: a.text, firstName: a.first_name, photoUrl: a.photo_url, own, answered: Boolean(answered.rowCount) };
+  }),
+);
+
+qaApi.post(
+  '/public/asks/:id/answers',
+  rateLimit('send', 30, 10 * 60_000),
+  handle(async (req) => {
+    const a = await publicAsk(req.params.id);
+    const ownerId = Number(a.owner_id);
+    const text = clean(req.body?.text);
+    const key = String(req.body?.idempotencyKey ?? '');
+    if (!text || text.length > ANSWER_MAX || !validKey(key)) throw new HttpError('invalid');
+    const self = ownerId === req.user.id;
+    if (!self && (await isBlocked(ownerId, req.user.id))) return { status: 'sent' };
+
+    const created = await tx(async (db) => {
+      const dup = await db.query('SELECT 1 FROM ask_answers WHERE idempotency_key = $1 AND respondent_id = $2', [key, req.user.id]);
+      if (dup.rowCount) return false;
+      const inserted = await db.query(
+        `INSERT INTO ask_answers (id, ask_id, respondent_id, kind, text, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (ask_id, respondent_id) DO NOTHING RETURNING id`,
+        [newId(12), a.id, req.user.id, self ? 'self' : 'user', text, key],
+      );
+      if (!inserted.rowCount) throw new HttpError('already_answered');
+      return true;
+    });
+    if (created && !self) {
+      await logEvent(req.user.id, 'ask_answer_sent', null);
+      void notifyUser(ownerId, `Новый анонимный ответ на твой вопрос 💜\n\n«${a.text.slice(0, 120)}»`, 'Смотреть ответ');
+    }
+    return { status: 'sent' };
+  }),
+);
+
+/* ───────────── Профиль ───────────── */
+
+qaApi.get(
+  '/me/activity',
+  rateLimit('read', 240, 60_000),
+  handle(async (req) => {
+    const { rows } = await pool.query(
+      `SELECT
+         (SELECT count(*) FROM inbox WHERE recipient_id = $1 AND kind <> 'system' AND deleted_at IS NULL)::int AS received,
+         (SELECT count(*) FROM inbox WHERE recipient_id = $1 AND answer IS NOT NULL AND deleted_at IS NULL)::int AS answered,
+         (SELECT count(*) FROM asks WHERE owner_id = $1 AND deleted_at IS NULL)::int AS asks,
+         (SELECT count(*) FROM ask_answers x JOIN asks a ON a.id = x.ask_id WHERE a.owner_id = $1 AND x.deleted_at IS NULL)::int AS ask_answers,
+         (SELECT count(*) FROM inbox WHERE sender_id = $1 AND kind = 'user')::int AS sent`,
+      [req.user.id],
+    );
+    const r = rows[0];
+    return { received: r.received, answered: r.answered, asks: r.asks, askAnswers: r.ask_answers, sent: r.sent };
+  }),
+);

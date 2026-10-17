@@ -124,6 +124,7 @@ export type ApiErrorCode =
   | 'already_answered'
   | 'premium_required'
   | 'threshold_not_met'
+  | 'rate_limited'
   | 'invalid'
   | 'network'
   | 'unauthorized';
@@ -146,6 +147,18 @@ export interface Pricing {
 
 type Periods = { today: number | string; d7: number | string; d30: number | string; total: number | string };
 export interface AdminStats {
+  /** HUSH 2.0 */
+  qa?: {
+    links: Periods;
+    questions: Periods;
+    inboxAnswers: Periods;
+    asks: Periods;
+    askAnswers: Periods;
+    funnel: Array<{ name: string; source: string | null; count: number; users: number }>;
+    referrers: Array<{ id: string; username: string | null; first_name: string; invited: number; made_link: number }>;
+    sources: Array<{ source: string; users: number }>;
+    guestConversion: { guests: number; guests_with_link: number };
+  };
   users: Periods;
   questionnaires: Periods;
   responses: Periods;
@@ -157,10 +170,69 @@ export interface AdminStats {
   active: Array<{ plan: string; count: number; renewing: number }>;
   cancelled: { count: number };
   /** По дням (МСК), новые сверху; до 180 дней */
-  days: Array<{ date: string; day: string; users: number; questionnaires: number; responses: number; payments: number; revenue: number | string }>;
+  days: Array<{ date: string; day: string; users: number; questionnaires: number; questions?: number; responses: number; payments: number; revenue: number | string }>;
   upsell: Array<Record<string, unknown>>;
   stories: Array<{ name: string; source: string | null; count: number }>;
   offers: { paywall_opened: number; paying_users: number };
+}
+
+/* ───────────── HUSH 2.0: вопросы и ответы ───────────── */
+
+export interface QaSummary {
+  /** Код постоянной личной ссылки; null — ещё не создана */
+  askSlug: string | null;
+  link: string | null;
+  /** Входящие без ответа */
+  unanswered: number;
+  /** Свои вопросы аудитории */
+  asks: number;
+}
+
+export interface InboxItem {
+  id: string;
+  text: string;
+  /** anon — от подписчика, hush — вопрос дня (автора нет и раскрыть нельзя) */
+  from: 'anon' | 'hush';
+  status: 'new' | 'answered';
+  answer: string | null;
+  answeredAt: string | null;
+  createdAt: string;
+}
+
+export interface AskSummary {
+  id: string;
+  text: string;
+  createdAt: string;
+  answerCount: number;
+  lastAnswerAt?: string | null;
+  link: string;
+}
+
+export interface AskAnswer {
+  id: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface PublicRecipient {
+  firstName: string;
+  photoUrl: string | null;
+  /** Своя ссылка — «глазами подписчика» */
+  own: boolean;
+}
+
+export interface PublicAsk extends PublicRecipient {
+  id: string;
+  text: string;
+  answered: boolean;
+}
+
+export interface Activity {
+  received: number;
+  answered: number;
+  asks: number;
+  askAnswers: number;
+  sent: number;
 }
 
 export interface Bootstrap {
@@ -171,6 +243,8 @@ export interface Bootstrap {
   app?: { botUsername: string; appShortName: string };
   /** Цены для этого пользователя (считает сервер) */
   pricing?: Pricing;
+  /** HUSH 2.0: личная ссылка и счётчики */
+  qa?: QaSummary;
 }
 
 export interface HushApi {
@@ -199,6 +273,28 @@ export interface HushApi {
   uploadStory(dataUrl: string): Promise<{ url: string }>;
   /** Статистика для владельца */
   adminStats(): Promise<AdminStats>;
+
+  /* HUSH 2.0 */
+  /** Создать (или вернуть существующую) постоянную личную ссылку */
+  createLink(source: string): Promise<{ slug: string; link: string }>;
+  getInbox(): Promise<{ items: InboxItem[] }>;
+  answerInbox(id: string, text: string): Promise<InboxItem>;
+  deleteInboxAnswer(id: string): Promise<InboxItem>;
+  deleteInbox(id: string): Promise<void>;
+  reportInbox(id: string, reason?: string): Promise<void>;
+  blockInbox(id: string): Promise<void>;
+  openRecipient(slug: string): Promise<PublicRecipient>;
+  sendQuestion(slug: string, text: string, idempotencyKey: string): Promise<{ status: 'sent' }>;
+  createAsk(text: string, source: string): Promise<AskSummary>;
+  getAsks(): Promise<{ items: AskSummary[] }>;
+  getAsk(id: string): Promise<{ ask: AskSummary; answers: AskAnswer[] }>;
+  deleteAsk(id: string): Promise<void>;
+  deleteAskAnswer(askId: string, answerId: string): Promise<void>;
+  reportAskAnswer(askId: string, answerId: string): Promise<void>;
+  blockAskAnswer(askId: string, answerId: string): Promise<void>;
+  openAsk(id: string): Promise<PublicAsk>;
+  answerAsk(id: string, text: string, idempotencyKey: string): Promise<{ status: 'sent' }>;
+  activity(): Promise<Activity>;
   /** Событие аналитики (fire-and-forget) */
   trackEvent(name: AnalyticsEvent, source: string): Promise<void>;
 }
@@ -214,7 +310,15 @@ export type AnalyticsEvent =
   | 'question_library_clicked'
   | 'question_library_paywall_shown'
   | 'story_sheet_opened'
-  | 'story_shared';
+  | 'story_shared'
+  | 'app_open'
+  | 'start_choice'
+  | 'share_clicked'
+  | 'link_copied'
+  | 'question_typing_started'
+  | 'guest_create_link'
+  | 'paywall_opened'
+  | 'card_shared';
 
 /** Откуда пользователь пришёл на экран Premium — для конверсии в покупку */
 export type UpsellSource = 'new_questionnaire' | 'custom_question' | 'question_library';

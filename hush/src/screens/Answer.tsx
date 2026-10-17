@@ -6,7 +6,6 @@ import { QUESTIONS_REQUIRED } from '@/data/questions';
 import { cn } from '@/lib/cn';
 import { haptic } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
-import { useAppState } from '@/state/AppState';
 import { Cta, LoadingScreen, Logo, MessageScreen, Segments, SmallBack, TopBar, useToast } from '@/ui';
 
 const ANSWER_MAX = 1000;
@@ -23,7 +22,7 @@ type Choice = 'anonymous' | 'reveal';
 export function AnswerScreen({ qid }: { qid: string }) {
   const nav = useNav();
   const toast = useToast();
-  const { questionnaires } = useAppState();
+
   const [form, setForm] = useState<PublicQuestionnaire>();
   const [loadError, setLoadError] = useState<ApiErrorCode>();
   const [[step, dir], setStep] = useState<[number, number]>([0, 1]);
@@ -42,7 +41,7 @@ export function AnswerScreen({ qid }: { qid: string }) {
   useEffect(load, [qid]);
 
   const goHome = () =>
-    nav.reset(questionnaires[0] ? { name: 'dashboard', qid: questionnaires[0].id } : { name: 'questions' });
+    nav.reset({ name: 'inbox' });
 
   if (loadError) return <AnswerError code={loadError} qid={qid} onRetry={load} onHome={goHome} />;
   if (!form) return <LoadingScreen />;

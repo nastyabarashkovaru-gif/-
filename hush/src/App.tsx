@@ -5,8 +5,14 @@ import { usingMock } from '@/api';
 import { config } from '@/config';
 import { getStartParam } from '@/lib/telegram';
 import { NavigatorProvider, useNav } from '@/nav/Navigator';
-import { routeKey, type Route } from '@/nav/routes';
+import { routeKey, TAB_ROUTES, type Route } from '@/nav/routes';
 import { AdminScreen } from '@/screens/Admin';
+import { AskDetailScreen, AskReplyScreen, AsksScreen, CreateAskScreen } from '@/screens/qa/Asks';
+import { TabBar } from '@/screens/qa/common';
+import { AskMeScreen, MyLinkScreen, SentScreen, StartScreen } from '@/screens/qa/Entry';
+import { AnswerInboxScreen, InboxScreen } from '@/screens/qa/Inbox';
+import { ProfileScreen } from '@/screens/qa/Profile';
+import { track } from '@/lib/analytics';
 import { AnswerScreen } from '@/screens/Answer';
 import { DashboardScreen } from '@/screens/Dashboard';
 import { PremiumScreen } from '@/screens/Premium';
@@ -15,8 +21,6 @@ import { RevealScreen } from '@/screens/Reveal';
 import { SelectQuestionsScreen } from '@/screens/SelectQuestions';
 import { MyQuestionnairesScreen, SettingsScreen, SubscriptionScreen } from '@/screens/Settings';
 import { ShareScreen } from '@/screens/Share';
-import { SuccessScreen } from '@/screens/Success';
-import { WelcomeScreen } from '@/screens/Welcome';
 import { AppStateProvider, useAppState } from '@/state/AppState';
 import { LoadingScreen, MessageScreen, ToastProvider } from '@/ui';
 
@@ -28,7 +32,8 @@ function renderRoute(route: Route) {
     case 'loading':
       return <LoadingScreen />;
     case 'welcome':
-      return <WelcomeScreen />;
+      // HUSH 2.0: прежний приветственный экран анкет заменён выбором из двух механик
+      return <StartScreen />;
     case 'questions':
       return <SelectQuestionsScreen />;
     case 'share':
@@ -44,7 +49,8 @@ function renderRoute(route: Route) {
     case 'premiumSuccess':
       return <PremiumSuccessScreen pending={route.pending} />;
     case 'success':
-      return <SuccessScreen />;
+      // Ответил на старую анкету — тот же вирусный экран HUSH 2.0
+      return <SentScreen kind="answer" />;
     case 'settings':
       return <SettingsScreen />;
     case 'subscription':
@@ -53,6 +59,28 @@ function renderRoute(route: Route) {
       return <MyQuestionnairesScreen />;
     case 'admin':
       return <AdminScreen />;
+    case 'start':
+      return <StartScreen />;
+    case 'inbox':
+      return <InboxScreen />;
+    case 'asks':
+      return <AsksScreen />;
+    case 'profile':
+      return <ProfileScreen />;
+    case 'myLink':
+      return <MyLinkScreen />;
+    case 'askMe':
+      return <AskMeScreen slug={route.slug} />;
+    case 'sent':
+      return <SentScreen kind={route.kind} slug={route.slug} />;
+    case 'answerInbox':
+      return <AnswerInboxScreen id={route.id} />;
+    case 'createAsk':
+      return <CreateAskScreen />;
+    case 'askDetail':
+      return <AskDetailScreen id={route.id} fresh={route.fresh} />;
+    case 'askReply':
+      return <AskReplyScreen id={route.id} />;
   }
 }
 
@@ -70,7 +98,10 @@ function Router() {
     window.scrollTo(0, 0);
   }, [key]);
 
+  const tab = (TAB_ROUTES as readonly string[]).includes(route.name) ? route.name : null;
+
   return (
+    <>
     <AnimatePresence mode="wait" initial={false} custom={direction}>
       <motion.main
         key={key}
@@ -84,21 +115,35 @@ function Router() {
         {renderRoute(route)}
       </motion.main>
     </AnimatePresence>
+    {/* Нижняя панель — только на вкладках, вне анимации переходов */}
+    {tab && <TabBar active={tab} />}
+    </>
   );
 }
 
 function Root() {
-  const { questionnaires, me } = useAppState();
-  // Стартовый экран: ссылка друга → ответы; есть анкета → её статус; иначе приветствие
+  const { questionnaires, me, qa } = useAppState();
+  /**
+   * Стартовый экран HUSH 2.0:
+   * u_<slug> — форма вопроса получателю (без приветствия), a_<id> — ответ на чужой вопрос,
+   * admin — статистика, ref_* — рекламная метка, прочее — старая ссылка на анкету.
+   * Без ссылки: уже пользовался HUSH → «Входящие», иначе — выбор из двух механик.
+   */
   const initial = useMemo<Route>(() => {
     const startParam = getStartParam();
-    // Статистика для владельца: t.me/<bot>/app?startapp=admin
     if (startParam === 'admin' && me.isAdmin) return { name: 'admin' };
-    // ref_* — рекламные метки (например, QR со сторис), а не id анкеты
+    if (startParam?.startsWith('u_')) return { name: 'askMe', slug: startParam.slice(2) };
+    if (startParam?.startsWith('a_')) return { name: 'askReply', id: startParam.slice(2) };
     if (startParam && startParam !== 'admin' && !startParam.startsWith('ref_')) return { name: 'answer', qid: startParam };
-    if (questionnaires[0]) return { name: 'dashboard', qid: questionnaires[0].id };
-    return { name: 'welcome' };
+    if (qa?.askSlug || (qa?.asks ?? 0) > 0 || questionnaires.length) return { name: 'inbox' };
+    return { name: 'start' };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Аналитика: открытие приложения и по какой ссылке
+  useEffect(() => {
+    const p = getStartParam();
+    track('app_open', !p ? 'direct' : p.startsWith('u_') ? 'personal_link' : p.startsWith('a_') ? 'ask_link' : p.startsWith('ref_') ? p.slice(0, 40) : p === 'admin' ? 'admin' : 'questionnaire');
   }, []);
 
   return (

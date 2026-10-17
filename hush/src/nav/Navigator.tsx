@@ -16,6 +16,8 @@ interface NavApi {
   replace(route: Route): void;
   /** Новый корень стека (например, после создания анкеты) */
   reset(route: Route): void;
+  /** Новый стек целиком одним переходом (например, [входящие, ссылка готова]) */
+  setStack(stack: Route[]): void;
   back(): void;
 }
 
@@ -30,6 +32,7 @@ export function NavigatorProvider({ initial, children }: { initial: Route; child
     [],
   );
   const reset = useCallback((route: Route) => setState({ stack: [route], direction: 1 }), []);
+  const setStack = useCallback((stack: Route[]) => setState({ stack, direction: 1 }), []);
   const back = useCallback(
     () => setState((s) => (s.stack.length > 1 ? { stack: s.stack.slice(0, -1), direction: -1 } : s)),
     [],
@@ -50,8 +53,8 @@ export function NavigatorProvider({ initial, children }: { initial: Route; child
   }, [canGoBack]);
 
   const value = useMemo(
-    () => ({ route, direction: state.direction, canGoBack, push, replace, reset, back }),
-    [route, state.direction, canGoBack, push, replace, reset, back],
+    () => ({ route, direction: state.direction, canGoBack, push, replace, reset, setStack, back }),
+    [route, state.direction, canGoBack, push, replace, reset, setStack, back],
   );
   return <NavContext.Provider value={value}>{children}</NavContext.Provider>;
 }
