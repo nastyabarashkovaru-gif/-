@@ -187,11 +187,14 @@ qaApi.get(
       `SELECT ${INBOX_COLS} FROM inbox WHERE recipient_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 300`,
       [req.user.id],
     );
+    // Открытые сверху (новые первыми), закрытые по подписке — внизу
+    const open = rows.filter((r) => access.open.has(r.id));
+    const locked = rows.filter((r) => !access.open.has(r.id));
     return {
-      items: rows.map((r) => {
-        const v = inboxView(r);
-        return access.open.has(r.id) ? { ...v, locked: false } : { ...v, text: null, answer: null, locked: true };
-      }),
+      items: [
+        ...open.map((r) => ({ ...inboxView(r), locked: false })),
+        ...locked.map((r) => ({ ...inboxView(r), text: null, answer: null, locked: true })),
+      ],
       freeOpen: FREE_INBOX_OPEN,
     };
   }),
