@@ -4,12 +4,12 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Ban, Copy, Download, Flag, Inbox as InboxIcon, Instagram, Loader2, MoreHorizontal, Pencil, Share, Trash2 } from 'lucide-react';
+import { Ban, Copy, Download, Flag, Inbox as InboxIcon, Instagram, Loader2, MoreHorizontal, Pencil, Send, Share, Trash2 } from 'lucide-react';
 import { api, type InboxItem } from '@/api';
 import { track } from '@/lib/analytics';
 import { renderQuestionSticker } from '@/lib/qaCards';
 import { copyText } from '@/lib/share';
-import { downloadFile, haptic, requestWriteAccess } from '@/lib/telegram';
+import { canShareToStory, downloadFile, haptic, requestWriteAccess, shareToStory } from '@/lib/telegram';
 import { cn } from '@/lib/cn';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
@@ -263,6 +263,7 @@ export function InboxScreen() {
 
 function StickerSheet({ item, onClose, onDone }: { item: InboxItem | null; onClose: () => void; onDone: (next: InboxItem) => void }) {
   const toast = useToast();
+  const { qa } = useAppState();
   const [img, setImg] = useState<{ url: string; blob: Blob } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -332,6 +333,37 @@ function StickerSheet({ item, onClose, onDone }: { item: InboxItem | null; onClo
     }
   };
 
+  /** Telegram публикует сторис только во весь экран: ставим карточку по центру тёмного фона 1080×1920 */
+  const telegramStory = async () => {
+    if (!img) return;
+    setBusy('tg');
+    try {
+      const sticker = await createImageBitmap(img.blob);
+      const c = document.createElement('canvas');
+      c.width = 1080;
+      c.height = 1920;
+      const ctx = c.getContext('2d')!;
+      const bg = ctx.createRadialGradient(540, 960, 80, 540, 960, 1100);
+      bg.addColorStop(0, '#2a1645');
+      bg.addColorStop(1, '#000');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, 1080, 1920);
+      const w = 1000;
+      const h = Math.round((sticker.height / sticker.width) * w);
+      ctx.drawImage(sticker, (1080 - w) / 2, Math.round((1920 - h) / 2), w, h);
+      const { url } = await api.uploadStory(c.toDataURL('image/png'));
+      const link = qa?.link ?? 'https://t.me/Hush_miniapp_bot/app';
+      if (shareToStory(url, 'Задай мне вопрос анонимно 🤫', { url: link, name: 'Задать вопрос' })) {
+        await done('telegram_story');
+        onClose();
+      } else toast.show('Обнови Telegram, чтобы публиковать сторис');
+    } catch {
+      toast.show('Не удалось открыть сторис. Попробуй ещё раз');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const save = async () => {
     if (!img) return;
     setBusy('save');
@@ -374,6 +406,12 @@ function StickerSheet({ item, onClose, onDone }: { item: InboxItem | null; onClo
           {busy === 'copy' ? <Loader2 size={18} className="animate-spin" /> : <Copy size={18} strokeWidth={1.9} aria-hidden />}
           Скопировать карточку
         </button>
+        {canShareToStory() && (
+          <button type="button" onClick={telegramStory} disabled={!img || !!busy} className="cta-dark -mt-[4px]">
+            {busy === 'tg' ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} strokeWidth={1.8} className="text-purple-text" aria-hidden />}
+            Сторис в Telegram
+          </button>
+        )}
         <div className="-mt-[4px] flex gap-[10px]">
           <button type="button" onClick={share} disabled={!img || !!busy} className="cta-dark flex-1">
             {busy === 'share' ? <Loader2 size={17} className="animate-spin" /> : <Share size={17} strokeWidth={1.8} className="text-purple-text" aria-hidden />}
