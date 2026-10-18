@@ -22,6 +22,7 @@ import { CATALOG, type Question } from './catalog';
 import { newId } from './routes';
 import { config } from './config';
 import { cpApi } from './billing';
+import { getPlan } from './plans';
 import { pool, tx } from './db';
 import { notifyThresholdReached } from './telegram';
 
@@ -149,7 +150,9 @@ export async function runTestSeed(): Promise<void> {
       await pool.query('DELETE FROM entitlements WHERE user_id = $1', [e.user_id]);
     }
     await pool.query('UPDATE users SET offer_started_at = NULL, cancelled_at = NULL WHERE lower(username) = $1', [revokeAll]);
-    console.log(`[test] @${revokeAll}: подписка отключена (${rows.length}), таймер предложения сброшен`);
+    const u = (await pool.query('SELECT id, username FROM users WHERE lower(username) = $1', [revokeAll])).rows[0];
+    const left = u ? (await getPlan(u)).plan : null;
+    console.log(`[test] @${revokeAll}: подписка отключена (${rows.length}), таймер предложения сброшен; тариф сейчас: ${left}`);
   }
 
   const clearInbox = (process.env.TEST_CLEAR_INBOX_USERNAME || '').replace(/^@/, '').toLowerCase();
