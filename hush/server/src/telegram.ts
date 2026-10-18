@@ -95,13 +95,18 @@ export async function notifyThresholdReached(ownerId: number): Promise<void> {
   }
 }
 
-/** Короткие уведомления в бота (новый вопрос, новый ответ); не чаще раза в 2 минуты на человека */
-const lastNotified = new Map<number, number>();
+/**
+ * Пуш в бота на каждый новый вопрос / ответ. Защита от флуда: не больше 30 уведомлений в час одному человеку
+ * (отправку вопросов дополнительно ограничивают лимиты в qa.ts).
+ */
+const recentNotices = new Map<number, number[]>();
 export async function notifyUser(userId: number, text: string, button: string): Promise<void> {
   const now = Date.now();
-  if (now - (lastNotified.get(userId) ?? 0) < 2 * 60_000) return;
-  lastNotified.set(userId, now);
-  if (lastNotified.size > 50_000) lastNotified.clear();
+  const recent = (recentNotices.get(userId) ?? []).filter((t) => now - t < 60 * 60_000);
+  if (recent.length >= 30) return;
+  recent.push(now);
+  recentNotices.set(userId, recent);
+  if (recentNotices.size > 50_000) recentNotices.clear();
   try {
     await call('sendMessage', { chat_id: userId, text, reply_markup: openAppButton(button) });
   } catch (e) {

@@ -59,6 +59,12 @@ function parseQuestions(input: unknown): { questions: Question[]; hasCustom: boo
   return { questions, hasCustom, hasLibrary };
 }
 
+/** Может ли бот писать пользователю (для пуш-уведомлений о вопросах) */
+async function allowsWrite(id: number) {
+  const { rows } = await pool.query('SELECT allows_write FROM users WHERE id = $1', [id]);
+  return Boolean(rows[0]?.allows_write);
+}
+
 export const api = Router();
 // HUSH 2.0: вопросы и ответы (личная ссылка, входящие, свои вопросы)
 api.use(qaApi);
@@ -75,7 +81,7 @@ api.get(
       pool.query<QRow>(`${Q_SELECT} WHERE q.owner_id = $1 ORDER BY q.created_at DESC`, [u.id]),
     ]);
     return {
-      me: { id: String(u.id), firstName: u.first_name, lastName: u.last_name, username: u.username, photoUrl: u.photo_url, isAdmin: isAdmin(req.user) },
+      me: { id: String(u.id), firstName: u.first_name, lastName: u.last_name, username: u.username, photoUrl: u.photo_url, isAdmin: isAdmin(req.user), allowsWrite: await allowsWrite(u.id) },
       // HUSH 2.0: личная ссылка и счётчики вопросов
       qa: await qaSummary(u.id),
       entitlement: {

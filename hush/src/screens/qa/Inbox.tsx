@@ -8,7 +8,7 @@ import { api, type InboxItem } from '@/api';
 import { track } from '@/lib/analytics';
 import { renderAnswerCard } from '@/lib/qaCards';
 import { copyText } from '@/lib/share';
-import { haptic } from '@/lib/telegram';
+import { haptic, requestWriteAccess } from '@/lib/telegram';
 import { cn } from '@/lib/cn';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
@@ -18,6 +18,8 @@ import { ActionSheet, QaTextarea, ShareLinkSheet, TAB_BAR_SPACE, timeAgo, useEns
 
 /** Последний загруженный список — чтобы экран ответа открывался мгновенно */
 let inboxCache: InboxItem[] | null = null;
+/** Разрешение на пуши спрашиваем не чаще раза за открытие приложения */
+let askedWrite = false;
 
 function useInbox() {
   const [items, setItems] = useState<InboxItem[] | null>(inboxCache);
@@ -45,13 +47,23 @@ function useInbox() {
 export function InboxScreen() {
   const toast = useToast();
   const nav = useNav();
-  const { qa, refresh } = useAppState();
+  const { qa, me, refresh } = useAppState();
   const ensureLink = useEnsureLink();
   const { items, error, load, update } = useInbox();
   const [shareOpen, setShareOpen] = useState(false);
   const [menuFor, setMenuFor] = useState<InboxItem | null>(null);
   const [storyFor, setStoryFor] = useState<InboxItem | null>(null);
   const [creating, setCreating] = useState(false);
+
+  // Пуш о каждом новом вопросе приходит от бота — просим разрешение, если его ещё нет (раз за сессию)
+  useEffect(() => {
+    if (me.allowsWrite || askedWrite) return;
+    askedWrite = true;
+    void requestWriteAccess().then((granted) => {
+      if (granted) api.grantWriteAccess().then(refresh).catch(() => {});
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me.allowsWrite]);
 
   // Счётчик на вкладке обновляем после загрузки (мог прийти вопрос дня)
   useEffect(() => {

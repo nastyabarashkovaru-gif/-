@@ -15,6 +15,8 @@ export interface Me {
   photoUrl?: string;
   /** Владелец: доступна статистика */
   isAdmin?: boolean;
+  /** Бот может присылать пуш-уведомления о новых вопросах */
+  allowsWrite?: boolean;
 }
 
 export interface Entitlement {

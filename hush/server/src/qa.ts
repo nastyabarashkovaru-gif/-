@@ -263,7 +263,7 @@ qaApi.post(
     });
     if (created && !self) {
       await logEvent(req.user.id, 'question_sent', 'personal');
-      void notifyUser(recipientId, `Тебе пришёл новый анонимный вопрос 🤫\n\n«${text.slice(0, 200)}»`, 'Ответить');
+      void notifyUser(recipientId, `Тебе задали новый вопрос 🤫\n\n«${text.slice(0, 200)}»`, 'Ответить');
     }
     return { status: 'sent' };
   }),
@@ -424,7 +424,7 @@ qaApi.post(
     });
     if (created && !self) {
       await logEvent(req.user.id, 'ask_answer_sent', null);
-      void notifyUser(ownerId, `Новый анонимный ответ на твой вопрос 💜\n\n«${a.text.slice(0, 120)}»`, 'Смотреть ответ');
+      void notifyUser(ownerId, `Тебе ответили на вопрос 💜\n\n«${a.text.slice(0, 120)}»`, 'Смотреть ответ');
     }
     return { status: 'sent' };
   }),
