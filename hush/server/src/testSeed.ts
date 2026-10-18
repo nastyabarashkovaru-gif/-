@@ -13,6 +13,8 @@
  * TEST_RESET_QA_USERNAME=<username> — HUSH 2.0 с нуля: удаляет личную ссылку, входящие, свои вопросы с ответами и анкеты
  *   (подписку и платежи не трогает).
  * TEST_REVOKE_MANUAL_PREMIUM_USERNAME=<username> — снимает только выданный вручную Premium (source 'manual'); платежи не трогает.
+ * TEST_REVOKE_ALL_PREMIUM_USERNAME=<username> — полностью отключает подписку (отменяет в CloudPayments, удаляет доступ); история платежей остаётся.
+ * TEST_CLEAR_INBOX_USERNAME=<username> — удаляет все полученные вопросы (ссылка остаётся), вопрос дня придёт заново.
  * TEST_DELETE_QUESTIONNAIRES_USERNAME=<username> — удаляет все анкеты пользователя вместе с ответами (начать заново).
  */
 import { randomBytes } from 'node:crypto';
@@ -128,6 +130,33 @@ export async function runTestSeed(): Promise<void> {
     );
     await pool.query('UPDATE users SET offer_started_at = NULL WHERE lower(username) = $1', [revokeName]);
     console.log(`[test] @${revokeName}: снят ручной Premium (${r.rowCount}), таймер предложения сброшен`);
+  }
+
+  const revokeAll = (process.env.TEST_REVOKE_ALL_PREMIUM_USERNAME || '').replace(/^@/, '').toLowerCase();
+  if (revokeAll) {
+    const { rows } = await pool.query(
+      'SELECT e.user_id, e.subscription_id FROM entitlements e JOIN users u ON u.id = e.user_id WHERE lower(u.username) = $1',
+      [revokeAll],
+    );
+    for (const e of rows) {
+      if (e.subscription_id) {
+        try {
+          await cpApi('subscriptions/cancel', { Id: e.subscription_id });
+        } catch (err) {
+          console.log(`[test] @${revokeAll}: отмена в CloudPayments не удалась: ${(err as Error).message}`);
+        }
+      }
+      await pool.query('DELETE FROM entitlements WHERE user_id = $1', [e.user_id]);
+    }
+    await pool.query('UPDATE users SET offer_started_at = NULL, cancelled_at = NULL WHERE lower(username) = $1', [revokeAll]);
+    console.log(`[test] @${revokeAll}: подписка отключена (${rows.length}), таймер предложения сброшен`);
+  }
+
+  const clearInbox = (process.env.TEST_CLEAR_INBOX_USERNAME || '').replace(/^@/, '').toLowerCase();
+  if (clearInbox) {
+    const r = await pool.query('DELETE FROM inbox WHERE recipient_id IN (SELECT id FROM users WHERE lower(username) = $1)', [clearInbox]);
+    await pool.query('UPDATE users SET daily_last_at = NULL WHERE lower(username) = $1', [clearInbox]);
+    console.log(`[test] @${clearInbox}: удалено входящих вопросов: ${r.rowCount}`);
   }
 
   const qaName = (process.env.TEST_RESET_QA_USERNAME || '').replace(/^@/, '').toLowerCase();

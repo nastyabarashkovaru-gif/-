@@ -42,7 +42,9 @@ export async function logEvent(userId: number, name: string, source: string | nu
 export async function qaSummary(userId: number) {
   const { rows } = await pool.query(
     `SELECT u.ask_slug,
-       (SELECT count(*) FROM inbox i WHERE i.recipient_id = u.id AND i.deleted_at IS NULL AND i.answer IS NULL AND i.story_at IS NULL)::int AS unanswered,
+       (SELECT count(*) FROM inbox i WHERE i.recipient_id = u.id AND i.deleted_at IS NULL AND i.answer IS NULL AND i.story_at IS NULL
+          -- пока вопросы не открылись (меньше 5), вопрос дня в счётчик не входит
+          AND (i.kind <> 'system' OR (SELECT count(*) FROM inbox r WHERE r.recipient_id = u.id AND r.deleted_at IS NULL AND r.kind <> 'system') >= ${INBOX_THRESHOLD}))::int AS unanswered,
        (SELECT count(*) FROM asks a WHERE a.owner_id = u.id AND a.deleted_at IS NULL)::int AS asks,
        (SELECT count(*) FROM asks a WHERE a.owner_id = u.id)::int AS asks_created,
        (SELECT count(*) FROM inbox s WHERE s.sender_id = u.id AND s.kind = 'user' AND s.answer IS NOT NULL AND s.sender_seen_at IS NULL)::int AS sent_unread,
@@ -119,6 +121,31 @@ async function ownAsk(id: string, userId: number) {
   return rows[0] as { id: string; owner_id: string; text: string; created_at: Date };
 }
 
+/** Вопросы открываются, когда их наберётся 5 (анонимность); без подписки после этого видны первые 3 */
+export const INBOX_THRESHOLD = 5;
+export const FREE_INBOX_OPEN = 3;
+
+async function inboxAccess(user: TgUser) {
+  const { rows } = await pool.query<{ id: string; kind: string }>(
+    'SELECT id, kind FROM inbox WHERE recipient_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC',
+    [user.id],
+  );
+  // Порог считаем только по настоящим вопросам (вопрос дня не помогает его набрать)
+  const collected = rows.filter((r) => r.kind !== 'system').length;
+  if (collected < INBOX_THRESHOLD) return { collected, gated: true, open: new Set<string>() };
+  const premium = await isPremium(user);
+  // Вопрос дня открыт всегда; из настоящих вопросов без подписки — первые 3 полученных
+  const real = rows.filter((r) => r.kind !== 'system');
+  const open = premium ? rows : [...rows.filter((r) => r.kind === 'system'), ...real.slice(0, FREE_INBOX_OPEN)];
+  return { collected, gated: false, open: new Set(open.map((r) => r.id)) };
+}
+
+/** Действия с закрытым вопросом (ответ, сторис, «узнать автора») — только когда он открыт */
+async function requireOpen(user: TgUser, id: string) {
+  const access = await inboxAccess(user);
+  if (!access.open.has(id)) throw new HttpError('premium_required');
+}
+
 export const qaApi = Router();
 
 /* ───────────── Личная ссылка ───────────── */
@@ -153,11 +180,20 @@ qaApi.get(
   rateLimit('read', 240, 60_000),
   handle(async (req) => {
     await deliverDaily(req.user.id);
+    const access = await inboxAccess(req.user);
+    // Пока не набралось 5 вопросов — только счётчик, сами вопросы не уходят с сервера
+    if (access.gated) return { items: [], gate: { collected: access.collected, required: INBOX_THRESHOLD } };
     const { rows } = await pool.query<InboxRow>(
       `SELECT ${INBOX_COLS} FROM inbox WHERE recipient_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 300`,
       [req.user.id],
     );
-    return { items: rows.map(inboxView) };
+    return {
+      items: rows.map((r) => {
+        const v = inboxView(r);
+        return access.open.has(r.id) ? { ...v, locked: false } : { ...v, text: null, answer: null, locked: true };
+      }),
+      freeOpen: FREE_INBOX_OPEN,
+    };
   }),
 );
 
@@ -166,6 +202,7 @@ qaApi.post(
   rateLimit('answer', 120, 60 * 60_000),
   handle(async (req) => {
     const q = await ownInbox(req.params.id, req.user.id);
+    await requireOpen(req.user, q.id);
     const text = clean(req.body?.text);
     if (!text || text.length > ANSWER_MAX) throw new HttpError('invalid');
     // Личный ответ: его увидит только тот, кто спросил (во вкладке «Я спросил(а)»)
@@ -201,6 +238,7 @@ qaApi.post(
   rateLimit('answer', 120, 60 * 60_000),
   handle(async (req) => {
     const q = await ownInbox(req.params.id, req.user.id);
+    await requireOpen(req.user, q.id);
     const { rows } = await pool.query<InboxRow>(
       `UPDATE inbox SET story_at = COALESCE(story_at, now()) WHERE id = $1 RETURNING ${INBOX_COLS}`,
       [q.id],
@@ -334,7 +372,8 @@ qaApi.post(
     });
     if (created && !self) {
       await logEvent(req.user.id, 'question_sent', 'personal');
-      void notifyUser(recipientId, `Тебе задали новый вопрос 🤫\n\n«${text.slice(0, 200)}»`, 'Ответить');
+      // Текст вопроса в пуш не кладём: вопросы открываются с 5-го, часть — по подписке
+      void notifyUser(recipientId, 'Тебе задали новый анонимный вопрос 🤫\n\nОткрой hush., чтобы его прочитать', 'Открыть вопросы');
     }
     return { status: 'sent' };
   }),
@@ -543,6 +582,7 @@ qaApi.post(
   rateLimit('reveal', 120, 60 * 60_000),
   handle(async (req) => {
     const q = await ownInbox(req.params.id, req.user.id);
+    await requireOpen(req.user, q.id);
     return reveal(req, Boolean((q as { consent_reveal?: boolean }).consent_reveal), q.sender_id, q.kind, 'inbox');
   }),
 );

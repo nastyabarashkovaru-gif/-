@@ -80,7 +80,10 @@ export const mockQa: Pick<
       db.inbox.unshift({ id: uid(12), text, from: 'hush', status: 'new', answer: null, answeredAt: null, createdAt: new Date().toISOString() });
       save();
     }
-    return { items: db.inbox };
+    const collected = db.inbox.filter((i) => i.from !== 'hush').length;
+    if (collected < 5) return { items: [], gate: { collected, required: 5 } };
+    const open = new Set([...db.inbox].reverse().filter((i) => i.from !== 'hush').slice(0, 3).map((i) => i.id));
+    return { items: db.inbox.map((i) => (i.from === 'hush' || open.has(i.id) ? i : { ...i, text: null, answer: null, locked: true })), freeOpen: 3 };
   },
   async answerInbox(id, text) {
     await delay();

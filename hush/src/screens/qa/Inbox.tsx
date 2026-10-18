@@ -4,8 +4,8 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Ban, Copy, Download, Flag, Inbox as InboxIcon, Instagram, Loader2, MoreHorizontal, Pencil, Send, Share, Trash2 } from 'lucide-react';
-import { api, type InboxItem } from '@/api';
+import { Ban, Copy, Download, Flag, Inbox as InboxIcon, Instagram, Loader2, Lock, ShieldCheck, MoreHorizontal, Pencil, Send, Share, Trash2 } from 'lucide-react';
+import { api, type InboxGate, type InboxItem } from '@/api';
 import { track } from '@/lib/analytics';
 import { renderQuestionSticker } from '@/lib/qaCards';
 import { copyText } from '@/lib/share';
@@ -14,10 +14,11 @@ import { cn } from '@/lib/cn';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BackArrow, Cta, Logo, Modal, Screen, TopBar, useToast } from '@/ui';
-import { ActionSheet, QaTextarea, RevealButton, TAB_BAR_SPACE, timeAgo, useReveal, type SheetAction } from './common';
+import { ActionSheet, QaTextarea, RevealButton, ShareLinkSheet, TAB_BAR_SPACE, timeAgo, useEnsureLink, useReveal, type SheetAction } from './common';
 
 /** Последний загруженный список — чтобы экран ответа открывался мгновенно */
 let inboxCache: InboxItem[] | null = null;
+let gateCache: InboxGate | null = null;
 /** Разрешение на пуши спрашиваем не чаще раза за открытие приложения */
 let askedWrite = false;
 
@@ -67,6 +68,7 @@ export function QuestionsHeader({ active }: { active: 'inbox' | 'asks' }) {
 
 function useInbox() {
   const [items, setItems] = useState<InboxItem[] | null>(inboxCache);
+  const [gate, setGate] = useState<InboxGate | null>(gateCache);
   const [error, setError] = useState(false);
   const load = useCallback(() => {
     setError(false);
@@ -74,6 +76,8 @@ function useInbox() {
       .getInbox()
       .then((r) => {
         inboxCache = r.items;
+        gateCache = r.gate ?? null;
+        setGate(gateCache);
         setItems(r.items);
       })
       .catch(() => setError(true));
@@ -85,7 +89,60 @@ function useInbox() {
       inboxCache = next;
       return next;
     });
-  return { items, error, load, update };
+  return { items, gate, error, load, update };
+}
+
+/** Пока не набралось 5 вопросов: счётчик и объяснение, зачем ждать */
+function InboxGateCard({ gate }: { gate: InboxGate }) {
+  const toast = useToast();
+  const ensureLink = useEnsureLink();
+  const [link, setLink] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const left = Math.max(gate.required - gate.collected, 0);
+  return (
+    <div className="card flex flex-col items-center gap-[14px] !py-[26px] text-center">
+      <span className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[#2a1f3d] text-purple-text">
+        <Lock size={24} strokeWidth={1.9} />
+      </span>
+      <h2 className="text-[20px] font-semibold leading-[1.25]">Собери {gate.required} вопросов, чтобы прочитать их</h2>
+      <div className="flex w-full flex-col gap-[8px]">
+        <div className="flex gap-[6px]" aria-hidden>
+          {Array.from({ length: gate.required }, (_, i) => (
+            <span key={i} className={cn('h-[8px] flex-1 rounded-full', i < gate.collected ? 'bg-purple' : 'bg-[#2a2930]')} />
+          ))}
+        </div>
+        <p className="text-[15px] font-medium">
+          {gate.collected} / {gate.required} · {left === 1 ? 'остался 1 вопрос' : `осталось ${left} ${left >= 5 ? 'вопросов' : 'вопроса'}`}
+        </p>
+      </div>
+      <div className="flex items-start gap-[10px] rounded-[14px] bg-[#141318] p-[12px] text-left">
+        <ShieldCheck size={20} strokeWidth={1.8} className="mt-[1px] shrink-0 text-green" aria-hidden />
+        <p className="text-[14px] leading-[1.45] text-[#c9c6d1]">
+          Это нужно для анонимности: когда вопросов несколько, сложнее догадаться, кто и что спросил. Поэтому мы откроем их, когда наберётся {gate.required}.
+        </p>
+      </div>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          haptic.tap();
+          setBusy(true);
+          try {
+            setLink((await ensureLink('inbox_gate')).link);
+          } catch {
+            toast.show('Не удалось получить ссылку');
+          } finally {
+            setBusy(false);
+          }
+        }}
+        className="flex w-full items-center justify-center gap-[8px] rounded-[14px] bg-white py-[14px] text-[16px] font-medium text-[#111014] active:scale-[0.98]"
+      >
+        {busy ? <Loader2 size={18} className="animate-spin" /> : <Share size={18} strokeWidth={1.9} />}
+        Поделиться ссылкой
+      </button>
+      {link && <ShareLinkSheet open onClose={() => setLink(null)} link={link} kind="personal" source="inbox_gate" />}
+    </div>
+  );
 }
 
 const STATUS_LABEL: Record<InboxItem['status'], string> = { new: 'Новый', answered: 'Отвечен лично', story: 'Отвечен в сторис' };
@@ -94,7 +151,7 @@ export function InboxScreen() {
   const toast = useToast();
   const nav = useNav();
   const { me, refresh } = useAppState();
-  const { items, error, load, update } = useInbox();
+  const { items, gate, error, load, update } = useInbox();
   const [menuFor, setMenuFor] = useState<InboxItem | null>(null);
   const [stickerFor, setStickerFor] = useState<InboxItem | null>(null);
   const reveal = useReveal();
@@ -172,6 +229,8 @@ export function InboxScreen() {
               <div key={i} className="h-[110px] animate-pulse rounded-[18px] bg-[#141318]" />
             ))}
           </div>
+        ) : gate ? (
+          <InboxGateCard gate={gate} />
         ) : items.length === 0 ? (
           <div className="card flex flex-col items-center gap-[12px] !py-[28px] text-center">
             <span className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[#2a1f3d] text-purple-text">
@@ -182,7 +241,36 @@ export function InboxScreen() {
           </div>
         ) : (
           <div className="flex flex-col gap-[10px]">
-            {items.map((item, i) => (
+            {items.map((item, i) =>
+              item.locked ? (
+                <motion.button
+                  key={item.id}
+                  type="button"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(i, 6) * 0.04 }}
+                  onClick={() => {
+                    haptic.tap();
+                    nav.push({ name: 'premium', source: 'inbox_locked' });
+                  }}
+                  className="card flex flex-col gap-[10px] !p-[16px] text-left active:scale-[0.99]"
+                >
+                  <div className="flex items-center gap-[8px] text-[13px]">
+                    <span className="font-medium text-[#c9c6d1]">Анонимно</span>
+                    <span className="text-[#6f6b78]">·</span>
+                    <span className="text-[#8e8b97]">{timeAgo(item.createdAt)}</span>
+                    <Lock size={15} strokeWidth={1.9} className="ml-auto text-purple-text" aria-hidden />
+                  </div>
+                  <p className="select-none text-[17px] font-semibold leading-[1.35] blur-[6px]" aria-hidden>
+                    Этот вопрос скрыт, открой его с подпиской
+                  </p>
+                  <span className="flex items-center justify-center gap-[6px] rounded-[12px] border border-dashed border-[#4a3b5c] bg-[#101013] px-[12px] py-[11px] text-[15px] font-medium text-purple-text">
+                    <Lock size={15} strokeWidth={1.9} aria-hidden />
+                    Открыть с Premium
+                  </span>
+                  <span className="text-center text-[13px] text-[#8e8b97]">Бесплатно открыты первые 3 вопроса</span>
+                </motion.button>
+              ) : (
               <motion.article
                 key={item.id}
                 initial={{ opacity: 0, y: 8 }}
@@ -243,7 +331,8 @@ export function InboxScreen() {
                 </div>
                 <RevealButton busy={reveal.busy === `inbox:${item.id}`} label="Узнать, кто спросил" onClick={() => reveal.run(`inbox:${item.id}`, () => api.revealInbox(item.id))} />
               </motion.article>
-            ))}
+              ),
+            )}
           </div>
         )}
       </div>
@@ -274,7 +363,7 @@ function StickerSheet({ item, onClose, onDone }: { item: InboxItem | null; onClo
     if (!item) return;
     let url = '';
     let cancelled = false;
-    void renderQuestionSticker(item.text).then(
+    void renderQuestionSticker(item.text ?? '').then(
       (canvas) =>
         new Promise<void>((resolve) =>
           canvas.toBlob((blob) => {
