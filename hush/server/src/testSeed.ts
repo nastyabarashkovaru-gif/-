@@ -3,6 +3,8 @@
  * TEST_SEED_USERNAME=<username> — при старте дополняет последнюю анкету этого пользователя
  *   тестовыми ответами до 5 (идемпотентно). Респонденты — фиктивные пользователи с id < 0 и именем «Тест: друг N».
  *   TEST_SEED_COUNT=N — вместо этого добавить ровно N ответов.
+ * TEST_INBOX_USERNAME=<username> [+ TEST_INBOX_COUNT=N] — присылает во «Мне задали» N (по умолчанию 5) тестовых вопросов
+ *   от фиктивных подписчиков; нечётные разрешают раскрыть профиль, чётные — анонимные.
  * TEST_CLEANUP=true — удаляет всех тестовых респондентов и их ответы.
  * TEST_RESET_USERNAME=<username> — снимает у пользователя отметку об отмене и таймер предложения 299 ₽ и Premium,
  *   оплаченный только тестовыми платежами (если есть хоть один боевой платёж — подписку не трогает).
@@ -37,6 +39,8 @@ const GENERIC = ['Сложно сказать одним предложение�
 
 export async function runTestSeed(): Promise<void> {
   if (process.env.TEST_CLEANUP === 'true') {
+    await pool.query('DELETE FROM inbox WHERE sender_id < 0');
+    await pool.query('DELETE FROM ask_answers WHERE respondent_id < 0');
     const r = await pool.query('DELETE FROM responses WHERE respondent_id < 0');
     await pool.query('DELETE FROM users WHERE id < 0 AND NOT EXISTS (SELECT 1 FROM responses WHERE respondent_id = users.id)');
     console.log(`[test] удалено тестовых ответов: ${r.rowCount}`);
@@ -83,6 +87,37 @@ export async function runTestSeed(): Promise<void> {
       console.log(`[test] @${grantName}: выдан годовой Premium до ${new Date(Date.now() + 365 * 864e5).toLocaleDateString('ru-RU')}`);
     }
     if (!rows.length) console.warn(`[test] @${grantName} не найден`);
+  }
+
+  const inboxName = (process.env.TEST_INBOX_USERNAME || '').replace(/^@/, '').toLowerCase();
+  if (inboxName) {
+    const { rows } = await pool.query('SELECT id FROM users WHERE lower(username) = $1', [inboxName]);
+    const count = Math.min(Number(process.env.TEST_INBOX_COUNT) || 5, 20);
+    const QUESTIONS = [
+      'Какой твой самый большой секрет?',
+      'В кого ты сейчас влюблён(а)?',
+      'Что ты никогда не рассказывал(а) подписчикам?',
+      'О чём ты больше всего жалеешь?',
+      'Что тебя бесит в людях?',
+      'Какая твоя самая странная привычка?',
+      'Что бы ты изменил(а) в себе?',
+    ];
+    for (const { id } of rows) {
+      for (let i = 0; i < count; i++) {
+        const fakeId = -Number(BigInt('0x' + randomBytes(5).toString('hex')) % 1_000_000_000n) - 1;
+        await pool.query('INSERT INTO users (id, first_name, username) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [
+          fakeId,
+          `Тест: подписчик ${i + 1}`,
+          `test_follower_${i + 1}`,
+        ]);
+        await pool.query(
+          "INSERT INTO inbox (id, recipient_id, sender_id, kind, text, consent_reveal, created_at) VALUES ($1, $2, $3, 'user', $4, $5, now() - make_interval(mins => $6))",
+          [`T${randomBytes(6).toString('hex')}`, id, fakeId, QUESTIONS[i % QUESTIONS.length], i % 2 === 0, i * 3],
+        );
+      }
+      console.log(`[test] @${inboxName}: прислано тестовых вопросов ${count} (раскрыть можно: ${Math.ceil(count / 2)})`);
+    }
+    if (!rows.length) console.warn(`[test] @${inboxName} не найден`);
   }
 
   const revokeName = (process.env.TEST_REVOKE_MANUAL_PREMIUM_USERNAME || '').replace(/^@/, '').toLowerCase();

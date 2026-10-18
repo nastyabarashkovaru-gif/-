@@ -58,40 +58,8 @@ export function AsksScreen() {
           </div>
         ) : (
           <>
-            {/* Вопросы, заданные людям по их личным ссылкам */}
-            <span className="step -mb-[6px] mt-[2px]">Вопросы людям</span>
-            {sent.length === 0 ? (
-              <div className="card !py-[18px] text-center">
-                <p className="muted">Здесь появятся вопросы, которые ты задашь другим по их ссылкам, — и их ответы.</p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-[10px]">
-                {sent.map((x) => (
-                  <article key={x.id} className={cn('card flex flex-col gap-[10px] !p-[16px]', x.unread && '!border-[#6a45a0]')}>
-                    <div className="flex items-center gap-[8px] text-[13px]">
-                      <Avatar name={x.recipient.firstName} photoUrl={x.recipient.photoUrl} size={24} />
-                      <span className="font-medium text-[#c9c6d1]">{x.recipient.firstName}</span>
-                      <span className="text-[#6f6b78]">·</span>
-                      <span className="text-[#8e8b97]">{timeAgo(x.answeredAt ?? x.createdAt)}</span>
-                      <span
-                        className={cn(
-                          'ml-auto rounded-full px-[9px] py-[3px] text-[12px] font-medium',
-                          x.status === 'waiting' ? 'bg-[#1f1d26] text-[#a1a1aa]' : 'bg-[#13281b] text-green',
-                        )}
-                      >
-                        {x.status === 'waiting' ? 'Ждём ответ' : x.status === 'story' ? 'Ответ в сторис' : x.unread ? 'Новый ответ' : 'Ответил(а)'}
-                      </span>
-                    </div>
-                    <p className="text-[16px] font-semibold leading-[1.35]">{x.text}</p>
-                    {x.answer && <p className="whitespace-pre-line border-l-2 border-purple pl-[10px] text-[15px] leading-[1.45] text-[#e6e3ea]">{x.answer}</p>}
-                    {x.status === 'story' && <p className="small">{x.recipient.firstName} ответил(а) в сторис — загляни в профиль 👀</p>}
-                  </article>
-                ))}
-              </div>
-            )}
-
             {/* Свои вопросы аудитории */}
-            <div className="mt-[6px] flex items-center justify-between">
+            <div className="mt-[2px] flex items-center justify-between">
               <span className="step">Вопросы подписчикам</span>
             </div>
             <button type="button" onClick={() => nav.push({ name: 'createAsk' })} className="cta-dark -mt-[4px]">
@@ -120,6 +88,34 @@ export function AsksScreen() {
                     </span>
                     <ChevronRight size={18} className="shrink-0 text-[#6f6b78]" aria-hidden />
                   </motion.button>
+                ))}
+              </div>
+            )}
+
+            {/* Вопросы, заданные людям по их ссылкам — появляются после первого ответа, чтобы не путать */}
+            {sent.some((x) => x.status !== 'waiting') && (
+              <div className="mt-[10px] flex flex-col gap-[10px]">
+                <span className="step">Вопросы людям</span>
+                {sent.map((x) => (
+                  <article key={x.id} className={cn('card flex flex-col gap-[10px] !p-[16px]', x.unread && '!border-[#6a45a0]')}>
+                    <div className="flex items-center gap-[8px] text-[13px]">
+                      <Avatar name={x.recipient.firstName} photoUrl={x.recipient.photoUrl} size={24} />
+                      <span className="font-medium text-[#c9c6d1]">{x.recipient.firstName}</span>
+                      <span className="text-[#6f6b78]">·</span>
+                      <span className="text-[#8e8b97]">{timeAgo(x.answeredAt ?? x.createdAt)}</span>
+                      <span
+                        className={cn(
+                          'ml-auto rounded-full px-[9px] py-[3px] text-[12px] font-medium',
+                          x.status === 'waiting' ? 'bg-[#1f1d26] text-[#a1a1aa]' : 'bg-[#13281b] text-green',
+                        )}
+                      >
+                        {x.status === 'waiting' ? 'Ждём ответ' : x.status === 'story' ? 'Ответ в сторис' : x.unread ? 'Новый ответ' : 'Ответил(а)'}
+                      </span>
+                    </div>
+                    <p className="text-[16px] font-semibold leading-[1.35]">{x.text}</p>
+                    {x.answer && <p className="whitespace-pre-line border-l-2 border-purple pl-[10px] text-[15px] leading-[1.45] text-[#e6e3ea]">{x.answer}</p>}
+                    {x.status === 'story' && <p className="small">{x.recipient.firstName} ответил(а) в сторис — загляни в профиль 👀</p>}
+                  </article>
                 ))}
               </div>
             )}
