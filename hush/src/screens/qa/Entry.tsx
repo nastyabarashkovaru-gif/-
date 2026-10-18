@@ -80,7 +80,8 @@ export function MyLinkScreen() {
   // Через секунду — карточка для сторис (один раз)
   useEffect(() => {
     if (!link) return;
-    const key = 'hush.linkStory.v1';
+    // Ключ по коду ссылки: новая ссылка — снова покажем карточку
+    const key = `hush.linkStory.${qa?.askSlug}`;
     try {
       if (localStorage.getItem(key)) return;
     } catch {
@@ -96,7 +97,7 @@ export function MyLinkScreen() {
       setStoriesOpen(true);
     }, 1000);
     return () => window.clearTimeout(t);
-  }, [link]);
+  }, [link, qa?.askSlug]);
 
   if (!qa?.askSlug) return <LoadingScreen />;
 

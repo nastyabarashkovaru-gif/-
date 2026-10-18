@@ -8,6 +8,8 @@
  *   оплаченный только тестовыми платежами (если есть хоть один боевой платёж — подписку не трогает).
  * TEST_GRANT_YEAR_USERNAME=<username> — выдаёт годовой Premium вручную (source 'manual', без автопродления) на год;
  *   подписку с автосписанием в CloudPayments при этом отменяет, чтобы она не списывала поверх.
+ * TEST_RESET_QA_USERNAME=<username> — HUSH 2.0 с нуля: удаляет личную ссылку, входящие, свои вопросы с ответами и анкеты
+ *   (подписку и платежи не трогает).
  * TEST_DELETE_QUESTIONNAIRES_USERNAME=<username> — удаляет все анкеты пользователя вместе с ответами (начать заново).
  */
 import { randomBytes } from 'node:crypto';
@@ -80,6 +82,19 @@ export async function runTestSeed(): Promise<void> {
       console.log(`[test] @${grantName}: выдан годовой Premium до ${new Date(Date.now() + 365 * 864e5).toLocaleDateString('ru-RU')}`);
     }
     if (!rows.length) console.warn(`[test] @${grantName} не найден`);
+  }
+
+  const qaName = (process.env.TEST_RESET_QA_USERNAME || '').replace(/^@/, '').toLowerCase();
+  if (qaName) {
+    const { rows } = await pool.query('SELECT id FROM users WHERE lower(username) = $1', [qaName]);
+    for (const { id } of rows) {
+      const inbox = await pool.query('DELETE FROM inbox WHERE recipient_id = $1', [id]);
+      const asks = await pool.query('DELETE FROM asks WHERE owner_id = $1', [id]);
+      const qs = await pool.query('DELETE FROM questionnaires WHERE owner_id = $1', [id]);
+      await pool.query('UPDATE users SET ask_slug = NULL, link_created_at = NULL, daily_last_at = NULL WHERE id = $1', [id]);
+      console.log(`[test] @${qaName}: сброшено — входящих ${inbox.rowCount}, своих вопросов ${asks.rowCount}, анкет ${qs.rowCount}, ссылка удалена`);
+    }
+    if (!rows.length) console.warn(`[test] @${qaName} не найден`);
   }
 
   const wipeName = (process.env.TEST_DELETE_QUESTIONNAIRES_USERNAME || '').replace(/^@/, '').toLowerCase();
