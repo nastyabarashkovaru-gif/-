@@ -3,14 +3,14 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowUpRight, Check, Copy, Eye, Instagram, Link2, MessageCircleQuestion, Send } from 'lucide-react';
+import { ArrowUpRight, Check, Copy, Eye, Instagram, Link2, Loader2, MessageCircleQuestion, Send } from 'lucide-react';
 import { api, ApiError, type PublicRecipient } from '@/api';
 import { track } from '@/lib/analytics';
 import { copyText } from '@/lib/share';
 import { haptic, requestWriteAccess } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
-import { BackArrow, BigIcon, Cta, LoadingScreen, Logo, MessageScreen, Screen, Spacer, TopBar, useToast } from '@/ui';
+import { BackArrow, BigIcon, LoadingScreen, Logo, MessageScreen, Screen, Spacer, TopBar, useToast } from '@/ui';
 import { AnonymityChoice, Avatar, ChoiceCard, Chips, LinkStoriesSheet, newKey, QaTextarea, ShareLinkSheet, useEnsureLink, type Anonymity } from './common';
 
 /* ───────── Первый экран нового пользователя ───────── */
@@ -312,19 +312,22 @@ export function SentScreen({ kind, slug }: { kind: 'question' | 'answer'; slug?:
           ? 'Это анонимно. Тебе ответят прямо в приложении.'
           : 'Это было анонимно — никто не узнает, что это ты.'}
       </p>
-      <motion.div
-        className="card-purple flex shrink-0 flex-col gap-[14px] !px-[17px] !py-[22px] text-center"
+      <Spacer />
+      {/* Одна большая кнопка без лишнего текста — понятный результат: тебе тоже начнут задавать вопросы */}
+      <motion.button
+        type="button"
+        onClick={() => {
+          haptic.tap('medium');
+          void create();
+        }}
+        disabled={busy}
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.35 }}
+        className="cta-purple !min-h-[64px] shrink-0 !text-[18px] !font-semibold active:scale-[0.98]"
       >
-        <h2 className="h2">Хочешь тоже получать анонимные вопросы?</h2>
-        <p className="muted">Создай свою ссылку за одно нажатие и поделись ей с подписчиками.</p>
-      </motion.div>
-      <Spacer />
-      <Cta icon="right" onClick={create} loading={busy}>
-        {hasLink ? 'Перейти к вопросам' : 'Создай свою ссылку'}
-      </Cta>
+        {busy ? <Loader2 size={22} className="animate-spin" aria-label="Загрузка" /> : hasLink ? 'Перейти к своим вопросам' : 'Хочу тоже получать вопросы 🤫'}
+      </motion.button>
       {kind === 'question' && slug && (
         <button type="button" onClick={() => nav.setStack([{ name: 'askMe', slug }])} className="mx-auto -my-1 px-2 py-1 text-[15px] text-[#a1a1aa] active:opacity-60">
           Задать ещё вопрос
