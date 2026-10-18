@@ -124,8 +124,9 @@ export async function renderAnswerCard(input: { question: string; answer: string
 }
 
 /**
- * Минималистичная карточка личной ссылки / своего вопроса: логотип, короткий заголовок в 2 строки,
- * небольшой QR и место под ссылку. Всё по центру, сверху и снизу — поля под интерфейс сторис.
+ * Минималистичная карточка личной ссылки / своего вопроса в рамке: логотип, заголовок в 2 строки,
+ * небольшой QR и маленькое место под стикер-ссылку Instagram («место для твоей ссылки»).
+ * Всё по центру, сверху и снизу — поля под интерфейс сторис.
  */
 export async function renderLinkCard(input: { headline: string; link: string }): Promise<HTMLCanvasElement> {
   const canvas = document.createElement('canvas');
@@ -137,29 +138,36 @@ export async function renderLinkCard(input: { headline: string; link: string }):
   ctx.fillRect(0, 0, W, H);
   const cx = W / 2;
 
-  const head = fit(ctx, input.headline, 640, [58, 54, 50, 46, 42], 2, 700);
+  const cardW = 760;
+  const pad = 64;
+  const head = fit(ctx, input.headline, cardW - pad * 2, [56, 52, 48, 44, 40], 2, 700);
   const headLH = Math.round(head.size * 1.2);
-  const qr = 240;
-  const linkText = input.link.replace(/^https?:\/\//, '');
-  let linkSize = 30;
-  for (const size of [30, 28, 26, 24]) {
-    ctx.font = `600 ${size}px ${FONT}`;
-    linkSize = size;
-    if (ctx.measureText(linkText).width <= 860) break;
-  }
+  const qr = 230;
+  const slotW = 380;
+  const slotH = 84;
   const logoH = 64;
-  const blockH = logoH + 64 + head.lines.length * headLH + 56 + qr + 44 + 110;
+  const cardH = pad + head.lines.length * headLH + 48 + qr + 44 + slotH + pad;
+  const blockH = logoH + 48 + cardH;
   let y = Math.round((H - blockH) / 2);
 
-  // Логотип
+  // Логотип над рамкой
   ctx.font = `700 64px ${FONT}`;
   const logoW = ctx.measureText('hush.').width;
-  ctx.textAlign = 'left';
   ctx.fillStyle = '#fff';
   ctx.fillText('hush', cx - logoW / 2, y);
   ctx.fillStyle = '#A855F7';
   ctx.fillText('.', cx - logoW / 2 + ctx.measureText('hush').width, y);
-  y += logoH + 64;
+  y += logoH + 48;
+
+  // Рамка
+  const cardX = cx - cardW / 2;
+  roundRect(ctx, cardX, y, cardW, cardH, 56);
+  ctx.fillStyle = '#17101f';
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#6a45a0';
+  ctx.stroke();
+  y += pad;
 
   // Заголовок
   ctx.textAlign = 'center';
@@ -169,7 +177,7 @@ export async function renderLinkCard(input: { headline: string; link: string }):
     ctx.fillText(line, cx, y);
     y += headLH;
   }
-  y += 56;
+  y += 48;
 
   // QR
   const qrCanvas = document.createElement('canvas');
@@ -180,15 +188,18 @@ export async function renderLinkCard(input: { headline: string; link: string }):
   ctx.drawImage(qrCanvas, cx - qr / 2 + 16, y + 16, qr - 32, qr - 32);
   y += qr + 44;
 
-  // Место под ссылку: ссылка текстом в тонкой рамке (сюда же удобно поставить стикер-ссылку)
-  ctx.font = `600 ${linkSize}px ${FONT}`;
-  const lw = Math.min(940, ctx.measureText(linkText).width + 72);
-  roundRect(ctx, cx - lw / 2, y, lw, 84, 42);
+  // Маленькое место под стикер-ссылку: пунктирная плашка, которую закрывает настоящая ссылка в Instagram
+  roundRect(ctx, cx - slotW / 2, y, slotW, slotH, slotH / 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.fill();
+  ctx.setLineDash([12, 10]);
   ctx.lineWidth = 3;
-  ctx.strokeStyle = '#6a45a0';
+  ctx.strokeStyle = '#8b6bbf';
   ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = `500 28px ${FONT}`;
   ctx.fillStyle = '#B987FF';
   ctx.textBaseline = 'middle';
-  ctx.fillText(linkText, cx, y + 42);
+  ctx.fillText('место для твоей ссылки', cx, y + slotH / 2);
   return canvas;
 }
