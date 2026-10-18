@@ -209,51 +209,58 @@ export async function renderLinkCard(input: { headline: string; link: string }):
  * поверх своего фото/видео и отвечают там. Фон вокруг прозрачный.
  */
 export async function renderQuestionSticker(question: string): Promise<HTMLCanvasElement> {
-  const w = 960;
+  // Прозрачные поля вокруг карточки — чтобы скруглённые углы сохранялись в PNG
+  const m = 20;
+  const cw = 960;
   const pad = 52;
   const headH = 104;
+  const r = 48;
   const probe = document.createElement('canvas').getContext('2d')!;
-  const q = fit(probe, question, w - pad * 2, [54, 50, 46, 42, 38], 5, 700);
+  const q = fit(probe, question, cw - pad * 2, [54, 50, 46, 42, 38], 5, 700);
   const lh = Math.round(q.size * 1.25);
-  const h = headH + pad + q.lines.length * lh + pad;
+  const ch = headH + pad + q.lines.length * lh + pad;
 
   const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
+  canvas.width = cw + m * 2;
+  canvas.height = ch + m * 2;
   const ctx = canvas.getContext('2d')!;
-  ctx.textBaseline = 'middle';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Карточка: фиолетовая шапка + белое тело, скруглённые углы
-  roundRect(ctx, 0, 0, w, h, 44);
-  ctx.save();
-  ctx.clip();
+  // Белое тело со скруглёнными углами
+  roundRect(ctx, m, m, cw, ch, r);
   ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, w, h);
-  const grad = ctx.createLinearGradient(0, 0, w, headH);
-  grad.addColorStop(0, '#7c3aed');
-  grad.addColorStop(1, '#a855f7');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, w, headH);
-  ctx.restore();
+  ctx.fill();
+  // Чёрная шапка: скругление только сверху
+  ctx.beginPath();
+  ctx.moveTo(m, m + headH);
+  ctx.lineTo(m, m + r);
+  ctx.arcTo(m, m, m + r, m, r);
+  ctx.lineTo(m + cw - r, m);
+  ctx.arcTo(m + cw, m, m + cw, m + r, r);
+  ctx.lineTo(m + cw, m + headH);
+  ctx.closePath();
+  ctx.fillStyle = '#0b0a0e';
+  ctx.fill();
 
+  ctx.textBaseline = 'middle';
   ctx.font = `700 40px ${FONT}`;
   ctx.fillStyle = '#fff';
-  ctx.fillText('hush', pad, headH / 2);
+  ctx.fillText('hush', m + pad, m + headH / 2);
   const lw = ctx.measureText('hush').width;
-  ctx.fillStyle = '#e9d5ff';
-  ctx.fillText('.', pad + lw, headH / 2);
+  ctx.fillStyle = '#A855F7';
+  ctx.fillText('.', m + pad + lw, m + headH / 2);
   ctx.font = `600 32px ${FONT}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
   ctx.textAlign = 'right';
-  ctx.fillText('анонимный вопрос 🤫', w - pad, headH / 2);
+  ctx.fillText('анонимный вопрос 🤫', m + cw - pad, m + headH / 2);
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.font = `700 ${q.size}px ${FONT}`;
   ctx.fillStyle = '#141318';
-  let y = headH + pad;
+  let y = m + headH + pad;
   for (const line of q.lines) {
-    ctx.fillText(line, pad, y);
+    ctx.fillText(line, m + pad, y);
     y += lh;
   }
   return canvas;
