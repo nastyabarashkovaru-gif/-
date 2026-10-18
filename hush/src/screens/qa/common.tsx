@@ -2,12 +2,12 @@
  * Общие элементы HUSH 2.0: нижняя панель, окно «Создать», шаринг ссылки, поле ввода, аватар.
  */
 import { useCallback, useState, type ReactNode } from 'react';
-import { Copy, Eye, EyeOff, Inbox, Instagram, Link2, MessageCircleQuestion, Plus, Send, User } from 'lucide-react';
+import { Copy, Eye, EyeOff, Inbox, Instagram, Link2, Loader2, MessageCircleQuestion, Plus, Send, User } from 'lucide-react';
 import { api, type RevealedIdentity, type RevealResult } from '@/api';
 import { track } from '@/lib/analytics';
 import { renderLinkCard } from '@/lib/qaCards';
 import { copyText } from '@/lib/share';
-import { haptic, openTelegramLink, requestWriteAccess } from '@/lib/telegram';
+import { haptic, openTelegramLink, requestWriteAccess, shareToStory } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import type { Route } from '@/nav/routes';
 import { useAppState } from '@/state/AppState';
@@ -129,22 +129,8 @@ const SHARE_TEXT = {
   ask: 'Ответь анонимно на мой вопрос 👀',
 };
 
-/** Telegram «Поделиться» → системное меню → копирование */
-export async function shareLink(link: string, text: string): Promise<'telegram' | 'native' | 'copied' | 'failed'> {
-  if (openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`)) return 'telegram';
-  if (navigator.share) {
-    try {
-      await navigator.share({ text, url: link });
-      return 'native';
-    } catch (e) {
-      if ((e as DOMException)?.name === 'AbortError') return 'native';
-    }
-  }
-  return (await copyText(`${text}\n${link}`)) ? 'copied' : 'failed';
-}
-
 /**
- * Окно «Поделиться ссылкой»: Telegram, копирование, карточка в сторис.
+ * Окно «Поделиться ссылкой»: сторис Instagram (карточка), сторис Telegram, копирование.
  * kind = personal — личная ссылка, ask — ссылка на свой вопрос (askText обязателен).
  */
 export function ShareLinkSheet({
@@ -165,11 +151,25 @@ export function ShareLinkSheet({
   const toast = useToast();
   const [stories, setStories] = useState(false);
 
-  const telegram = async () => {
-    track('share_clicked', `${kind}_${source}`);
-    const r = await shareLink(link, SHARE_TEXT[kind]);
-    if (r === 'copied') toast.show('Ссылка скопирована — отправь её подписчикам');
-    onClose();
+  const [tgBusy, setTgBusy] = useState(false);
+  const headline = kind === 'personal' ? 'Задай мне анонимный вопрос' : askText ?? '';
+
+  /** Сторис в Telegram: та же карточка, сразу в редактор сторис */
+  const telegramStory = async () => {
+    haptic.tap();
+    setTgBusy(true);
+    try {
+      const canvas = await renderLinkCard({ headline, link });
+      const { url } = await api.uploadStory(canvas.toDataURL('image/png'));
+      if (shareToStory(url, SHARE_TEXT[kind], { url: link, name: kind === 'personal' ? 'Задать вопрос' : 'Ответить анонимно' })) {
+        track('story_shared', `${kind === 'personal' ? 'link' : 'ask'}_telegram_story`);
+        onClose();
+      } else toast.show('Обнови Telegram, чтобы публиковать сторис');
+    } catch {
+      toast.show('Не удалось открыть сторис. Попробуй ещё раз');
+    } finally {
+      setTgBusy(false);
+    }
   };
   const copy = async () => {
     if (await copyText(link)) {
@@ -188,16 +188,8 @@ export function ShareLinkSheet({
             Поделиться ссылкой
           </h2>
           <p className="muted -mt-[4px] text-center">
-            {kind === 'personal' ? 'Отправь ссылку подписчикам — они смогут задать тебе вопрос анонимно' : 'Отправь вопрос подписчикам — они ответят анонимно'}
+            {kind === 'personal' ? 'Выложи ссылку в сторис — подписчики смогут задать тебе вопрос анонимно' : 'Выложи вопрос в сторис — подписчики ответят анонимно'}
           </p>
-          <button type="button" onClick={telegram} className="cta-purple mt-[4px]">
-            <Send size={19} strokeWidth={1.9} aria-hidden />
-            Отправить в Telegram
-          </button>
-          <button type="button" onClick={copy} className="cta-dark">
-            <Copy size={18} strokeWidth={1.8} className="text-purple-text" aria-hidden />
-            Скопировать ссылку
-          </button>
           <button
             type="button"
             onClick={() => {
@@ -205,10 +197,18 @@ export function ShareLinkSheet({
               onClose();
               setStories(true);
             }}
-            className="cta-dark"
+            className="cta-purple mt-[4px]"
           >
-            <Instagram size={18} strokeWidth={1.8} className="text-purple-text" aria-hidden />
-            Карточка для сторис
+            <Instagram size={19} strokeWidth={1.9} aria-hidden />
+            Сторис в Instagram
+          </button>
+          <button type="button" onClick={telegramStory} disabled={tgBusy} className="cta-dark">
+            {tgBusy ? <Loader2 size={18} className="animate-spin text-purple-text" aria-hidden /> : <Send size={18} strokeWidth={1.8} className="text-purple-text" aria-hidden />}
+            Сторис в Telegram
+          </button>
+          <button type="button" onClick={copy} className="cta-dark">
+            <Copy size={18} strokeWidth={1.8} className="text-purple-text" aria-hidden />
+            Скопировать ссылку
           </button>
         </div>
       </Modal>
