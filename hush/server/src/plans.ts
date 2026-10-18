@@ -9,7 +9,7 @@ export type Plan = 'month' | 'quarter' | 'year';
  * amount — цена по предложению (первые 3 часа после показа тарифов), standard — обычная цена.
  */
 export const PLANS: Record<Plan, { amount: number; standard: number; months: number; title: string }> = {
-  month: { amount: 399, standard: 990, months: 1, title: 'hush. Premium — 1 месяц' },
+  month: { amount: 299, standard: 990, months: 1, title: 'hush. Premium — 1 месяц' },
   quarter: { amount: 499, standard: 1490, months: 3, title: 'hush. Premium — 3 месяца' },
   year: { amount: 1490, standard: 6990, months: 12, title: 'hush. Premium — 1 год' },
 };

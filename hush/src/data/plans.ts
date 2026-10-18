@@ -20,7 +20,7 @@ export interface Plan {
 export const STANDARD_PRICES: Record<PlanId, number> = { month: 990, quarter: 1490, year: 6990 };
 
 export const PLANS: Plan[] = [
-  { id: 'month', title: '1 месяц', caption: 'Все функции hush.', price: 399, settingsTitle: 'Месячный Premium', periodLabel: 'мес', unlimitedReveals: false },
+  { id: 'month', title: '1 месяц', caption: 'Все функции hush.', price: 299, settingsTitle: 'Месячный Premium', periodLabel: 'мес', unlimitedReveals: false },
   { id: 'quarter', title: '3 месяца', caption: 'Выгода 44%', price: 499, perMonth: 166, savings: 44, settingsTitle: 'Premium на 3 месяца', periodLabel: '3 мес', unlimitedReveals: false },
   { id: 'year', title: '1 год', caption: 'Безлимит на раскрытие авторов', price: 1490, perMonth: 124, savings: 58, settingsTitle: 'Годовой Premium', periodLabel: 'год', unlimitedReveals: true },
 ];
