@@ -5,7 +5,7 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { Copy, Inbox, Instagram, Link2, MessageCircleQuestion, Plus, Send, User } from 'lucide-react';
 import { api } from '@/api';
 import { track } from '@/lib/analytics';
-import { askMeVariants, askVariants, renderInviteCard } from '@/lib/qaCards';
+import { renderLinkCard } from '@/lib/qaCards';
 import { copyText } from '@/lib/share';
 import { haptic, openTelegramLink, requestWriteAccess } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
@@ -232,9 +232,9 @@ export function LinkStoriesSheet({
   askText?: string;
 }) {
   const render = useCallback(async () => {
-    const out: StoryImage[] = [];
-    const variants = kind === 'personal' ? askMeVariants(link) : askVariants(askText ?? '', link);
-    for (const v of variants) out.push({ src: await canvasToUrl(await renderInviteCard(v)), alt: v.headline });
+    // Одна минималистичная карточка
+    const headline = kind === 'personal' ? 'Задай мне анонимный вопрос' : askText ?? '';
+    const out: StoryImage[] = [{ src: await canvasToUrl(await renderLinkCard({ headline, link })), alt: headline }];
     return out;
   }, [kind, link, askText]);
   return (
@@ -243,7 +243,7 @@ export function LinkStoriesSheet({
       open={open}
       onClose={onClose}
       title={kind === 'personal' ? 'Карточка для сторис 🤫' : 'Позови ответить в сторис 💜'}
-      subtitle="Свайпай и выбери карточку — подписчики наведут камеру на QR или перейдут по ссылке"
+      subtitle={kind === 'personal' ? 'Поделись ссылкой в сторис, чтобы собрать вопросы' : 'Поделись вопросом в сторис, чтобы собрать ответы'}
       render={render}
       link={link}
       shareText={SHARE_TEXT[kind]}

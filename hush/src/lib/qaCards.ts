@@ -122,3 +122,73 @@ export async function renderAnswerCard(input: { question: string; answer: string
   ctx.fillText('.', tx + w, cy + 22);
   return canvas;
 }
+
+/**
+ * Минималистичная карточка личной ссылки / своего вопроса: логотип, короткий заголовок в 2 строки,
+ * небольшой QR и место под ссылку. Всё по центру, сверху и снизу — поля под интерфейс сторис.
+ */
+export async function renderLinkCard(input: { headline: string; link: string }): Promise<HTMLCanvasElement> {
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  const cx = W / 2;
+
+  const head = fit(ctx, input.headline, 640, [58, 54, 50, 46, 42], 2, 700);
+  const headLH = Math.round(head.size * 1.2);
+  const qr = 240;
+  const linkText = input.link.replace(/^https?:\/\//, '');
+  let linkSize = 30;
+  for (const size of [30, 28, 26, 24]) {
+    ctx.font = `600 ${size}px ${FONT}`;
+    linkSize = size;
+    if (ctx.measureText(linkText).width <= 860) break;
+  }
+  const logoH = 64;
+  const blockH = logoH + 64 + head.lines.length * headLH + 56 + qr + 44 + 110;
+  let y = Math.round((H - blockH) / 2);
+
+  // Логотип
+  ctx.font = `700 64px ${FONT}`;
+  const logoW = ctx.measureText('hush.').width;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#fff';
+  ctx.fillText('hush', cx - logoW / 2, y);
+  ctx.fillStyle = '#A855F7';
+  ctx.fillText('.', cx - logoW / 2 + ctx.measureText('hush').width, y);
+  y += logoH + 64;
+
+  // Заголовок
+  ctx.textAlign = 'center';
+  ctx.font = `700 ${head.size}px ${FONT}`;
+  ctx.fillStyle = '#fff';
+  for (const line of head.lines) {
+    ctx.fillText(line, cx, y);
+    y += headLH;
+  }
+  y += 56;
+
+  // QR
+  const qrCanvas = document.createElement('canvas');
+  await QRCode.toCanvas(qrCanvas, input.link, { margin: 1, width: qr - 32, color: { dark: '#000000', light: '#ffffff' } });
+  roundRect(ctx, cx - qr / 2, y, qr, qr, 30);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.drawImage(qrCanvas, cx - qr / 2 + 16, y + 16, qr - 32, qr - 32);
+  y += qr + 44;
+
+  // Место под ссылку: ссылка текстом в тонкой рамке (сюда же удобно поставить стикер-ссылку)
+  ctx.font = `600 ${linkSize}px ${FONT}`;
+  const lw = Math.min(940, ctx.measureText(linkText).width + 72);
+  roundRect(ctx, cx - lw / 2, y, lw, 84, 42);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#6a45a0';
+  ctx.stroke();
+  ctx.fillStyle = '#B987FF';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(linkText, cx, y + 42);
+  return canvas;
+}
