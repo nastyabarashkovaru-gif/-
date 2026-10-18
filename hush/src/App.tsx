@@ -134,8 +134,12 @@ function Root() {
     if (startParam === 'admin' && me.isAdmin) return { name: 'admin' };
     if (startParam?.startsWith('u_')) return { name: 'askMe', slug: startParam.slice(2) };
     if (startParam?.startsWith('a_')) return { name: 'askReply', id: startParam.slice(2) };
+    // Пуш «Тебе ответили» ведёт сразу в «Я спросил(а)»
+    if (startParam === 'tab_asks') return { name: 'asks' };
     if (startParam && startParam !== 'admin' && !startParam.startsWith('ref_')) return { name: 'answer', qid: startParam };
     if (qa?.askSlug || (qa?.asks ?? 0) > 0 || questionnaires.length) return { name: 'inbox' };
+    // Только задавал вопросы другим — сразу к их ответам
+    if ((qa?.sent ?? 0) > 0) return { name: 'asks' };
     return { name: 'start' };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

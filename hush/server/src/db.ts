@@ -165,6 +165,9 @@ export async function migrate(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS inbox_recipient_idx ON inbox(recipient_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS inbox_sender_idx ON inbox(sender_id, created_at DESC);
+    -- Ответ в сторис (маленькая карточка вопроса) и когда отправитель увидел личный ответ
+    ALTER TABLE inbox ADD COLUMN IF NOT EXISTS story_at TIMESTAMPTZ;
+    ALTER TABLE inbox ADD COLUMN IF NOT EXISTS sender_seen_at TIMESTAMPTZ;
 
     -- «Задать свой вопрос»: вопрос аудитории и анонимные ответы на него
     CREATE TABLE IF NOT EXISTS asks (

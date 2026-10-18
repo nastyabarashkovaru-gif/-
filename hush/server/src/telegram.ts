@@ -27,11 +27,13 @@ export function appLink(startParam?: string): string {
   return startParam ? `${base}?startapp=${encodeURIComponent(startParam)}` : base;
 }
 
-function openAppButton(text: string) {
-  // web_app-кнопка открывает Mini App прямо в чате; без публичного URL — обычная ссылка
+function openAppButton(text: string, startParam?: string) {
+  // web_app-кнопка открывает Mini App прямо в чате; без публичного URL — обычная ссылка.
+  // startParam (например, tab_asks) — сразу нужный раздел
+  const url = config.publicUrl && startParam ? `${config.publicUrl}?startapp=${encodeURIComponent(startParam)}` : config.publicUrl;
   return config.publicUrl
-    ? { inline_keyboard: [[{ text, web_app: { url: config.publicUrl } }]] }
-    : { inline_keyboard: [[{ text, url: appLink() }]] };
+    ? { inline_keyboard: [[{ text, web_app: { url } }]] }
+    : { inline_keyboard: [[{ text, url: appLink(startParam) }]] };
 }
 
 /** Однократная настройка бота при старте сервера */
@@ -100,7 +102,7 @@ export async function notifyThresholdReached(ownerId: number): Promise<void> {
  * (отправку вопросов дополнительно ограничивают лимиты в qa.ts).
  */
 const recentNotices = new Map<number, number[]>();
-export async function notifyUser(userId: number, text: string, button: string): Promise<void> {
+export async function notifyUser(userId: number, text: string, button: string, startParam?: string): Promise<void> {
   const now = Date.now();
   const recent = (recentNotices.get(userId) ?? []).filter((t) => now - t < 60 * 60_000);
   if (recent.length >= 30) return;
@@ -108,7 +110,7 @@ export async function notifyUser(userId: number, text: string, button: string): 
   recentNotices.set(userId, recent);
   if (recentNotices.size > 50_000) recentNotices.clear();
   try {
-    await call('sendMessage', { chat_id: userId, text, reply_markup: openAppButton(button) });
+    await call('sendMessage', { chat_id: userId, text, reply_markup: openAppButton(button, startParam) });
   } catch (e) {
     console.warn(`[bot] уведомление ${userId} не отправлено:`, (e as Error).message);
   }

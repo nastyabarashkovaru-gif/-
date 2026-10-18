@@ -188,15 +188,32 @@ export interface QaSummary {
   unanswered: number;
   /** Свои вопросы аудитории */
   asks: number;
+  /** Новые личные ответы на вопросы, которые пользователь задал другим */
+  sentUnread?: number;
+  /** Сколько вопросов задал другим людям */
+  sent?: number;
 }
 
 export interface InboxItem {
   id: string;
   text: string;
-  /** anon — от подписчика, hush — вопрос дня (автора нет и раскрыть нельзя) */
+  /** Все вопросы выглядят как анонимные (вопрос дня — тоже) */
   from: 'anon' | 'hush';
-  status: 'new' | 'answered';
+  /** answered — ответил лично, story — ответил в сторис */
+  status: 'new' | 'answered' | 'story';
   answer: string | null;
+  answeredAt: string | null;
+  createdAt: string;
+}
+
+/** Вопрос, который пользователь задал другому человеку по его личной ссылке */
+export interface SentItem {
+  id: string;
+  text: string;
+  recipient: { firstName: string; photoUrl: string | null };
+  answer: string | null;
+  status: 'waiting' | 'answered' | 'story';
+  unread: boolean;
   answeredAt: string | null;
   createdAt: string;
 }
@@ -283,6 +300,9 @@ export interface HushApi {
   answerInbox(id: string, text: string): Promise<InboxItem>;
   deleteInboxAnswer(id: string): Promise<InboxItem>;
   deleteInbox(id: string): Promise<void>;
+  /** Ответил в сторис (скопировал карточку вопроса) */
+  markStory(id: string): Promise<InboxItem>;
+  getSent(): Promise<{ items: SentItem[] }>;
   reportInbox(id: string, reason?: string): Promise<void>;
   blockInbox(id: string): Promise<void>;
   openRecipient(slug: string): Promise<PublicRecipient>;

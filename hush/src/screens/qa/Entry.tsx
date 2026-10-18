@@ -7,7 +7,7 @@ import { ArrowUpRight, Check, Copy, Eye, Instagram, Link2, MessageCircleQuestion
 import { api, ApiError, type PublicRecipient } from '@/api';
 import { track } from '@/lib/analytics';
 import { copyText } from '@/lib/share';
-import { haptic } from '@/lib/telegram';
+import { haptic, requestWriteAccess } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BackArrow, BigIcon, Cta, LoadingScreen, Logo, MessageScreen, Screen, Spacer, TopBar, useToast } from '@/ui';
@@ -219,6 +219,10 @@ export function AskMeScreen({ slug }: { slug: string }) {
     try {
       await api.sendQuestion(slug, value, key.current);
       haptic.notify('success');
+      // Чтобы пришёл пуш, когда ответят
+      void requestWriteAccess().then((granted) => {
+        if (granted) api.grantWriteAccess().catch(() => {});
+      });
       nav.setStack([{ name: 'sent', kind: 'question', slug }]);
     } catch (e) {
       setSending(false);
@@ -284,7 +288,11 @@ export function SentScreen({ kind, slug }: { kind: 'question' | 'answer'; slug?:
         </BigIcon>
       </motion.div>
       <h1 className="h1 text-center">{kind === 'question' ? 'Твой вопрос отправлен! 💜' : 'Твой ответ отправлен! 💜'}</h1>
-      <p className="muted text-center">Это было анонимно — никто не узнает, что это ты.</p>
+      <p className="muted text-center">
+        {kind === 'question'
+          ? 'Это анонимно. Когда ответят лично — пришлём уведомление, а ответ появится в разделе «Вопросы» → «Я спросил(а)».'
+          : 'Это было анонимно — никто не узнает, что это ты.'}
+      </p>
       <motion.div
         className="card-purple flex shrink-0 flex-col gap-[14px] !px-[17px] !py-[22px] text-center"
         initial={{ opacity: 0, y: 16 }}
@@ -296,7 +304,7 @@ export function SentScreen({ kind, slug }: { kind: 'question' | 'answer'; slug?:
       </motion.div>
       <Spacer />
       <Cta icon="right" onClick={create} loading={busy}>
-        {hasLink ? 'Перейти к моим вопросам' : 'Создай свою ссылку'}
+        {hasLink ? 'Перейти к вопросам' : 'Создай свою ссылку'}
       </Cta>
       {kind === 'question' && slug && (
         <button type="button" onClick={() => nav.setStack([{ name: 'askMe', slug }])} className="mx-auto -my-1 px-2 py-1 text-[15px] text-[#a1a1aa] active:opacity-60">

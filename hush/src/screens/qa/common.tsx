@@ -296,10 +296,10 @@ export function ActionSheet({ open, onClose, title, actions }: { open: boolean; 
 
 /* ───────── Нижняя панель ───────── */
 
-const TABS: Array<{ name: 'inbox' | 'asks' | 'profile' | 'create'; label: string; icon: typeof Inbox }> = [
-  { name: 'inbox', label: 'Входящие', icon: Inbox },
+/** Три раздела: «Вопросы» (Мне задали / Я спросил(а)), большой «+» и «Профиль» */
+const TABS: Array<{ name: 'inbox' | 'profile' | 'create'; label: string; icon: typeof Inbox }> = [
+  { name: 'inbox', label: 'Вопросы', icon: MessageCircleQuestion },
   { name: 'create', label: 'Создать', icon: Plus },
-  { name: 'asks', label: 'Мои вопросы', icon: MessageCircleQuestion },
   { name: 'profile', label: 'Профиль', icon: User },
 ];
 
@@ -328,17 +328,19 @@ export function TabBar({ active }: { active: string }) {
                   haptic.tap('medium');
                   setCreateOpen(true);
                 }}
-                className="flex w-[72px] flex-col items-center gap-[4px] text-[11px] text-[#a1a1aa]"
+                className="-mt-[14px] flex w-[96px] flex-col items-center gap-[4px] text-[11px] text-[#a1a1aa]"
                 aria-label="Создать"
               >
-                <span className="flex h-[44px] w-[44px] items-center justify-center rounded-full bg-gradient-to-br from-[#7c3aed] to-[#a855f7] text-white shadow-[0_6px_18px_rgba(124,58,237,0.45)]">
-                  <Plus size={24} strokeWidth={2.2} />
+                <span className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-gradient-to-br from-[#7c3aed] to-[#a855f7] text-white shadow-[0_6px_18px_rgba(124,58,237,0.45)]">
+                  <Plus size={28} strokeWidth={2.2} />
                 </span>
                 {t.label}
               </button>
             );
           }
-          const on = active === t.name;
+          // «Вопросы» подсвечены на обоих переключателях: «Мне задали» и «Я спросил(а)»
+          const on = t.name === 'inbox' ? active === 'inbox' || active === 'asks' : active === t.name;
+          const badge = t.name === 'inbox' ? (qa?.unanswered ?? 0) + (qa?.sentUnread ?? 0) : 0;
           return (
             <button
               key={t.name}
@@ -349,13 +351,13 @@ export function TabBar({ active }: { active: string }) {
                 haptic.select();
                 nav.reset({ name: t.name } as Route);
               }}
-              className={cn('relative flex w-[72px] flex-col items-center gap-[5px] pb-[2px] pt-[6px] text-[11px]', on ? 'text-purple-text' : 'text-[#8e8b97]')}
+              className={cn('relative flex w-[96px] flex-col items-center gap-[5px] pb-[2px] pt-[6px] text-[11px]', on ? 'text-purple-text' : 'text-[#8e8b97]')}
             >
               <Icon size={23} strokeWidth={on ? 2.1 : 1.8} />
               {t.label}
-              {t.name === 'inbox' && (qa?.unanswered ?? 0) > 0 && (
+              {badge > 0 && (
                 <span className="absolute right-[14px] top-[2px] min-w-[18px] rounded-full bg-purple px-[5px] text-center text-[11px] font-semibold leading-[18px] text-white">
-                  {Math.min(qa!.unanswered, 99)}
+                  {Math.min(badge, 99)}
                 </span>
               )}
             </button>

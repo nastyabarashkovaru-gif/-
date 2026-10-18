@@ -34,8 +34,10 @@ export async function logEvent(userId: number, name: string, source: string | nu
 export async function qaSummary(userId: number) {
   const { rows } = await pool.query(
     `SELECT u.ask_slug,
-       (SELECT count(*) FROM inbox i WHERE i.recipient_id = u.id AND i.deleted_at IS NULL AND i.answer IS NULL)::int AS unanswered,
-       (SELECT count(*) FROM asks a WHERE a.owner_id = u.id AND a.deleted_at IS NULL)::int AS asks
+       (SELECT count(*) FROM inbox i WHERE i.recipient_id = u.id AND i.deleted_at IS NULL AND i.answer IS NULL AND i.story_at IS NULL)::int AS unanswered,
+       (SELECT count(*) FROM asks a WHERE a.owner_id = u.id AND a.deleted_at IS NULL)::int AS asks,
+       (SELECT count(*) FROM inbox s WHERE s.sender_id = u.id AND s.kind = 'user' AND s.answer IS NOT NULL AND s.sender_seen_at IS NULL)::int AS sent_unread,
+       (SELECT count(*) FROM inbox s WHERE s.sender_id = u.id AND s.kind = 'user')::int AS sent
      FROM users u WHERE u.id = $1`,
     [userId],
   );
@@ -45,6 +47,8 @@ export async function qaSummary(userId: number) {
     link: r.ask_slug ? personalLink(r.ask_slug) : null,
     unanswered: r.unanswered ?? 0,
     asks: r.asks ?? 0,
+    sentUnread: r.sent_unread ?? 0,
+    sent: r.sent ?? 0,
   };
 }
 
@@ -77,14 +81,16 @@ interface InboxRow {
   text: string;
   answer: string | null;
   answered_at: Date | null;
+  story_at: Date | null;
   created_at: Date;
 }
+const INBOX_COLS = 'id, kind, text, answer, answered_at, story_at, created_at';
 const inboxView = (r: InboxRow) => ({
   id: r.id,
   text: r.text,
-  // self не выделяем: отправка самому себе не рекламируется
-  from: r.kind === 'system' ? 'hush' : 'anon',
-  status: r.answer ? 'answered' : 'new',
+  // Вопрос дня и вопрос самому себе выглядят как обычные анонимные
+  from: 'anon',
+  status: r.answer ? 'answered' : r.story_at ? 'story' : 'new',
   answer: r.answer,
   answeredAt: r.answered_at?.toISOString() ?? null,
   createdAt: r.created_at.toISOString(),
@@ -137,7 +143,7 @@ qaApi.get(
   handle(async (req) => {
     await deliverDaily(req.user.id);
     const { rows } = await pool.query<InboxRow>(
-      'SELECT id, kind, text, answer, answered_at, created_at FROM inbox WHERE recipient_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 300',
+      `SELECT ${INBOX_COLS} FROM inbox WHERE recipient_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 300`,
       [req.user.id],
     );
     return { items: rows.map(inboxView) };
@@ -151,11 +157,17 @@ qaApi.post(
     const q = await ownInbox(req.params.id, req.user.id);
     const text = clean(req.body?.text);
     if (!text || text.length > ANSWER_MAX) throw new HttpError('invalid');
+    // Личный ответ: его увидит только тот, кто спросил (во вкладке «Я спросил(а)»)
     const { rows } = await pool.query<InboxRow>(
-      'UPDATE inbox SET answer = $2, answered_at = now() WHERE id = $1 RETURNING id, kind, text, answer, answered_at, created_at',
+      `UPDATE inbox SET answer = $2, answered_at = now(), sender_seen_at = NULL WHERE id = $1 RETURNING ${INBOX_COLS}`,
       [q.id, text],
     );
-    if (!q.answer) await logEvent(req.user.id, 'inbox_answered', q.kind);
+    if (!q.answer) {
+      await logEvent(req.user.id, 'inbox_answered', `private_${q.kind}`);
+      if (q.kind === 'user' && q.sender_id) {
+        void notifyUser(Number(q.sender_id), `Тебе ответили на вопрос 💜\n\n«${q.text.slice(0, 120)}»`, 'Смотреть ответ', 'tab_asks');
+      }
+    }
     return inboxView(rows[0]);
   }),
 );
@@ -165,10 +177,62 @@ qaApi.delete(
   handle(async (req) => {
     const q = await ownInbox(req.params.id, req.user.id);
     const { rows } = await pool.query<InboxRow>(
-      'UPDATE inbox SET answer = NULL, answered_at = NULL WHERE id = $1 RETURNING id, kind, text, answer, answered_at, created_at',
+      `UPDATE inbox SET answer = NULL, answered_at = NULL WHERE id = $1 RETURNING ${INBOX_COLS}`,
       [q.id],
     );
     return inboxView(rows[0]);
+  }),
+);
+
+/** Ответ в сторис: пользователь скопировал карточку вопроса — отмечаем и сообщаем спросившему */
+qaApi.post(
+  '/inbox/:id/story',
+  rateLimit('answer', 120, 60 * 60_000),
+  handle(async (req) => {
+    const q = await ownInbox(req.params.id, req.user.id);
+    const { rows } = await pool.query<InboxRow>(
+      `UPDATE inbox SET story_at = COALESCE(story_at, now()) WHERE id = $1 RETURNING ${INBOX_COLS}`,
+      [q.id],
+    );
+    if (!q.story_at) {
+      await logEvent(req.user.id, 'inbox_answered', `story_${q.kind}`);
+      if (q.kind === 'user' && q.sender_id) {
+        void notifyUser(Number(q.sender_id), `${req.user.first_name} ответил(а) на твой вопрос в сторис 👀\n\n«${q.text.slice(0, 120)}»`, 'Открыть hush.', 'tab_asks');
+      }
+    }
+    return inboxView(rows[0]);
+  }),
+);
+
+/** «Я спросил(а)»: вопросы, которые пользователь задал другим людям, и их личные ответы */
+qaApi.get(
+  '/sent',
+  rateLimit('read', 240, 60_000),
+  handle(async (req) => {
+    const { rows } = await pool.query(
+      `SELECT i.id, i.text, i.answer, i.answered_at, i.story_at, i.created_at, i.sender_seen_at, u.first_name, u.photo_url
+       FROM inbox i JOIN users u ON u.id = i.recipient_id
+       WHERE i.sender_id = $1 AND i.kind = 'user' ORDER BY COALESCE(i.answered_at, i.story_at, i.created_at) DESC LIMIT 300`,
+      [req.user.id],
+    );
+    // Открыл список — личные ответы прочитаны
+    await pool.query(
+      "UPDATE inbox SET sender_seen_at = now() WHERE sender_id = $1 AND kind = 'user' AND answer IS NOT NULL AND sender_seen_at IS NULL",
+      [req.user.id],
+    );
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        text: r.text,
+        recipient: { firstName: r.first_name, photoUrl: r.photo_url },
+        // Удалённый получателем вопрос остаётся у спросившего, просто без ответа
+        answer: r.answer,
+        status: r.answer ? 'answered' : r.story_at ? 'story' : 'waiting',
+        unread: Boolean(r.answer && !r.sender_seen_at),
+        answeredAt: (r.answered_at ?? r.story_at)?.toISOString() ?? null,
+        createdAt: r.created_at.toISOString(),
+      })),
+    };
   }),
 );
 
@@ -424,7 +488,7 @@ qaApi.post(
     });
     if (created && !self) {
       await logEvent(req.user.id, 'ask_answer_sent', null);
-      void notifyUser(ownerId, `Тебе ответили на вопрос 💜\n\n«${a.text.slice(0, 120)}»`, 'Смотреть ответ');
+      void notifyUser(ownerId, `Тебе ответили на вопрос 💜\n\n«${a.text.slice(0, 120)}»`, 'Смотреть ответ', 'tab_asks');
     }
     return { status: 'sent' };
   }),

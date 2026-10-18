@@ -203,3 +203,58 @@ export async function renderLinkCard(input: { headline: string; link: string }):
   ctx.fillText('место для твоей ссылки', cx, y + slotH / 2);
   return canvas;
 }
+
+/**
+ * Маленькая горизонтальная карточка вопроса — как стикер: её копируют и вставляют в сторис Instagram
+ * поверх своего фото/видео и отвечают там. Фон вокруг прозрачный.
+ */
+export async function renderQuestionSticker(question: string): Promise<HTMLCanvasElement> {
+  const w = 960;
+  const pad = 52;
+  const headH = 104;
+  const probe = document.createElement('canvas').getContext('2d')!;
+  const q = fit(probe, question, w - pad * 2, [54, 50, 46, 42, 38], 5, 700);
+  const lh = Math.round(q.size * 1.25);
+  const h = headH + pad + q.lines.length * lh + pad;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+  ctx.textBaseline = 'middle';
+
+  // Карточка: фиолетовая шапка + белое тело, скруглённые углы
+  roundRect(ctx, 0, 0, w, h, 44);
+  ctx.save();
+  ctx.clip();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, w, h);
+  const grad = ctx.createLinearGradient(0, 0, w, headH);
+  grad.addColorStop(0, '#7c3aed');
+  grad.addColorStop(1, '#a855f7');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, headH);
+  ctx.restore();
+
+  ctx.font = `700 40px ${FONT}`;
+  ctx.fillStyle = '#fff';
+  ctx.fillText('hush', pad, headH / 2);
+  const lw = ctx.measureText('hush').width;
+  ctx.fillStyle = '#e9d5ff';
+  ctx.fillText('.', pad + lw, headH / 2);
+  ctx.font = `600 32px ${FONT}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.textAlign = 'right';
+  ctx.fillText('анонимный вопрос 🤫', w - pad, headH / 2);
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = `700 ${q.size}px ${FONT}`;
+  ctx.fillStyle = '#141318';
+  let y = headH + pad;
+  for (const line of q.lines) {
+    ctx.fillText(line, pad, y);
+    y += lh;
+  }
+  return canvas;
+}

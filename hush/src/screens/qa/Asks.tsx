@@ -4,7 +4,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Archive, ArrowUpRight, Ban, ChevronRight, Copy, Flag, Instagram, MessageCircleQuestion, MoreHorizontal, Plus, Send, Trash2 } from 'lucide-react';
-import { api, ApiError, type AskAnswer, type AskSummary, type PublicAsk } from '@/api';
+import { api, ApiError, type AskAnswer, type AskSummary, type PublicAsk, type SentItem } from '@/api';
+import { cn } from '@/lib/cn';
 import { track } from '@/lib/analytics';
 import { plural } from '@/lib/plural';
 import { copyText } from '@/lib/share';
@@ -12,78 +13,117 @@ import { haptic } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BackArrow, BigIcon, Cta, LoadingScreen, Logo, MessageScreen, Screen, Spacer, TopBar, useToast } from '@/ui';
-import { AnswerStoriesSheet } from './Inbox';
+import { AnswerStoriesSheet } from './AnswerStories';
+import { QuestionsHeader } from './Inbox';
 import { ActionSheet, Avatar, Chips, newKey, QaTextarea, ShareLinkSheet, TAB_BAR_SPACE, timeAgo, type SheetAction } from './common';
 
 const answersLabel = (n: number) => `${n} ${plural(n, ['ответ', 'ответа', 'ответов'])}`;
 
-/* ───────── Вкладка «Мои вопросы» ───────── */
+/* ───────── Вкладка «Вопросы» → «Я спросил(а)» ───────── */
 
 export function AsksScreen() {
   const nav = useNav();
-  const { questionnaires } = useAppState();
+  const { questionnaires, refresh } = useAppState();
   const [items, setItems] = useState<AskSummary[] | null>(null);
+  const [sent, setSent] = useState<SentItem[] | null>(null);
   const [error, setError] = useState(false);
   const load = useCallback(() => {
     setError(false);
-    api
-      .getAsks()
-      .then((r) => setItems(r.items))
+    Promise.all([api.getAsks(), api.getSent()])
+      .then(([a, s]) => {
+        setItems(a.items);
+        setSent(s.items);
+        // Личные ответы отмечены прочитанными — обновляем счётчики
+        void refresh();
+      })
       .catch(() => setError(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(load, [load]);
 
   return (
     <Screen className="!gap-[16px]">
       <div style={{ paddingBottom: TAB_BAR_SPACE }} className="flex flex-col gap-[16px]">
-        <TopBar />
-        <h1 className="h1 mt-[4px]">Мои вопросы</h1>
-        <p className="muted -mt-[8px]">Вопросы, которые ты задал(а) подписчикам, и их анонимные ответы.</p>
-        <button type="button" onClick={() => nav.push({ name: 'createAsk' })} className="cta-purple">
-          <Plus size={20} strokeWidth={2.2} aria-hidden />
-          Задать новый вопрос
-        </button>
+        <QuestionsHeader active="asks" />
 
         {error && !items ? (
           <button type="button" onClick={load} className="cta-dark">
             Не удалось загрузить — повторить
           </button>
-        ) : !items ? (
+        ) : !items || !sent ? (
           <div className="flex flex-col gap-[10px]">
             {[0, 1].map((i) => (
               <div key={i} className="h-[84px] animate-pulse rounded-[18px] bg-[#141318]" />
             ))}
           </div>
-        ) : items.length === 0 ? (
-          <div className="card flex flex-col items-center gap-[10px] !py-[26px] text-center">
-            <span className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#2a1f3d] text-purple-text">
-              <MessageCircleQuestion size={24} strokeWidth={1.8} />
-            </span>
-            <h2 className="text-[18px] font-semibold">Пока нет вопросов</h2>
-            <p className="muted">Например: «Какое было твоё первое впечатление обо мне?» — подписчики ответят анонимно.</p>
-          </div>
         ) : (
-          <div className="flex flex-col gap-[10px]">
-            {items.map((a, i) => (
-              <motion.button
-                key={a.id}
-                type="button"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(i, 6) * 0.04 }}
-                onClick={() => nav.push({ name: 'askDetail', id: a.id })}
-                className="card flex items-center gap-[12px] !p-[16px] text-left active:scale-[0.99]"
-              >
-                <span className="flex min-w-0 flex-1 flex-col gap-[6px]">
-                  <span className="text-[16px] font-semibold leading-[1.35]">{a.text}</span>
-                  <span className="text-[13px] text-[#8e8b97]">
-                    <span className={a.answerCount ? 'font-medium text-purple-text' : ''}>{answersLabel(a.answerCount)}</span> · {timeAgo(a.createdAt)}
-                  </span>
-                </span>
-                <ChevronRight size={18} className="shrink-0 text-[#6f6b78]" aria-hidden />
-              </motion.button>
-            ))}
-          </div>
+          <>
+            {/* Вопросы, заданные людям по их личным ссылкам */}
+            <span className="step -mb-[6px] mt-[2px]">Вопросы людям</span>
+            {sent.length === 0 ? (
+              <div className="card !py-[18px] text-center">
+                <p className="muted">Здесь появятся вопросы, которые ты задашь другим по их ссылкам, — и их ответы.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-[10px]">
+                {sent.map((x) => (
+                  <article key={x.id} className={cn('card flex flex-col gap-[10px] !p-[16px]', x.unread && '!border-[#6a45a0]')}>
+                    <div className="flex items-center gap-[8px] text-[13px]">
+                      <Avatar name={x.recipient.firstName} photoUrl={x.recipient.photoUrl} size={24} />
+                      <span className="font-medium text-[#c9c6d1]">{x.recipient.firstName}</span>
+                      <span className="text-[#6f6b78]">·</span>
+                      <span className="text-[#8e8b97]">{timeAgo(x.answeredAt ?? x.createdAt)}</span>
+                      <span
+                        className={cn(
+                          'ml-auto rounded-full px-[9px] py-[3px] text-[12px] font-medium',
+                          x.status === 'waiting' ? 'bg-[#1f1d26] text-[#a1a1aa]' : 'bg-[#13281b] text-green',
+                        )}
+                      >
+                        {x.status === 'waiting' ? 'Ждём ответ' : x.status === 'story' ? 'Ответ в сторис' : x.unread ? 'Новый ответ' : 'Ответил(а)'}
+                      </span>
+                    </div>
+                    <p className="text-[16px] font-semibold leading-[1.35]">{x.text}</p>
+                    {x.answer && <p className="whitespace-pre-line border-l-2 border-purple pl-[10px] text-[15px] leading-[1.45] text-[#e6e3ea]">{x.answer}</p>}
+                    {x.status === 'story' && <p className="small">{x.recipient.firstName} ответил(а) в сторис — загляни в профиль 👀</p>}
+                  </article>
+                ))}
+              </div>
+            )}
+
+            {/* Свои вопросы аудитории */}
+            <div className="mt-[6px] flex items-center justify-between">
+              <span className="step">Вопросы подписчикам</span>
+            </div>
+            <button type="button" onClick={() => nav.push({ name: 'createAsk' })} className="cta-dark -mt-[4px]">
+              <Plus size={18} strokeWidth={2.2} className="text-purple-text" aria-hidden />
+              Задать вопрос подписчикам
+            </button>
+            {items.length === 0 ? (
+              <p className="small -mt-[6px] text-center">Например: «Какое было твоё первое впечатление обо мне?» — подписчики ответят анонимно.</p>
+            ) : (
+              <div className="flex flex-col gap-[10px]">
+                {items.map((a, i) => (
+                  <motion.button
+                    key={a.id}
+                    type="button"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(i, 6) * 0.04 }}
+                    onClick={() => nav.push({ name: 'askDetail', id: a.id })}
+                    className="card flex items-center gap-[12px] !p-[16px] text-left active:scale-[0.99]"
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col gap-[6px]">
+                      <span className="text-[16px] font-semibold leading-[1.35]">{a.text}</span>
+                      <span className="text-[13px] text-[#8e8b97]">
+                        <span className={a.answerCount ? 'font-medium text-purple-text' : ''}>{answersLabel(a.answerCount)}</span> · {timeAgo(a.createdAt)}
+                      </span>
+                    </span>
+                    <ChevronRight size={18} className="shrink-0 text-[#6f6b78]" aria-hidden />
+                  </motion.button>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         {/* Архив старых анкет HUSH 1.0 */}

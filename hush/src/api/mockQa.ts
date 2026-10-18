@@ -59,7 +59,7 @@ const strip = ({ answers: _a, ...a }: AskSummary & { answers: AskAnswer[] }): As
 
 export const mockQa: Pick<
   HushApi,
-  | 'createLink' | 'getInbox' | 'answerInbox' | 'deleteInboxAnswer' | 'deleteInbox' | 'reportInbox' | 'blockInbox'
+  | 'createLink' | 'getInbox' | 'markStory' | 'getSent' | 'answerInbox' | 'deleteInboxAnswer' | 'deleteInbox' | 'reportInbox' | 'blockInbox'
   | 'openRecipient' | 'sendQuestion' | 'createAsk' | 'getAsks' | 'getAsk' | 'deleteAsk' | 'deleteAskAnswer'
   | 'reportAskAnswer' | 'blockAskAnswer' | 'openAsk' | 'answerAsk' | 'activity'
 > = {
@@ -95,6 +95,17 @@ export const mockQa: Pick<
     Object.assign(item, { answer: null, answeredAt: null, status: 'new' });
     save();
     return item;
+  },
+  async markStory(id) {
+    await delay();
+    const item = findInbox(id);
+    if (item.status === 'new') item.status = 'story';
+    save();
+    return item;
+  },
+  async getSent() {
+    await delay();
+    return { items: [] };
   },
   async deleteInbox(id) {
     await delay();
