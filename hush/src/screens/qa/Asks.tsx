@@ -3,7 +3,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Archive, ArrowUpRight, Ban, ChevronRight, Copy, Flag, Instagram, MessageCircleQuestion, MoreHorizontal, Plus, Send, Trash2 } from 'lucide-react';
+import { Archive, ArrowUpRight, Ban, ChevronRight, Copy, Flag, Instagram, Lock, MessageCircleQuestion, MoreHorizontal, Plus, Send, Trash2 } from 'lucide-react';
 import { api, ApiError, type AskAnswer, type AskSummary, type PublicAsk, type SentItem } from '@/api';
 import { cn } from '@/lib/cn';
 import { track } from '@/lib/analytics';
@@ -12,10 +12,10 @@ import { copyText } from '@/lib/share';
 import { haptic } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
-import { BackArrow, BigIcon, Cta, LoadingScreen, Logo, MessageScreen, Screen, Spacer, TopBar, useToast } from '@/ui';
+import { BackArrow, BigIcon, Cta, LoadingScreen, Logo, MessageScreen, Screen, Spacer, TopBar, UpsellModal, useToast } from '@/ui';
 import { AnswerStoriesSheet } from './AnswerStories';
 import { QuestionsHeader } from './Inbox';
-import { ActionSheet, Avatar, Chips, newKey, QaTextarea, ShareLinkSheet, TAB_BAR_SPACE, timeAgo, type SheetAction } from './common';
+import { ActionSheet, AnonymityChoice, Avatar, Chips, newKey, QaTextarea, RevealButton, ShareLinkSheet, TAB_BAR_SPACE, timeAgo, useReveal, type Anonymity, type SheetAction } from './common';
 
 const answersLabel = (n: number) => `${n} ${plural(n, ['ответ', 'ответа', 'ответов'])}`;
 
@@ -170,9 +170,12 @@ const ASK_MAX = 200;
 export function CreateAskScreen() {
   const nav = useNav();
   const toast = useToast();
-  const { refresh } = useAppState();
+  const { refresh, qa, isPremium } = useAppState();
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
+  const [limitOpen, setLimitOpen] = useState(false);
+  const freeAsks = qa?.freeAsks ?? 3;
+  const left = Math.max(0, freeAsks - (qa?.asksCreated ?? 0));
 
   const create = async () => {
     const value = text.trim();
@@ -183,9 +186,12 @@ export function CreateAskScreen() {
       haptic.notify('success');
       void refresh();
       nav.replace({ name: 'askDetail', id: ask.id, fresh: true });
-    } catch {
+    } catch (e) {
       setSaving(false);
-      toast.show('Не удалось создать вопрос. Попробуй ещё раз');
+      if (e instanceof ApiError && e.code === 'premium_required') {
+        track('paywall_opened', 'ask_limit_modal');
+        setLimitOpen(true);
+      } else toast.show('Не удалось создать вопрос. Попробуй ещё раз');
     }
   };
 
@@ -194,6 +200,11 @@ export function CreateAskScreen() {
       <TopBar left={<BackArrow onClick={() => (nav.canGoBack ? nav.back() : nav.reset({ name: 'asks' }))} />} right={<Logo />} />
       <h1 className="h1">Что хочешь узнать у подписчиков?</h1>
       <p className="muted -mt-[6px]">Напиши любой вопрос — ответы придут анонимно.</p>
+      {!isPremium && (
+        <p className="small -mt-[8px] text-purple-text">
+          {left > 0 ? `Бесплатно — ${freeAsks} вопроса, осталось ${left}` : 'Бесплатные вопросы закончились — дальше по подписке'}
+        </p>
+      )}
       <QaTextarea value={text} onChange={setText} placeholder="Например: какое было твоё первое впечатление обо мне?" max={ASK_MAX} rows={3} label="Твой вопрос" autoFocus />
       <span className="step -mb-[4px]">Примеры</span>
       <Chips items={ASK_EXAMPLES} onPick={setText} />
@@ -201,6 +212,17 @@ export function CreateAskScreen() {
       <Cta icon="right" onClick={create} loading={saving} disabled={text.trim().length < 3}>
         Создать вопрос
       </Cta>
+      <UpsellModal
+        open={limitOpen}
+        onClose={() => setLimitOpen(false)}
+        onOpenPremium={() => {
+          setLimitOpen(false);
+          nav.push({ name: 'premium', source: 'ask_limit' });
+        }}
+        icon={<Plus size={30} strokeWidth={1.8} />}
+        title="Хочешь задать ещё вопрос? 👀"
+        text={`Бесплатно можно задать подписчикам ${freeAsks} вопроса. С Premium — без ограничений, все ответы и безлимит на «Узнать автора».`}
+      />
     </Screen>
   );
 }
@@ -213,6 +235,7 @@ export function AskDetailScreen({ id, fresh }: { id: string; fresh?: boolean }) 
   const { refresh } = useAppState();
   const [data, setData] = useState<{ ask: AskSummary; answers: AskAnswer[] } | null>(null);
   const [error, setError] = useState(false);
+  const reveal = useReveal();
   const [shareOpen, setShareOpen] = useState(false);
   const [menuFor, setMenuFor] = useState<AskAnswer | null>(null);
   const [storyFor, setStoryFor] = useState<AskAnswer | null>(null);
@@ -331,21 +354,41 @@ export function AskDetailScreen({ id, fresh }: { id: string; fresh?: boolean }) 
                 <span className="text-[#6f6b78]">·</span>
                 <span className="text-[#8e8b97]">{timeAgo(x.createdAt)}</span>
                 <span className="ml-auto flex gap-[4px]">
-                  <button type="button" aria-label="Поделиться в сторис" onClick={() => setStoryFor(x)} className="flex h-[34px] w-[38px] items-center justify-center rounded-[10px] text-purple-text active:bg-[#1f1d26]">
-                    <Instagram size={17} strokeWidth={1.8} />
-                  </button>
+                  {!x.locked && (
+                    <button type="button" aria-label="Поделиться в сторис" onClick={() => setStoryFor(x)} className="flex h-[34px] w-[38px] items-center justify-center rounded-[10px] text-purple-text active:bg-[#1f1d26]">
+                      <Instagram size={17} strokeWidth={1.8} />
+                    </button>
+                  )}
                   <button type="button" aria-label="Ещё" onClick={() => setMenuFor(x)} className="flex h-[34px] w-[38px] items-center justify-center rounded-[10px] text-[#a1a1aa] active:bg-[#1f1d26]">
                     <MoreHorizontal size={18} />
                   </button>
                 </span>
               </div>
-              <p className="whitespace-pre-line text-[16px] leading-[1.45]">{x.text}</p>
+              {x.locked ? (
+                <button
+                  type="button"
+                  onClick={() => nav.push({ name: 'premium', source: 'answers_locked' })}
+                  className="flex flex-col items-center gap-[8px] rounded-[12px] border border-dashed border-[#4a3b5c] bg-[#101013] px-[14px] py-[16px] text-center active:scale-[0.99]"
+                >
+                  <span className="select-none text-[16px] leading-[1.45] text-[#c9c6d1] blur-[5px]" aria-hidden>
+                    Этот ответ скрыт, открой его с подпиской
+                  </span>
+                  <span className="flex items-center gap-[6px] text-[14px] font-medium text-purple-text">
+                    <Lock size={15} strokeWidth={1.9} aria-hidden />
+                    Бесплатно видны 3 ответа — открыть все с Premium
+                  </span>
+                </button>
+              ) : (
+                <p className="whitespace-pre-line text-[16px] leading-[1.45]">{x.text}</p>
+              )}
+              <RevealButton busy={reveal.busy === `ask:${x.id}`} onClick={() => reveal.run(`ask:${x.id}`, () => api.revealAskAnswer(ask.id, x.id))} />
             </article>
           ))}
         </div>
       )}
 
       <ShareLinkSheet open={shareOpen} onClose={() => setShareOpen(false)} link={ask.link} kind="ask" askText={ask.text} source={fresh ? 'ask_created' : 'ask_detail'} />
+      {reveal.modal}
       <ActionSheet open={!!menuFor} onClose={() => setMenuFor(null)} title="Ответ" actions={menuFor ? answerActions(menuFor) : []} />
       <ActionSheet
         open={askMenu}
@@ -380,6 +423,8 @@ export function AskReplyScreen({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [step, setStep] = useState<'write' | 'choice'>('write');
+  const [choice, setChoice] = useState<Anonymity>('anonymous');
   const key = useRef(newKey());
   const typed = useRef(false);
 
@@ -422,7 +467,7 @@ export function AskReplyScreen({ id }: { id: string }) {
     if (!text.trim()) return;
     setSending(true);
     try {
-      await api.answerAsk(ask.id, text.trim(), key.current);
+      await api.answerAsk(ask.id, text.trim(), key.current, choice === 'reveal');
       haptic.notify('success');
       nav.setStack([{ name: 'sent', kind: 'answer' }]);
     } catch (e) {
@@ -431,6 +476,21 @@ export function AskReplyScreen({ id }: { id: string }) {
       else toast.show(e instanceof ApiError && e.code === 'rate_limited' ? 'Слишком много ответов подряд. Попробуй чуть позже' : 'Не удалось отправить. Попробуй ещё раз');
     }
   };
+
+  if (step === 'choice')
+    return (
+      <Screen className="!gap-[16px]">
+        <TopBar left={<BackArrow onClick={() => setStep('write')} />} right={<Logo />} />
+        <h1 className="h1">Остаться анонимным? 👀</h1>
+        <p className="muted -mt-[6px]">Выбери, сможет ли {ask.firstName} узнать, кто ответил.</p>
+        <AnonymityChoice value={choice} onChange={setChoice} recipient={ask.firstName} />
+        <Spacer min={6} />
+        <button type="button" onClick={send} disabled={sending} className="cta-purple">
+          {sending ? 'Отправляем…' : 'Отправить ответ'}
+          {!sending && <Send size={18} strokeWidth={2} aria-hidden />}
+        </button>
+      </Screen>
+    );
 
   return (
     <Screen className="!gap-[16px]">
@@ -448,11 +508,11 @@ export function AskReplyScreen({ id }: { id: string }) {
       </div>
       <QaTextarea value={text} onChange={change} placeholder="Твой анонимный ответ…" max={1000} rows={5} label="Твой ответ" />
       <Spacer min={6} />
-      <button type="button" onClick={send} disabled={!text.trim() || sending} className="cta-purple">
-        {sending ? 'Отправляем…' : 'Ответить анонимно'}
-        {!sending && <Send size={18} strokeWidth={2} aria-hidden />}
+      <button type="button" onClick={() => setStep('choice')} disabled={!text.trim()} className="cta-purple">
+        Продолжить
+        <Send size={18} strokeWidth={2} aria-hidden />
       </button>
-      <p className="small -mt-[6px] text-center">{ask.firstName} не узнает, кто ответил</p>
+      <p className="small -mt-[6px] text-center">Дальше выберешь: остаться анонимным или нет</p>
     </Screen>
   );
 }

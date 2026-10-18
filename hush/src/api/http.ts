@@ -56,7 +56,10 @@ export const httpApi: HushApi = {
   reportInbox: (id, reason) => request('POST', `/api/inbox/${encodeURIComponent(id)}/report`, { reason }),
   blockInbox: (id) => request('POST', `/api/inbox/${encodeURIComponent(id)}/block`),
   openRecipient: (slug) => request('GET', `/api/public/u/${encodeURIComponent(slug)}`),
-  sendQuestion: (slug, text, idempotencyKey) => request('POST', `/api/public/u/${encodeURIComponent(slug)}/questions`, { text, idempotencyKey }),
+  sendQuestion: (slug, text, idempotencyKey, revealIdentity) =>
+    request('POST', `/api/public/u/${encodeURIComponent(slug)}/questions`, { text, idempotencyKey, revealIdentity }),
+  revealInbox: (id) => request('POST', `/api/inbox/${encodeURIComponent(id)}/reveal`),
+  revealAskAnswer: (askId, answerId) => request('POST', `/api/asks/${encodeURIComponent(askId)}/answers/${encodeURIComponent(answerId)}/reveal`),
   createAsk: (text, source) => request('POST', '/api/asks', { text, source }),
   getAsks: () => request('GET', '/api/asks'),
   getAsk: (id) => request('GET', `/api/asks/${encodeURIComponent(id)}`),
@@ -65,7 +68,8 @@ export const httpApi: HushApi = {
   reportAskAnswer: (askId, answerId) => request('POST', `/api/asks/${encodeURIComponent(askId)}/answers/${encodeURIComponent(answerId)}/report`),
   blockAskAnswer: (askId, answerId) => request('POST', `/api/asks/${encodeURIComponent(askId)}/answers/${encodeURIComponent(answerId)}/block`),
   openAsk: (id) => request('GET', `/api/public/asks/${encodeURIComponent(id)}`),
-  answerAsk: (id, text, idempotencyKey) => request('POST', `/api/public/asks/${encodeURIComponent(id)}/answers`, { text, idempotencyKey }),
+  answerAsk: (id, text, idempotencyKey, revealIdentity) =>
+    request('POST', `/api/public/asks/${encodeURIComponent(id)}/answers`, { text, idempotencyKey, revealIdentity }),
   activity: () => request('GET', '/api/me/activity'),
   trackEvent: (name, source) => request('POST', '/api/events', { name, source }),
   uploadStory: (image) => request('POST', '/api/stories', { image }),

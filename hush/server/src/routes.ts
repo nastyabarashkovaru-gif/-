@@ -4,7 +4,7 @@ import { config } from './config';
 import { pool, tx } from './db';
 import { isAdmin } from './admin';
 import { qaApi, qaSummary } from './qa';
-import { getPlan, pricingFor, REVEAL_PRICE } from './plans';
+import { getPlan, pricingFor } from './plans';
 import { rateLimit } from './rateLimit';
 import { appLink, bot, notifyThresholdReached } from './telegram';
 
@@ -121,6 +121,7 @@ const EVENTS = new Set([
   'guest_create_link',
   'paywall_opened',
   'card_shared',
+  'reveal_clicked',
 ]);
 
 /** События аналитики: пользователь берётся из подписи Telegram, время — серверное */
@@ -271,14 +272,7 @@ api.post(
       await log('requires_plan');
       return { status: 'requires_plan' };
     }
-    // 3) Годовой — безлимит; 1 и 3 месяца — разовая покупка за 99 ₽ для каждого автора
-    if (plan !== 'year') {
-      const bought = await pool.query('SELECT 1 FROM reveal_purchases WHERE owner_id = $1 AND response_id = $2', [req.user.id, r.id]);
-      if (!bought.rowCount) {
-        await log('requires_purchase');
-        return { status: 'requires_purchase', price: REVEAL_PRICE };
-      }
-    }
+    // 3) Подписка — безлимит на раскрытие (раньше 1/3 месяца требовали разовую покупку 99 ₽)
     await log('revealed');
     // 4) Только разрешённые поля профиля
     return {

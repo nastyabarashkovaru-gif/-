@@ -92,7 +92,7 @@ function mockPricing(): Pricing {
   const endsAt = db.offerStartedAt ? db.offerStartedAt + 3 * 3600_000 : null;
   const active = endsAt === null || endsAt > Date.now();
   return {
-    prices: active ? { month: 299, quarter: 499, year: 1490 } : { month: 990, quarter: 1490, year: 6990 },
+    prices: active ? { month: 399, quarter: 499, year: 1490 } : { month: 990, quarter: 1490, year: 6990 },
     standard: { month: 990, quarter: 1490, year: 6990 },
     offerEndsAt: active && endsAt ? new Date(endsAt).toISOString() : null,
     returning: false,

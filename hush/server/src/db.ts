@@ -168,6 +168,9 @@ export async function migrate(): Promise<void> {
     -- Ответ в сторис (маленькая карточка вопроса) и когда отправитель увидел личный ответ
     ALTER TABLE inbox ADD COLUMN IF NOT EXISTS story_at TIMESTAMPTZ;
     ALTER TABLE inbox ADD COLUMN IF NOT EXISTS sender_seen_at TIMESTAMPTZ;
+    -- Согласие отправителя на раскрытие профиля (по умолчанию — анонимно)
+    ALTER TABLE inbox ADD COLUMN IF NOT EXISTS consent_reveal BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE ask_answers ADD COLUMN IF NOT EXISTS consent_reveal BOOLEAN NOT NULL DEFAULT FALSE;
 
     -- «Задать свой вопрос»: вопрос аудитории и анонимные ответы на него
     CREATE TABLE IF NOT EXISTS asks (

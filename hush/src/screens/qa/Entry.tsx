@@ -11,7 +11,7 @@ import { haptic, requestWriteAccess } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BackArrow, BigIcon, Cta, LoadingScreen, Logo, MessageScreen, Screen, Spacer, TopBar, useToast } from '@/ui';
-import { Avatar, ChoiceCard, Chips, LinkStoriesSheet, newKey, QaTextarea, ShareLinkSheet, useEnsureLink } from './common';
+import { AnonymityChoice, Avatar, ChoiceCard, Chips, LinkStoriesSheet, newKey, QaTextarea, ShareLinkSheet, useEnsureLink, type Anonymity } from './common';
 
 /* ───────── Первый экран нового пользователя ───────── */
 
@@ -183,6 +183,9 @@ export function AskMeScreen({ slug }: { slug: string }) {
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  // Шаг 2: остаться анонимным или разрешить узнать, кто спросил
+  const [step, setStep] = useState<'write' | 'choice'>('write');
+  const [choice, setChoice] = useState<Anonymity>('anonymous');
   const key = useRef(newKey());
   const typed = useRef(false);
 
@@ -217,7 +220,7 @@ export function AskMeScreen({ slug }: { slug: string }) {
     if (!value) return;
     setSending(true);
     try {
-      await api.sendQuestion(slug, value, key.current);
+      await api.sendQuestion(slug, value, key.current, choice === 'reveal');
       haptic.notify('success');
       // Чтобы пришёл пуш, когда ответят
       void requestWriteAccess().then((granted) => {
@@ -229,6 +232,22 @@ export function AskMeScreen({ slug }: { slug: string }) {
       toast.show(e instanceof ApiError && e.code === 'rate_limited' ? 'Слишком много вопросов подряд. Попробуй чуть позже' : 'Не удалось отправить. Попробуй ещё раз');
     }
   };
+
+  if (step === 'choice')
+    return (
+      <Screen className="!gap-[16px]">
+        <TopBar left={<BackArrow onClick={() => setStep('write')} />} right={<Logo />} />
+        <h1 className="h1">Остаться анонимным? 👀</h1>
+        <p className="muted -mt-[6px]">Выбери, сможет ли {recipient.firstName} узнать, кто задал вопрос.</p>
+        <div className="rounded-[16px] border border-[#2a2930] bg-[#141318] px-[16px] py-[12px] text-[15px] leading-[1.4] text-[#d6d3dc]">«{text.trim()}»</div>
+        <AnonymityChoice value={choice} onChange={setChoice} recipient={recipient.firstName} />
+        <Spacer min={6} />
+        <button type="button" onClick={send} disabled={sending} className="cta-purple">
+          {sending ? 'Отправляем…' : 'Отправить вопрос'}
+          {!sending && <Send size={18} strokeWidth={2} aria-hidden />}
+        </button>
+      </Screen>
+    );
 
   return (
     <Screen className="!gap-[16px]">
@@ -243,11 +262,11 @@ export function AskMeScreen({ slug }: { slug: string }) {
       <QaTextarea value={text} onChange={change} placeholder="Напиши свой вопрос…" max={QUESTION_MAX} rows={4} label="Твой вопрос" />
       <Chips items={SUGGESTED} onPick={(t) => change(t)} />
       <Spacer min={6} />
-      <button type="button" onClick={send} disabled={!text.trim() || sending} className="cta-purple">
-        {sending ? 'Отправляем…' : 'Отправить анонимно'}
-        {!sending && <Send size={18} strokeWidth={2} aria-hidden />}
+      <button type="button" onClick={() => setStep('choice')} disabled={!text.trim()} className="cta-purple">
+        Продолжить
+        <Send size={18} strokeWidth={2} aria-hidden />
       </button>
-      <p className="small -mt-[6px] text-center">{recipient.firstName} не узнает, кто задал вопрос</p>
+      <p className="small -mt-[6px] text-center">Дальше выберешь: остаться анонимным или нет</p>
     </Screen>
   );
 }

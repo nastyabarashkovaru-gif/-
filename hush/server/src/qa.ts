@@ -11,12 +11,20 @@ import { pool, tx } from './db';
 import { rateLimit } from './rateLimit';
 import { handle, HttpError, newId } from './http';
 import { appLink, notifyUser } from './telegram';
+import { getPlan } from './plans';
+import type { TgUser } from './auth';
 
 const QUESTION_MAX = 300;
 const ANSWER_MAX = 1000;
 const ASK_MAX = 200;
 /** Не больше 10 вопросов одному человеку от одного отправителя за час */
 const PER_PAIR_PER_HOUR = 10;
+/** Без подписки: 3 своих вопроса подписчикам и первые 3 ответа на каждый */
+export const FREE_ASKS = 3;
+export const FREE_ASK_ANSWERS = 3;
+
+const isPremium = async (u: TgUser) => (await getPlan(u)).plan !== null;
+const consentOf = (body: { revealIdentity?: unknown } | undefined) => body?.revealIdentity === true;
 
 const DAILY: string[] = JSON.parse(readFileSync(path.join(__dirname, '../../shared/daily.json'), 'utf8'));
 
@@ -36,6 +44,7 @@ export async function qaSummary(userId: number) {
     `SELECT u.ask_slug,
        (SELECT count(*) FROM inbox i WHERE i.recipient_id = u.id AND i.deleted_at IS NULL AND i.answer IS NULL AND i.story_at IS NULL)::int AS unanswered,
        (SELECT count(*) FROM asks a WHERE a.owner_id = u.id AND a.deleted_at IS NULL)::int AS asks,
+       (SELECT count(*) FROM asks a WHERE a.owner_id = u.id)::int AS asks_created,
        (SELECT count(*) FROM inbox s WHERE s.sender_id = u.id AND s.kind = 'user' AND s.answer IS NOT NULL AND s.sender_seen_at IS NULL)::int AS sent_unread,
        (SELECT count(*) FROM inbox s WHERE s.sender_id = u.id AND s.kind = 'user')::int AS sent
      FROM users u WHERE u.id = $1`,
@@ -49,6 +58,8 @@ export async function qaSummary(userId: number) {
     asks: r.asks ?? 0,
     sentUnread: r.sent_unread ?? 0,
     sent: r.sent ?? 0,
+    asksCreated: r.asks_created ?? 0,
+    freeAsks: FREE_ASKS,
   };
 }
 
@@ -315,14 +326,10 @@ qaApi.post(
         [recipientId, req.user.id],
       );
       if (recent.rows[0].n >= PER_PAIR_PER_HOUR) throw new HttpError('rate_limited');
-      await db.query('INSERT INTO inbox (id, recipient_id, sender_id, kind, text, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6)', [
-        newId(12),
-        recipientId,
-        req.user.id,
-        self ? 'self' : 'user',
-        text,
-        key,
-      ]);
+      await db.query(
+        'INSERT INTO inbox (id, recipient_id, sender_id, kind, text, idempotency_key, consent_reveal) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [newId(12), recipientId, req.user.id, self ? 'self' : 'user', text, key, consentOf(req.body)],
+      );
       return true;
     });
     if (created && !self) {
@@ -341,6 +348,11 @@ qaApi.post(
   handle(async (req) => {
     const text = clean(req.body?.text);
     if (text.length < 3 || text.length > ASK_MAX) throw new HttpError('invalid');
+    // Бесплатно — 3 вопроса (удалённые тоже считаются), дальше по подписке
+    if (!(await isPremium(req.user))) {
+      const { rows } = await pool.query('SELECT count(*)::int AS n FROM asks WHERE owner_id = $1', [req.user.id]);
+      if (rows[0].n >= FREE_ASKS) throw new HttpError('premium_required');
+    }
     const id = newId(8);
     await pool.query('INSERT INTO asks (id, owner_id, text) VALUES ($1, $2, $3)', [id, req.user.id, text]);
     await logEvent(req.user.id, 'ask_created', String(req.body?.source ?? '').slice(0, 40) || null);
@@ -379,12 +391,18 @@ qaApi.get(
     const a = await ownAsk(req.params.id, req.user.id);
     // Результаты видны сразу, без порога ответивших
     const { rows } = await pool.query(
-      'SELECT id, text, created_at FROM ask_answers WHERE ask_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 500',
+      'SELECT id, text, created_at FROM ask_answers WHERE ask_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 500',
       [a.id],
     );
+    // Без подписки открыты первые 3 ответа; текст закрытых не покидает сервер
+    const premium = await isPremium(req.user);
+    const answers = rows.map((x, i) => {
+      const locked = !premium && i >= FREE_ASK_ANSWERS;
+      return { id: x.id, text: locked ? null : x.text, locked, createdAt: x.created_at.toISOString() };
+    });
     return {
       ask: { id: a.id, text: a.text, createdAt: a.created_at.toISOString(), answerCount: rows.length, link: askLink(a.id) },
-      answers: rows.map((x) => ({ id: x.id, text: x.text, createdAt: x.created_at.toISOString() })),
+      answers: answers.reverse(),
     };
   }),
 );
@@ -479,9 +497,9 @@ qaApi.post(
       const dup = await db.query('SELECT 1 FROM ask_answers WHERE idempotency_key = $1 AND respondent_id = $2', [key, req.user.id]);
       if (dup.rowCount) return false;
       const inserted = await db.query(
-        `INSERT INTO ask_answers (id, ask_id, respondent_id, kind, text, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO ask_answers (id, ask_id, respondent_id, kind, text, idempotency_key, consent_reveal) VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (ask_id, respondent_id) DO NOTHING RETURNING id`,
-        [newId(12), a.id, req.user.id, self ? 'self' : 'user', text, key],
+        [newId(12), a.id, req.user.id, self ? 'self' : 'user', text, key, consentOf(req.body)],
       );
       if (!inserted.rowCount) throw new HttpError('already_answered');
       return true;
@@ -491,6 +509,50 @@ qaApi.post(
       void notifyUser(ownerId, `Тебе ответили на вопрос 💜\n\n«${a.text.slice(0, 120)}»`, 'Смотреть ответ', 'tab_asks');
     }
     return { status: 'sent' };
+  }),
+);
+
+/* ───────────── «Узнать автора» ───────────── */
+
+/**
+ * Раскрытие автора вопроса/ответа: 1) согласие автора (вопрос дня и вопрос самому себе — всегда анонимны,
+ * за них не предлагаем платить), 2) подписка (безлимит), 3) только разрешённые поля профиля.
+ */
+async function reveal(req: { user: TgUser }, consent: boolean, authorId: string | null, kind: string, target: string) {
+  const log = (result: string) => logEvent(req.user.id, 'reveal', `${target}_${result}`);
+  if (!consent || !authorId || kind !== 'user') {
+    await log('anonymous');
+    return { status: 'anonymous' as const };
+  }
+  if (!(await isPremium(req.user))) {
+    await log('requires_plan');
+    return { status: 'requires_plan' as const };
+  }
+  const { rows } = await pool.query('SELECT first_name, last_name, username, photo_url FROM users WHERE id = $1', [authorId]);
+  const u = rows[0];
+  if (!u) return { status: 'anonymous' as const };
+  await log('revealed');
+  return {
+    status: 'revealed' as const,
+    identity: { firstName: u.first_name, lastName: u.last_name ?? undefined, username: u.username ?? undefined, photoUrl: u.photo_url ?? undefined },
+  };
+}
+
+qaApi.post(
+  '/inbox/:id/reveal',
+  rateLimit('reveal', 120, 60 * 60_000),
+  handle(async (req) => {
+    const q = await ownInbox(req.params.id, req.user.id);
+    return reveal(req, Boolean((q as { consent_reveal?: boolean }).consent_reveal), q.sender_id, q.kind, 'inbox');
+  }),
+);
+
+qaApi.post(
+  '/asks/:id/answers/:aid/reveal',
+  rateLimit('reveal', 120, 60 * 60_000),
+  handle(async (req) => {
+    const x = await ownAskAnswer(req.params.id, req.params.aid, req.user.id);
+    return reveal(req, Boolean((x as { consent_reveal?: boolean }).consent_reveal), x.respondent_id, x.kind, 'ask');
   }),
 );
 

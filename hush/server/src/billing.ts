@@ -9,7 +9,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import express, { Router, type Request, type Response } from 'express';
 import { config } from './config';
 import { pool, tx } from './db';
-import { getPlan, isPlan, PLANS, pricingFor, RETENTION_DISCOUNT, REVEAL_PRICE, type Plan } from './plans';
+import { getPlan, isPlan, PLANS, pricingFor, RETENTION_DISCOUNT, REVEAL_PRICE, SOLD_PLANS, type Plan } from './plans';
 import { rateLimit } from './rateLimit';
 import { newId } from './routes';
 
@@ -45,7 +45,7 @@ billingApi.post('/checkout', rateLimit('checkout', 20, 60 * 60_000), async (req:
     return;
   }
   const plan = req.body?.plan;
-  if (!isPlan(plan)) {
+  if (!isPlan(plan) || !SOLD_PLANS.includes(plan)) {
     res.status(400).json({ code: 'invalid' });
     return;
   }
@@ -54,7 +54,9 @@ billingApi.post('/checkout', rateLimit('checkout', 20, 60 * 60_000), async (req:
   const amount = (await pricingFor(req.user.id, true)).prices[plan];
   const orderId = `H${newId(11)}`;
   // Откуда пришёл покупатель — для конверсии апсейла
-  const source = ['new_questionnaire', 'custom_question', 'question_library'].includes(req.body?.source) ? req.body.source : null;
+  const source = ['new_questionnaire', 'custom_question', 'question_library', 'reveal', 'ask_limit', 'answers_locked'].includes(req.body?.source)
+    ? req.body.source
+    : null;
   await pool.query('INSERT INTO orders (id, user_id, plan, amount, source) VALUES ($1, $2, $3, $4, $5)', [
     orderId,
     req.user.id,

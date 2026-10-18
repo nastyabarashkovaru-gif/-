@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Check, CircleCheck, LockOpen, Timer } from 'lucide-react';
 import { api, type UpsellSource } from '@/api';
 import { config } from '@/config';
-import { DEFAULT_PLAN, PLANS, type PlanId } from '@/data/plans';
+import { DEFAULT_PLAN, PLANS, SOLD_PLAN_IDS, type PlanId } from '@/data/plans';
 import { track } from '@/lib/analytics';
 import { cn } from '@/lib/cn';
 import { formatRub } from '@/lib/plural';
@@ -16,10 +16,9 @@ import { BigIcon, CloseButton, Cta, Screen, Spacer, TopBar, useToast } from '@/u
 const PERIOD: Record<PlanId, string> = { month: 'месяц', quarter: '3 месяца', year: 'год' };
 
 const BENEFITS = [
-  { title: 'Доступ ко всем ответам', text: 'Открой уже полученные и все новые ответы.' },
-  { title: 'Безлимит на новые анкеты', text: 'Задавай друзьям новые вопросы сколько захочешь.' },
-  { title: 'Придумывай свои вопросы', text: 'Спрашивай именно то, что давно хотел узнать.' },
-  { title: 'Узнай, кто это написал 👀', text: 'Безлимит на раскрытие авторов ответов действует только на годовом тарифе. В остальных тарифах — 99 ₽ за автора.', green: true },
+  { title: 'Узнай, кто задал вопрос 👀', text: 'Безлимит на «Узнать автора» — если автор разрешил показать свой профиль.', green: true },
+  { title: 'Свои вопросы без ограничений', text: 'Бесплатно — только 3 вопроса подписчикам. С Premium — сколько захочешь.' },
+  { title: 'Все ответы без замков', text: 'Бесплатно видны первые 3 ответа на каждый вопрос. С Premium — все.' },
 ];
 
 /**
@@ -114,7 +113,7 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
       </BigIcon>
       <div className="-mt-[4px] flex flex-col gap-[10px] text-center">
         <h1 className="h1">Узнай всё, что о тебе думают 👀</h1>
-        <p className="muted !text-[16px]">Безлимит на все ответы и анкеты. Узнавай, кто что написал 😍</p>
+        <p className="muted !text-[16px]">Узнавай, кто задал вопрос, задавай сколько угодно своих и смотри все ответы 😍</p>
       </div>
 
       <ul className="flex flex-col gap-[18px]">
@@ -136,7 +135,7 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
       </ul>
 
       <div className="flex flex-col gap-[10px]" role="radiogroup" aria-label="Тариф">
-        <div className="mb-[2px] mt-[2px] text-[17px] font-medium">Выбери подписку</div>
+        <div className="mb-[2px] mt-[2px] text-[17px] font-medium">Подписка на месяц</div>
         {offerOn && (
           <div className="flex flex-col gap-[4px] rounded-[16px] border border-[#4a3a1a] bg-[#1f1910] px-[14px] py-[12px]">
             <div className="flex items-center justify-between gap-[10px] text-[15px] font-medium text-[#ffcf7a]">
@@ -149,7 +148,7 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
             <p className="text-[13px] leading-[1.35] text-[#c9b48a]">Цена закрепится за тобой: все следующие списания — по этой же цене, пока подписка активна.</p>
           </div>
         )}
-        {PLANS.map((p) => {
+        {PLANS.filter((p) => SOLD_PLAN_IDS.includes(p.id)).map((p) => {
           const active = p.id === plan;
           return (
             <button

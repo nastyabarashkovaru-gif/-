@@ -14,7 +14,7 @@ import { cn } from '@/lib/cn';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BackArrow, Cta, Logo, Modal, Screen, TopBar, useToast } from '@/ui';
-import { ActionSheet, QaTextarea, TAB_BAR_SPACE, timeAgo, type SheetAction } from './common';
+import { ActionSheet, QaTextarea, RevealButton, TAB_BAR_SPACE, timeAgo, useReveal, type SheetAction } from './common';
 
 /** Последний загруженный список — чтобы экран ответа открывался мгновенно */
 let inboxCache: InboxItem[] | null = null;
@@ -97,6 +97,7 @@ export function InboxScreen() {
   const { items, error, load, update } = useInbox();
   const [menuFor, setMenuFor] = useState<InboxItem | null>(null);
   const [stickerFor, setStickerFor] = useState<InboxItem | null>(null);
+  const reveal = useReveal();
 
   // Пуш о каждом новом вопросе приходит от бота — просим разрешение, если его ещё нет
   useEffect(() => {
@@ -240,6 +241,7 @@ export function InboxScreen() {
                     В сторис
                   </button>
                 </div>
+                <RevealButton busy={reveal.busy === `inbox:${item.id}`} label="Узнать, кто спросил" onClick={() => reveal.run(`inbox:${item.id}`, () => api.revealInbox(item.id))} />
               </motion.article>
             ))}
           </div>
@@ -247,6 +249,7 @@ export function InboxScreen() {
       </div>
 
       <ActionSheet open={!!menuFor} onClose={() => setMenuFor(null)} title="Вопрос" actions={menuFor ? actions(menuFor) : []} />
+      {reveal.modal}
       <StickerSheet
         item={stickerFor}
         onClose={() => setStickerFor(null)}

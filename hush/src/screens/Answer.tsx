@@ -133,7 +133,7 @@ function AnonymityChoice({ value, onChange }: { value: Choice; onChange: (c: Cho
     {
       id: 'reveal',
       title: 'Разрешить узнать, кто я',
-      text: 'Автор анкеты сможет увидеть твой Telegram-профиль за дополнительную плату или в рамках годовой подписки.',
+      text: 'Автор анкеты сможет увидеть твой Telegram-профиль в рамках подписки.',
     },
   ];
   return (

@@ -192,6 +192,9 @@ export interface QaSummary {
   sentUnread?: number;
   /** Сколько вопросов задал другим людям */
   sent?: number;
+  /** Сколько своих вопросов подписчикам создано всего (вместе с удалёнными) и сколько бесплатно */
+  asksCreated?: number;
+  freeAsks?: number;
 }
 
 export interface InboxItem {
@@ -229,7 +232,9 @@ export interface AskSummary {
 
 export interface AskAnswer {
   id: string;
-  text: string;
+  /** null — ответ под замком (без подписки видны первые 3) */
+  text: string | null;
+  locked?: boolean;
   createdAt: string;
 }
 
@@ -306,7 +311,10 @@ export interface HushApi {
   reportInbox(id: string, reason?: string): Promise<void>;
   blockInbox(id: string): Promise<void>;
   openRecipient(slug: string): Promise<PublicRecipient>;
-  sendQuestion(slug: string, text: string, idempotencyKey: string): Promise<{ status: 'sent' }>;
+  sendQuestion(slug: string, text: string, idempotencyKey: string, revealIdentity: boolean): Promise<{ status: 'sent' }>;
+  /** «Узнать автора» вопроса во входящих / ответа на свой вопрос */
+  revealInbox(id: string): Promise<RevealResult>;
+  revealAskAnswer(askId: string, answerId: string): Promise<RevealResult>;
   createAsk(text: string, source: string): Promise<AskSummary>;
   getAsks(): Promise<{ items: AskSummary[] }>;
   getAsk(id: string): Promise<{ ask: AskSummary; answers: AskAnswer[] }>;
@@ -315,7 +323,7 @@ export interface HushApi {
   reportAskAnswer(askId: string, answerId: string): Promise<void>;
   blockAskAnswer(askId: string, answerId: string): Promise<void>;
   openAsk(id: string): Promise<PublicAsk>;
-  answerAsk(id: string, text: string, idempotencyKey: string): Promise<{ status: 'sent' }>;
+  answerAsk(id: string, text: string, idempotencyKey: string, revealIdentity: boolean): Promise<{ status: 'sent' }>;
   activity(): Promise<Activity>;
   /** Событие аналитики (fire-and-forget) */
   trackEvent(name: AnalyticsEvent, source: string): Promise<void>;
@@ -340,10 +348,11 @@ export type AnalyticsEvent =
   | 'question_typing_started'
   | 'guest_create_link'
   | 'paywall_opened'
-  | 'card_shared';
+  | 'card_shared'
+  | 'reveal_clicked';
 
 /** Откуда пользователь пришёл на экран Premium — для конверсии в покупку */
-export type UpsellSource = 'new_questionnaire' | 'custom_question' | 'question_library';
+export type UpsellSource = 'new_questionnaire' | 'custom_question' | 'question_library' | 'reveal' | 'ask_limit' | 'answers_locked';
 
 /** Порог уникальных ответов до открытия результатов */
 export const RESULTS_THRESHOLD = 5;

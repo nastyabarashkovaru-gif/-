@@ -2,8 +2,8 @@
  * Общие элементы HUSH 2.0: нижняя панель, окно «Создать», шаринг ссылки, поле ввода, аватар.
  */
 import { useCallback, useState, type ReactNode } from 'react';
-import { Copy, Inbox, Instagram, Link2, MessageCircleQuestion, Plus, Send, User } from 'lucide-react';
-import { api } from '@/api';
+import { Copy, Eye, EyeOff, Inbox, Instagram, Link2, MessageCircleQuestion, Plus, Send, User } from 'lucide-react';
+import { api, type RevealedIdentity, type RevealResult } from '@/api';
 import { track } from '@/lib/analytics';
 import { renderLinkCard } from '@/lib/qaCards';
 import { copyText } from '@/lib/share';
@@ -449,6 +449,129 @@ export function ChoiceCard({
       </span>
       <span className="text-[21px] font-bold leading-[1.2]">{title}</span>
       <span className={cn('text-[15px] leading-[1.4]', purple ? 'text-white/85' : 'text-[#a1a1aa]')}>{text}</span>
+    </button>
+  );
+}
+
+/* ───────── Выбор анонимности отправителя ───────── */
+
+export type Anonymity = 'anonymous' | 'reveal';
+
+/** Как в анкетах: остаться анонимным или разрешить узнать, кто я */
+export function AnonymityChoice({ value, onChange, recipient }: { value: Anonymity; onChange: (v: Anonymity) => void; recipient: string }) {
+  const options: Array<{ id: Anonymity; title: string; text: string }> = [
+    { id: 'anonymous', title: 'Да, остаться анонимным', text: 'Твой Telegram-профиль не будет раскрыт.' },
+    { id: 'reveal', title: 'Разрешить узнать, кто я', text: `${recipient} сможет увидеть твой Telegram-профиль в рамках подписки.` },
+  ];
+  return (
+    <div role="radiogroup" aria-label="Анонимность" className="flex shrink-0 flex-col gap-[12px]">
+      {options.map((o) => {
+        const on = value === o.id;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => {
+              haptic.select();
+              onChange(o.id);
+            }}
+            className={cn('text-left transition-colors duration-200', on ? 'card-purple' : 'card')}
+          >
+            <div className="flex items-center gap-[12px] text-[17px] font-medium">
+              <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 border-white" aria-hidden>
+                {on && <span className="h-[8px] w-[8px] rounded-full bg-white" />}
+              </span>
+              {o.title}
+            </div>
+            <div className="small !text-[14px] ml-[30px] mt-[8px]">{o.text}</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ───────── «Узнать автора» ───────── */
+
+/**
+ * Раскрытие автора: без согласия — «остался анонимным», без подписки — на тарифы,
+ * с подпиской — профиль (безлимит).
+ */
+export function useReveal() {
+  const nav = useNav();
+  const toast = useToast();
+  const [state, setState] = useState<null | { kind: 'anonymous' } | { kind: 'revealed'; identity: RevealedIdentity }>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const run = async (key: string, call: () => Promise<RevealResult>) => {
+    if (busy) return;
+    setBusy(key);
+    track('reveal_clicked', key.split(':')[0]);
+    try {
+      const r = await call();
+      if (r.status === 'anonymous') setState({ kind: 'anonymous' });
+      else if (r.status === 'revealed') {
+        haptic.notify('success');
+        setState({ kind: 'revealed', identity: r.identity });
+      } else nav.push({ name: 'premium', source: 'reveal' });
+    } catch {
+      toast.show('Не получилось. Попробуй ещё раз');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const modal = (
+    <Modal open={state !== null} onClose={() => setState(null)} labelledBy="reveal-title">
+      <div className="card-purple flex flex-col items-center gap-[14px] !px-[18px] !py-[26px] text-center">
+        {state?.kind === 'revealed' ? (
+          <>
+            <Avatar name={state.identity.firstName} photoUrl={state.identity.photoUrl} size={84} />
+            <h2 id="reveal-title" className="h2">
+              {[state.identity.firstName, state.identity.lastName].filter(Boolean).join(' ')}
+            </h2>
+            {state.identity.username && <p className="muted -mt-[8px]">@{state.identity.username}</p>}
+            <p className="small">Этот человек разрешил показать свой профиль 👀</p>
+            {state.identity.username && (
+              <button type="button" onClick={() => openTelegramLink(`https://t.me/${state.identity.username}`)} className="cta-purple mt-[4px]">
+                Открыть профиль
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="flex h-[64px] w-[64px] items-center justify-center rounded-full bg-[#2a1f3d] text-purple-text">
+              <EyeOff size={28} strokeWidth={1.8} />
+            </span>
+            <h2 id="reveal-title" className="h2">
+              Автор остался анонимным
+            </h2>
+            <p className="muted">К сожалению, этот автор пожелал остаться анонимным. Попробуй узнать, кто написал другие 👀</p>
+          </>
+        )}
+        <button type="button" onClick={() => setState(null)} className="mt-[2px] px-3 py-2 text-[15px] text-[#a1a1aa] active:opacity-60">
+          Закрыть
+        </button>
+      </div>
+    </Modal>
+  );
+
+  return { run, busy, modal };
+}
+
+/** Небольшая кнопка «Узнать автора 👀» */
+export function RevealButton({ onClick, busy, label = 'Узнать автора' }: { onClick: () => void; busy?: boolean; label?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className="cta-shine relative flex w-full items-center justify-center gap-[6px] overflow-hidden rounded-[12px] border border-[#3a2d4d] bg-[#141018] py-[10px] text-[14px] font-medium text-[#d6b3ff] active:scale-[0.98] disabled:opacity-60"
+    >
+      <Eye size={16} strokeWidth={1.9} aria-hidden />
+      {busy ? 'Проверяем…' : `${label} 👀`}
     </button>
   );
 }
