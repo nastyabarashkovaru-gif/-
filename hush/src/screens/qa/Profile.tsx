@@ -63,14 +63,15 @@ export function ProfileScreen() {
         </div>
 
         <div className="card-purple flex flex-col gap-[12px] !p-[16px]">
-          <span className="step !text-purple-text">Твоя личная ссылка</span>
+          <span className="step !text-purple-text">Ссылка для друзей и подписчиков</span>
+          <p className="-mt-[4px] text-[15px] leading-[1.4]">Отправь её друзьям или выложи в сторис — по ней тебе смогут задавать анонимные вопросы.</p>
           {qa?.link ? (
             <button type="button" onClick={copy} className="flex items-center gap-[8px] text-left active:opacity-70">
               <span className="min-w-0 flex-1 break-all text-[14px] text-purple-text">{qa.link.replace(/^https?:\/\//, '')}</span>
               <Copy size={17} strokeWidth={1.8} className="shrink-0 text-[#a1a1aa]" aria-label="Скопировать" />
             </button>
           ) : (
-            <p className="muted">Создай ссылку, чтобы подписчики могли задавать тебе анонимные вопросы.</p>
+            <p className="muted">Ссылки пока нет — создай её одним нажатием.</p>
           )}
           <button type="button" onClick={share} className="cta-purple">
             {qa?.link ? 'Поделиться ссылкой' : 'Получить ссылку'}
