@@ -309,7 +309,7 @@ export function SentScreen({ kind, slug }: { kind: 'question' | 'answer'; slug?:
       <h1 className="h1 text-center">{kind === 'question' ? 'Твой вопрос отправлен! 💜' : 'Твой ответ отправлен! 💜'}</h1>
       <p className="muted text-center">
         {kind === 'question'
-          ? 'Это анонимно. Когда ответят лично — пришлём уведомление, а ответ появится в разделе «Вопросы» → «Я спросил(а)».'
+          ? 'Это анонимно. Тебе ответят прямо в приложении.'
           : 'Это было анонимно — никто не узнает, что это ты.'}
       </p>
       <motion.div
