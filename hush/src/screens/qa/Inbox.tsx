@@ -465,7 +465,7 @@ export function AnswerInboxScreen({ id }: { id: string }) {
         <p className="mt-[6px] text-[20px] font-bold leading-[1.3] text-white">{item.text}</p>
       </div>
       <QaTextarea value={text} onChange={setText} placeholder="Твой ответ…" max={ANSWER_MAX} rows={5} label="Твой ответ" autoFocus={!item.answer} />
-      <p className="small -mt-[8px]">Ответ увидит только тот, кто задал вопрос. Кто это — ты не узнаешь.</p>
+      <p className="small -mt-[8px]">Пользователь увидит ответ в приложении.</p>
       <Cta onClick={save} loading={saving} disabled={!text.trim() || text.trim() === item.answer}>
         {item.answer ? 'Сохранить изменения' : 'Ответить лично'}
       </Cta>
