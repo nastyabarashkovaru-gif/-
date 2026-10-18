@@ -10,6 +10,7 @@
  *   подписку с автосписанием в CloudPayments при этом отменяет, чтобы она не списывала поверх.
  * TEST_RESET_QA_USERNAME=<username> — HUSH 2.0 с нуля: удаляет личную ссылку, входящие, свои вопросы с ответами и анкеты
  *   (подписку и платежи не трогает).
+ * TEST_REVOKE_MANUAL_PREMIUM_USERNAME=<username> — снимает только выданный вручную Premium (source 'manual'); платежи не трогает.
  * TEST_DELETE_QUESTIONNAIRES_USERNAME=<username> — удаляет все анкеты пользователя вместе с ответами (начать заново).
  */
 import { randomBytes } from 'node:crypto';
@@ -82,6 +83,16 @@ export async function runTestSeed(): Promise<void> {
       console.log(`[test] @${grantName}: выдан годовой Premium до ${new Date(Date.now() + 365 * 864e5).toLocaleDateString('ru-RU')}`);
     }
     if (!rows.length) console.warn(`[test] @${grantName} не найден`);
+  }
+
+  const revokeName = (process.env.TEST_REVOKE_MANUAL_PREMIUM_USERNAME || '').replace(/^@/, '').toLowerCase();
+  if (revokeName) {
+    const r = await pool.query(
+      "DELETE FROM entitlements WHERE source = 'manual' AND user_id IN (SELECT id FROM users WHERE lower(username) = $1)",
+      [revokeName],
+    );
+    await pool.query('UPDATE users SET offer_started_at = NULL WHERE lower(username) = $1', [revokeName]);
+    console.log(`[test] @${revokeName}: снят ручной Premium (${r.rowCount}), таймер предложения сброшен`);
   }
 
   const qaName = (process.env.TEST_RESET_QA_USERNAME || '').replace(/^@/, '').toLowerCase();
