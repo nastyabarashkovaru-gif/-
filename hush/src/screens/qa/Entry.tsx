@@ -252,7 +252,6 @@ export function AskMeScreen({ slug }: { slug: string }) {
   return (
     <Screen className="!gap-[16px]">
       <TopBar left={nav.canGoBack ? <BackArrow onClick={nav.back} /> : undefined} right={nav.canGoBack ? <Logo /> : undefined} />
-      {recipient.own && <p className="small -mt-[6px] rounded-[12px] bg-[#1b1426] px-[12px] py-[8px] text-center text-purple-text">Так твою ссылку видят подписчики</p>}
       <div className="mt-[6px] flex flex-col items-center gap-[12px] text-center">
         <Avatar name={recipient.firstName} photoUrl={recipient.photoUrl} size={72} />
         <span className="text-[15px] font-medium text-[#c9c6d1]">{recipient.firstName}</span>
