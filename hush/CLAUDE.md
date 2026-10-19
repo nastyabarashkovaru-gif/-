@@ -36,7 +36,8 @@
 
 ## Деплой (Railway)
 
-- Бот: @Hush_miniapp_bot. Ветка деплоя: `claude/app-and-instructions-ihq84m`, Root Directory `hush`, сборка из `railway.json`.
+- Бот: @Hush_miniapp_bot. Ветка деплоя: `claude/app-and-instructions-ihq84m`, Root Directory `hush`. Команды сборки/запуска заданы в настройках сервиса (Build/Start Command) — Railway больше не читает `railway.json`
+  (config as code устарел; без команд Railpack собирает демо-версию как статический сайт на Caddy). `railway.json` — справочно.
 - Один сервис (сервер отдаёт и API, и приложение) + PostgreSQL. Пошагово — `DEPLOY.md`.
 - Доступ к Railway: network secret среды (Bearer) на хост `backboard.railway.com` — прокси сам добавляет
   `Authorization`, сессия токен не видит. GraphQL API: `https://backboard.railway.com/graphql/v2`.
