@@ -20,7 +20,6 @@ const ASK_MAX = 200;
 /** Не больше 10 вопросов одному человеку от одного отправителя за час */
 const PER_PAIR_PER_HOUR = 10;
 /** Без подписки: 3 своих вопроса подписчикам и первые 3 ответа на каждый */
-export const FREE_ASKS = 3;
 export const FREE_ASK_ANSWERS = 3;
 
 const isPremium = async (u: TgUser) => (await getPlan(u)).plan !== null;
@@ -46,7 +45,6 @@ export async function qaSummary(userId: number) {
           -- пока вопросы не открылись (меньше 5), вопрос дня в счётчик не входит
           AND (i.kind <> 'system' OR (SELECT count(*) FROM inbox r WHERE r.recipient_id = u.id AND r.deleted_at IS NULL AND r.kind <> 'system') >= ${INBOX_THRESHOLD}))::int AS unanswered,
        (SELECT count(*) FROM asks a WHERE a.owner_id = u.id AND a.deleted_at IS NULL)::int AS asks,
-       (SELECT count(*) FROM asks a WHERE a.owner_id = u.id)::int AS asks_created,
        (SELECT count(*) FROM inbox s WHERE s.sender_id = u.id AND s.kind = 'user' AND s.answer IS NOT NULL AND s.sender_seen_at IS NULL)::int AS sent_unread,
        (SELECT count(*) FROM inbox s WHERE s.sender_id = u.id AND s.kind = 'user')::int AS sent
      FROM users u WHERE u.id = $1`,
@@ -60,8 +58,6 @@ export async function qaSummary(userId: number) {
     asks: r.asks ?? 0,
     sentUnread: r.sent_unread ?? 0,
     sent: r.sent ?? 0,
-    asksCreated: r.asks_created ?? 0,
-    freeAsks: FREE_ASKS,
   };
 }
 
@@ -121,9 +117,8 @@ async function ownAsk(id: string, userId: number) {
   return rows[0] as { id: string; owner_id: string; text: string; created_at: Date };
 }
 
-/** Вопросы открываются, когда их наберётся 5 (анонимность); без подписки после этого видны первые 3 */
+/** Вопросы открываются, когда их наберётся 5 (анонимность); после этого все бесплатны */
 export const INBOX_THRESHOLD = 5;
-export const FREE_INBOX_OPEN = 3;
 
 async function inboxAccess(user: TgUser) {
   const { rows } = await pool.query<{ id: string; kind: string }>(
@@ -133,17 +128,13 @@ async function inboxAccess(user: TgUser) {
   // Порог считаем только по настоящим вопросам (вопрос дня не помогает его набрать)
   const collected = rows.filter((r) => r.kind !== 'system').length;
   if (collected < INBOX_THRESHOLD) return { collected, gated: true, open: new Set<string>() };
-  const premium = await isPremium(user);
-  // Вопрос дня открыт всегда; из настоящих вопросов без подписки — первые 3 полученных
-  const real = rows.filter((r) => r.kind !== 'system');
-  const open = premium ? rows : [...rows.filter((r) => r.kind === 'system'), ...real.slice(0, FREE_INBOX_OPEN)];
-  return { collected, gated: false, open: new Set(open.map((r) => r.id)) };
+  return { collected, gated: false, open: new Set(rows.map((r) => r.id)) };
 }
 
-/** Действия с закрытым вопросом (ответ, сторис, «узнать автора») — только когда он открыт */
+/** Ответ, сторис, «узнать автора» — только когда вопросы открылись (набралось 5) */
 async function requireOpen(user: TgUser, id: string) {
   const access = await inboxAccess(user);
-  if (!access.open.has(id)) throw new HttpError('premium_required');
+  if (!access.open.has(id)) throw new HttpError('not_found');
 }
 
 export const qaApi = Router();
@@ -187,16 +178,7 @@ qaApi.get(
       `SELECT ${INBOX_COLS} FROM inbox WHERE recipient_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 300`,
       [req.user.id],
     );
-    // Открытые сверху (новые первыми), закрытые по подписке — внизу
-    const open = rows.filter((r) => access.open.has(r.id));
-    const locked = rows.filter((r) => !access.open.has(r.id));
-    return {
-      items: [
-        ...open.map((r) => ({ ...inboxView(r), locked: false })),
-        ...locked.map((r) => ({ ...inboxView(r), text: null, answer: null, locked: true })),
-      ],
-      freeOpen: FREE_INBOX_OPEN,
-    };
+    return { items: rows.map(inboxView) };
   }),
 );
 
@@ -390,11 +372,6 @@ qaApi.post(
   handle(async (req) => {
     const text = clean(req.body?.text);
     if (text.length < 3 || text.length > ASK_MAX) throw new HttpError('invalid');
-    // Бесплатно — 3 вопроса (удалённые тоже считаются), дальше по подписке
-    if (!(await isPremium(req.user))) {
-      const { rows } = await pool.query('SELECT count(*)::int AS n FROM asks WHERE owner_id = $1', [req.user.id]);
-      if (rows[0].n >= FREE_ASKS) throw new HttpError('premium_required');
-    }
     const id = newId(8);
     await pool.query('INSERT INTO asks (id, owner_id, text) VALUES ($1, $2, $3)', [id, req.user.id, text]);
     await logEvent(req.user.id, 'ask_created', String(req.body?.source ?? '').slice(0, 40) || null);

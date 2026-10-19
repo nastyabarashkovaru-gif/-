@@ -192,7 +192,7 @@ export function SubscriptionScreen() {
         <div className="h1 my-[18px]">{plan ? `${formatRub(amount)} / ${plan.periodLabel}` : 'Бесплатный тариф'}</div>
         <div className="muted">
           {!plan
-            ? 'Все ответы и новые анкеты без ограничений. На годовом — узнавай авторов 😍'
+            ? 'Узнавай, кто задал вопрос и кто ответил, и смотри все ответы 😍'
             : entitlement.autoRenew
               ? `Следующее списание: ${nextCharge}${
                   entitlement.nextChargeAmount && entitlement.nextChargeAmount !== amount

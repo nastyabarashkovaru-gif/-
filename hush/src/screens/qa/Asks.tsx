@@ -12,7 +12,7 @@ import { copyText } from '@/lib/share';
 import { haptic } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
-import { BackArrow, BigIcon, Cta, LoadingScreen, Logo, MessageScreen, Screen, Spacer, TopBar, UpsellModal, useToast } from '@/ui';
+import { BackArrow, BigIcon, Cta, LoadingScreen, Logo, MessageScreen, Screen, Spacer, TopBar, useToast } from '@/ui';
 import { AnswerStoriesSheet } from './AnswerStories';
 import { QuestionsHeader } from './Inbox';
 import { ActionSheet, AnonymityChoice, Avatar, Chips, newKey, QaTextarea, RevealButton, ShareLinkSheet, TAB_BAR_SPACE, timeAgo, useReveal, type Anonymity, type SheetAction } from './common';
@@ -166,12 +166,9 @@ const ASK_MAX = 200;
 export function CreateAskScreen() {
   const nav = useNav();
   const toast = useToast();
-  const { refresh, qa, isPremium } = useAppState();
+  const { refresh } = useAppState();
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
-  const [limitOpen, setLimitOpen] = useState(false);
-  const freeAsks = qa?.freeAsks ?? 3;
-  const left = Math.max(0, freeAsks - (qa?.asksCreated ?? 0));
 
   const create = async () => {
     const value = text.trim();
@@ -182,12 +179,9 @@ export function CreateAskScreen() {
       haptic.notify('success');
       void refresh();
       nav.replace({ name: 'askDetail', id: ask.id, fresh: true });
-    } catch (e) {
+    } catch {
       setSaving(false);
-      if (e instanceof ApiError && e.code === 'premium_required') {
-        track('paywall_opened', 'ask_limit_modal');
-        setLimitOpen(true);
-      } else toast.show('Не удалось создать вопрос. Попробуй ещё раз');
+      toast.show('Не удалось создать вопрос. Попробуй ещё раз');
     }
   };
 
@@ -196,11 +190,6 @@ export function CreateAskScreen() {
       <TopBar left={<BackArrow onClick={() => (nav.canGoBack ? nav.back() : nav.reset({ name: 'asks' }))} />} right={<Logo />} />
       <h1 className="h1">Что хочешь узнать у подписчиков?</h1>
       <p className="muted -mt-[6px]">Напиши любой вопрос — ответы придут анонимно.</p>
-      {!isPremium && (
-        <p className="small -mt-[8px] text-purple-text">
-          {left > 0 ? `Бесплатно — ${freeAsks} вопроса, осталось ${left}` : 'Бесплатные вопросы закончились — дальше по подписке'}
-        </p>
-      )}
       <QaTextarea value={text} onChange={setText} placeholder="Например: какое было твоё первое впечатление обо мне?" max={ASK_MAX} rows={3} label="Твой вопрос" autoFocus />
       <span className="step -mb-[4px]">Примеры</span>
       <Chips items={ASK_EXAMPLES} onPick={setText} />
@@ -208,17 +197,6 @@ export function CreateAskScreen() {
       <Cta icon="right" onClick={create} loading={saving} disabled={text.trim().length < 3}>
         Создать вопрос
       </Cta>
-      <UpsellModal
-        open={limitOpen}
-        onClose={() => setLimitOpen(false)}
-        onOpenPremium={() => {
-          setLimitOpen(false);
-          nav.push({ name: 'premium', source: 'ask_limit' });
-        }}
-        icon={<Plus size={30} strokeWidth={1.8} />}
-        title="Хочешь задать ещё вопрос? 👀"
-        text={`Бесплатно можно задать подписчикам ${freeAsks} вопроса. С Premium — без ограничений, все ответы и безлимит на «Узнать автора».`}
-      />
     </Screen>
   );
 }

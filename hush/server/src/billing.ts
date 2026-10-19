@@ -49,12 +49,12 @@ billingApi.post('/checkout', rateLimit('checkout', 20, 60 * 60_000), async (req:
     res.status(400).json({ code: 'invalid' });
     return;
   }
-  const { months, title } = PLANS[plan];
+  const { interval, period, title } = PLANS[plan];
   // Цена месяца зависит от предложения на 3 часа и от того, отменял ли пользователь подписку (см. оферту)
   const amount = (await pricingFor(req.user.id, true)).prices[plan];
   const orderId = `H${newId(11)}`;
   // Откуда пришёл покупатель — для конверсии апсейла
-  const source = ['new_questionnaire', 'custom_question', 'question_library', 'reveal', 'ask_limit', 'answers_locked', 'inbox_locked'].includes(req.body?.source)
+  const source = ['new_questionnaire', 'custom_question', 'question_library', 'reveal', 'ask_limit', 'answers_locked'].includes(req.body?.source)
     ? req.body.source
     : null;
   await pool.query('INSERT INTO orders (id, user_id, plan, amount, source) VALUES ($1, $2, $3, $4, $5)', [
@@ -89,7 +89,7 @@ billingApi.post('/checkout', rateLimit('checkout', 20, 60 * 60_000), async (req:
         CloudPayments: {
           ...(receipt ? { CustomerReceipt: receipt } : {}),
           // Автопродление: следующее списание через период тарифа
-          recurrent: { interval: 'Month', period: months, ...(receipt ? { customerReceipt: receipt } : {}) },
+          recurrent: { interval, period, ...(receipt ? { customerReceipt: receipt } : {}) },
         },
       },
     },
@@ -366,17 +366,17 @@ cloudPaymentsWebhooks.post(
       // Продлеваем от конца текущего периода (или от сегодня, если подписки нет)
       await db.query(
         `INSERT INTO entitlements (user_id, plan, auto_renew, renews_at, source, subscription_id, base_amount)
-         VALUES ($1, $2, $3, now() + make_interval(months => $4), 'cloudpayments', $5, $6)
+         VALUES ($1, $2, $3, now() + $4::interval, 'cloudpayments', $5, $6)
          ON CONFLICT (user_id) DO UPDATE SET
            plan = EXCLUDED.plan,
            auto_renew = EXCLUDED.auto_renew,
-           renews_at = GREATEST(COALESCE(entitlements.renews_at, now()), now()) + make_interval(months => $4),
+           renews_at = GREATEST(COALESCE(entitlements.renews_at, now()), now()) + $4::interval,
            source = 'cloudpayments',
            subscription_id = COALESCE(EXCLUDED.subscription_id, entitlements.subscription_id),
            base_amount = COALESCE(EXCLUDED.base_amount, entitlements.base_amount),
            updated_at = now()`,
         // base_amount — сумма первого платежа по заказу (обычная цена этой подписки)
-        [userId, plan, Boolean(f.SubscriptionId), PLANS[plan].months, f.SubscriptionId || null, orderId ? Number(f.Amount) : null],
+        [userId, plan, Boolean(f.SubscriptionId), PLANS[plan].periodSql, f.SubscriptionId || null, orderId ? Number(f.Amount) : null],
       );
       if (restoreAmount) {
         const { subscriptionId, amount } = restoreAmount;

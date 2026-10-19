@@ -4,7 +4,7 @@
  * до раскрытия), чтобы UI можно было без изменений переключить на настоящий API.
  * Данные хранятся в localStorage и помечены как демо.
  */
-import type { PlanId } from '@/data/plans';
+import { STANDARD_PRICES, type PlanId } from '@/data/plans';
 import { QUESTIONS, QUESTIONS_REQUIRED, type Question } from '@/data/questions';
 import {
   DEMO_ANSWERS,
@@ -87,16 +87,9 @@ function save() {
   window.dispatchEvent(new Event('hush:data-changed'));
 }
 
-/** Как на сервере: сниженные цены первые 3 часа после показа тарифов, потом обычные */
+/** Как на сервере: обычные цены, скидочного предложения нет */
 function mockPricing(): Pricing {
-  const endsAt = db.offerStartedAt ? db.offerStartedAt + 3 * 3600_000 : null;
-  const active = endsAt === null || endsAt > Date.now();
-  return {
-    prices: active ? { month: 299, quarter: 499, year: 1490 } : { month: 990, quarter: 1490, year: 6990 },
-    standard: { month: 990, quarter: 1490, year: 6990 },
-    offerEndsAt: active && endsAt ? new Date(endsAt).toISOString() : null,
-    returning: false,
-  };
+  return { prices: { ...STANDARD_PRICES }, standard: { ...STANDARD_PRICES }, offerEndsAt: null, returning: false };
 }
 
 const delay = (ms = 260) => new Promise((r) => setTimeout(r, ms + Math.random() * 120));

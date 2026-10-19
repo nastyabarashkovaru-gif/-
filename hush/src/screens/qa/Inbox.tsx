@@ -241,36 +241,7 @@ export function InboxScreen() {
           </div>
         ) : (
           <div className="flex flex-col gap-[10px]">
-            {items.map((item, i) =>
-              item.locked ? (
-                <motion.button
-                  key={item.id}
-                  type="button"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: Math.min(i, 6) * 0.04 }}
-                  onClick={() => {
-                    haptic.tap();
-                    nav.push({ name: 'premium', source: 'inbox_locked' });
-                  }}
-                  className="card flex flex-col gap-[10px] !p-[16px] text-left active:scale-[0.99]"
-                >
-                  <div className="flex items-center gap-[8px] text-[13px]">
-                    <span className="font-medium text-[#c9c6d1]">Анонимно</span>
-                    <span className="text-[#6f6b78]">·</span>
-                    <span className="text-[#8e8b97]">{timeAgo(item.createdAt)}</span>
-                    <Lock size={15} strokeWidth={1.9} className="ml-auto text-purple-text" aria-hidden />
-                  </div>
-                  <p className="select-none text-[17px] font-semibold leading-[1.35] blur-[6px]" aria-hidden>
-                    Этот вопрос скрыт, открой его с подпиской
-                  </p>
-                  <span className="flex items-center justify-center gap-[6px] rounded-[12px] border border-dashed border-[#4a3b5c] bg-[#101013] px-[12px] py-[11px] text-[15px] font-medium text-purple-text">
-                    <Lock size={15} strokeWidth={1.9} aria-hidden />
-                    Открыть с Premium
-                  </span>
-                  <span className="text-center text-[13px] text-[#8e8b97]">Бесплатно открыты первые 3 вопроса</span>
-                </motion.button>
-              ) : (
+            {items.map((item, i) => (
               <motion.article
                 key={item.id}
                 initial={{ opacity: 0, y: 8 }}
@@ -331,8 +302,7 @@ export function InboxScreen() {
                 </div>
                 <RevealButton busy={reveal.busy === `inbox:${item.id}`} label="Узнать, кто спросил" onClick={() => reveal.run(`inbox:${item.id}`, () => api.revealInbox(item.id))} />
               </motion.article>
-              ),
-            )}
+            ))}
           </div>
         )}
       </div>
@@ -363,7 +333,7 @@ function StickerSheet({ item, onClose, onDone }: { item: InboxItem | null; onClo
     if (!item) return;
     let url = '';
     let cancelled = false;
-    void renderQuestionSticker(item.text ?? '').then(
+    void renderQuestionSticker(item.text).then(
       (canvas) =>
         new Promise<void>((resolve) =>
           canvas.toBlob((blob) => {

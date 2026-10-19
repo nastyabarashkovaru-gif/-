@@ -192,9 +192,6 @@ export interface QaSummary {
   sentUnread?: number;
   /** Сколько вопросов задал другим людям */
   sent?: number;
-  /** Сколько своих вопросов подписчикам создано всего (вместе с удалёнными) и сколько бесплатно */
-  asksCreated?: number;
-  freeAsks?: number;
 }
 
 /** Пока не набралось required вопросов, они не показываются — так сложнее догадаться, кто что спросил */
@@ -205,9 +202,7 @@ export interface InboxGate {
 
 export interface InboxItem {
   id: string;
-  /** null — вопрос закрыт (без подписки открыты первые 3) */
-  text: string | null;
-  locked?: boolean;
+  text: string;
   /** Все вопросы выглядят как анонимные (вопрос дня — тоже) */
   from: 'anon' | 'hush';
   /** answered — ответил лично, story — ответил в сторис */
@@ -309,7 +304,7 @@ export interface HushApi {
   /* HUSH 2.0 */
   /** Создать (или вернуть существующую) постоянную личную ссылку */
   createLink(source: string): Promise<{ slug: string; link: string }>;
-  getInbox(): Promise<{ items: InboxItem[]; gate?: InboxGate; freeOpen?: number }>;
+  getInbox(): Promise<{ items: InboxItem[]; gate?: InboxGate }>;
   answerInbox(id: string, text: string): Promise<InboxItem>;
   deleteInboxAnswer(id: string): Promise<InboxItem>;
   deleteInbox(id: string): Promise<void>;
@@ -360,7 +355,7 @@ export type AnalyticsEvent =
   | 'reveal_clicked';
 
 /** Откуда пользователь пришёл на экран Premium — для конверсии в покупку */
-export type UpsellSource = 'new_questionnaire' | 'custom_question' | 'question_library' | 'reveal' | 'ask_limit' | 'answers_locked' | 'inbox_locked';
+export type UpsellSource = 'new_questionnaire' | 'custom_question' | 'question_library' | 'reveal' | 'ask_limit' | 'answers_locked';
 
 /** Порог уникальных ответов до открытия результатов */
 export const RESULTS_THRESHOLD = 5;

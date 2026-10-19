@@ -2,17 +2,23 @@ import type { TgUser } from './auth';
 import { config } from './config';
 import { pool } from './db';
 
-export type Plan = 'month' | 'quarter' | 'year';
+export type Plan = 'week' | 'month' | 'quarter' | 'year';
 
 /**
  * Цены — только на сервере: клиент не может их подменить.
- * amount — цена по предложению (первые 3 часа после показа тарифов), standard — обычная цена.
+ * amount — цена для новых покупок, standard — обычная цена (сейчас совпадают: скидочного предложения нет).
+ * interval/period — периодичность автосписания в CloudPayments, period_sql — тот же период для продления доступа.
  */
-export const PLANS: Record<Plan, { amount: number; standard: number; months: number; title: string }> = {
-  month: { amount: 299, standard: 990, months: 1, title: 'hush. Premium — 1 месяц' },
-  quarter: { amount: 499, standard: 1490, months: 3, title: 'hush. Premium — 3 месяца' },
-  year: { amount: 1490, standard: 6990, months: 12, title: 'hush. Premium — 1 год' },
+export const PLANS: Record<Plan, { amount: number; standard: number; interval: 'Week' | 'Month'; period: number; periodSql: string; periodText: string; title: string }> = {
+  week: { amount: 99, standard: 99, interval: 'Week', period: 1, periodSql: '7 days', periodText: 'неделю', title: 'hush. Premium — 1 неделя' },
+  month: { amount: 299, standard: 299, interval: 'Month', period: 1, periodSql: '1 month', periodText: 'месяц', title: 'hush. Premium — 1 месяц' },
+  // Не продаётся: остаётся у ранее оформивших
+  quarter: { amount: 499, standard: 1490, interval: 'Month', period: 3, periodSql: '3 months', periodText: '3 месяца', title: 'hush. Premium — 3 месяца' },
+  year: { amount: 1499, standard: 1499, interval: 'Month', period: 12, periodSql: '12 months', periodText: '12 месяцев', title: 'hush. Premium — 1 год' },
 };
+
+/** Скидочное 3-часовое предложение выключено: все платят обычную цену */
+export const OFFER_ENABLED = false;
 
 /** Предложение действует 3 часа с первого показа тарифов */
 export const OFFER_HOURS = 3;
@@ -45,11 +51,11 @@ export async function pricingFor(userId: number, start = false): Promise<Pricing
   const started = rows[0]?.offer_started_at ? new Date(rows[0].offer_started_at).getTime() : null;
   const endsAt = started === null ? null : started + OFFER_HOURS * 3600_000;
   // Пока таймер не запущен, предложение ещё впереди — показываем 299 ₽
-  const offerActive = !returning && (endsAt === null || endsAt > Date.now());
+  const offerActive = OFFER_ENABLED && !returning && (endsAt === null || endsAt > Date.now());
   const pick = (plan: Plan) => (offerActive ? PLANS[plan].amount : PLANS[plan].standard);
   return {
-    prices: { month: pick('month'), quarter: pick('quarter'), year: pick('year') },
-    standard: { month: PLANS.month.standard, quarter: PLANS.quarter.standard, year: PLANS.year.standard },
+    prices: { week: pick('week'), month: pick('month'), quarter: pick('quarter'), year: pick('year') },
+    standard: { week: PLANS.week.standard, month: PLANS.month.standard, quarter: PLANS.quarter.standard, year: PLANS.year.standard },
     offerEndsAt: offerActive && endsAt !== null ? new Date(endsAt).toISOString() : null,
     returning,
   };
@@ -59,8 +65,8 @@ export async function pricingFor(userId: number, start = false): Promise<Pricing
 export const REVEAL_PRICE = 99;
 
 export const isPlan = (v: unknown): v is Plan => typeof v === 'string' && v in PLANS;
-/** Для новых покупок продаётся только месячный тариф; 3 месяца и год остаются у уже оформивших */
-export const SOLD_PLANS: Plan[] = ['month'];
+/** Тарифы для новых покупок; 3 месяца остаются у уже оформивших */
+export const SOLD_PLANS: Plan[] = ['week', 'month', 'year'];
 
 export interface PlanState {
   plan: Plan | null;

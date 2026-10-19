@@ -66,7 +66,7 @@ export async function migrate(): Promise<void> {
 
     CREATE TABLE IF NOT EXISTS entitlements (
       user_id         BIGINT PRIMARY KEY REFERENCES users(id),
-      plan            TEXT NOT NULL CHECK (plan IN ('month', 'quarter', 'year')),
+      plan            TEXT NOT NULL CHECK (plan IN ('week', 'month', 'quarter', 'year')),
       auto_renew      BOOLEAN NOT NULL DEFAULT TRUE,
       renews_at       TIMESTAMPTZ,
       -- 'provider' — от платёжной системы, 'manual' — выдано вручную для тестов
@@ -75,6 +75,9 @@ export async function migrate(): Promise<void> {
     );
 
     ALTER TABLE entitlements ADD COLUMN IF NOT EXISTS subscription_id TEXT;
+    -- Недельный тариф
+    ALTER TABLE entitlements DROP CONSTRAINT IF EXISTS entitlements_plan_check;
+    ALTER TABLE entitlements ADD CONSTRAINT entitlements_plan_check CHECK (plan IN ('week', 'month', 'quarter', 'year'));
     CREATE INDEX IF NOT EXISTS entitlements_sub_idx ON entitlements(subscription_id);
 
     -- Заказы: сумма и тариф фиксируются на сервере до открытия виджета

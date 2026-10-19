@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Check, CircleCheck, LockOpen, Timer } from 'lucide-react';
+import { CircleCheck, LockOpen, Timer } from 'lucide-react';
 import { api, type UpsellSource } from '@/api';
 import { config } from '@/config';
 import { DEFAULT_PLAN, PLANS, SOLD_PLAN_IDS, type PlanId } from '@/data/plans';
@@ -13,12 +13,12 @@ import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BigIcon, CloseButton, Cta, Screen, Spacer, TopBar, useToast } from '@/ui';
 
-const PERIOD: Record<PlanId, string> = { month: 'месяц', quarter: '3 месяца', year: 'год' };
+const PERIOD: Record<PlanId, string> = { week: 'неделю', month: 'месяц', quarter: '3 месяца', year: 'год' };
 
 const BENEFITS = [
   { title: 'Узнай, кто задал вопрос 👀', text: 'Безлимит на «Узнать автора» — если автор разрешил показать свой профиль.', green: true },
-  { title: 'Свои вопросы без ограничений', text: 'Бесплатно — только 3 вопроса подписчикам. С Premium — сколько захочешь.' },
-  { title: 'Все ответы без замков', text: 'Бесплатно видны первые 3 ответа на каждый вопрос. С Premium — все.' },
+  { title: 'Узнай, кто ответил на твой вопрос', text: 'Смотри профиль ответивших подписчиков, если они это разрешили.' },
+  { title: 'Все ответы без замков', text: 'Бесплатно видны первые 3 ответа на каждый твой вопрос. С Premium — все.' },
 ];
 
 /**
@@ -47,7 +47,7 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
   useEffect(() => {
     if (left === 0) api.startOffer().then(setPricing).catch(() => {});
   }, [left]);
-  const months = (id: PlanId) => (id === 'month' ? 1 : id === 'quarter' ? 3 : 12);
+  const months = (id: PlanId) => (id === 'week' ? 12 / 52 : id === 'month' ? 1 : id === 'quarter' ? 3 : 12);
   // Выгода относительно помесячной оплаты по текущей цене месяца
   const savings = (id: PlanId) => Math.round((1 - price(id) / (monthPrice * months(id))) * 100);
   const offerOn = pricing.offerEndsAt !== null && left !== 0 && monthPrice < pricing.standard.month;
@@ -113,7 +113,7 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
       </BigIcon>
       <div className="-mt-[4px] flex flex-col gap-[10px] text-center">
         <h1 className="h1">Узнай всё, что о тебе думают 👀</h1>
-        <p className="muted !text-[16px]">Узнавай, кто задал вопрос, задавай сколько угодно своих и смотри все ответы 😍</p>
+        <p className="muted !text-[16px]">Вопросы и ответы — бесплатно. С Premium узнаешь, кто тебя спросил и кто ответил 😍</p>
       </div>
 
       <ul className="flex flex-col gap-[18px]">
@@ -135,7 +135,7 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
       </ul>
 
       <div className="flex flex-col gap-[10px]" role="radiogroup" aria-label="Тариф">
-        <div className="mb-[2px] mt-[2px] text-[17px] font-medium">Подписка на месяц</div>
+        <div className="mb-[2px] mt-[2px] text-[17px] font-medium">Выбери тариф</div>
         {offerOn && (
           <div className="flex flex-col gap-[4px] rounded-[16px] border border-[#4a3a1a] bg-[#1f1910] px-[14px] py-[12px]">
             <div className="flex items-center justify-between gap-[10px] text-[15px] font-medium text-[#ffcf7a]">
@@ -184,19 +184,13 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
                 </span>
               </div>
               <div className="flex items-center justify-between gap-[10px] text-[14px]">
-                <span className="text-[#9a97a3]">{p.id === 'month' ? p.caption : `${Math.round(price(p.id) / months(p.id))} ₽/мес`}</span>
+                <span className="text-[#9a97a3]">{p.id === 'year' ? `≈ ${Math.round(price(p.id) / months(p.id))} ₽ в месяц` : p.caption}</span>
                 {offerOn ? (
                   <span className="text-green">Скидка {discount(p.id)}%</span>
                 ) : (
-                  p.id !== 'month' && <span className="text-green">Выгода {savings(p.id)}%</span>
+                  p.id === 'year' && <span className="text-green">Выгода {savings(p.id)}%</span>
                 )}
               </div>
-              {p.unlimitedReveals && (
-                <div className="mt-[2px] flex items-center gap-[8px] text-[14px] text-purple-text">
-                  <Check size={16} strokeWidth={2.2} className="text-green" aria-hidden />
-                  Безлимит на раскрытие авторов
-                </div>
-              )}
             </button>
           );
         })}

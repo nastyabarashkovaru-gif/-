@@ -1,38 +1,35 @@
-export type PlanId = 'month' | 'quarter' | 'year';
+export type PlanId = 'week' | 'month' | 'quarter' | 'year';
 
 export interface Plan {
   id: PlanId;
   title: string;
-  /** Подпись под названием (макет 06) */
+  /** Подпись под названием */
   caption: string;
   price: number;
-  perMonth?: number;
-  /** Выгода относительно помесячной оплаты 299 ₽ */
-  savings?: number;
   /** Подпись в настройках (макет 10/10b) */
   settingsTitle: string;
   periodLabel: string;
-  /** Раскрытие авторов, давших согласие — только на годовом */
-  unlimitedReveals: boolean;
 }
 
-/** Обычные цены; price в PLANS — цена по 3-часовому предложению (точные цены считает сервер) */
-export const STANDARD_PRICES: Record<PlanId, number> = { month: 990, quarter: 1490, year: 6990 };
+/** Обычные цены (точные цены считает сервер); скидочного предложения сейчас нет */
+export const STANDARD_PRICES: Record<PlanId, number> = { week: 99, month: 299, quarter: 1490, year: 1499 };
 
 export const PLANS: Plan[] = [
-  { id: 'month', title: '1 месяц', caption: 'Все функции hush.', price: 299, settingsTitle: 'Месячный Premium', periodLabel: 'мес', unlimitedReveals: false },
-  { id: 'quarter', title: '3 месяца', caption: 'Выгода 44%', price: 499, perMonth: 166, savings: 44, settingsTitle: 'Premium на 3 месяца', periodLabel: '3 мес', unlimitedReveals: false },
-  { id: 'year', title: '1 год', caption: 'Безлимит на раскрытие авторов', price: 1490, perMonth: 124, savings: 58, settingsTitle: 'Годовой Premium', periodLabel: 'год', unlimitedReveals: true },
+  { id: 'week', title: '1 неделя', caption: 'Попробовать', price: 99, settingsTitle: 'Premium на неделю', periodLabel: 'нед' },
+  { id: 'month', title: '1 месяц', caption: 'Все функции hush.', price: 299, settingsTitle: 'Месячный Premium', periodLabel: 'мес' },
+  { id: 'quarter', title: '3 месяца', caption: 'Все функции hush.', price: 499, settingsTitle: 'Premium на 3 месяца', periodLabel: '3 мес' },
+  { id: 'year', title: '1 год', caption: '≈ 125 ₽ в месяц', price: 1499, settingsTitle: 'Годовой Premium', periodLabel: 'год' },
 ];
 
 /** Тариф по умолчанию */
 export const DEFAULT_PLAN: PlanId = 'month';
-/** Для новых покупок — только месячный тариф */
-export const SOLD_PLAN_IDS: PlanId[] = ['month'];
+/** Тарифы для новых покупок; 3 месяца — только у ранее оформивших */
+export const SOLD_PLAN_IDS: PlanId[] = ['week', 'month', 'year'];
 
 export const planById = (id: PlanId): Plan => PLANS.find((p) => p.id === id)!;
 
 export const PLAN_SUBTITLE: Record<PlanId, string> = {
+  week: 'Недельная подписка',
   month: 'Месячная подписка',
   quarter: 'Подписка на 3 месяца',
   year: 'Годовая подписка',

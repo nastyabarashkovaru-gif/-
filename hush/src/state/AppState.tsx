@@ -62,7 +62,7 @@ export function AppStateProvider({
     ...state.data,
     isPremium: state.data.entitlement.plan !== null,
     pricing: state.data.pricing ?? {
-      prices: { month: PLANS[0].price, quarter: PLANS[1].price, year: PLANS[2].price },
+      prices: Object.fromEntries(PLANS.map((p) => [p.id, p.price])) as Pricing['prices'],
       standard: STANDARD_PRICES,
       offerEndsAt: null,
       returning: false,

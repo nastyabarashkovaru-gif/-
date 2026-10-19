@@ -6,7 +6,7 @@ import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BackArrow, CloseButton, Screen } from '@/ui';
 
-const PLAN_NAMES: Record<string, string> = { month: '1 месяц', quarter: '3 месяца', year: '1 год', reveal: 'Раскрытие автора (99 ₽)' };
+const PLAN_NAMES: Record<string, string> = { week: '1 неделя', month: '1 месяц', quarter: '3 месяца', year: '1 год', reveal: 'Раскрытие автора (99 ₽)' };
 const num = (v: number | string) => Number(v) || 0;
 const rub = (v: number | string) => formatRub(Math.round(num(v)));
 
