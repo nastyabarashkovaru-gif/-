@@ -120,10 +120,10 @@ export function ProfileScreen() {
         </div>
 
         <div className="grid grid-cols-2 gap-[10px]">
-          <Stat value={activity?.received} label="вопросов получено" />
-          <Stat value={activity?.answered} label="ответов дано" />
-          <Stat value={activity?.asks} label="своих вопросов" />
-          <Stat value={activity?.askAnswers} label="ответов на них" />
+          <Stat value={activity?.received} label="вопросов тебе задали" />
+          <Stat value={activity?.answered} label="раз ты ответил(а)" />
+          <Stat value={activity?.asks} label="твоих вопросов подписчикам" />
+          <Stat value={activity?.askAnswers} label="ответов от подписчиков" />
         </div>
 
         <button
