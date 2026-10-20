@@ -60,7 +60,7 @@ export function AsksScreen() {
           <>
             {/* Свои вопросы аудитории */}
             <div className="mt-[2px] flex items-center justify-between">
-              <span className="step">Вопросы подписчикам</span>
+              <span className="step">Твои вопросы подписчикам</span>
             </div>
             <button type="button" onClick={() => nav.push({ name: 'createAsk' })} className="cta-dark -mt-[4px]">
               <Plus size={18} strokeWidth={2.2} className="text-purple-text" aria-hidden />
@@ -95,12 +95,15 @@ export function AsksScreen() {
             {/* Вопросы, заданные людям по их ссылкам — появляются после первого ответа, чтобы не путать */}
             {sent.some((x) => x.status !== 'waiting') && (
               <div className="mt-[10px] flex flex-col gap-[10px]">
-                <span className="step">Вопросы людям</span>
+                <span className="step">Ты спросил(а) других</span>
+                <p className="small -mt-[4px]">Вопросы, которые ты анонимно задал(а) людям по их личным ссылкам. Ответы приходят сюда.</p>
                 {sent.map((x) => (
                   <article key={x.id} className={cn('card flex flex-col gap-[10px] !p-[16px]', x.unread && '!border-[#6a45a0]')}>
                     <div className="flex items-center gap-[8px] text-[13px]">
                       <Avatar name={x.recipient.firstName} photoUrl={x.recipient.photoUrl} size={24} />
-                      <span className="font-medium text-[#c9c6d1]">{x.recipient.firstName}</span>
+                      {/* Получатель — тот, кому ты задал(а) вопрос (ты анонимен для него, а не он для тебя) */}
+                      <span className="text-[#8e8b97]">Кому:</span>
+                      <span className="-ml-[4px] font-medium text-[#c9c6d1]">{x.recipient.firstName}</span>
                       <span className="text-[#6f6b78]">·</span>
                       <span className="text-[#8e8b97]">{timeAgo(x.answeredAt ?? x.createdAt)}</span>
                       <span
@@ -112,8 +115,16 @@ export function AsksScreen() {
                         {x.status === 'waiting' ? 'Ждём ответ' : x.status === 'story' ? 'Ответ в сторис' : x.unread ? 'Новый ответ' : 'Ответил(а)'}
                       </span>
                     </div>
-                    <p className="text-[16px] font-semibold leading-[1.35]">{x.text}</p>
-                    {x.answer && <p className="whitespace-pre-line border-l-2 border-purple pl-[10px] text-[15px] leading-[1.45] text-[#e6e3ea]">{x.answer}</p>}
+                    <p className="text-[16px] font-semibold leading-[1.35]">
+                      <span className="mr-[6px] text-[13px] font-medium text-[#8e8b97]">Твой вопрос:</span>
+                      {x.text}
+                    </p>
+                    {x.answer && (
+                      <p className="whitespace-pre-line border-l-2 border-purple pl-[10px] text-[15px] leading-[1.45] text-[#e6e3ea]">
+                        <span className="mr-[6px] text-[13px] font-medium text-purple-text">Ответ:</span>
+                        {x.answer}
+                      </p>
+                    )}
                     {x.status === 'story' && <p className="small">{x.recipient.firstName} ответил(а) в сторис — загляни в профиль 👀</p>}
                   </article>
                 ))}
