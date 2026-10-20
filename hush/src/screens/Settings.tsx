@@ -277,7 +277,7 @@ export function SubscriptionScreen() {
             <Gift size={28} strokeWidth={1.8} />
           </BigIcon>
           <h2 id="offer-title" className="h2">
-            Мы не хотим тебя терять 💜
+            Мы не хотим тебя терять 🥺
           </h2>
           <p className="muted">
             Следующий платёж — <span className="font-semibold text-white">{formatRub(discounted)}</span>{' '}
