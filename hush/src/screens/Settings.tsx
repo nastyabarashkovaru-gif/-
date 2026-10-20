@@ -256,7 +256,7 @@ export function SubscriptionScreen() {
           <p className="muted">После окончания оплаченного периода ты потеряешь:</p>
           <ul className="flex flex-col gap-[8px] text-left text-[15px] leading-[1.35]">
             <li className="flex gap-[8px]"><EyeOff size={18} strokeWidth={1.8} className="mt-[1px] shrink-0 text-purple-text" aria-hidden />Кто тебя спросил и кто ответил — авторы снова скроются</li>
-            <li className="flex gap-[8px]"><Lock size={18} strokeWidth={1.8} className="mt-[1px] shrink-0 text-purple-text" aria-hidden />Новые вопросы после 5-го и ответы после 3-го — под замком</li>
+            <li className="flex gap-[8px]"><Lock size={18} strokeWidth={1.8} className="mt-[1px] shrink-0 text-purple-text" aria-hidden />Свои вопросы после 3-го и ответы после 3-го — по подписке</li>
           </ul>
 
           <Cta onClick={() => setStep('none')} className="mt-[6px]">

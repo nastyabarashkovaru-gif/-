@@ -10,8 +10,8 @@ const DEMO_DAILY = ['Что в тебе чаще всего понимают н�
 const THRESHOLD = 5;
 /** Без подписки видны первые 3 ответа на свой вопрос (как FREE_ASK_ANSWERS) */
 const FREE_ANSWERS = 3;
-/** Без подписки открыты первые 5 полученных вопросов (как FREE_INBOX_OPEN) */
-const FREE_INBOX = 5;
+/** Без подписки — 3 своих вопроса подписчикам (как FREE_ASKS; удалённые тоже считаются) */
+const FREE_ASKS = 3;
 
 /** consent — автор разрешил узнать, кто он (в демо видно только через «Узнать автора») */
 type StoredInbox = InboxItem & { consent?: boolean };
@@ -24,6 +24,7 @@ interface QaDB {
   asks: StoredAsk[];
   sent: SentItem[];
   dailyDate?: string;
+  asksCreated?: number;
 }
 
 const uid = (len = 8) => Array.from({ length: len }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
@@ -94,6 +95,8 @@ export function mockQaSummary(): QaSummary {
     asks: db.asks.length,
     sentUnread: db.sent.filter((s) => s.unread).length,
     sent: db.sent.length,
+    asksCreated: db.asksCreated ?? db.asks.length,
+    freeAsks: FREE_ASKS,
   };
 }
 
@@ -218,7 +221,7 @@ export const mockQa: Pick<
     if (collected < THRESHOLD) return { items: [], gate: { collected, required: THRESHOLD } };
     const premium = hasPlan();
     const real = db.inbox.filter((i) => i.from !== 'hush');
-    const open = new Set([...db.inbox.filter((i) => i.from === 'hush'), ...[...real].reverse().slice(0, premium ? real.length : FREE_INBOX)].map((i) => i.id));
+    const open = new Set([...db.inbox.filter((i) => i.from === 'hush'), ...real].map((i) => i.id));
     const author = (i: StoredInbox) => (premium ? { author: authorOf(i.from !== 'hush' && i.consent, db.inbox.indexOf(i)) } : {});
     return {
       items: [
@@ -293,6 +296,8 @@ export const mockQa: Pick<
   },
   async createAsk(text) {
     await delay();
+    if (!hasPlan() && (db.asksCreated ?? db.asks.length) >= FREE_ASKS) throw new ApiError('premium_required');
+    db.asksCreated = (db.asksCreated ?? db.asks.length) + 1;
     const id = uid();
     const ask: StoredAsk = { id, text, createdAt: new Date().toISOString(), link: link(`a_${id}`), answers: [] };
     db.asks.unshift(ask);
