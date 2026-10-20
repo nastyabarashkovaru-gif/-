@@ -12,6 +12,7 @@ import { haptic, openExternal } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { Screen, TopBar, useToast } from '@/ui';
+import { BloggerTask } from './Blogger';
 import { Avatar, ShareLinkSheet, TAB_BAR_SPACE, useEnsureLink } from './common';
 
 /** Окошко «Нам важно твоё мнение» закрыто (localStorage) */
@@ -79,6 +80,8 @@ export function ProfileScreen() {
             {me.username && <span className="small">@{me.username}</span>}
           </div>
         </div>
+
+        <BloggerTask compact />
 
         {!feedbackHidden && (
           <div className="flex items-start gap-[10px] rounded-[16px] border border-[#2a2930] bg-[#141318] px-[14px] py-[12px]">

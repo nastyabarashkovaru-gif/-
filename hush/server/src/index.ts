@@ -4,6 +4,7 @@ import express from 'express';
 import { requireTelegram } from './auth';
 import { adminApi } from './admin';
 import { billingApi, billingEnabled, cloudPaymentsWebhooks } from './billing';
+import { bloggerAdminApi, bloggerApi } from './blogger';
 import { config } from './config';
 import { migrate, pool } from './db';
 import { legal } from './legal';
@@ -23,6 +24,8 @@ async function main() {
   // Картинки сторис крупнее 64 КБ — свой парсер до общего
   app.use('/api/stories', requireTelegram, storiesApi);
   app.use('/s', storiesPublic);
+  // Скриншот сторис блогера — тоже крупнее 64 КБ
+  app.use('/api/blogger', requireTelegram, bloggerApi);
   app.use(express.json({ limit: '64kb' }));
   app.use('/legal', legal);
 
@@ -43,6 +46,7 @@ async function main() {
 
   // Всё остальное API — только с проверенной подписью Telegram initData
   app.use('/api/billing', requireTelegram, billingApi);
+  app.use('/api/admin/bloggers', requireTelegram, bloggerAdminApi);
   app.use('/api/admin', requireTelegram, adminApi);
   app.use('/api', requireTelegram, api);
   app.use('/api', (_req, res) => {

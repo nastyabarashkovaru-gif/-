@@ -8,6 +8,7 @@ export type ErrorCode =
   | 'premium_required'
   | 'threshold_not_met'
   | 'rate_limited'
+  | 'forbidden'
   | 'invalid';
 
 const STATUS: Record<ErrorCode, number> = {
@@ -17,6 +18,7 @@ const STATUS: Record<ErrorCode, number> = {
   premium_required: 402,
   threshold_not_met: 409,
   rate_limited: 429,
+  forbidden: 403,
   invalid: 400,
 };
 

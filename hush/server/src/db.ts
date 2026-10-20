@@ -75,6 +75,20 @@ export async function migrate(): Promise<void> {
     );
 
     ALTER TABLE entitlements ADD COLUMN IF NOT EXISTS subscription_id TEXT;
+
+    -- Программа для блогеров: кто пришёл по ссылке startapp=blogger / bl_*, скриншоты сторис, выданный Premium
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS blogger_at TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS blogger_campaign TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS blogger_premium_at TIMESTAMPTZ;
+    CREATE TABLE IF NOT EXISTS blogger_proofs (
+      id          BIGSERIAL PRIMARY KEY,
+      user_id     BIGINT NOT NULL REFERENCES users(id),
+      image       TEXT NOT NULL,
+      status      TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      reviewed_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS blogger_proofs_user_idx ON blogger_proofs(user_id, created_at);
     -- Недельный тариф
     ALTER TABLE entitlements DROP CONSTRAINT IF EXISTS entitlements_plan_check;
     ALTER TABLE entitlements ADD CONSTRAINT entitlements_plan_check CHECK (plan IN ('week', 'month', 'quarter', 'year'));

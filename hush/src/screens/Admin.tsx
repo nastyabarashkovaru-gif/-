@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { RotateCw } from 'lucide-react';
-import { api, type AdminStats } from '@/api';
+import { Copy, RotateCw } from 'lucide-react';
+import { api, type AdminBlogger, type AdminBloggers, type AdminStats } from '@/api';
 import { formatRub } from '@/lib/plural';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
-import { BackArrow, CloseButton, Screen } from '@/ui';
+import { BackArrow, CloseButton, Screen, useToast } from '@/ui';
+import { copyText } from '@/lib/share';
 
 const PLAN_NAMES: Record<string, string> = { week: '1 неделя', month: '1 месяц', quarter: '3 месяца', year: '1 год', reveal: 'Раскрытие автора (99 ₽)' };
 const num = (v: number | string) => Number(v) || 0;
@@ -53,6 +54,7 @@ export function AdminScreen() {
         <p className="muted">Загружаем…</p>
       ) : (
         <>
+          <BloggersSection />
           {stats.qa && <QaSections qa={stats.qa} />}
 
           <Section title="Оплаты, ₽" note="Без тестовых платежей, до комиссии CloudPayments и чеков">
@@ -364,5 +366,130 @@ function QaSections({ qa }: { qa: NonNullable<AdminStats['qa']> }) {
         {byName.size === 0 && <p className="muted">Событий пока нет</p>}
       </Section>
     </>
+  );
+}
+
+/* ───────── Блогеры: ссылка, воронка, проверка скриншотов сторис и выдача Premium ───────── */
+
+const PROOF_LABEL: Record<string, string> = { pending: 'Ждёт проверки', approved: 'Принят', rejected: 'Отклонён' };
+
+function BloggersSection() {
+  const toast = useToast();
+  const [data, setData] = useState<AdminBloggers | null>(null);
+  const load = () => {
+    api.adminBloggers().then(setData).catch(() => toast.show('Не удалось загрузить блогеров'));
+  };
+  useEffect(load, []);
+  if (!data) return null;
+  const f = data.funnel;
+  const rows: Array<[string, number]> = [
+    ['Открыли ссылку', f.opened],
+    ['Создали свою ссылку', f.made_link],
+    ['Нажали «в сторис»', f.story_clicked],
+    ['Прислали скриншот', f.proof_sent],
+    ['Выдан Premium', f.premium_given],
+  ];
+  return (
+    <Section title="Блогеры" note={`Ссылка для блогеров. За сторис — Premium на ${data.premiumDays} дней (выдаётся кнопкой ниже)`}>
+      <button
+        type="button"
+        onClick={async () => {
+          if (await copyText(data.link)) toast.show('Ссылка для блогеров скопирована');
+        }}
+        className="flex items-center gap-[8px] rounded-[12px] border border-[#3a2d4d] bg-[#141018] px-[12px] py-[10px] text-left active:scale-[0.99]"
+      >
+        <span className="min-w-0 flex-1 break-all text-[14px] text-purple-text">{data.link.replace(/^https?:\/\//, '')}</span>
+        <Copy size={16} strokeWidth={1.8} className="shrink-0 text-[#a1a1aa]" aria-hidden />
+      </button>
+      {rows.map(([label, value]) => (
+        <Line key={label} label={label} value={String(value)} />
+      ))}
+      {f.waiting > 0 && <Line label="Ждут проверки сейчас" value={String(f.waiting)} />}
+      <div className="mt-[6px] flex flex-col gap-[10px]">
+        {data.bloggers.map((b) => (
+          <BloggerRow key={b.id} b={b} premiumDays={data.premiumDays} onChange={load} />
+        ))}
+        {!data.bloggers.length && <p className="small">Пока никто не открыл ссылку для блогеров.</p>}
+      </div>
+    </Section>
+  );
+}
+
+function BloggerRow({ b, premiumDays, onChange }: { b: AdminBlogger; premiumDays: number; onChange: () => void }) {
+  const toast = useToast();
+  const [image, setImage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const name = b.username ? `@${b.username}` : b.firstName;
+  const act = async (fn: () => Promise<unknown>, done: string) => {
+    setBusy(true);
+    try {
+      await fn();
+      toast.show(done);
+      onChange();
+    } catch {
+      toast.show('Не получилось. Попробуй ещё раз');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-[8px] rounded-[14px] border border-[#2a2930] bg-[#101013] p-[12px]">
+      <div className="flex items-center justify-between gap-[8px]">
+        {b.username ? (
+          <a href={`https://t.me/${b.username}`} target="_blank" rel="noreferrer" className="truncate text-[15px] font-semibold text-purple-text">
+            {name}
+          </a>
+        ) : (
+          <span className="truncate text-[15px] font-semibold">{name}</span>
+        )}
+        <span className={`shrink-0 text-[12px] ${b.premiumAt ? 'text-green' : b.proof?.status === 'pending' ? 'text-[#ffcf7a]' : 'text-[#8e8b97]'}`}>
+          {b.premiumAt ? 'Premium выдан' : b.proof ? PROOF_LABEL[b.proof.status] : 'Без скриншота'}
+        </span>
+      </div>
+      <p className="text-[13px] leading-[1.4] text-[#9a97a3]">
+        {new Date(b.openedAt).toLocaleDateString('ru-RU')} · ссылка {b.hasLink ? '✓' : '—'} · сторис {b.storyClicked ? '✓' : '—'} · пришло {b.guests} · вопросов {b.questions}
+        {b.campaign && b.campaign !== 'blogger' ? ` · ${b.campaign}` : ''}
+      </p>
+      {b.proof && !image && (
+        <button
+          type="button"
+          onClick={() => api.adminBloggerProof(b.proof!.id).then((r) => setImage(r.image)).catch(() => toast.show('Не удалось открыть скриншот'))}
+          className="self-start text-[14px] font-medium text-purple-text underline underline-offset-[2px]"
+        >
+          Показать скриншот
+        </button>
+      )}
+      {image && <img src={image} alt={`Скриншот сторис ${name}`} className="max-h-[420px] w-auto self-start rounded-[10px] border border-[#2a2930]" />}
+      {!b.premiumAt && b.proof?.status === 'pending' && (
+        <div className="flex gap-[8px]">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => act(() => api.adminApproveBlogger(b.id), `Premium на ${premiumDays} дней выдан ${name}`)}
+            className="flex-1 rounded-[12px] bg-green py-[10px] text-[14px] font-semibold text-[#06210f] active:scale-[0.98] disabled:opacity-50"
+          >
+            Выдать Premium
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => act(() => api.adminRejectBlogger(b.id), 'Отклонено — блогер получит уведомление')}
+            className="flex-1 rounded-[12px] border border-[#3a2930] py-[10px] text-[14px] font-medium text-[#f3c4c4] active:scale-[0.98] disabled:opacity-50"
+          >
+            Отклонить
+          </button>
+        </div>
+      )}
+      {!b.premiumAt && b.proof?.status !== 'pending' && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => act(() => api.adminApproveBlogger(b.id), `Premium на ${premiumDays} дней выдан ${name}`)}
+          className="self-start text-[13px] text-[#8e8b97] underline underline-offset-[2px]"
+        >
+          Выдать Premium без скриншота
+        </button>
+      )}
+    </div>
   );
 }

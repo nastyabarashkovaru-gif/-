@@ -3,6 +3,7 @@ import { catalogQuestion, type Question } from './catalog';
 import { config } from './config';
 import { pool, tx } from './db';
 import { hasDemoAccess, isAdmin } from './admin';
+import { bloggerState } from './blogger';
 import { qaApi, qaSummary } from './qa';
 import { getPlan, pricingFor } from './plans';
 import { rateLimit } from './rateLimit';
@@ -84,6 +85,8 @@ api.get(
       me: { id: String(u.id), firstName: u.first_name, lastName: u.last_name, username: u.username, photoUrl: u.photo_url, isAdmin: isAdmin(req.user), demoAccess: hasDemoAccess(req.user), allowsWrite: await allowsWrite(u.id) },
       // HUSH 2.0: личная ссылка и счётчики вопросов
       qa: await qaSummary(u.id),
+      // Программа для блогеров: только у пришедших по блогерской ссылке
+      blogger: await bloggerState(u.id),
       entitlement: {
         plan: plan.plan,
         autoRenew: plan.autoRenew,
@@ -117,6 +120,7 @@ const EVENTS = new Set([
   'start_choice',
   'share_clicked',
   'feedback_clicked',
+  'blogger_proof_sent',
   'link_copied',
   'question_typing_started',
   'guest_create_link',

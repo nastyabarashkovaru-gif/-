@@ -283,6 +283,35 @@ export interface Bootstrap {
   pricing?: Pricing;
   /** HUSH 2.0: личная ссылка и счётчики */
   qa?: QaSummary;
+  /** Программа для блогеров: null/нет — не блогер */
+  blogger?: BloggerState | null;
+}
+
+export type BloggerStatus = 'none' | 'pending' | 'approved' | 'rejected';
+export interface BloggerState {
+  status: BloggerStatus;
+  premiumDays: number;
+}
+
+export interface AdminBlogger {
+  id: string;
+  firstName: string;
+  username: string | null;
+  openedAt: string;
+  campaign: string | null;
+  premiumAt: string | null;
+  hasLink: boolean;
+  storyClicked: boolean;
+  /** Сколько новых людей пришло по его ссылкам */
+  guests: number;
+  questions: number;
+  proof: { id: string; status: 'pending' | 'approved' | 'rejected'; createdAt: string } | null;
+}
+export interface AdminBloggers {
+  link: string;
+  premiumDays: number;
+  funnel: { opened: number; made_link: number; story_clicked: number; proof_sent: number; premium_given: number; waiting: number };
+  bloggers: AdminBlogger[];
 }
 
 export interface HushApi {
@@ -311,6 +340,12 @@ export interface HushApi {
   uploadStory(dataUrl: string): Promise<{ url: string }>;
   /** Статистика для владельца */
   adminStats(): Promise<AdminStats>;
+  /** Блогер присылает скриншот сторис (data URL) */
+  sendBloggerProof(image: string): Promise<{ status: 'pending' | 'approved' }>;
+  adminBloggers(): Promise<AdminBloggers>;
+  adminBloggerProof(proofId: string): Promise<{ image: string }>;
+  adminApproveBlogger(userId: string): Promise<{ status: string }>;
+  adminRejectBlogger(userId: string): Promise<{ status: string }>;
 
   /* HUSH 2.0 */
   /** Создать (или вернуть существующую) постоянную личную ссылку */
@@ -359,6 +394,7 @@ export type AnalyticsEvent =
   | 'start_choice'
   | 'share_clicked'
   | 'feedback_clicked'
+  | 'blogger_proof_sent'
   | 'link_copied'
   | 'question_typing_started'
   | 'guest_create_link'

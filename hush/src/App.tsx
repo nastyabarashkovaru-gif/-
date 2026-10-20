@@ -10,6 +10,7 @@ import { AdminScreen } from '@/screens/Admin';
 import { AskDetailScreen, AskReplyScreen, AsksScreen, CreateAskScreen } from '@/screens/qa/Asks';
 import { TabBar } from '@/screens/qa/common';
 import { AskMeScreen, MyLinkScreen, SentScreen, StartScreen } from '@/screens/qa/Entry';
+import { BloggerScreen } from '@/screens/qa/Blogger';
 import { AnswerInboxScreen, InboxScreen } from '@/screens/qa/Inbox';
 import { ProfileScreen } from '@/screens/qa/Profile';
 import { track } from '@/lib/analytics';
@@ -61,6 +62,8 @@ function renderRoute(route: Route) {
       return <AdminScreen />;
     case 'start':
       return <StartScreen />;
+    case 'blogger':
+      return <BloggerScreen />;
     case 'inbox':
       return <InboxScreen />;
     case 'asks':
@@ -122,7 +125,7 @@ function Router() {
 }
 
 function Root() {
-  const { questionnaires, me, qa } = useAppState();
+  const { questionnaires, me, qa, blogger } = useAppState();
   /**
    * Стартовый экран HUSH 2.0:
    * u_<slug> — форма вопроса получателю (без приветствия), a_<id> — ответ на чужой вопрос,
@@ -133,6 +136,8 @@ function Root() {
     // startapp=demo обрабатывает эффект ниже (переход в демо-версию), как маршрут его не используем
     const startParam = getStartParam() === 'demo' ? null : getStartParam();
     if (startParam === 'admin' && me.isAdmin) return { name: 'admin' };
+    // Блогерская ссылка: пока Premium не выдан — сразу задание
+    if (startParam === 'blogger' || startParam?.startsWith('bl_')) return blogger && blogger.status !== 'approved' ? { name: 'blogger' } : qa?.askSlug ? { name: 'inbox' } : { name: 'start' };
     if (startParam?.startsWith('u_')) return { name: 'askMe', slug: startParam.slice(2) };
     if (startParam?.startsWith('a_')) return { name: 'askReply', id: startParam.slice(2) };
     // Пуш «Тебе ответили» ведёт сразу в «Я спросил(а)»
@@ -154,7 +159,7 @@ function Root() {
   // Аналитика: открытие приложения и по какой ссылке
   useEffect(() => {
     const p = getStartParam();
-    track('app_open', !p ? 'direct' : p.startsWith('u_') ? 'personal_link' : p.startsWith('a_') ? 'ask_link' : p.startsWith('ref_') ? p.slice(0, 40) : p === 'admin' ? 'admin' : 'questionnaire');
+    track('app_open', !p ? 'direct' : p.startsWith('u_') ? 'personal_link' : p.startsWith('a_') ? 'ask_link' : p.startsWith('ref_') ? p.slice(0, 40) : p === 'admin' ? 'admin' : p === 'blogger' || p.startsWith('bl_') ? 'blogger' : 'questionnaire');
   }, []);
 
   return (

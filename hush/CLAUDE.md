@@ -53,6 +53,12 @@
 - Сторис с ответами: `screens/StoriesSheet.tsx` + `lib/storyCard.ts` (canvas 1080×1920, QR `t.me/<bot>/app?startapp=ref_story`). Для анонима, открытого в карусели: шаг 1 — выбор его ответов (скрытые нельзя), шаг 2 — одна карточка со всеми выбранными ответами (`renderMultiStoryCard`, шрифт подбирается под 1–5 ответов) (стрелка «назад» к выбору). Авто-показ через 1 с при первом открытии результатов анкеты (localStorage), кнопка «Поделиться ответами в сторис». PNG для Telegram (shareToStory/downloadFile) — временная ссылка `/s/<id>.png` (память сервера, 2 ч).
 - Сторис-приглашение «Выложи анкету к себе в сторис»: `lib/inviteCard.ts` (3 варианта, контент по центру, QR и личная ссылка текстом на анкету), окно `StoryDeckSheet` на экране 03 — авто через 1 с после создания анкеты (один раз) и кнопка «Выложить в сторис» (также на экране ожидания 04; если окно ещё не показывалось для анкеты — авто и там); аналитика с префиксом `invite_`.
 - Аналитика: таблица `events` (POST /api/events, белый список имён; серверные события HUSH 2.0 пишет `logEvent` в qa.ts: link_created, link_opened, question_sent, ask_created, ask_answer_sent, inbox_answered), события `story_sheet_opened` (auto|button), `story_shared` (native|save|telegram_story); источник покупки — `orders.source`; конверсия — view `upsell_conversion`.
+- Блогеры (`server/src/blogger.ts`, клиент `src/screens/qa/Blogger.tsx`): ссылка `startapp=blogger` (или `bl_<метка>`) помечает
+  пользователя (`users.blogger_at`, при любом входе по ней) и открывает экран задания: личная ссылка → сторис → скриншот
+  (POST /api/blogger/proof, JPEG до 1280 px, таблица `blogger_proofs`; владельцу пуш). Карточка задания — и в профиле.
+  Premium без промокодов: владелец в статистике (раздел «Блогеры», /api/admin/bloggers) смотрит скриншот и жмёт «Выдать Premium» —
+  entitlement `source='blogger'`, 30 дней (`BLOGGER_PREMIUM_DAYS`), `users.blogger_premium_at`, блогеру пуш; «Отклонить» — пуш «пришли ещё раз».
+  Воронка: открыли ссылку, создали ссылку, нажали «в сторис» (события story_*), прислали скриншот, выдан Premium; по каждому — сколько людей пришло.
 - Демо-версия: `build:server-app` собирает ещё и демо-сборку (mock API, выдуманные данные, base `/demo/` → `dist/demo`), сервер отдаёт её
   на `/demo`. Вход — `startapp=demo` или строка «Демо-режим» в профиле, только для `DEMO_IDS` (по умолчанию `ADMIN_IDS`; `me.demoAccess`).
   Панель DEMO (`src/demo/DemoPanel.tsx`): сценарии HUSH 2.0 и события (`qaDemoControls` в `src/api/mockQa.ts`), тариф, переход на любой экран.

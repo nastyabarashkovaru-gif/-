@@ -267,6 +267,23 @@ export const mockApi: HushApi = {
     const blob = await (await fetch(dataUrl)).blob();
     return { url: URL.createObjectURL(blob) };
   },
+  async sendBloggerProof() {
+    await delay(300);
+    return { status: 'pending' as const };
+  },
+  async adminBloggers() {
+    await delay(200);
+    return { link: 'https://t.me/Hush_miniapp_bot/app?startapp=blogger', premiumDays: 30, funnel: { opened: 0, made_link: 0, story_clicked: 0, proof_sent: 0, premium_given: 0, waiting: 0 }, bloggers: [] };
+  },
+  async adminBloggerProof() {
+    return { image: '' };
+  },
+  async adminApproveBlogger() {
+    return { status: 'approved' };
+  },
+  async adminRejectBlogger() {
+    return { status: 'rejected' };
+  },
   async adminStats() {
     await delay(200);
     const p = (n: number) => ({ today: n, d7: n * 4, d30: n * 12, total: n * 20 });

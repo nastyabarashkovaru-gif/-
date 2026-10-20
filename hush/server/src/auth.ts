@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { config } from './config';
 import { pool } from './db';
+import { isBloggerParam, markBlogger } from './blogger';
 
 export interface TgUser {
   id: number;
@@ -78,6 +79,8 @@ export async function requireTelegram(req: Request, res: Response, next: NextFun
     );
     // Новый пользователь — запоминаем, откуда пришёл и кто привёл (для статистики блогеров)
     if (rows[0]?.inserted && user.start_param) await recordReferral(user.id, user.start_param).catch(() => {});
+    // Блогерская ссылка — помечаем и новых, и уже зарегистрированных (один раз)
+    if (isBloggerParam(user.start_param)) await markBlogger(user.id, user.start_param as string).catch(() => {});
     next();
   } catch (e) {
     next(e);
