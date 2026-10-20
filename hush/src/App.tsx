@@ -130,7 +130,8 @@ function Root() {
    * Без ссылки: уже пользовался HUSH → «Входящие», иначе — выбор из двух механик.
    */
   const initial = useMemo<Route>(() => {
-    const startParam = getStartParam();
+    // startapp=demo обрабатывает эффект ниже (переход в демо-версию), как маршрут его не используем
+    const startParam = getStartParam() === 'demo' ? null : getStartParam();
     if (startParam === 'admin' && me.isAdmin) return { name: 'admin' };
     if (startParam?.startsWith('u_')) return { name: 'askMe', slug: startParam.slice(2) };
     if (startParam?.startsWith('a_')) return { name: 'askReply', id: startParam.slice(2) };
@@ -141,6 +142,12 @@ function Root() {
     // Только задавал вопросы другим — сразу к их ответам
     if ((qa?.sent ?? 0) > 0) return { name: 'asks' };
     return { name: 'start' };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // startapp=demo: демо-версия на выдуманных данных (только для DEMO_IDS)
+  useEffect(() => {
+    if (!usingMock && getStartParam() === 'demo' && me.demoAccess) window.location.replace('/demo/');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

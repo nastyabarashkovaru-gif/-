@@ -10,6 +10,10 @@ import { pool } from './db';
 export const isAdmin = (u: Pick<TgUser, 'id' | 'username'>) =>
   config.adminIds.has(String(u.id)) || Boolean(u.username && config.adminIds.has(u.username.toLowerCase()));
 
+/** Демо-версия (выдуманные данные, переход на любой экран) — открывается из профиля и по startapp=demo */
+export const hasDemoAccess = (u: Pick<TgUser, 'id' | 'username'>) =>
+  config.demoIds.has(String(u.id)) || Boolean(u.username && config.demoIds.has(u.username.toLowerCase()));
+
 export const adminApi = Router();
 
 const one = async (sql: string) => (await pool.query(sql)).rows[0];

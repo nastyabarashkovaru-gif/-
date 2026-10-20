@@ -1,30 +1,70 @@
 /**
- * Демо-режим HUSH 2.0: вопросы и ответы в localStorage (только для разработки и просмотра без сервера).
+ * Демо-режим HUSH 2.0: вопросы и ответы в localStorage (только для просмотра без сервера, все данные выдуманные).
+ * Сценарии и события для панели DEMO — `qaDemoControls`.
  */
-import { ApiError, type Activity, type AskAnswer, type AskSummary, type HushApi, type InboxItem, type QaSummary } from './types';
+import { ApiError, type Activity, type AskAnswer, type AskSummary, type HushApi, type InboxItem, type QaSummary, type RevealResult, type SentItem } from './types';
 
-const KEY = 'hush.demo.qa.v1';
+const KEY = 'hush.demo.qa.v2';
 const DEMO_DAILY = ['Что в тебе чаще всего понимают неправильно?', 'В чём ты изменилась сильнее всего за последний год?'];
+/** Сколько вопросов нужно собрать, чтобы их прочитать (как INBOX_THRESHOLD на сервере) */
+const THRESHOLD = 5;
+/** Без подписки видны первые 3 ответа на свой вопрос (как FREE_ASK_ANSWERS) */
+const FREE_ANSWERS = 3;
+
+/** consent — автор разрешил узнать, кто он (в демо видно только через «Узнать автора») */
+type StoredInbox = InboxItem & { consent?: boolean };
+type StoredAnswer = { id: string; text: string; createdAt: string; consent?: boolean };
+type StoredAsk = Omit<AskSummary, 'answerCount'> & { answers: StoredAnswer[] };
 
 interface QaDB {
   slug: string | null;
-  inbox: InboxItem[];
-  asks: Array<AskSummary & { answers: AskAnswer[] }>;
+  inbox: StoredInbox[];
+  asks: StoredAsk[];
+  sent: SentItem[];
   dailyDate?: string;
 }
 
 const uid = (len = 8) => Array.from({ length: len }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
 const delay = (ms = 200) => new Promise((r) => setTimeout(r, ms));
 const link = (p: string) => `https://t.me/Hush_miniapp_bot/app?startapp=${p}`;
+const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 
+/** Слаг «друга» — форма вопроса гостя в демо */
+export const DEMO_FRIEND_SLUG = 'DEMOFRIEND';
+
+const DEMO_QUESTIONS = [
+  'Какое было твоё первое впечатление обо мне?',
+  'Ты когда-нибудь была влюблена в друга?',
+  'Что ты никогда не расскажешь подписчикам?',
+  'Какую песню ты слушаешь на повторе?',
+  'О чём ты мечтаешь, но боишься сказать вслух?',
+  'Кто тебе нравится прямо сейчас?',
+  'Что тебя бесит в людях больше всего?',
+  'Какой совет ты дала бы себе 5 лет назад?',
+];
+const DEMO_ANSWERS = [
+  'Ты кажешься строгой, но на самом деле очень добрая.',
+  'С тобой всегда легко и спокойно, спасибо за это.',
+  'Мне кажется, ты недооцениваешь себя.',
+  'Ты самая смешная из всех, кого я знаю 😂',
+  'Твоя уверенность вдохновляет.',
+  'Иногда ты слишком много берёшь на себя.',
+  'Хочу, чтобы мы чаще виделись!',
+];
+/** Без username: кнопка «Открыть профиль» не должна вести на настоящий чужой аккаунт */
+const DEMO_IDENTITIES = [{ firstName: 'Аня (демо)' }, { firstName: 'Макс (демо)' }, { firstName: 'Лиза (демо)' }];
+
+function emptyDB(): QaDB {
+  return { slug: null, inbox: [], asks: [], sent: [] };
+}
 function load(): QaDB {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw) as QaDB;
+    if (raw) return { ...emptyDB(), ...(JSON.parse(raw) as QaDB) };
   } catch {
     /* начинаем заново */
   }
-  return { slug: null, inbox: [], asks: [] };
+  return emptyDB();
 }
 let db = load();
 function save() {
@@ -36,12 +76,22 @@ function save() {
   window.dispatchEvent(new Event('hush:data-changed'));
 }
 
+/** Подписка в демо хранится в mock.ts — он передаёт сюда, как её узнать */
+let hasPlan = () => false;
+export function bindDemoPlan(fn: () => boolean) {
+  hasPlan = fn;
+}
+
+const realCount = () => db.inbox.filter((i) => i.from !== 'hush').length;
+
 export function mockQaSummary(): QaSummary {
   return {
     askSlug: db.slug,
     link: db.slug ? link(`u_${db.slug}`) : null,
-    unanswered: db.inbox.filter((i) => !i.answer).length,
+    unanswered: db.inbox.filter((i) => !i.answer && i.status === 'new' && (i.from !== 'hush' || realCount() >= THRESHOLD)).length,
     asks: db.asks.length,
+    sentUnread: db.sent.filter((s) => s.unread).length,
+    sent: db.sent.length,
   };
 }
 
@@ -55,7 +105,88 @@ function findAsk(id: string) {
   if (!a) throw new ApiError('not_found');
   return a;
 }
-const strip = ({ answers: _a, ...a }: AskSummary & { answers: AskAnswer[] }): AskSummary => ({ ...a, answerCount: _a.length });
+const strip = ({ answers, ...a }: StoredAsk): AskSummary => ({ ...a, answerCount: answers.length, lastAnswerAt: answers[0]?.createdAt ?? null });
+const view = ({ consent: _c, ...i }: StoredInbox): InboxItem => i;
+
+function revealOf(consent: boolean | undefined, index: number): RevealResult {
+  if (!consent) return { status: 'anonymous' };
+  if (!hasPlan()) return { status: 'requires_plan' };
+  return { status: 'revealed', identity: DEMO_IDENTITIES[index % DEMO_IDENTITIES.length] };
+}
+
+function makeInbox(count: number) {
+  return Array.from({ length: count }, (_, i): StoredInbox => ({
+    id: uid(12),
+    text: DEMO_QUESTIONS[i % DEMO_QUESTIONS.length],
+    from: 'anon',
+    status: 'new',
+    answer: null,
+    answeredAt: null,
+    createdAt: ago(20 + i * 47),
+    consent: i % 2 === 0,
+  }));
+}
+function makeAsk(answers: number): StoredAsk {
+  const id = uid();
+  return {
+    id,
+    text: 'Какое было твоё первое впечатление обо мне?',
+    createdAt: ago(60 * 26),
+    link: link(`a_${id}`),
+    answers: Array.from({ length: answers }, (_, i) => ({ id: uid(12), text: DEMO_ANSWERS[i % DEMO_ANSWERS.length], createdAt: ago(10 + i * 90), consent: i % 2 === 0 })),
+  };
+}
+
+export type QaDemoScenario = 'new' | 'link' | 'gate-2' | 'inbox-7' | 'full';
+
+export const QA_SCENARIOS: Array<[QaDemoScenario, string]> = [
+  ['new', 'Новый пользователь'],
+  ['link', 'Ссылка, вопросов нет'],
+  ['gate-2', 'Собрано 2/5'],
+  ['inbox-7', '7 вопросов'],
+  ['full', 'Всё: вопросы, ответы, «Я спросил(а)»'],
+];
+
+export const qaDemoControls = {
+  setScenario(s: QaDemoScenario) {
+    db = emptyDB();
+    if (s !== 'new') db.slug = uid();
+    if (s === 'gate-2') db.inbox = makeInbox(2);
+    if (s === 'inbox-7' || s === 'full') db.inbox = makeInbox(7);
+    if (s === 'full') {
+      db.inbox[1] = { ...db.inbox[1], status: 'answered', answer: 'Честно — с первой встречи 🙈', answeredAt: ago(15) };
+      db.asks = [makeAsk(6)];
+      db.sent = [
+        { id: uid(12), text: 'Что ты думаешь обо мне на самом деле?', recipient: { firstName: 'Аня', photoUrl: null }, answer: 'Что ты очень светлый человек 💜', status: 'answered', unread: true, answeredAt: ago(30), createdAt: ago(300) },
+        { id: uid(12), text: 'Куда поедешь летом?', recipient: { firstName: 'Макс', photoUrl: null }, answer: null, status: 'waiting', unread: false, answeredAt: null, createdAt: ago(120) },
+      ];
+    }
+    save();
+  },
+  /** Ещё один анонимный вопрос во «Мне задали» */
+  addQuestion() {
+    if (!db.slug) db.slug = uid();
+    db.inbox.unshift({ ...makeInbox(1)[0], text: DEMO_QUESTIONS[realCount() % DEMO_QUESTIONS.length], createdAt: new Date().toISOString(), consent: realCount() % 2 === 0 });
+    save();
+  },
+  /** Ещё один ответ на свой вопрос подписчикам (создаёт вопрос, если его нет) */
+  addAskAnswer(): string {
+    if (!db.asks.length) db.asks.unshift(makeAsk(0));
+    const a = db.asks[0];
+    a.answers.unshift({ id: uid(12), text: DEMO_ANSWERS[a.answers.length % DEMO_ANSWERS.length], createdAt: new Date().toISOString(), consent: a.answers.length % 2 === 0 });
+    save();
+    return a.id;
+  },
+  firstInboxId: () => db.inbox.find((i) => i.from !== 'hush')?.id ?? null,
+  firstAskId: () => db.asks[0]?.id ?? null,
+  get slug() {
+    return db.slug;
+  },
+  reset() {
+    db = emptyDB();
+    save();
+  },
+};
 
 export const mockQa: Pick<
   HushApi,
@@ -80,42 +211,51 @@ export const mockQa: Pick<
       db.inbox.unshift({ id: uid(12), text, from: 'hush', status: 'new', answer: null, answeredAt: null, createdAt: new Date().toISOString() });
       save();
     }
-    const collected = db.inbox.filter((i) => i.from !== 'hush').length;
-    if (collected < 5) return { items: [], gate: { collected, required: 5 } };
-    return { items: db.inbox };
+    const collected = realCount();
+    if (collected < THRESHOLD) return { items: [], gate: { collected, required: THRESHOLD } };
+    return { items: db.inbox.map(view) };
   },
   async answerInbox(id, text) {
     await delay();
     const item = findInbox(id);
     Object.assign(item, { answer: text, answeredAt: new Date().toISOString(), status: 'answered' });
     save();
-    return item;
+    return view(item);
   },
   async deleteInboxAnswer(id) {
     await delay();
     const item = findInbox(id);
     Object.assign(item, { answer: null, answeredAt: null, status: 'new' });
     save();
-    return item;
+    return view(item);
   },
-  async revealInbox() {
+  async revealInbox(id) {
     await delay();
-    return { status: 'requires_plan' };
+    const item = findInbox(id);
+    return revealOf(item.from !== 'hush' && item.consent, db.inbox.indexOf(item));
   },
-  async revealAskAnswer() {
+  async revealAskAnswer(askId, answerId) {
     await delay();
-    return { status: 'anonymous' };
+    const a = findAsk(askId);
+    const x = a.answers.find((y) => y.id === answerId);
+    if (!x) throw new ApiError('not_found');
+    return revealOf(x.consent, a.answers.indexOf(x));
   },
   async markStory(id) {
     await delay();
     const item = findInbox(id);
     if (item.status === 'new') item.status = 'story';
     save();
-    return item;
+    return view(item);
   },
   async getSent() {
     await delay();
-    return { items: [] };
+    const items = db.sent.map((s) => ({ ...s }));
+    if (db.sent.some((s) => s.unread)) {
+      db.sent = db.sent.map((s) => ({ ...s, unread: false }));
+      save();
+    }
+    return { items };
   },
   async deleteInbox(id) {
     await delay();
@@ -130,20 +270,19 @@ export const mockQa: Pick<
   },
   async openRecipient(slug) {
     await delay();
-    return { firstName: 'Демо', photoUrl: null, own: slug === db.slug };
+    return { firstName: slug === db.slug ? 'Ты' : 'Аня', photoUrl: null, own: slug === db.slug };
   },
   async sendQuestion(slug, text) {
     await delay();
-    if (slug === db.slug) {
-      db.inbox.unshift({ id: uid(12), text, from: 'anon', status: 'new', answer: null, answeredAt: null, createdAt: new Date().toISOString() });
-      save();
-    }
+    if (slug === db.slug) db.inbox.unshift({ id: uid(12), text, from: 'anon', status: 'new', answer: null, answeredAt: null, createdAt: new Date().toISOString() });
+    else db.sent.unshift({ id: uid(12), text, recipient: { firstName: 'Аня', photoUrl: null }, answer: null, status: 'waiting', unread: false, answeredAt: null, createdAt: new Date().toISOString() });
+    save();
     return { status: 'sent' };
   },
   async createAsk(text) {
     await delay();
-    const ask = { id: uid(), text, createdAt: new Date().toISOString(), answerCount: 0, link: '', answers: [] as AskAnswer[] };
-    ask.link = link(`a_${ask.id}`);
+    const id = uid();
+    const ask: StoredAsk = { id, text, createdAt: new Date().toISOString(), link: link(`a_${id}`), answers: [] };
     db.asks.unshift(ask);
     save();
     return strip(ask);
@@ -155,7 +294,10 @@ export const mockQa: Pick<
   async getAsk(id) {
     await delay();
     const a = findAsk(id);
-    return { ask: strip(a), answers: a.answers };
+    // Без подписки — первые 3 ответа по времени, остальные под замком
+    const open = new Set([...a.answers].reverse().slice(0, hasPlan() ? a.answers.length : FREE_ANSWERS).map((x) => x.id));
+    const answers: AskAnswer[] = a.answers.map((x) => (open.has(x.id) ? { id: x.id, text: x.text, createdAt: x.createdAt } : { id: x.id, text: null, locked: true, createdAt: x.createdAt }));
+    return { ask: strip(a), answers };
   },
   async deleteAsk(id) {
     await delay();
@@ -176,24 +318,28 @@ export const mockQa: Pick<
   },
   async openAsk(id) {
     await delay();
-    const a = findAsk(id);
-    return { id: a.id, text: a.text, firstName: 'Демо', photoUrl: null, own: true, answered: false };
+    const a = db.asks.find((x) => x.id === id);
+    // Чужой вопрос в демо — от «Ани»
+    if (!a) return { id, text: 'Какое было твоё первое впечатление обо мне?', firstName: 'Аня', photoUrl: null, own: false, answered: false };
+    return { id: a.id, text: a.text, firstName: 'Ты', photoUrl: null, own: true, answered: false };
   },
-  async answerAsk(id, text) {
+  async answerAsk(id, text, _key, revealIdentity) {
     await delay();
-    const a = findAsk(id);
-    a.answers.unshift({ id: uid(12), text, createdAt: new Date().toISOString() });
-    save();
+    const a = db.asks.find((x) => x.id === id);
+    if (a) {
+      a.answers.unshift({ id: uid(12), text, createdAt: new Date().toISOString(), consent: revealIdentity });
+      save();
+    }
     return { status: 'sent' };
   },
   async activity(): Promise<Activity> {
     await delay();
     return {
-      received: db.inbox.filter((i) => i.from === 'anon').length,
+      received: realCount(),
       answered: db.inbox.filter((i) => i.answer).length,
       asks: db.asks.length,
       askAnswers: db.asks.reduce((n, a) => n + a.answers.length, 0),
-      sent: 0,
+      sent: db.sent.length,
     };
   },
 };

@@ -31,7 +31,7 @@ import {
   type SubmitPayload,
 } from './types';
 
-import { mockQa, mockQaSummary } from './mockQa';
+import { bindDemoPlan, mockQa, mockQaSummary } from './mockQa';
 
 const STORAGE_KEY = 'hush.demo.v1';
 const FREE_VISIBLE_ANSWERS = 2;
@@ -125,6 +125,8 @@ function orderedResponses(questionnaireId: string): StoredResponse[] {
   const best = list.reduce((top, r) => (totalLength(r) > totalLength(top) ? r : top), list[0]);
   return [best, ...list.filter((r) => r !== best)];
 }
+
+bindDemoPlan(() => db.plan !== null);
 
 export const mockApi: HushApi = {
   ...mockQa,

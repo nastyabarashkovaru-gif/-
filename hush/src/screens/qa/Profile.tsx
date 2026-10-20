@@ -2,8 +2,8 @@
  * HUSH 2.0: «Профиль» — личная ссылка, активность, Premium, настройки, поддержка.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Archive, ArrowUpRight, ChevronRight, Copy, CreditCard, Crown, MessageCircle } from 'lucide-react';
-import { api, type Activity } from '@/api';
+import { Archive, ArrowUpRight, ChevronRight, Copy, CreditCard, Crown, FlaskConical, MessageCircle } from 'lucide-react';
+import { api, usingMock, type Activity } from '@/api';
 import { config } from '@/config';
 import { PLAN_SUBTITLE } from '@/data/plans';
 import { track } from '@/lib/analytics';
@@ -111,6 +111,12 @@ export function ProfileScreen() {
           )}
           <div className="divider" />
           <Row icon={<MessageCircle size={20} strokeWidth={1.8} />} label="Поддержка" onClick={support} />
+          {me.demoAccess && !usingMock && (
+            <>
+              <div className="divider" />
+              <Row icon={<FlaskConical size={20} strokeWidth={1.8} />} label="Демо-режим: все экраны" onClick={() => window.location.assign('/demo/')} />
+            </>
+          )}
         </nav>
         <p className="small text-center">HUSH · Версия 2.0</p>
       </div>

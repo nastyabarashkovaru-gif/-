@@ -60,6 +60,11 @@ async function main() {
         },
       }),
     );
+    // Демо-версия на выдуманных данных (сборка с base /demo/, см. build:server-app)
+    app.get(['/demo', '/demo/*'], (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache');
+      res.sendFile(path.join(dist, 'demo', 'index.html'));
+    });
     app.get('*', (_req, res) => {
       res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(path.join(dist, 'index.html'));

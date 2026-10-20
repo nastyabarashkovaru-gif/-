@@ -1,75 +1,72 @@
 import { useState, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { X } from 'lucide-react';
-import { demoControls, type DemoScenario } from '@/api/mock';
+import { demoControls } from '@/api/mock';
+import { DEMO_FRIEND_SLUG, QA_SCENARIOS, qaDemoControls, type QaDemoScenario } from '@/api/mockQa';
 import type { PlanId } from '@/data/plans';
 import { cn } from '@/lib/cn';
 import { useNav } from '@/nav/Navigator';
 import type { Route } from '@/nav/routes';
 import { useAppState } from '@/state/AppState';
-import { DEMO_FRIEND_QUESTIONNAIRE_ID } from './seed';
-
-const SCENARIOS: Array<[DemoScenario, string]> = [
-  ['new', 'Новый пользователь'],
-  ['waiting-0', 'Ожидание 0/5'],
-  ['waiting-3', 'Ожидание 3/5'],
-  ['results-5', 'Результаты · 5'],
-  ['results-18', 'Результаты · 18'],
-  ['results-50', 'Результаты · 50'],
-  ['results-100', 'Результаты · 100'],
-];
 
 const PLAN_OPTIONS: Array<[PlanId | null, string]> = [
   [null, 'Без подписки'],
+  ['week', '1 неделя'],
   ['month', '1 месяц'],
-  ['quarter', '3 месяца'],
   ['year', '1 год'],
 ];
 
+/** Демо открыто из настоящего приложения (сборка с base /demo/) — можно вернуться обратно */
+const INSIDE_APP = import.meta.env.BASE_URL === '/demo/';
+
 /**
- * Панель демо-режима (только VITE_DEMO=true + mock API).
- * Явно помечает, что все данные демонстрационные.
+ * Панель демо-режима HUSH 2.0 (только mock API): сценарии, подписка, события и переход на любой экран.
+ * Все данные демонстрационные, оплата не подключена.
  */
 export function DemoPanel() {
   const [open, setOpen] = useState(false);
   const nav = useNav();
-  const { questionnaires, entitlement, refresh } = useAppState();
-  const latest = questionnaires[0];
+  const { entitlement, refresh } = useAppState();
 
   const go = (route: Route) => {
     nav.reset(route);
     setOpen(false);
   };
-
-  const scenario = async (s: DemoScenario) => {
-    demoControls.setScenario(s);
-    await refresh();
-    go(s === 'new' ? { name: 'welcome' } : { name: 'dashboard', qid: 'DEMO1' });
+  /** Экран внутри вкладки — с вкладкой под ним, чтобы «назад» работал */
+  const goStack = (stack: Route[]) => {
+    nav.setStack(stack);
+    setOpen(false);
   };
 
+  const scenario = async (s: QaDemoScenario) => {
+    qaDemoControls.setScenario(s);
+    await refresh();
+    go(s === 'new' ? { name: 'start' } : { name: 'inbox' });
+  };
+
+  const inboxId = qaDemoControls.firstInboxId();
+  const askId = qaDemoControls.firstAskId();
+  const slug = qaDemoControls.slug;
+
   const screens: Array<[string, () => void, boolean?]> = [
-    ['01 Приветствие', () => go({ name: 'welcome' })],
-    ['02 Вопросы', () => go({ name: 'questions' })],
-    ['03 Поделиться', () => latest && go({ name: 'share', qid: latest.id }), !latest],
-    ['04/05 Ответы', () => latest && go({ name: 'dashboard', qid: latest.id }), !latest],
-    ['06 Premium', () => go({ name: 'premium' })],
-    [
-      '07 Узнать автора',
-      () => latest && go({ name: 'reveal', qid: latest.id, respondentId: `${latest.id}-r2` }),
-      !latest || latest.respondentCount < 5,
-    ],
-    [
-      '08 Ответить другу',
-      () => {
-        demoControls.resetFriendAnswer();
-        go({ name: 'answer', qid: DEMO_FRIEND_QUESTIONNAIRE_ID });
-      },
-    ],
-    ['09 Успех', () => go({ name: 'success' })],
+    ['Старт', () => go({ name: 'start' })],
+    ['Твоя ссылка готова', () => goStack([{ name: 'inbox' }, { name: 'myLink' }])],
+    ['Мне задали', () => go({ name: 'inbox' })],
+    ['Ответить лично', () => inboxId && goStack([{ name: 'inbox' }, { name: 'answerInbox', id: inboxId }]), !inboxId],
+    ['Я спросил(а)', () => go({ name: 'asks' })],
+    ['Новый вопрос подписчикам', () => goStack([{ name: 'asks' }, { name: 'createAsk' }])],
+    ['Мой вопрос и ответы', () => askId && goStack([{ name: 'asks' }, { name: 'askDetail', id: askId }]), !askId],
+    ['Гость: задать вопрос', () => go({ name: 'askMe', slug: DEMO_FRIEND_SLUG })],
+    ['Своя ссылка глазами гостя', () => slug && go({ name: 'askMe', slug }), !slug],
+    ['Гость: вопрос отправлен', () => go({ name: 'sent', kind: 'question', slug: DEMO_FRIEND_SLUG })],
+    ['Подписчик: ответить на вопрос', () => go({ name: 'askReply', id: 'DEMOASK' })],
+    ['Подписчик: ответ отправлен', () => go({ name: 'sent', kind: 'answer' })],
+    ['Профиль', () => go({ name: 'profile' })],
+    ['Тарифы', () => go({ name: 'premium' })],
     ['Оплата прошла', () => go({ name: 'premiumSuccess' })],
     ['Ждём подтверждение', () => go({ name: 'premiumSuccess', pending: true })],
-    ['10 Настройки', () => go({ name: 'settings' })],
-    ['10b Подписка', () => go({ name: 'subscription' })],
+    ['Настройки', () => go({ name: 'settings' })],
+    ['Подписка', () => go({ name: 'subscription' })],
   ];
 
   return (
@@ -103,11 +100,11 @@ export function DemoPanel() {
                 </button>
               </div>
               <p className="small mb-[16px]">
-                Все ответы, имена и подписки — демонстрационные. Оплата не подключена. В production панель и данные отключаются (VITE_DEMO=false).
+                Все вопросы, ответы, имена и подписки — демонстрационные, ничего не уходит на сервер. Оплата не подключена.
               </p>
 
               <Section title="Сценарий">
-                {SCENARIOS.map(([id, label]) => (
+                {QA_SCENARIOS.map(([id, label]) => (
                   <Chip key={id} onClick={() => scenario(id)}>
                     {label}
                   </Chip>
@@ -123,17 +120,33 @@ export function DemoPanel() {
               </Section>
 
               <Section title="События">
-                <Chip disabled={!latest} onClick={() => demoControls.addRespondent()}>
-                  + Ответ друга {latest ? `(${latest.respondentCount})` : ''}
+                <Chip
+                  onClick={async () => {
+                    qaDemoControls.addQuestion();
+                    await refresh();
+                    go({ name: 'inbox' });
+                  }}
+                >
+                  + Вопрос мне
+                </Chip>
+                <Chip
+                  onClick={async () => {
+                    const id = qaDemoControls.addAskAnswer();
+                    await refresh();
+                    goStack([{ name: 'asks' }, { name: 'askDetail', id }]);
+                  }}
+                >
+                  + Ответ на мой вопрос
                 </Chip>
                 <Chip onClick={() => demoControls.setAutoRenew(!entitlement.autoRenew)}>
                   Автопродление: {entitlement.autoRenew ? 'вкл' : 'выкл'}
                 </Chip>
                 <Chip
                   onClick={async () => {
+                    qaDemoControls.reset();
                     demoControls.resetAll();
                     await refresh();
-                    go({ name: 'welcome' });
+                    go({ name: 'start' });
                   }}
                 >
                   Сбросить всё
@@ -147,6 +160,16 @@ export function DemoPanel() {
                   </Chip>
                 ))}
               </Section>
+
+              {INSIDE_APP && (
+                <button
+                  type="button"
+                  onClick={() => window.location.replace('/')}
+                  className="mt-[4px] w-full rounded-[12px] border border-line bg-[#101013] py-[12px] text-[15px] font-medium text-white active:scale-[0.98]"
+                >
+                  Выйти из демо в настоящее приложение
+                </button>
+              )}
             </motion.div>
           </motion.div>
         )}
