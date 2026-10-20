@@ -14,6 +14,7 @@
  *   (подписку и платежи не трогает).
  * TEST_REVOKE_MANUAL_PREMIUM_USERNAME=<username> — снимает только выданный вручную Premium (source 'manual'); платежи не трогает.
  * TEST_REVOKE_ALL_PREMIUM_USERNAME=<username> — полностью отключает подписку (отменяет в CloudPayments, удаляет доступ); история платежей остаётся.
+ * TEST_RESET_OFFER_SINCE=<ISO-время> — сбрасывает таймер 3-часового предложения у всех, кто его запустил после этого времени.
  * TEST_CLEAR_INBOX_USERNAME=<username> — удаляет все полученные вопросы (ссылка остаётся), вопрос дня придёт заново.
  * TEST_DELETE_QUESTIONNAIRES_USERNAME=<username> — удаляет все анкеты пользователя вместе с ответами (начать заново).
  */
@@ -153,6 +154,12 @@ export async function runTestSeed(): Promise<void> {
     const u = (await pool.query('SELECT id, username FROM users WHERE lower(username) = $1', [revokeAll])).rows[0];
     const left = u ? (await getPlan(u)).plan : null;
     console.log(`[test] @${revokeAll}: подписка отключена (${rows.length}), таймер предложения сброшен; тариф сейчас: ${left}`);
+  }
+
+  const offerSince = process.env.TEST_RESET_OFFER_SINCE;
+  if (offerSince) {
+    const r = await pool.query('UPDATE users SET offer_started_at = NULL WHERE offer_started_at >= $1::timestamptz', [offerSince]);
+    console.log(`[test] таймер предложения сброшен: ${r.rowCount}`);
   }
 
   const clearInbox = (process.env.TEST_CLEAR_INBOX_USERNAME || '').replace(/^@/, '').toLowerCase();

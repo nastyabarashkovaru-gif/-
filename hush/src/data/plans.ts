@@ -11,8 +11,8 @@ export interface Plan {
   periodLabel: string;
 }
 
-/** Обычные цены (точные цены считает сервер); скидочного предложения сейчас нет */
-export const STANDARD_PRICES: Record<PlanId, number> = { week: 99, month: 299, quarter: 1490, year: 1499 };
+/** Обычные цены; price в PLANS — цена по 3-часовому предложению (точные цены считает сервер) */
+export const STANDARD_PRICES: Record<PlanId, number> = { week: 299, month: 990, quarter: 1490, year: 6990 };
 
 export const PLANS: Plan[] = [
   { id: 'week', title: '1 неделя', caption: 'Попробовать', price: 99, settingsTitle: 'Premium на неделю', periodLabel: 'нед' },

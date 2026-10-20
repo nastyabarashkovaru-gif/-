@@ -6,19 +6,19 @@ export type Plan = 'week' | 'month' | 'quarter' | 'year';
 
 /**
  * Цены — только на сервере: клиент не может их подменить.
- * amount — цена для новых покупок, standard — обычная цена (сейчас совпадают: скидочного предложения нет).
+ * amount — цена по предложению (первые 3 часа после показа тарифов), standard — обычная цена.
  * interval/period — периодичность автосписания в CloudPayments, period_sql — тот же период для продления доступа.
  */
 export const PLANS: Record<Plan, { amount: number; standard: number; interval: 'Week' | 'Month'; period: number; periodSql: string; periodText: string; title: string }> = {
-  week: { amount: 99, standard: 99, interval: 'Week', period: 1, periodSql: '7 days', periodText: 'неделю', title: 'hush. Premium — 1 неделя' },
-  month: { amount: 299, standard: 299, interval: 'Month', period: 1, periodSql: '1 month', periodText: 'месяц', title: 'hush. Premium — 1 месяц' },
+  week: { amount: 99, standard: 299, interval: 'Week', period: 1, periodSql: '7 days', periodText: 'неделю', title: 'hush. Premium — 1 неделя' },
+  month: { amount: 299, standard: 990, interval: 'Month', period: 1, periodSql: '1 month', periodText: 'месяц', title: 'hush. Premium — 1 месяц' },
   // Не продаётся: остаётся у ранее оформивших
   quarter: { amount: 499, standard: 1490, interval: 'Month', period: 3, periodSql: '3 months', periodText: '3 месяца', title: 'hush. Premium — 3 месяца' },
-  year: { amount: 1499, standard: 1499, interval: 'Month', period: 12, periodSql: '12 months', periodText: '12 месяцев', title: 'hush. Premium — 1 год' },
+  year: { amount: 1499, standard: 6990, interval: 'Month', period: 12, periodSql: '12 months', periodText: '12 месяцев', title: 'hush. Premium — 1 год' },
 };
 
-/** Скидочное 3-часовое предложение выключено: все платят обычную цену */
-export const OFFER_ENABLED = false;
+/** Скидочное 3-часовое предложение (false — все платят обычную цену) */
+export const OFFER_ENABLED = true;
 
 /** Предложение действует 3 часа с первого показа тарифов */
 export const OFFER_HOURS = 3;
