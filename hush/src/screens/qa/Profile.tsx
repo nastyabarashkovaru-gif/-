@@ -2,7 +2,7 @@
  * HUSH 2.0: «Профиль» — личная ссылка, активность, Premium, настройки, поддержка.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Archive, ArrowUpRight, ChevronRight, Copy, CreditCard, Crown, FlaskConical, MessageCircle } from 'lucide-react';
+import { Archive, ArrowUpRight, ChevronRight, Copy, CreditCard, Crown, FlaskConical, MessageCircle, X } from 'lucide-react';
 import { api, usingMock, type Activity } from '@/api';
 import { config } from '@/config';
 import { PLAN_SUBTITLE } from '@/data/plans';
@@ -14,6 +14,9 @@ import { useAppState } from '@/state/AppState';
 import { Screen, TopBar, useToast } from '@/ui';
 import { Avatar, ShareLinkSheet, TAB_BAR_SPACE, useEnsureLink } from './common';
 
+/** Окошко «Нам важно твоё мнение» закрыто (localStorage) */
+const FEEDBACK_KEY = 'hush.feedbackBannerHidden';
+
 export function ProfileScreen() {
   const nav = useNav();
   const toast = useToast();
@@ -21,6 +24,21 @@ export function ProfileScreen() {
   const ensureLink = useEnsureLink();
   const [activity, setActivity] = useState<Activity | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [feedbackHidden, setFeedbackHidden] = useState(() => {
+    try {
+      return localStorage.getItem(FEEDBACK_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const hideFeedback = () => {
+    setFeedbackHidden(true);
+    try {
+      localStorage.setItem(FEEDBACK_KEY, '1');
+    } catch {
+      /* приватный режим — скроется до перезапуска */
+    }
+  };
 
   useEffect(() => {
     api.activity().then(setActivity).catch(() => {});
@@ -61,6 +79,28 @@ export function ProfileScreen() {
             {me.username && <span className="small">@{me.username}</span>}
           </div>
         </div>
+
+        {!feedbackHidden && (
+          <div className="flex items-start gap-[10px] rounded-[16px] border border-[#2a2930] bg-[#141318] px-[14px] py-[12px]">
+            <MessageCircle size={18} strokeWidth={1.8} className="mt-[2px] shrink-0 text-purple-text" aria-hidden />
+            <p className="flex-1 text-[14px] leading-[1.4] text-[#c9c6d1]">
+              Нам важно твоё мнение 💜 Оставь его, пожалуйста, по кнопке{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  track('feedback_clicked', 'profile_banner');
+                  support();
+                }}
+                className="font-medium text-purple-text underline underline-offset-[2px]"
+              >
+                «Поддержка»
+              </button>
+            </p>
+            <button type="button" onClick={hideFeedback} aria-label="Закрыть" className="-mr-[6px] -mt-[4px] flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full text-[#8e8b97] active:bg-[#1f1d26]">
+              <X size={16} strokeWidth={2} />
+            </button>
+          </div>
+        )}
 
         <div className="card-purple flex flex-col gap-[12px] !p-[16px]">
           <span className="step !text-purple-text">Ссылка для друзей и подписчиков</span>

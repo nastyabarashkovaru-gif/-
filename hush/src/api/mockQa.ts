@@ -284,9 +284,9 @@ export const mockQa: Pick<
     await delay();
     return { firstName: slug === db.slug ? 'Ты' : 'Аня', photoUrl: null, own: slug === db.slug };
   },
-  async sendQuestion(slug, text) {
+  async sendQuestion(slug, text, _key, revealIdentity) {
     await delay();
-    if (slug === db.slug) db.inbox.unshift({ id: uid(12), text, from: 'anon', status: 'new', answer: null, answeredAt: null, createdAt: new Date().toISOString() });
+    if (slug === db.slug) db.inbox.unshift({ id: uid(12), text, from: 'anon', status: 'new', answer: null, answeredAt: null, createdAt: new Date().toISOString(), consent: revealIdentity });
     else db.sent.unshift({ id: uid(12), text, recipient: { firstName: 'Аня', photoUrl: null }, answer: null, status: 'waiting', unread: false, answeredAt: null, createdAt: new Date().toISOString() });
     save();
     return { status: 'sent' };

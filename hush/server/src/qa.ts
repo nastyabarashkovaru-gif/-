@@ -149,13 +149,15 @@ type Identity = { firstName: string; lastName?: string; username?: string; photo
  * Без подписки не вызывается: клиент вообще не узнаёт, кто дал согласие.
  */
 async function authorsOf(rows: Array<{ id: string; consent: boolean; authorId: string | null; kind: string }>) {
-  const ids = [...new Set(rows.filter((r) => r.consent && r.authorId && r.kind === 'user').map((r) => r.authorId as string))];
+  // Вопрос самому себе с согласием тоже показывает профиль (свой) — иначе при проверке своей ссылки «Разрешить» выглядит сломанным
+  const named = (r: { consent: boolean; authorId: string | null; kind: string }) => r.consent && r.authorId && (r.kind === 'user' || r.kind === 'self');
+  const ids = [...new Set(rows.filter(named).map((r) => r.authorId as string))];
   const users = new Map<string, Identity>();
   if (ids.length) {
     const { rows: us } = await pool.query('SELECT id, first_name, last_name, username, photo_url FROM users WHERE id = ANY($1::bigint[])', [ids]);
     for (const u of us) users.set(String(u.id), { firstName: u.first_name, lastName: u.last_name ?? undefined, username: u.username ?? undefined, photoUrl: u.photo_url ?? undefined });
   }
-  return new Map(rows.map((r) => [r.id, (r.consent && r.kind === 'user' && r.authorId && users.get(String(r.authorId))) || null]));
+  return new Map(rows.map((r) => [r.id, (named(r) && users.get(String(r.authorId))) || null]));
 }
 
 export const qaApi = Router();
@@ -580,7 +582,7 @@ async function reveal(req: { user: TgUser }, consent: boolean, authorId: string 
     await log('requires_plan');
     return { status: 'requires_plan' as const };
   }
-  if (!consent || !authorId || kind !== 'user') {
+  if (!consent || !authorId || (kind !== 'user' && kind !== 'self')) {
     await log('anonymous');
     return { status: 'anonymous' as const };
   }

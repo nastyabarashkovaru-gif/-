@@ -116,6 +116,7 @@ const EVENTS = new Set([
   'app_open',
   'start_choice',
   'share_clicked',
+  'feedback_clicked',
   'link_copied',
   'question_typing_started',
   'guest_create_link',
