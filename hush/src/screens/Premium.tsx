@@ -142,7 +142,8 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
         {offerOn && (
           <div className="flex flex-col gap-[4px] rounded-[16px] border border-[#4a3a1a] bg-[#1f1910] px-[14px] py-[12px]">
             <div className="flex items-center justify-between gap-[10px] text-[15px] font-medium text-[#ffcf7a]">
-              <span>Скидка при оплате в ближайшие 3 часа</span>
+              {/* «3 часа» не разрываем: цифра переносится вместе со словом */}
+              <span>{'Скидка при оплате в ближайшие 3\u00a0часа'}</span>
               <span className="flex shrink-0 items-center gap-[5px] tabular-nums">
                 <Timer size={15} strokeWidth={2} aria-hidden />
                 {left === null ? '3:00:00' : formatLeft(left)}
