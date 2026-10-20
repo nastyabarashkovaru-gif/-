@@ -2,8 +2,8 @@
  * HUSH 2.0: первый экран, «Твоя ссылка готова!», форма вопроса по чужой ссылке, «Отправлено».
  */
 import { useEffect, useRef, useState } from 'react';
-import { motion } from 'motion/react';
-import { ArrowUpRight, Check, Copy, Eye, Instagram, Link2, Loader2, MessageCircleQuestion, Send } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { ArrowUpRight, Check, Copy, Eye, Instagram, Link2, Loader2, MessageCircleQuestion, Send, Sparkles, X } from 'lucide-react';
 import { api, ApiError, type PublicRecipient } from '@/api';
 import { track } from '@/lib/analytics';
 import { copyText } from '@/lib/share';
@@ -11,7 +11,7 @@ import { haptic, requestWriteAccess } from '@/lib/telegram';
 import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BackArrow, BigIcon, LoadingScreen, Logo, MessageScreen, Screen, Spacer, TopBar, useToast } from '@/ui';
-import { AnonymityChoice, Avatar, ChoiceCard, Chips, LinkStoriesSheet, newKey, QaTextarea, ShareLinkSheet, useEnsureLink, type Anonymity } from './common';
+import { AnonymityChoice, Avatar, ChoiceCard, LinkStoriesSheet, newKey, QaTextarea, ShareLinkSheet, useEnsureLink, type Anonymity } from './common';
 
 /* ───────── Первый экран нового пользователя ───────── */
 
@@ -166,13 +166,101 @@ export function MyLinkScreen() {
 
 /* ───────── Форма вопроса по личной ссылке ───────── */
 
-const SUGGESTED = [
-  'Что ты никогда не рассказывал(а) подписчикам?',
-  'В кого ты сейчас влюблён(а)?',
-  'Какой твой самый большой секрет?',
-  'О чём ты больше всего жалеешь?',
-  'Что тебя бесит в людях?',
+/** Вопросы для вдохновения: провокационные вперемешку с «нормальными», но не банальными (на них реально отвечают) */
+const INSPIRATION = [
+  'Секс по дружбе — да или нет?',
+  'Сколько реально зарабатываешь?',
+  'Что ты последний раз обсуждала с психологом?',
+  'Изменяла когда-нибудь?',
+  'Был секс на первом свидании?',
+  'Какое решение в жизни ты бы отменила, если бы могла?',
+  'Сколько у тебя было партнёров?',
+  'За сколько согласишься на рекламу того, чем не пользуешься?',
+  'Когда ты последний раз плакала и из-за чего?',
+  'С кем из блогеров ты на самом деле не общаешься?',
+  'Сколько денег сейчас на карте?',
+  'Какое мнение о тебе самое несправедливое?',
+  'Был роман с женатым?',
+  'Кому из бывших написала бы снова?',
+  'Что бы ты сделала, если бы точно знала, что никто не узнает?',
+  'Делала пластику и скрываешь?',
+  'С кем встречаешься тайно?',
+  'Какой самый неловкий момент был у тебя на свидании?',
+  'Самая дорогая вещь, которую тебе подарили?',
+  'Ты когда-нибудь встречалась ради денег?',
+  'Чего ты боишься в отношениях больше всего?',
+  'Какой самый большой долг у тебя был?',
+  'Есть человек, которому ты завидуешь?',
+  'За что тебе до сих пор стыдно перед кем-то?',
+  'Сколько стоит один твой рекламный пост?',
+  'Ты когда-нибудь врала подписчикам?',
+  'Кем ты мечтала стать в детстве — и что пошло не так?',
+  'Кто из блогеров тебя бесит?',
+  'Возвращалась к бывшему ради секса?',
+  'Что тебя больше всего бесит в отношениях?',
+  'Сколько максимум тратила за день?',
+  'Был ли у тебя любовный треугольник?',
+  'С кем из подписчиков ты бы встретилась вживую?',
+  'Сколько тебе нужно денег для счастья?',
+  'Ты когда-нибудь покупала подписчиков?',
+  'Какую привычку ты бы в себе изменила?',
+  'Какой секрет скрываешь от родителей?',
+  'Было стыдно за человека, с которым встречалась?',
+  'Что ты думаешь о себе, но никогда не говоришь вслух?',
+  'Кого сталкеришь в соцсетях?',
+  'Какой поступок до сих пор скрываешь?',
+  'Какую сумму ты бы отдала, чтобы забыть одно воспоминание?',
+  'С кем из известных людей хотела бы замутить?',
+  'Что самое безумное делала из-за любви?',
+  'Что в тебе чаще всего понимают неправильно?',
 ];
+
+/** Окно «Вопросы для вдохновения»: нажатие вставляет вопрос в поле */
+function InspirationSheet({ open, onClose, onPick }: { open: boolean; onClose: () => void; onPick: (text: string) => void }) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div className="fixed inset-0 z-50 bg-black/70" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+          <motion.div
+            role="dialog"
+            aria-label="Вопросы для вдохновения"
+            className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[85dvh] max-w-app flex-col rounded-t-[22px] border border-b-0 border-[#2a2930] bg-[#121216]"
+            style={{ paddingBottom: 'calc(16px + var(--safe-bottom))' }}
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', stiffness: 380, damping: 36 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-center justify-between px-[20px] pb-[8px] pt-[18px]">
+              <h2 className="h2">Вопросы для вдохновения ✨</h2>
+              <button type="button" onClick={onClose} aria-label="Закрыть" className="-mr-[8px] flex h-11 w-11 items-center justify-center rounded-full active:opacity-50">
+                <X size={20} strokeWidth={1.8} color="#a1a1aa" />
+              </button>
+            </div>
+            <p className="small shrink-0 px-[20px] pb-[10px]">Нажми на вопрос — он появится в поле, его можно изменить</p>
+            <div className="flex flex-col gap-[8px] overflow-y-auto px-[20px] pb-[8px]">
+              {INSPIRATION.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => {
+                    haptic.select();
+                    onPick(q);
+                    onClose();
+                  }}
+                  className="rounded-[14px] border border-[#2a2930] bg-[#141318] px-[14px] py-[12px] text-left text-[15px] leading-[1.35] text-[#e6e3ea] active:scale-[0.99] active:border-purple"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
 const QUESTION_MAX = 300;
 
 export function AskMeScreen({ slug }: { slug: string }) {
@@ -186,6 +274,7 @@ export function AskMeScreen({ slug }: { slug: string }) {
   // Шаг 2: остаться анонимным или разрешить узнать, кто спросил
   const [step, setStep] = useState<'write' | 'choice'>('write');
   const [choice, setChoice] = useState<Anonymity>('anonymous');
+  const [inspiration, setInspiration] = useState(false);
   const key = useRef(newKey());
   const typed = useRef(false);
 
@@ -259,7 +348,22 @@ export function AskMeScreen({ slug }: { slug: string }) {
         <p className="muted !text-[16px] -mt-[4px]">Спроси то, что давно хотел узнать 🤫</p>
       </div>
       <QaTextarea value={text} onChange={change} placeholder="Напиши свой вопрос…" max={QUESTION_MAX} rows={4} label="Твой вопрос" />
-      <Chips items={SUGGESTED} onPick={(t) => change(t)} />
+      <p className="-mt-[4px] text-[14px] leading-[1.45] text-[#9a97a3]">
+        Задавай любые: от простых «3 черты, что тебя бесит в людях?» до провокационных «Был секс на первом свидании?»
+      </p>
+      <button
+        type="button"
+        onClick={() => {
+          haptic.tap();
+          track('inspiration_opened', 'ask_me');
+          setInspiration(true);
+        }}
+        className="cta-dark"
+      >
+        <Sparkles size={18} strokeWidth={1.8} className="text-purple-text" aria-hidden />
+        Вопросы для вдохновения ✨
+      </button>
+      <InspirationSheet open={inspiration} onClose={() => setInspiration(false)} onPick={(t) => change(t)} />
       <Spacer min={6} />
       <button type="button" onClick={() => setStep('choice')} disabled={!text.trim()} className="cta-purple">
         Продолжить

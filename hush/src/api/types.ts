@@ -405,6 +405,7 @@ export type AnalyticsEvent =
   | 'start_choice'
   | 'share_clicked'
   | 'feedback_clicked'
+  | 'inspiration_opened'
   | 'blogger_proof_sent'
   | 'link_copied'
   | 'question_typing_started'
