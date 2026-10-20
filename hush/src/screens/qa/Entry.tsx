@@ -226,7 +226,7 @@ export function AskMeScreen({ slug }: { slug: string }) {
       void requestWriteAccess().then((granted) => {
         if (granted) api.grantWriteAccess().catch(() => {});
       });
-      nav.setStack([{ name: 'sent', kind: 'question', slug }]);
+      nav.setStack([{ name: 'sent', kind: 'question', slug, revealed: choice === 'reveal' }]);
     } catch (e) {
       setSending(false);
       toast.show(e instanceof ApiError && e.code === 'rate_limited' ? 'Слишком много вопросов подряд. Попробуй чуть позже' : 'Не удалось отправить. Попробуй ещё раз');
@@ -272,19 +272,14 @@ export function AskMeScreen({ slug }: { slug: string }) {
 
 /* ───────── Отправлено + вирусный CTA ───────── */
 
-export function SentScreen({ kind, slug }: { kind: 'question' | 'answer'; slug?: string }) {
+export function SentScreen({ kind, slug, revealed }: { kind: 'question' | 'answer'; slug?: string; revealed?: boolean }) {
   const nav = useNav();
   const toast = useToast();
-  const { qa } = useAppState();
   const ensureLink = useEnsureLink();
   const [busy, setBusy] = useState(false);
-  const hasLink = Boolean(qa?.askSlug);
 
+  // Всегда к готовой личной ссылке (создаём, если её ещё нет) — сразу можно делиться
   const create = async () => {
-    if (hasLink) {
-      nav.reset({ name: 'inbox' });
-      return;
-    }
     setBusy(true);
     track('guest_create_link', kind);
     try {
@@ -306,11 +301,12 @@ export function SentScreen({ kind, slug }: { kind: 'question' | 'answer'; slug?:
         </BigIcon>
       </motion.div>
       <h1 className="h1 text-center">{kind === 'question' ? 'Твой вопрос отправлен! 💜' : 'Твой ответ отправлен! 💜'}</h1>
-      <p className="muted text-center">
-        {kind === 'question'
-          ? 'Это анонимно. Тебе ответят прямо в приложении.'
-          : 'Это было анонимно — никто не узнает, что это ты.'}
-      </p>
+      {/* Если автор разрешил себя показать, про анонимность не пишем */}
+      {kind === 'question' ? (
+        <p className="muted text-center">{revealed ? 'Тебе ответят прямо в приложении.' : 'Это анонимно. Тебе ответят прямо в приложении.'}</p>
+      ) : (
+        !revealed && <p className="muted text-center">Это было анонимно — никто не узнает, что это ты.</p>
+      )}
       <Spacer />
       {/* Одна большая кнопка без лишнего текста — понятный результат: тебе тоже начнут задавать вопросы */}
       <motion.button
@@ -325,7 +321,7 @@ export function SentScreen({ kind, slug }: { kind: 'question' | 'answer'; slug?:
         transition={{ delay: 0.2, duration: 0.35 }}
         className="cta-purple !min-h-[64px] shrink-0 !text-[18px] !font-semibold active:scale-[0.98]"
       >
-        {busy ? <Loader2 size={22} className="animate-spin" aria-label="Загрузка" /> : hasLink ? 'Перейти к своим вопросам' : 'Хочу тоже получать вопросы 🤫'}
+        {busy ? <Loader2 size={22} className="animate-spin" aria-label="Загрузка" /> : 'Хочу тоже получать вопросы 🤫'}
       </motion.button>
       {kind === 'question' && slug && (
         <button type="button" onClick={() => nav.setStack([{ name: 'askMe', slug }])} className="mx-auto -my-1 px-2 py-1 text-[15px] text-[#a1a1aa] active:opacity-60">

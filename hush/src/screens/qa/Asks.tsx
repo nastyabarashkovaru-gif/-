@@ -454,7 +454,7 @@ export function AskReplyScreen({ id }: { id: string }) {
     try {
       await api.answerAsk(ask.id, text.trim(), key.current, choice === 'reveal');
       haptic.notify('success');
-      nav.setStack([{ name: 'sent', kind: 'answer' }]);
+      nav.setStack([{ name: 'sent', kind: 'answer', revealed: choice === 'reveal' }]);
     } catch (e) {
       setSending(false);
       if (e instanceof ApiError && e.code === 'already_answered') toast.show('Ты уже отвечал(а) на этот вопрос');

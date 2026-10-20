@@ -30,7 +30,7 @@ export type Route =
   /** Форма вопроса по личной ссылке (u_<slug>) */
   | { name: 'askMe'; slug: string }
   /** Отправлено: вопрос по личной ссылке или ответ на чужой вопрос */
-  | { name: 'sent'; kind: 'question' | 'answer'; slug?: string }
+  | { name: 'sent'; kind: 'question' | 'answer'; slug?: string; revealed?: boolean }
   | { name: 'answerInbox'; id: string }
   | { name: 'createAsk' }
   /** Свой вопрос: ответы; fresh — только что создан */

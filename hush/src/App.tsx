@@ -72,7 +72,7 @@ function renderRoute(route: Route) {
     case 'askMe':
       return <AskMeScreen slug={route.slug} />;
     case 'sent':
-      return <SentScreen kind={route.kind} slug={route.slug} />;
+      return <SentScreen kind={route.kind} slug={route.slug} revealed={route.revealed} />;
     case 'answerInbox':
       return <AnswerInboxScreen id={route.id} />;
     case 'createAsk':
