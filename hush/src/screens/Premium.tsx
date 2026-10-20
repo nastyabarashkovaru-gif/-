@@ -13,6 +13,9 @@ import { useNav } from '@/nav/Navigator';
 import { useAppState } from '@/state/AppState';
 import { BigIcon, CloseButton, Cta, Screen, Spacer, TopBar, useToast } from '@/ui';
 
+/** Тариф-«хит»: выбран по умолчанию и выделен зелёным */
+const HIT_PLAN: PlanId = DEFAULT_PLAN;
+
 const PERIOD: Record<PlanId, string> = { week: 'неделю', month: 'месяц', quarter: '3 месяца', year: 'год' };
 
 const BENEFITS = [
@@ -150,6 +153,8 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
         )}
         {PLANS.filter((p) => SOLD_PLAN_IDS.includes(p.id)).map((p) => {
           const active = p.id === plan;
+          // Неделя — «ХИТ 🔥», выделена зелёным
+          const hit = p.id === HIT_PLAN;
           return (
             <button
               key={p.id}
@@ -162,7 +167,13 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
               }}
               className={cn(
                 'flex flex-col gap-[6px] rounded-[18px] border px-[12px] py-[14px] text-left transition-[background-color,border-color,box-shadow] duration-200',
-                active ? 'border-purple bg-[#1d1429] shadow-[inset_0_0_0_1px_#a855f7]' : 'border-[#2a2930] bg-[#141318]',
+                active
+                  ? hit
+                    ? 'border-green bg-[#0f1f15] shadow-[inset_0_0_0_1px_#4ADE80]'
+                    : 'border-purple bg-[#1d1429] shadow-[inset_0_0_0_1px_#a855f7]'
+                  : hit
+                    ? 'border-[#2f5c3e] bg-[#141318]'
+                    : 'border-[#2a2930] bg-[#141318]',
               )}
             >
               <div className="flex items-center justify-between gap-[10px]">
@@ -170,13 +181,14 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
                   <span
                     className={cn(
                       'flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full transition-colors',
-                      active ? 'border-2 border-purple-text' : 'bg-[#5d5a66]',
+                      active ? (hit ? 'border-2 border-green' : 'border-2 border-purple-text') : 'bg-[#5d5a66]',
                     )}
                     aria-hidden
                   >
-                    {active && <span className="h-[7px] w-[7px] rounded-full bg-purple-text" />}
+                    {active && <span className={cn('h-[7px] w-[7px] rounded-full', hit ? 'bg-green' : 'bg-purple-text')} />}
                   </span>
                   {p.title}
+                  {hit && <span className="rounded-full bg-green px-[8px] py-[2px] text-[12px] font-bold leading-[16px] text-[#06210f]">ХИТ 🔥</span>}
                 </span>
                 <span className="flex items-baseline gap-[8px]">
                   {offerOn && <s className="text-[15px] text-[#77737f]">{formatRub(pricing.standard[p.id])}</s>}
