@@ -308,9 +308,11 @@ export const mockQa: Pick<
     const a = findAsk(id);
     // Без подписки — первые 3 ответа по времени, остальные под замком
     const open = new Set([...a.answers].reverse().slice(0, hasPlan() ? a.answers.length : FREE_ANSWERS).map((x) => x.id));
-    const answers: AskAnswer[] = a.answers.map((x, i) =>
+    // Как на сервере: без подписки — по порядку (3 бесплатных сверху), с подпиской — новые сверху
+    const ordered = hasPlan() ? a.answers : [...a.answers].reverse();
+    const answers: AskAnswer[] = ordered.map((x) =>
       open.has(x.id)
-        ? { id: x.id, text: x.text, createdAt: x.createdAt, ...(hasPlan() ? { author: authorOf(x.consent, i) } : {}) }
+        ? { id: x.id, text: x.text, createdAt: x.createdAt, ...(hasPlan() ? { author: authorOf(x.consent, a.answers.indexOf(x)) } : {}) }
         : { id: x.id, text: null, locked: true, createdAt: x.createdAt },
     );
     return { ask: strip(a), answers };

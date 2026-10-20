@@ -358,15 +358,16 @@ export function AskDetailScreen({ id, fresh }: { id: string; fresh?: boolean }) 
                   <span className="select-none text-[16px] leading-[1.45] text-[#c9c6d1] blur-[5px]" aria-hidden>
                     Этот ответ скрыт, открой его с подпиской
                   </span>
-                  <span className="flex items-center gap-[6px] text-[14px] font-medium text-purple-text">
+                  <span className="flex items-center gap-[6px] text-[15px] font-medium text-purple-text">
                     <Lock size={15} strokeWidth={1.9} aria-hidden />
-                    Бесплатно видны 3 ответа — открыть все с Premium
+                    Открыть с Premium
                   </span>
+                  <span className="text-[13px] text-[#8e8b97]">Бесплатно открыты первые 3 ответа</span>
                 </button>
               ) : (
                 <p className="whitespace-pre-line text-[16px] leading-[1.45]">{x.text}</p>
               )}
-              <AuthorSlot author={x.author} kind="ask" />
+              {!x.locked && <AuthorSlot author={x.author} kind="ask" />}
             </article>
           ))}
         </div>

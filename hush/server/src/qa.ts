@@ -459,7 +459,8 @@ qaApi.get(
     });
     return {
       ask: { id: a.id, text: a.text, createdAt: a.created_at.toISOString(), answerCount: rows.length, link: askLink(a.id) },
-      answers: answers.reverse(),
+      // Без подписки — по порядку: сверху 3 бесплатных (самые ранние), ниже закрытые новые; с подпиской — новые сверху
+      answers: premium ? answers.reverse() : answers,
     };
   }),
 );
