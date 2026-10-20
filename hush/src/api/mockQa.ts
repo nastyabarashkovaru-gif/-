@@ -10,6 +10,8 @@ const DEMO_DAILY = ['Что в тебе чаще всего понимают н�
 const THRESHOLD = 5;
 /** Без подписки видны первые 3 ответа на свой вопрос (как FREE_ASK_ANSWERS) */
 const FREE_ANSWERS = 3;
+/** Без подписки открыты первые 5 полученных вопросов (как FREE_INBOX_OPEN) */
+const FREE_INBOX = 5;
 
 /** consent — автор разрешил узнать, кто он (в демо видно только через «Узнать автора») */
 type StoredInbox = InboxItem & { consent?: boolean };
@@ -109,10 +111,11 @@ const strip = ({ answers, ...a }: StoredAsk): AskSummary => ({ ...a, answerCount
 const view = ({ consent: _c, ...i }: StoredInbox): InboxItem => i;
 
 function revealOf(consent: boolean | undefined, index: number): RevealResult {
-  if (!consent) return { status: 'anonymous' };
   if (!hasPlan()) return { status: 'requires_plan' };
+  if (!consent) return { status: 'anonymous' };
   return { status: 'revealed', identity: DEMO_IDENTITIES[index % DEMO_IDENTITIES.length] };
 }
+const authorOf = (consent: boolean | undefined, index: number) => (consent ? DEMO_IDENTITIES[index % DEMO_IDENTITIES.length] : null);
 
 function makeInbox(count: number) {
   return Array.from({ length: count }, (_, i): StoredInbox => ({
@@ -213,7 +216,16 @@ export const mockQa: Pick<
     }
     const collected = realCount();
     if (collected < THRESHOLD) return { items: [], gate: { collected, required: THRESHOLD } };
-    return { items: db.inbox.map(view) };
+    const premium = hasPlan();
+    const real = db.inbox.filter((i) => i.from !== 'hush');
+    const open = new Set([...db.inbox.filter((i) => i.from === 'hush'), ...[...real].reverse().slice(0, premium ? real.length : FREE_INBOX)].map((i) => i.id));
+    const author = (i: StoredInbox) => (premium ? { author: authorOf(i.from !== 'hush' && i.consent, db.inbox.indexOf(i)) } : {});
+    return {
+      items: [
+        ...db.inbox.filter((i) => open.has(i.id)).map((i) => ({ ...view(i), ...author(i) })),
+        ...db.inbox.filter((i) => !open.has(i.id)).map((i) => ({ ...view(i), text: null, answer: null, locked: true })),
+      ],
+    };
   },
   async answerInbox(id, text) {
     await delay();
@@ -296,7 +308,11 @@ export const mockQa: Pick<
     const a = findAsk(id);
     // Без подписки — первые 3 ответа по времени, остальные под замком
     const open = new Set([...a.answers].reverse().slice(0, hasPlan() ? a.answers.length : FREE_ANSWERS).map((x) => x.id));
-    const answers: AskAnswer[] = a.answers.map((x) => (open.has(x.id) ? { id: x.id, text: x.text, createdAt: x.createdAt } : { id: x.id, text: null, locked: true, createdAt: x.createdAt }));
+    const answers: AskAnswer[] = a.answers.map((x, i) =>
+      open.has(x.id)
+        ? { id: x.id, text: x.text, createdAt: x.createdAt, ...(hasPlan() ? { author: authorOf(x.consent, i) } : {}) }
+        : { id: x.id, text: null, locked: true, createdAt: x.createdAt },
+    );
     return { ask: strip(a), answers };
   },
   async deleteAsk(id) {

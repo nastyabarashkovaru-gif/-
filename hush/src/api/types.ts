@@ -204,7 +204,11 @@ export interface InboxGate {
 
 export interface InboxItem {
   id: string;
-  text: string;
+  /** null — вопрос закрыт (без подписки открыты первые 5) */
+  text: string | null;
+  locked?: boolean;
+  /** Только с подпиской: профиль автора, если он разрешил, иначе null («пожелал остаться анонимным») */
+  author?: RevealedIdentity | null;
   /** Все вопросы выглядят как анонимные (вопрос дня — тоже) */
   from: 'anon' | 'hush';
   /** answered — ответил лично, story — ответил в сторис */
@@ -240,6 +244,8 @@ export interface AskAnswer {
   /** null — ответ под замком (без подписки видны первые 3) */
   text: string | null;
   locked?: boolean;
+  /** Только с подпиской: профиль автора, если он разрешил, иначе null */
+  author?: RevealedIdentity | null;
   createdAt: string;
 }
 
@@ -357,7 +363,7 @@ export type AnalyticsEvent =
   | 'reveal_clicked';
 
 /** Откуда пользователь пришёл на экран Premium — для конверсии в покупку */
-export type UpsellSource = 'new_questionnaire' | 'custom_question' | 'question_library' | 'reveal' | 'ask_limit' | 'answers_locked';
+export type UpsellSource = 'new_questionnaire' | 'custom_question' | 'question_library' | 'reveal' | 'ask_limit' | 'answers_locked' | 'inbox_locked';
 
 /** Порог уникальных ответов до открытия результатов */
 export const RESULTS_THRESHOLD = 5;

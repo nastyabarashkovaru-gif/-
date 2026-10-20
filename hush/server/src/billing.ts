@@ -54,7 +54,7 @@ billingApi.post('/checkout', rateLimit('checkout', 20, 60 * 60_000), async (req:
   const amount = (await pricingFor(req.user.id, true)).prices[plan];
   const orderId = `H${newId(11)}`;
   // Откуда пришёл покупатель — для конверсии апсейла
-  const source = ['new_questionnaire', 'custom_question', 'question_library', 'reveal', 'ask_limit', 'answers_locked'].includes(req.body?.source)
+  const source = ['new_questionnaire', 'custom_question', 'question_library', 'reveal', 'ask_limit', 'answers_locked', 'inbox_locked'].includes(req.body?.source)
     ? req.body.source
     : null;
   await pool.query('INSERT INTO orders (id, user_id, plan, amount, source) VALUES ($1, $2, $3, $4, $5)', [

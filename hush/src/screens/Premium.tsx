@@ -18,7 +18,7 @@ const PERIOD: Record<PlanId, string> = { week: 'неделю', month: 'меся�
 const BENEFITS = [
   { title: 'Узнай, кто задал вопрос 👀', text: 'Безлимит на «Узнать автора» — если автор разрешил показать свой профиль.', green: true },
   { title: 'Узнай, кто ответил на твой вопрос', text: 'Смотри профиль ответивших подписчиков, если они это разрешили.' },
-  { title: 'Все ответы без замков', text: 'Бесплатно видны первые 3 ответа на каждый твой вопрос. С Premium — все.' },
+  { title: 'Все вопросы и ответы без замков', text: 'Бесплатно открыты первые 5 вопросов тебе и 3 ответа на каждый твой вопрос. С Premium — все.' },
 ];
 
 /**
@@ -113,7 +113,7 @@ export function PremiumScreen({ source }: { source?: UpsellSource }) {
       </BigIcon>
       <div className="-mt-[4px] flex flex-col gap-[10px] text-center">
         <h1 className="h1">Узнай всё, что о тебе думают 👀</h1>
-        <p className="muted !text-[16px]">Вопросы и ответы — бесплатно. С Premium узнаешь, кто тебя спросил и кто ответил 😍</p>
+        <p className="muted !text-[16px]">Узнай, кто тебя спросил и кто ответил, и открой все вопросы и ответы 😍</p>
       </div>
 
       <ul className="flex flex-col gap-[18px]">

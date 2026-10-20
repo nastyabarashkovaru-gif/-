@@ -117,8 +117,9 @@ async function ownAsk(id: string, userId: number) {
   return rows[0] as { id: string; owner_id: string; text: string; created_at: Date };
 }
 
-/** Вопросы открываются, когда их наберётся 5 (анонимность); после этого все бесплатны */
+/** Вопросы открываются, когда их наберётся 5 (анонимность); без подписки открыты первые 5, дальше — по подписке */
 export const INBOX_THRESHOLD = 5;
+export const FREE_INBOX_OPEN = 5;
 
 async function inboxAccess(user: TgUser) {
   const { rows } = await pool.query<{ id: string; kind: string }>(
@@ -128,13 +129,33 @@ async function inboxAccess(user: TgUser) {
   // Порог считаем только по настоящим вопросам (вопрос дня не помогает его набрать)
   const collected = rows.filter((r) => r.kind !== 'system').length;
   if (collected < INBOX_THRESHOLD) return { collected, gated: true, open: new Set<string>() };
-  return { collected, gated: false, open: new Set(rows.map((r) => r.id)) };
+  const premium = await isPremium(user);
+  // Вопрос дня открыт всегда; из настоящих вопросов без подписки — первые 5 полученных
+  const real = rows.filter((r) => r.kind !== 'system');
+  const open = premium ? rows : [...rows.filter((r) => r.kind === 'system'), ...real.slice(0, FREE_INBOX_OPEN)];
+  return { collected, gated: false, premium, open: new Set(open.map((r) => r.id)) };
 }
 
-/** Ответ, сторис, «узнать автора» — только когда вопросы открылись (набралось 5) */
+/** Ответ, сторис, «узнать автора» — только по открытому вопросу (набралось 5, и он бесплатный или есть подписка) */
 async function requireOpen(user: TgUser, id: string) {
   const access = await inboxAccess(user);
-  if (!access.open.has(id)) throw new HttpError('not_found');
+  if (access.gated) throw new HttpError('not_found');
+  if (!access.open.has(id)) throw new HttpError('premium_required');
+}
+
+type Identity = { firstName: string; lastName?: string; username?: string; photoUrl?: string };
+/**
+ * Авторы для подписчика: профиль — только если автор разрешил (consent), иначе null («пожелал остаться анонимным»).
+ * Без подписки не вызывается: клиент вообще не узнаёт, кто дал согласие.
+ */
+async function authorsOf(rows: Array<{ id: string; consent: boolean; authorId: string | null; kind: string }>) {
+  const ids = [...new Set(rows.filter((r) => r.consent && r.authorId && r.kind === 'user').map((r) => r.authorId as string))];
+  const users = new Map<string, Identity>();
+  if (ids.length) {
+    const { rows: us } = await pool.query('SELECT id, first_name, last_name, username, photo_url FROM users WHERE id = ANY($1::bigint[])', [ids]);
+    for (const u of us) users.set(String(u.id), { firstName: u.first_name, lastName: u.last_name ?? undefined, username: u.username ?? undefined, photoUrl: u.photo_url ?? undefined });
+  }
+  return new Map(rows.map((r) => [r.id, (r.consent && r.kind === 'user' && r.authorId && users.get(String(r.authorId))) || null]));
 }
 
 export const qaApi = Router();
@@ -174,11 +195,23 @@ qaApi.get(
     const access = await inboxAccess(req.user);
     // Пока не набралось 5 вопросов — только счётчик, сами вопросы не уходят с сервера
     if (access.gated) return { items: [], gate: { collected: access.collected, required: INBOX_THRESHOLD } };
-    const { rows } = await pool.query<InboxRow>(
-      `SELECT ${INBOX_COLS} FROM inbox WHERE recipient_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 300`,
+    const { rows } = await pool.query<InboxRow & { sender_id: string | null; consent_reveal: boolean }>(
+      `SELECT ${INBOX_COLS}, sender_id, consent_reveal FROM inbox WHERE recipient_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 300`,
       [req.user.id],
     );
-    return { items: rows.map(inboxView) };
+    // С подпиской авторы видны сразу на месте кнопки «Узнать, кто спросил»
+    const authors = access.premium
+      ? await authorsOf(rows.map((r) => ({ id: r.id, consent: Boolean(r.consent_reveal), authorId: r.sender_id, kind: r.kind })))
+      : null;
+    // Открытые сверху (новые первыми), закрытые по подписке — внизу
+    const open = rows.filter((r) => access.open.has(r.id));
+    const locked = rows.filter((r) => !access.open.has(r.id));
+    return {
+      items: [
+        ...open.map((r) => ({ ...inboxView(r), ...(authors ? { author: authors.get(r.id) ?? null } : {}) })),
+        ...locked.map((r) => ({ ...inboxView(r), text: null, answer: null, locked: true })),
+      ],
+    };
   }),
 );
 
@@ -410,14 +443,17 @@ qaApi.get(
     const a = await ownAsk(req.params.id, req.user.id);
     // Результаты видны сразу, без порога ответивших
     const { rows } = await pool.query(
-      'SELECT id, text, created_at FROM ask_answers WHERE ask_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 500',
+      'SELECT id, text, created_at, respondent_id, kind, consent_reveal FROM ask_answers WHERE ask_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 500',
       [a.id],
     );
-    // Без подписки открыты первые 3 ответа; текст закрытых не покидает сервер
+    // Без подписки открыты первые 3 ответа; текст закрытых не покидает сервер. С подпиской — сразу и авторы
     const premium = await isPremium(req.user);
+    const authors = premium
+      ? await authorsOf(rows.map((x) => ({ id: x.id, consent: Boolean(x.consent_reveal), authorId: x.respondent_id, kind: x.kind })))
+      : null;
     const answers = rows.map((x, i) => {
       const locked = !premium && i >= FREE_ASK_ANSWERS;
-      return { id: x.id, text: locked ? null : x.text, locked, createdAt: x.created_at.toISOString() };
+      return { id: x.id, text: locked ? null : x.text, locked, createdAt: x.created_at.toISOString(), ...(authors ? { author: authors.get(x.id) ?? null } : {}) };
     });
     return {
       ask: { id: a.id, text: a.text, createdAt: a.created_at.toISOString(), answerCount: rows.length, link: askLink(a.id) },
@@ -539,13 +575,14 @@ qaApi.post(
  */
 async function reveal(req: { user: TgUser }, consent: boolean, authorId: string | null, kind: string, target: string) {
   const log = (result: string) => logEvent(req.user.id, 'reveal', `${target}_${result}`);
-  if (!consent || !authorId || kind !== 'user') {
-    await log('anonymous');
-    return { status: 'anonymous' as const };
-  }
+  // Сначала подписка: без неё не сообщаем, разрешил ли автор себя показать
   if (!(await isPremium(req.user))) {
     await log('requires_plan');
     return { status: 'requires_plan' as const };
+  }
+  if (!consent || !authorId || kind !== 'user') {
+    await log('anonymous');
+    return { status: 'anonymous' as const };
   }
   const { rows } = await pool.query('SELECT first_name, last_name, username, photo_url FROM users WHERE id = $1', [authorId]);
   const u = rows[0];

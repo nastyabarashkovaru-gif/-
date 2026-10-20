@@ -15,7 +15,7 @@ import { useAppState } from '@/state/AppState';
 import { BackArrow, BigIcon, Cta, LoadingScreen, Logo, MessageScreen, Screen, Spacer, TopBar, useToast } from '@/ui';
 import { AnswerStoriesSheet } from './AnswerStories';
 import { QuestionsHeader } from './Inbox';
-import { ActionSheet, AnonymityChoice, Avatar, Chips, newKey, QaTextarea, RevealButton, ShareLinkSheet, TAB_BAR_SPACE, timeAgo, useReveal, type Anonymity, type SheetAction } from './common';
+import { ActionSheet, AnonymityChoice, Avatar, Chips, newKey, QaTextarea, AuthorSlot, ShareLinkSheet, TAB_BAR_SPACE, timeAgo, type Anonymity, type SheetAction } from './common';
 
 const answersLabel = (n: number) => `${n} ${plural(n, ['ответ', 'ответа', 'ответов'])}`;
 
@@ -206,10 +206,9 @@ export function CreateAskScreen() {
 export function AskDetailScreen({ id, fresh }: { id: string; fresh?: boolean }) {
   const nav = useNav();
   const toast = useToast();
-  const { refresh } = useAppState();
+  const { refresh, isPremium } = useAppState();
   const [data, setData] = useState<{ ask: AskSummary; answers: AskAnswer[] } | null>(null);
   const [error, setError] = useState(false);
-  const reveal = useReveal();
   const [shareOpen, setShareOpen] = useState(false);
   const [menuFor, setMenuFor] = useState<AskAnswer | null>(null);
   const [storyFor, setStoryFor] = useState<AskAnswer | null>(null);
@@ -221,7 +220,8 @@ export function AskDetailScreen({ id, fresh }: { id: string; fresh?: boolean }) 
       .then(setData)
       .catch(() => setError(true));
   }, [id]);
-  useEffect(load, [load]);
+  // После покупки подписки — сразу все ответы и авторы
+  useEffect(load, [load, isPremium]);
 
   const back = () => (nav.canGoBack ? nav.back() : nav.reset({ name: 'asks' }));
 
@@ -355,14 +355,13 @@ export function AskDetailScreen({ id, fresh }: { id: string; fresh?: boolean }) 
               ) : (
                 <p className="whitespace-pre-line text-[16px] leading-[1.45]">{x.text}</p>
               )}
-              <RevealButton busy={reveal.busy === `ask:${x.id}`} onClick={() => reveal.run(`ask:${x.id}`, () => api.revealAskAnswer(ask.id, x.id))} />
+              <AuthorSlot author={x.author} kind="ask" />
             </article>
           ))}
         </div>
       )}
 
       <ShareLinkSheet open={shareOpen} onClose={() => setShareOpen(false)} link={ask.link} kind="ask" askText={ask.text} source={fresh ? 'ask_created' : 'ask_detail'} />
-      {reveal.modal}
       <ActionSheet open={!!menuFor} onClose={() => setMenuFor(null)} title="Ответ" actions={menuFor ? answerActions(menuFor) : []} />
       <ActionSheet
         open={askMenu}
