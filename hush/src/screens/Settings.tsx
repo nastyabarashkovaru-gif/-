@@ -125,7 +125,8 @@ export function SubscriptionScreen() {
   const discounted = Math.round(amount / 2);
   // Предупреждение честно, только если пользователь платит меньше обычной цены своего тарифа
   const standardPrice = entitlement.plan ? pricing.standard[entitlement.plan] : 0;
-  const showWarning = !!plan && !pricing.returning && amount < standardPrice;
+  // При постоянной скидке «вернуться — уже без скидки» было бы неправдой — окно не показываем
+  const showWarning = !!plan && !pricing.permanentOffer && !pricing.returning && amount < standardPrice;
 
   const startCancel = () => {
     if (showWarning) setStep('warning');
