@@ -16,6 +16,8 @@
  * TEST_REVOKE_ALL_PREMIUM_USERNAME=<username> — полностью отключает подписку (отменяет в CloudPayments, удаляет доступ); история платежей остаётся.
  * TEST_RESET_OFFER_SINCE=<ISO-время> — сбрасывает таймер 3-часового предложения у всех, кто его запустил после этого времени.
  * TEST_RESET_OFFER_USERNAMES=<u1,u2> — заново запускает 3-часовое предложение у этих пользователей (таймер и отметка об отмене подписки).
+ * TEST_RESET_STATS=true — статистика в админке начинается заново с этого момента (данные пользователей и платежи не удаляются).
+ * TEST_UNBLOGGER_USERNAME=<username> — убирает пользователя из блогеров (метка, скриншоты, подарочный Premium).
  * TEST_CLEAR_INBOX_USERNAME=<username> — удаляет все полученные вопросы (ссылка остаётся), вопрос дня придёт заново.
  * TEST_DELETE_QUESTIONNAIRES_USERNAME=<username> — удаляет все анкеты пользователя вместе с ответами (начать заново).
  */
@@ -167,6 +169,25 @@ export async function runTestSeed(): Promise<void> {
   if (offerUsers.length) {
     const r = await pool.query('UPDATE users SET offer_started_at = NULL, cancelled_at = NULL WHERE lower(username) = ANY($1)', [offerUsers]);
     console.log(`[test] предложение заново для ${offerUsers.join(', ')}: ${r.rowCount}`);
+  }
+
+  if (process.env.TEST_RESET_STATS === 'true') {
+    await pool.query(
+      "INSERT INTO app_settings (key, value) VALUES ('stats_since', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+      [new Date().toISOString()],
+    );
+    console.log('[test] статистика админки начинается заново с', new Date().toISOString());
+  }
+
+  const unblogger = (process.env.TEST_UNBLOGGER_USERNAME || '').replace(/^@/, '').toLowerCase();
+  if (unblogger) {
+    const { rows } = await pool.query('SELECT id FROM users WHERE lower(username) = $1', [unblogger]);
+    for (const u of rows) {
+      await pool.query('DELETE FROM blogger_proofs WHERE user_id = $1', [u.id]);
+      const e = await pool.query("DELETE FROM entitlements WHERE user_id = $1 AND source = 'blogger'", [u.id]);
+      await pool.query('UPDATE users SET blogger_at = NULL, blogger_campaign = NULL, blogger_premium_at = NULL WHERE id = $1', [u.id]);
+      console.log(`[test] @${unblogger}: убран из блогеров, подарочный Premium снят: ${e.rowCount}`);
+    }
   }
 
   const clearInbox = (process.env.TEST_CLEAR_INBOX_USERNAME || '').replace(/^@/, '').toLowerCase();

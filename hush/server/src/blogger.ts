@@ -8,7 +8,7 @@
 import express, { Router, type Request, type Response } from 'express';
 import type { TgUser } from './auth';
 import { isAdmin } from './admin';
-import { pool, tx } from './db';
+import { pool, statsSince, tx } from './db';
 import { handle, HttpError } from './http';
 import { rateLimit } from './rateLimit';
 import { appLink, notifyUser } from './telegram';
@@ -99,19 +99,22 @@ const managerOf = (campaign: string | null) => (campaign && campaign.startsWith(
 bloggerAdminApi.get(
   '/',
   handle(async () => {
+    // Статистика — с момента последнего сброса (как и вся админка)
+    const since = await statsSince();
+    const S = (col: string) => `${col} >= '${since}'::timestamptz`;
     // Пришедшие по ссылкам блогера — referred_by (личная ссылка или свой вопрос блогера); выручка — их настоящие оплаты
     const { rows } = await pool.query(`
       SELECT u.id, u.first_name, u.username, u.blogger_at, u.blogger_campaign, u.blogger_premium_at, u.ask_slug IS NOT NULL AS has_link,
-        EXISTS (SELECT 1 FROM events e WHERE e.user_id = u.id AND e.name IN ('story_shared', 'story_sheet_opened')) AS story_clicked,
+        EXISTS (SELECT 1 FROM events e WHERE e.user_id = u.id AND e.name IN ('story_shared', 'story_sheet_opened') AND ${S('e.created_at')}) AS story_clicked,
         (SELECT p.id FROM blogger_proofs p WHERE p.user_id = u.id ORDER BY p.created_at DESC LIMIT 1) AS proof_id,
-        (SELECT COUNT(*) FROM inbox i WHERE i.recipient_id = u.id AND i.kind = 'user')::int AS questions,
-        (SELECT COUNT(*) FROM users g WHERE g.referred_by = u.id)::int AS guests,
-        (SELECT COUNT(*) FROM users g WHERE g.referred_by = u.id AND g.ask_slug IS NOT NULL)::int AS guests_links,
-        (SELECT COUNT(*) FROM asks a JOIN users g ON g.id = a.owner_id WHERE g.referred_by = u.id)::int AS guests_asks,
-        (SELECT COUNT(*) FROM questionnaires q JOIN users g ON g.id = q.owner_id WHERE g.referred_by = u.id)::int AS guests_questionnaires,
-        (SELECT COUNT(DISTINCT p.user_id) FROM payments p JOIN users g ON g.id = p.user_id WHERE g.referred_by = u.id AND NOT p.test_mode)::int AS payers,
-        (SELECT COALESCE(SUM(p.amount), 0) FROM payments p JOIN users g ON g.id = p.user_id WHERE g.referred_by = u.id AND NOT p.test_mode) AS revenue
-      FROM users u WHERE u.blogger_at IS NOT NULL
+        (SELECT COUNT(*) FROM inbox i WHERE i.recipient_id = u.id AND i.kind = 'user' AND ${S('i.created_at')})::int AS questions,
+        (SELECT COUNT(*) FROM users g WHERE g.referred_by = u.id AND ${S('g.created_at')})::int AS guests,
+        (SELECT COUNT(*) FROM users g WHERE g.referred_by = u.id AND g.ask_slug IS NOT NULL AND ${S('g.created_at')})::int AS guests_links,
+        (SELECT COUNT(*) FROM asks a JOIN users g ON g.id = a.owner_id WHERE g.referred_by = u.id AND ${S('a.created_at')})::int AS guests_asks,
+        (SELECT COUNT(*) FROM questionnaires q JOIN users g ON g.id = q.owner_id WHERE g.referred_by = u.id AND ${S('q.created_at')})::int AS guests_questionnaires,
+        (SELECT COUNT(DISTINCT p.user_id) FROM payments p JOIN users g ON g.id = p.user_id WHERE g.referred_by = u.id AND NOT p.test_mode AND ${S('p.created_at')})::int AS payers,
+        (SELECT COALESCE(SUM(p.amount), 0) FROM payments p JOIN users g ON g.id = p.user_id WHERE g.referred_by = u.id AND NOT p.test_mode AND ${S('p.created_at')}) AS revenue
+      FROM users u WHERE u.blogger_at IS NOT NULL AND ${S('u.blogger_at')}
       ORDER BY revenue DESC, guests DESC, u.blogger_at DESC
       LIMIT 500`);
     const bloggers = rows.map((r) => ({

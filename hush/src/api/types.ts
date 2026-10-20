@@ -151,6 +151,8 @@ export interface Pricing {
 
 type Periods = { today: number | string; d7: number | string; d30: number | string; total: number | string };
 export interface AdminStats {
+  /** С какого момента считается статистика (после сброса) */
+  since?: string;
   /** HUSH 2.0 */
   qa?: {
     links: Periods;

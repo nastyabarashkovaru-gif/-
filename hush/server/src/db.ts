@@ -89,6 +89,12 @@ export async function migrate(): Promise<void> {
       reviewed_at TIMESTAMPTZ
     );
     CREATE INDEX IF NOT EXISTS blogger_proofs_user_idx ON blogger_proofs(user_id, created_at);
+
+    -- Настройки приложения (stats_since — с какого момента считается статистика в админке)
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
     -- Недельный тариф
     ALTER TABLE entitlements DROP CONSTRAINT IF EXISTS entitlements_plan_check;
     ALTER TABLE entitlements ADD CONSTRAINT entitlements_plan_check CHECK (plan IN ('week', 'month', 'quarter', 'year'));
@@ -245,4 +251,11 @@ export async function migrate(): Promise<void> {
       (SELECT coalesce(sum(amount), 0) FROM orders o WHERE o.source = f.flow AND o.status = 'paid') AS revenue_rub
     FROM flows f;
   `);
+}
+
+/** С какого момента считается статистика в админке («сбросить статистику» не удаляет данные пользователей) */
+export async function statsSince(): Promise<string> {
+  const { rows } = await pool.query("SELECT value FROM app_settings WHERE key = 'stats_since'");
+  const v = rows[0]?.value as string | undefined;
+  return v && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : '1970-01-01T00:00:00.000Z';
 }

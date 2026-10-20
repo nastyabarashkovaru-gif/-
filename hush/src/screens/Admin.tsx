@@ -54,6 +54,9 @@ export function AdminScreen() {
         <p className="muted">Загружаем…</p>
       ) : (
         <>
+          {stats.since && stats.since > '1971' && (
+            <p className="small -mt-[6px]">Статистика считается с {new Date(stats.since).toLocaleString('ru-RU', { dateStyle: 'long', timeStyle: 'short' })}</p>
+          )}
           <BloggersSection />
           {stats.qa && <QaSections qa={stats.qa} />}
 
