@@ -22,7 +22,7 @@ export const PLANS: Plan[] = [
 ];
 
 /** Тариф по умолчанию */
-export const DEFAULT_PLAN: PlanId = 'month';
+export const DEFAULT_PLAN: PlanId = 'week';
 /** Тарифы для новых покупок; 3 месяца — только у ранее оформивших */
 export const SOLD_PLAN_IDS: PlanId[] = ['week', 'month', 'year'];
 
