@@ -92,7 +92,7 @@ function mockPricing(): Pricing {
   const endsAt = db.offerStartedAt ? db.offerStartedAt + 3 * 3600_000 : null;
   const active = endsAt === null || endsAt > Date.now();
   const offer = Object.fromEntries(PLANS.map((p) => [p.id, p.price])) as Pricing['prices'];
-  return { prices: active ? offer : { ...STANDARD_PRICES }, standard: { ...STANDARD_PRICES }, offerEndsAt: active && endsAt ? new Date(endsAt).toISOString() : null, returning: false, permanentOffer: true };
+  return { prices: active ? offer : { ...STANDARD_PRICES }, standard: { ...STANDARD_PRICES }, offerEndsAt: active && endsAt ? new Date(endsAt).toISOString() : null, returning: false };
 }
 
 const delay = (ms = 260) => new Promise((r) => setTimeout(r, ms + Math.random() * 120));

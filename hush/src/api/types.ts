@@ -147,8 +147,6 @@ export interface Pricing {
   offerEndsAt: string | null;
   /** Отменял подписку — предложение не положено */
   returning: boolean;
-  /** Скидка действует всегда (таймер перезапускается при каждом открытии тарифов) */
-  permanentOffer?: boolean;
 }
 
 type Periods = { today: number | string; d7: number | string; d30: number | string; total: number | string };

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { BarChart3, ChevronRight, CreditCard, Crown, EyeOff, Gift, HeartCrack, ListChecks, Lock, LockOpen, MessageCircle, User } from 'lucide-react';
+import { BarChart3, ChevronRight, CreditCard, Crown, EyeOff, Gift, HeartCrack, ListChecks, Lock, LockOpen, MessageCircle, Tag, User } from 'lucide-react';
 import { config } from '@/config';
 import { PLAN_SUBTITLE, planById } from '@/data/plans';
 import { cn } from '@/lib/cn';
@@ -119,24 +119,28 @@ export function SubscriptionScreen() {
   const plan = entitlement.plan ? planById(entitlement.plan) : null;
 
   const [busy, setBusy] = useState(false);
-  /** Удерживающие окна перед отменой: предупреждение о стандартной цене → скидка −50% на следующий платёж */
-  const [step, setStep] = useState<'none' | 'warning' | 'offer'>('none');
+  /** Удерживающие окна перед отменой: что потеряешь → вернуться можно только без скидки → скидка −50% на следующий платёж */
+  const [step, setStep] = useState<'none' | 'warning' | 'price' | 'offer'>('none');
   const amount = entitlement.amount ?? plan?.price ?? 0;
   const discounted = Math.round(amount / 2);
   // Предупреждение честно, только если пользователь платит меньше обычной цены своего тарифа
   const standardPrice = entitlement.plan ? pricing.standard[entitlement.plan] : 0;
-  // Окно 1 показываем всегда; строку «вернуться — уже без скидки» — только если это правда (скидка не постоянная)
+  // Окно 1 — всегда; окно 2 «вернуться — уже без скидки» — если платит меньше обычной цены (после отмены скидки и таймера нет)
   const showWarning = !!plan;
-  const showPriceWarning = !!plan && !pricing.permanentOffer && !pricing.returning && amount < standardPrice;
+  const showPriceWarning = !!plan && amount < standardPrice;
 
   const startCancel = () => {
     if (showWarning) setStep('warning');
     else if (entitlement.retentionOfferAvailable) setStep('offer');
     else void cancelSubscription();
   };
-  const afterWarning = () => {
+  const toOffer = () => {
     if (entitlement.retentionOfferAvailable) setStep('offer');
     else void cancelSubscription();
+  };
+  const afterWarning = () => {
+    if (showPriceWarning) setStep('price');
+    else toOffer();
   };
 
   const acceptDiscount = async () => {
@@ -254,13 +258,7 @@ export function SubscriptionScreen() {
             <li className="flex gap-[8px]"><EyeOff size={18} strokeWidth={1.8} className="mt-[1px] shrink-0 text-purple-text" aria-hidden />Кто тебя спросил и кто ответил — авторы снова скроются</li>
             <li className="flex gap-[8px]"><Lock size={18} strokeWidth={1.8} className="mt-[1px] shrink-0 text-purple-text" aria-hidden />Новые вопросы после 5-го и ответы после 3-го — под замком</li>
           </ul>
-          {showPriceWarning && (
-            <p className="muted">
-              Если отменишь, а потом захочешь вернуться, подписка будет стоить уже{' '}
-              <span className="whitespace-nowrap text-white">{plan ? `${formatRub(standardPrice)} / ${plan.periodLabel}` : ''}</span> — без скидки. Сейчас
-              ты платишь <span className="whitespace-nowrap text-white">{formatRub(amount)}</span>.
-            </p>
-          )}
+
           <Cta onClick={() => setStep('none')} className="mt-[6px]">
             Остаться с Premium 💜
           </Cta>
@@ -270,7 +268,30 @@ export function SubscriptionScreen() {
         </div>
       </Modal>
 
-      {/* Окно 2: последнее предложение — скидка 50% только на следующий платёж */}
+      {/* Окно 2: после отмены вернуться можно только по обычной цене */}
+      <Modal open={step === 'price'} onClose={() => setStep('none')} labelledBy="price-title">
+        <div className="card-purple flex flex-col gap-[14px] !px-[18px] !pb-[20px] !pt-[28px] text-center">
+          <BigIcon size={64}>
+            <Tag size={28} strokeWidth={1.8} />
+          </BigIcon>
+          <h2 id="price-title" className="h2">
+            Скидка сгорит 🔥
+          </h2>
+          <p className="muted">
+            В следующий раз, если захочешь снова узнать, кто тебе написал, цена подписки будет без скидки:{' '}
+            <span className="whitespace-nowrap text-white">{plan ? `${formatRub(standardPrice)} / ${plan.periodLabel}` : ''}</span> вместо{' '}
+            <span className="whitespace-nowrap text-white">{formatRub(amount)}</span>.
+          </p>
+          <Cta onClick={() => setStep('none')} className="mt-[6px]">
+            Сохранить скидку 💜
+          </Cta>
+          <button type="button" onClick={toOffer} disabled={busy} className="mx-auto -mt-[4px] px-3 py-2 text-[15px] text-[#a1a1aa] active:opacity-60">
+            Потерять скидку
+          </button>
+        </div>
+      </Modal>
+
+      {/* Окно 3: последнее предложение — скидка 50% только на следующий платёж */}
       <Modal open={step === 'offer'} onClose={() => !busy && setStep('none')} labelledBy="offer-title">
         <div className="card-purple flex flex-col gap-[14px] !px-[18px] !pb-[20px] !pt-[28px] text-center">
           <BigIcon size={64}>

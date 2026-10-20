@@ -20,8 +20,8 @@ export const PLANS: Record<Plan, { amount: number; standard: number; interval: '
 /** Скидочное 3-часовое предложение (false — все платят обычную цену) */
 export const OFFER_ENABLED = true;
 /**
- * Маркетинговый таймер: предложение действует всегда, а 3 часа отсчитываются заново при каждом открытии тарифов
- * (в том числе для отменявших подписку). false — один раз с первого открытия, после отмены подписки — без скидки.
+ * Маркетинговый таймер: предложение действует всегда, а 3 часа отсчитываются заново при каждом открытии тарифов.
+ * false — один раз с первого открытия. В обоих режимах после отмены подписки — только обычные цены, без таймера.
  */
 export const OFFER_ALWAYS = true;
 
@@ -38,8 +38,6 @@ export interface Pricing {
   offerEndsAt: string | null;
   /** Пользователь отменял подписку — предложение ему не положено */
   returning: boolean;
-  /** Скидка действует всегда (таймер — маркетинговый, перезапускается при каждом открытии тарифов) */
-  permanentOffer: boolean;
 }
 
 /**
@@ -58,14 +56,13 @@ export async function pricingFor(userId: number, start = false): Promise<Pricing
   const started = rows[0]?.offer_started_at ? new Date(rows[0].offer_started_at).getTime() : null;
   const endsAt = started === null ? null : started + OFFER_HOURS * 3600_000;
   // Пока таймер не запущен, предложение ещё впереди — показываем 299 ₽
-  const offerActive = OFFER_ENABLED && (OFFER_ALWAYS || (!returning && (endsAt === null || endsAt > Date.now())));
+  const offerActive = OFFER_ENABLED && !returning && (OFFER_ALWAYS || endsAt === null || endsAt > Date.now());
   const pick = (plan: Plan) => (offerActive ? PLANS[plan].amount : PLANS[plan].standard);
   return {
     prices: { week: pick('week'), month: pick('month'), quarter: pick('quarter'), year: pick('year') },
     standard: { week: PLANS.week.standard, month: PLANS.month.standard, quarter: PLANS.quarter.standard, year: PLANS.year.standard },
     offerEndsAt: offerActive && endsAt !== null ? new Date(endsAt).toISOString() : null,
     returning,
-    permanentOffer: OFFER_ENABLED && OFFER_ALWAYS,
   };
 }
 
