@@ -41,7 +41,7 @@ export function StartScreen() {
         <h1 className="text-[32px] font-bold leading-[1.12] tracking-[-0.6px]">
           Узнай, что о тебе думают. <span className="text-purple">И что хотят спросить.</span>
         </h1>
-        <p className="muted !text-[16px]">Получай анонимные вопросы от подписчиков и отвечай на них в соцсетях.</p>
+        <p className="muted !text-[16px]">Получай анонимные вопросы от подписчиков и друзей, а также анонимные ответы о себе.</p>
       </motion.div>
       <Spacer min={8} />
       <motion.div className="flex flex-col gap-[12px]" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}>
@@ -54,8 +54,8 @@ export function StartScreen() {
         />
         <ChoiceCard
           icon={<MessageCircleQuestion size={22} strokeWidth={1.9} />}
-          title="Задать свой вопрос"
-          text="Задавай любые вопросы, на которые ты получишь анонимные ответы. Например: «Какое было твоё первое впечатление обо мне?»"
+          title="Получить ответ на свой вопрос"
+          text="Например: «Какое впечатление я произвожу? Уверенная, застенчивая, холодная и недоступная? Только честно.»"
           onClick={() => {
             track('start_choice', 'ask');
             nav.setStack([{ name: 'asks' }, { name: 'createAsk' }]);

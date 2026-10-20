@@ -403,7 +403,7 @@ export function CreateSheet({ open, onClose }: { open: boolean; onClose: () => v
         />
         <ChoiceCard
           icon={<MessageCircleQuestion size={22} strokeWidth={1.9} />}
-          title="Задать свой вопрос"
+          title="Получить ответ на свой вопрос"
           text="Задай подписчикам любой вопрос и получи анонимные ответы"
           onClick={() => {
             track('start_choice', 'create_ask');
