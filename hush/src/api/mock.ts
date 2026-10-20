@@ -269,11 +269,11 @@ export const mockApi: HushApi = {
   },
   async sendBloggerProof() {
     await delay(300);
-    return { status: 'pending' as const };
+    return { status: 'approved' as const };
   },
   async adminBloggers() {
     await delay(200);
-    return { link: 'https://t.me/Hush_miniapp_bot/app?startapp=blogger', premiumDays: 30, funnel: { opened: 0, made_link: 0, story_clicked: 0, proof_sent: 0, premium_given: 0, waiting: 0 }, bloggers: [] };
+    return { link: 'https://t.me/Hush_miniapp_bot/app?startapp=blogger', premiumDays: 30, funnel: { opened: 0, made_link: 0, story_clicked: 0, proof_sent: 0, premium_given: 0 }, totals: { guests: 0, guestsLinks: 0, questions: 0, payers: 0, revenue: 0 }, managers: [], bloggers: [] };
   },
   async adminBloggerProof() {
     return { image: '' };
@@ -281,8 +281,8 @@ export const mockApi: HushApi = {
   async adminApproveBlogger() {
     return { status: 'approved' };
   },
-  async adminRejectBlogger() {
-    return { status: 'rejected' };
+  async adminBloggerQuestions() {
+    return { items: [] };
   },
   async adminStats() {
     await delay(200);

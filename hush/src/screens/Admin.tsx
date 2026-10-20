@@ -369,9 +369,7 @@ function QaSections({ qa }: { qa: NonNullable<AdminStats['qa']> }) {
   );
 }
 
-/* ───────── Блогеры: ссылка, воронка, проверка скриншотов сторис и выдача Premium ───────── */
-
-const PROOF_LABEL: Record<string, string> = { pending: 'Ждёт проверки', approved: 'Принят', rejected: 'Отклонён' };
+/* ───────── Блогеры: ссылка, воронка, выручка по блогерам и рассыльщикам, вопросы блогера ───────── */
 
 function BloggersSection() {
   const toast = useToast();
@@ -382,113 +380,140 @@ function BloggersSection() {
   useEffect(load, []);
   if (!data) return null;
   const f = data.funnel;
-  const rows: Array<[string, number]> = [
-    ['Открыли ссылку', f.opened],
-    ['Создали свою ссылку', f.made_link],
-    ['Нажали «в сторис»', f.story_clicked],
-    ['Прислали скриншот', f.proof_sent],
-    ['Выдан Premium', f.premium_given],
-  ];
+  const t = data.totals;
   return (
-    <Section title="Блогеры" note={`Ссылка для блогеров. За сторис — Premium на ${data.premiumDays} дней (выдаётся кнопкой ниже)`}>
-      <button
-        type="button"
-        onClick={async () => {
-          if (await copyText(data.link)) toast.show('Ссылка для блогеров скопирована');
-        }}
-        className="flex items-center gap-[8px] rounded-[12px] border border-[#3a2d4d] bg-[#141018] px-[12px] py-[10px] text-left active:scale-[0.99]"
-      >
-        <span className="min-w-0 flex-1 break-all text-[14px] text-purple-text">{data.link.replace(/^https?:\/\//, '')}</span>
-        <Copy size={16} strokeWidth={1.8} className="shrink-0 text-[#a1a1aa]" aria-hidden />
-      </button>
-      {rows.map(([label, value]) => (
-        <Line key={label} label={label} value={String(value)} />
-      ))}
-      {f.waiting > 0 && <Line label="Ждут проверки сейчас" value={String(f.waiting)} />}
-      <div className="mt-[6px] flex flex-col gap-[10px]">
+    <>
+      <Section title="Блогеры" note={`Общая ссылка; для рассыльщика — …?startapp=bl_<имя>. За скриншот сторис — Premium на ${Math.round(data.premiumDays / 30)} мес. сразу`}>
+        <button
+          type="button"
+          onClick={async () => {
+            if (await copyText(data.link)) toast.show('Ссылка для блогеров скопирована');
+          }}
+          className="flex items-center gap-[8px] rounded-[12px] border border-[#3a2d4d] bg-[#141018] px-[12px] py-[10px] text-left active:scale-[0.99]"
+        >
+          <span className="min-w-0 flex-1 break-all text-[14px] text-purple-text">{data.link.replace(/^https?:\/\//, '')}</span>
+          <Copy size={16} strokeWidth={1.8} className="shrink-0 text-[#a1a1aa]" aria-hidden />
+        </button>
+        <Line label="Открыли ссылку" value={String(f.opened)} />
+        <Line label="Создали свою ссылку" value={String(f.made_link)} />
+        <Line label="Нажали «в сторис»" value={String(f.story_clicked)} />
+        <Line label="Прислали скриншот сторис" value={String(f.proof_sent)} />
+        <Line label="Выдан Premium" value={String(f.premium_given)} />
+      </Section>
+
+      <Section title="Что принесли блогеры" note="По людям, пришедшим по ссылкам блогеров; выручка — без тестовых платежей">
+        <Line label="Заработали с блогеров" value={rub(t.revenue)} />
+        <Line label="Пришло людей" value={String(t.guests)} />
+        <Line label="Из них создали свою ссылку" value={String(t.guestsLinks)} />
+        <Line label="Заплатили" value={String(t.payers)} />
+        <Line label="Вопросов блогерам" value={String(t.questions)} />
+      </Section>
+
+      {data.managers.length > 0 && (
+        <Section title="Рассыльщики" note="Метка из ссылки bl_<имя>; «—» — общая ссылка">
+          {data.managers.map((m) => (
+            <Line key={m.manager} label={`${m.manager} · блогеров ${m.bloggers} · со сторис ${m.withStory} · людей ${m.guests}`} value={rub(m.revenue)} />
+          ))}
+        </Section>
+      )}
+
+      <Section title="Все блогеры" note="Сверху — кто принёс больше денег. Нажми, чтобы открыть подробности">
         {data.bloggers.map((b) => (
-          <BloggerRow key={b.id} b={b} premiumDays={data.premiumDays} onChange={load} />
+          <BloggerRow key={b.id} b={b} onChange={load} />
         ))}
         {!data.bloggers.length && <p className="small">Пока никто не открыл ссылку для блогеров.</p>}
-      </div>
-    </Section>
+      </Section>
+    </>
   );
 }
 
-function BloggerRow({ b, premiumDays, onChange }: { b: AdminBlogger; premiumDays: number; onChange: () => void }) {
+function BloggerRow({ b, onChange }: { b: AdminBlogger; onChange: () => void }) {
   const toast = useToast();
+  const [open, setOpen] = useState(false);
   const [image, setImage] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<Array<{ text: string; createdAt: string }> | null>(null);
   const [busy, setBusy] = useState(false);
   const name = b.username ? `@${b.username}` : b.firstName;
-  const act = async (fn: () => Promise<unknown>, done: string) => {
-    setBusy(true);
-    try {
-      await fn();
-      toast.show(done);
-      onChange();
-    } catch {
-      toast.show('Не получилось. Попробуй ещё раз');
-    } finally {
-      setBusy(false);
-    }
+
+  const toggle = () => {
+    setOpen(!open);
+    if (!open && !questions) api.adminBloggerQuestions(b.id).then((r) => setQuestions(r.items)).catch(() => setQuestions([]));
   };
+
   return (
     <div className="flex flex-col gap-[8px] rounded-[14px] border border-[#2a2930] bg-[#101013] p-[12px]">
-      <div className="flex items-center justify-between gap-[8px]">
-        {b.username ? (
-          <a href={`https://t.me/${b.username}`} target="_blank" rel="noreferrer" className="truncate text-[15px] font-semibold text-purple-text">
-            {name}
-          </a>
-        ) : (
+      <button type="button" onClick={toggle} className="flex flex-col gap-[6px] text-left">
+        <span className="flex w-full items-center justify-between gap-[8px]">
           <span className="truncate text-[15px] font-semibold">{name}</span>
-        )}
-        <span className={`shrink-0 text-[12px] ${b.premiumAt ? 'text-green' : b.proof?.status === 'pending' ? 'text-[#ffcf7a]' : 'text-[#8e8b97]'}`}>
-          {b.premiumAt ? 'Premium выдан' : b.proof ? PROOF_LABEL[b.proof.status] : 'Без скриншота'}
+          <span className="shrink-0 text-[15px] font-semibold text-green">{rub(b.revenue)}</span>
         </span>
-      </div>
-      <p className="text-[13px] leading-[1.4] text-[#9a97a3]">
-        {new Date(b.openedAt).toLocaleDateString('ru-RU')} · ссылка {b.hasLink ? '✓' : '—'} · сторис {b.storyClicked ? '✓' : '—'} · пришло {b.guests} · вопросов {b.questions}
-        {b.campaign && b.campaign !== 'blogger' ? ` · ${b.campaign}` : ''}
-      </p>
-      {b.proof && !image && (
-        <button
-          type="button"
-          onClick={() => api.adminBloggerProof(b.proof!.id).then((r) => setImage(r.image)).catch(() => toast.show('Не удалось открыть скриншот'))}
-          className="self-start text-[14px] font-medium text-purple-text underline underline-offset-[2px]"
-        >
-          Показать скриншот
-        </button>
-      )}
-      {image && <img src={image} alt={`Скриншот сторис ${name}`} className="max-h-[420px] w-auto self-start rounded-[10px] border border-[#2a2930]" />}
-      {!b.premiumAt && b.proof?.status === 'pending' && (
-        <div className="flex gap-[8px]">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => act(() => api.adminApproveBlogger(b.id), `Premium на ${premiumDays} дней выдан ${name}`)}
-            className="flex-1 rounded-[12px] bg-green py-[10px] text-[14px] font-semibold text-[#06210f] active:scale-[0.98] disabled:opacity-50"
-          >
-            Выдать Premium
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => act(() => api.adminRejectBlogger(b.id), 'Отклонено — блогер получит уведомление')}
-            className="flex-1 rounded-[12px] border border-[#3a2930] py-[10px] text-[14px] font-medium text-[#f3c4c4] active:scale-[0.98] disabled:opacity-50"
-          >
-            Отклонить
-          </button>
+        <span className="text-[13px] leading-[1.4] text-[#9a97a3]">
+          {b.manager ? `${b.manager} · ` : ''}пришло {b.guests} · создали ссылку {b.guestsLinks} · заплатили {b.payers} · вопросов {b.questions}
+        </span>
+        <span className={`text-[12px] ${b.premiumAt ? 'text-green' : 'text-[#8e8b97]'}`}>
+          {b.premiumAt ? 'Сторис прислал · Premium выдан' : b.storyClicked ? 'Нажал «в сторис», скриншота нет' : 'Без сторис'}
+        </span>
+      </button>
+
+      {open && (
+        <div className="flex flex-col gap-[10px] border-t border-[#2a2930] pt-[10px]">
+          <p className="text-[13px] leading-[1.5] text-[#c9c6d1]">
+            Открыл: {new Date(b.openedAt).toLocaleDateString('ru-RU')}
+            <br />
+            Своя ссылка: {b.hasLink ? 'есть' : 'нет'} · своих вопросов у пришедших: {b.guestsAsks} · анкет (старых): {b.guestsQuestionnaires}
+          </p>
+          {b.username && (
+            <a href={`https://t.me/${b.username}`} target="_blank" rel="noreferrer" className="self-start text-[14px] font-medium text-purple-text underline underline-offset-[2px]">
+              Написать {name}
+            </a>
+          )}
+          {b.proofId && !image && (
+            <button
+              type="button"
+              onClick={() => api.adminBloggerProof(b.proofId!).then((r) => setImage(r.image)).catch(() => toast.show('Не удалось открыть скриншот'))}
+              className="self-start text-[14px] font-medium text-purple-text underline underline-offset-[2px]"
+            >
+              Показать скриншот сторис
+            </button>
+          )}
+          {image && <img src={image} alt={`Скриншот сторис ${name}`} className="max-h-[420px] w-auto self-start rounded-[10px] border border-[#2a2930]" />}
+          <div className="flex flex-col gap-[6px]">
+            <span className="step">Вопросы блогеру</span>
+            {!questions ? (
+              <p className="small">Загружаем…</p>
+            ) : questions.length ? (
+              questions.map((q, i) => (
+                <p key={i} className="rounded-[10px] bg-[#141318] px-[10px] py-[8px] text-[14px] leading-[1.4]">
+                  {q.text}
+                  <span className="ml-[6px] text-[12px] text-[#6f6b78]">{new Date(q.createdAt).toLocaleDateString('ru-RU')}</span>
+                </p>
+              ))
+            ) : (
+              <p className="small">Пока вопросов нет</p>
+            )}
+          </div>
+          {!b.premiumAt && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await api.adminApproveBlogger(b.id);
+                  toast.show(`Premium выдан ${name}`);
+                  onChange();
+                } catch {
+                  toast.show('Не получилось. Попробуй ещё раз');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              className="self-start text-[13px] text-[#8e8b97] underline underline-offset-[2px]"
+            >
+              Выдать Premium вручную (если скриншот прислали в личку)
+            </button>
+          )}
         </div>
-      )}
-      {!b.premiumAt && b.proof?.status !== 'pending' && (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => act(() => api.adminApproveBlogger(b.id), `Premium на ${premiumDays} дней выдан ${name}`)}
-          className="self-start text-[13px] text-[#8e8b97] underline underline-offset-[2px]"
-        >
-          Выдать Premium без скриншота
-        </button>
       )}
     </div>
   );

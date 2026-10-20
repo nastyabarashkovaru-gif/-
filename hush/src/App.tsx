@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import { Send, WifiOff } from 'lucide-react';
-import { usingMock } from '@/api';
+import { usingMock, type UpsellSource } from '@/api';
 import { config } from '@/config';
 import { getStartParam } from '@/lib/telegram';
 import { NavigatorProvider, useNav } from '@/nav/Navigator';
@@ -10,7 +10,7 @@ import { AdminScreen } from '@/screens/Admin';
 import { AskDetailScreen, AskReplyScreen, AsksScreen, CreateAskScreen } from '@/screens/qa/Asks';
 import { TabBar } from '@/screens/qa/common';
 import { AskMeScreen, MyLinkScreen, SentScreen, StartScreen } from '@/screens/qa/Entry';
-import { BloggerScreen } from '@/screens/qa/Blogger';
+import { BloggerGiftScreen } from '@/screens/qa/Blogger';
 import { AnswerInboxScreen, InboxScreen } from '@/screens/qa/Inbox';
 import { ProfileScreen } from '@/screens/qa/Profile';
 import { track } from '@/lib/analytics';
@@ -42,7 +42,7 @@ function renderRoute(route: Route) {
     case 'dashboard':
       return <DashboardScreen qid={route.qid} />;
     case 'premium':
-      return <PremiumScreen source={route.source} />;
+      return <PremiumOrGift source={route.source} />;
     case 'reveal':
       return <RevealScreen qid={route.qid} respondentId={route.respondentId} />;
     case 'answer':
@@ -62,8 +62,6 @@ function renderRoute(route: Route) {
       return <AdminScreen />;
     case 'start':
       return <StartScreen />;
-    case 'blogger':
-      return <BloggerScreen />;
     case 'inbox':
       return <InboxScreen />;
     case 'asks':
@@ -124,8 +122,14 @@ function Router() {
   );
 }
 
+/** Блогеру, которому ещё не выдан подарочный Premium, вместо тарифов — экран со скриншотом сторис */
+function PremiumOrGift({ source }: { source?: UpsellSource }) {
+  const { blogger } = useAppState();
+  return blogger && blogger.status !== 'approved' ? <BloggerGiftScreen source={source} /> : <PremiumScreen source={source} />;
+}
+
 function Root() {
-  const { questionnaires, me, qa, blogger } = useAppState();
+  const { questionnaires, me, qa } = useAppState();
   /**
    * Стартовый экран HUSH 2.0:
    * u_<slug> — форма вопроса получателю (без приветствия), a_<id> — ответ на чужой вопрос,
@@ -136,8 +140,8 @@ function Root() {
     // startapp=demo обрабатывает эффект ниже (переход в демо-версию), как маршрут его не используем
     const startParam = getStartParam() === 'demo' ? null : getStartParam();
     if (startParam === 'admin' && me.isAdmin) return { name: 'admin' };
-    // Блогерская ссылка: пока Premium не выдан — сразу задание
-    if (startParam === 'blogger' || startParam?.startsWith('bl_')) return blogger && blogger.status !== 'approved' ? { name: 'blogger' } : qa?.askSlug ? { name: 'inbox' } : { name: 'start' };
+    // Блогерская ссылка: обычный интерфейс (подарок вместо тарифов — PremiumOrGift)
+    if (startParam === 'blogger' || startParam?.startsWith('bl_')) return qa?.askSlug ? { name: 'inbox' } : { name: 'start' };
     if (startParam?.startsWith('u_')) return { name: 'askMe', slug: startParam.slice(2) };
     if (startParam?.startsWith('a_')) return { name: 'askReply', id: startParam.slice(2) };
     // Пуш «Тебе ответили» ведёт сразу в «Я спросил(а)»

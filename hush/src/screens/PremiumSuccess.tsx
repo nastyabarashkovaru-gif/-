@@ -20,7 +20,7 @@ type Phase = 'confirmed' | 'waiting' | 'delayed';
  */
 export function PremiumSuccessScreen({ pending }: { pending?: boolean }) {
   const nav = useNav();
-  const { entitlement, refresh } = useAppState();
+  const { refresh } = useAppState();
   const [phase, setPhase] = useState<Phase>(pending ? 'waiting' : 'confirmed');
 
   useEffect(() => {
@@ -54,13 +54,10 @@ export function PremiumSuccessScreen({ pending }: { pending?: boolean }) {
     nav.reset({ name: 'inbox' });
   const support = () => openExternal(config.supportUrl || `https://t.me/${config.botUsername}`);
 
-  const yearly = entitlement.plan === 'year';
   const content = {
     confirmed: {
       title: 'Поздравляем! Premium твой 💜',
-      text: yearly
-        ? 'Теперь тебе доступны все ответы, новые анкеты, свои вопросы и безлимитное раскрытие авторов 👀'
-        : 'Теперь тебе доступны все ответы, новые анкеты и свои вопросы 👀',
+      text: 'Теперь можно узнать, кто тебя спросил и кто ответил, смотреть все ответы и задавать сколько угодно своих вопросов 👀',
     },
     waiting: {
       title: 'Подтверждаем оплату…',

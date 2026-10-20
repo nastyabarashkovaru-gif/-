@@ -287,7 +287,7 @@ export interface Bootstrap {
   blogger?: BloggerState | null;
 }
 
-export type BloggerStatus = 'none' | 'pending' | 'approved' | 'rejected';
+export type BloggerStatus = 'none' | 'approved';
 export interface BloggerState {
   status: BloggerStatus;
   premiumDays: number;
@@ -298,19 +298,28 @@ export interface AdminBlogger {
   firstName: string;
   username: string | null;
   openedAt: string;
-  campaign: string | null;
+  /** Рассыльщик из ссылки bl_<метка>; null — общая ссылка */
+  manager: string | null;
   premiumAt: string | null;
   hasLink: boolean;
   storyClicked: boolean;
-  /** Сколько новых людей пришло по его ссылкам */
-  guests: number;
+  proofId: string | null;
+  /** Сколько вопросов задали блогеру */
   questions: number;
-  proof: { id: string; status: 'pending' | 'approved' | 'rejected'; createdAt: string } | null;
+  /** Пришли по его ссылкам; из них создали свою ссылку / свой вопрос / анкету; заплатили; выручка с них, ₽ */
+  guests: number;
+  guestsLinks: number;
+  guestsAsks: number;
+  guestsQuestionnaires: number;
+  payers: number;
+  revenue: number;
 }
 export interface AdminBloggers {
   link: string;
   premiumDays: number;
-  funnel: { opened: number; made_link: number; story_clicked: number; proof_sent: number; premium_given: number; waiting: number };
+  funnel: { opened: number; made_link: number; story_clicked: number; proof_sent: number; premium_given: number };
+  totals: { guests: number; guestsLinks: number; questions: number; payers: number; revenue: number };
+  managers: Array<{ manager: string; bloggers: number; withStory: number; guests: number; revenue: number }>;
   bloggers: AdminBlogger[];
 }
 
@@ -341,11 +350,11 @@ export interface HushApi {
   /** Статистика для владельца */
   adminStats(): Promise<AdminStats>;
   /** Блогер присылает скриншот сторис (data URL) */
-  sendBloggerProof(image: string): Promise<{ status: 'pending' | 'approved' }>;
+  sendBloggerProof(image: string): Promise<{ status: 'approved' }>;
   adminBloggers(): Promise<AdminBloggers>;
   adminBloggerProof(proofId: string): Promise<{ image: string }>;
   adminApproveBlogger(userId: string): Promise<{ status: string }>;
-  adminRejectBlogger(userId: string): Promise<{ status: string }>;
+  adminBloggerQuestions(userId: string): Promise<{ items: Array<{ text: string; createdAt: string }> }>;
 
   /* HUSH 2.0 */
   /** Создать (или вернуть существующую) постоянную личную ссылку */

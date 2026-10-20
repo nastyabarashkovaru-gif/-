@@ -12,6 +12,7 @@ import { pool, tx } from './db';
 import { getPlan, isPlan, PLANS, pricingFor, RETENTION_DISCOUNT, REVEAL_PRICE, SOLD_PLANS, type Plan } from './plans';
 import { rateLimit } from './rateLimit';
 import { newId } from './routes';
+import { notifyUser } from './telegram';
 
 const cp = config.cloudPayments;
 export const billingEnabled = Boolean(cp.publicId && cp.apiSecret);
@@ -388,6 +389,13 @@ cloudPaymentsWebhooks.post(
         });
       }
       console.log(`[billing] оплачено: user ${userId}, ${plan}, ${f.Amount} ₽${f.TestMode === '1' ? ' (тест)' : ''}`);
+      // Первая оплата (по заказу, не автопродление) — поздравление в бота; в приложении — экран premiumSuccess
+      if (orderId) {
+        const uid = Number(userId);
+        setImmediate(() => {
+          void notifyUser(uid, 'Поздравляем с покупкой hush. Premium! 🎉\n\nТеперь можно узнать, кто тебя спросил, и смотреть все ответы 💜', 'Открыть hush.');
+        });
+      }
       return 0;
     });
   }),

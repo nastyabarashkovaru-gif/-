@@ -31,9 +31,9 @@ export const config = {
       .map((s) => s.trim().replace(/^@/, '').toLowerCase())
       .filter(Boolean),
   ),
-  /** Кому доступна демо-версия /demo (Telegram ID или username); по умолчанию — админы */
+  /** Кому доступна демо-версия /demo (Telegram ID или username); пусто — никому */
   demoIds: new Set(
-    (process.env.DEMO_IDS || process.env.ADMIN_IDS || '')
+    (process.env.DEMO_IDS || '')
       .split(',')
       .map((s) => s.trim().replace(/^@/, '').toLowerCase())
       .filter(Boolean),
