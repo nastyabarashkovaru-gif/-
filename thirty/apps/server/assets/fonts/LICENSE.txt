@@ -1,2 +1,0 @@
-Inter — SIL Open Font License 1.1, (c) The Inter Project Authors (https://github.com/rsms/inter).
-Используется для рендера карточек прогресса на сервере.
