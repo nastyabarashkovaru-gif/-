@@ -155,6 +155,20 @@ export async function socialRoutes(app: FastifyInstance) {
       return { code: link.code, url: appLink(`ref_${link.code}`), visits: await prisma.referralVisit.count({ where: { code: link.code } }) };
     });
 
+    /** A/B: стабильное назначение вариантов активных экспериментов (онбординг, тарифный экран) */
+    r.get('/api/experiments', async (req) => {
+      const { pickVariant } = await import('@thirty/domain');
+      const exps = await prisma.experiment.findMany({ where: { active: true } });
+      const out: Record<string, string> = {};
+      for (const e of exps) {
+        const existing = await prisma.experimentAssignment.findUnique({ where: { userId_experimentKey: { userId: req.user!.id, experimentKey: e.key } } });
+        const variant = existing?.variant ?? pickVariant(req.user!.id.toString(), e.key, e.variants as { key: string; weight: number }[]);
+        if (!existing) await prisma.experimentAssignment.create({ data: { userId: req.user!.id, experimentKey: e.key, variant } }).catch(() => undefined);
+        out[e.key] = variant;
+      }
+      return { variants: out };
+    });
+
     // Апселлы S35 (только при включённом флаге)
     r.get('/api/upsells', async (req) => {
       if (!(await feature('upsells'))) return { items: [] };
