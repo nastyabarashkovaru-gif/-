@@ -36,6 +36,8 @@ const schema = z.object({
   UPLOAD_DIR: z.string().default('uploads'),
   MEDIA_SIGNING_SECRET: z.string().default('dev-media-secret'),
   SCHEDULER: bool,
+  /** Разрешить sandbox-оплату (mock) при NODE_ENV=production — только для staging */
+  ALLOW_SANDBOX_PAYMENTS: bool,
   STATIC_MINIAPP_DIR: z.string().default(''),
   STATIC_ADMIN_DIR: z.string().default(''),
 });
@@ -52,5 +54,7 @@ if (isProd) {
   if (config.ADMIN_JWT_SECRET.startsWith('dev-')) problems.push('ADMIN_JWT_SECRET is default');
   if (config.MEDIA_SIGNING_SECRET.startsWith('dev-')) problems.push('MEDIA_SIGNING_SECRET is default');
   if (!config.BOT_TOKEN) problems.push('BOT_TOKEN is empty');
+  if (config.PAYMENT_PROVIDER === 'mock' && !config.ALLOW_SANDBOX_PAYMENTS) problems.push('PAYMENT_PROVIDER=mock in production (set ALLOW_SANDBOX_PAYMENTS=true only on staging)');
+  if (config.PAYMENT_PROVIDER === 'prodamus' && (!config.PRODAMUS_SECRET_KEY || !config.PRODAMUS_FORM_URL)) problems.push('PRODAMUS_* not configured');
   if (problems.length) throw new Error(`Unsafe production config: ${problems.join('; ')}`);
 }

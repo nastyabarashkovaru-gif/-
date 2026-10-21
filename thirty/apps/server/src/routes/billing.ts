@@ -80,7 +80,7 @@ export async function billingRoutes(app: FastifyInstance) {
     return reply.send('success');
   });
 
-  if (!isProd || config.PAYMENT_PROVIDER === 'mock') {
+  if (config.PAYMENT_PROVIDER === 'mock' && (!isProd || config.ALLOW_SANDBOX_PAYMENTS)) {
     /** Sandbox-форма оплаты: никаких реальных денег, только имитация уведомлений провайдера */
     app.get<{ Params: { id: string } }>('/api/payments/mock/:id', async (req, reply) => {
       const p = await prisma.payment.findUnique({ where: { id: req.params.id } });
