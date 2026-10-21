@@ -64,6 +64,7 @@ export function App() {
         track('app_open', { metadata: { startParam: startParam() ?? undefined } });
         try {
           const { variants } = await api<{ variants: Record<string, string> }>('/api/experiments');
+          ctx.variants = variants;
           ctx.variant = Object.entries(variants).map(([k, v]) => `${k}:${v}`).join(',') || undefined;
         } catch {
           /* эксперименты не критичны */

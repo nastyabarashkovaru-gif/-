@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, MessagesSquare, Video, Trophy, Send, Check, CircleCheck, TrendingUp, SlidersHorizontal, ShieldCheck, Eye } from 'lucide-react';
 import { api, rub } from '../../lib/api';
-import { track } from '../../lib/analytics';
+import { ctx, track } from '../../lib/analytics';
 import { Bar, DayGrid, Screen, useLoad, Loading, ErrorState, type DayState } from '../../ui';
 
 /** Основная формулировка ТЗ §1 — без изменения смысла */
@@ -24,7 +24,8 @@ function useStep(idx: number) {
     void api('/api/me/screen', { body: { screen: STEPS[idx], stage: 'onboarding' } }).catch(() => undefined);
   }, [idx]);
   return {
-    next: () => nav(idx < STEPS.length - 1 ? STEPS[idx + 1] : '/tariffs'),
+    // A/B «onboarding_flow»: вариант short — сразу от приветствия к экрану ценности
+    next: () => nav(idx === 0 && ctx.variants.onboarding_flow === 'short' ? '/onboarding/value' : idx < STEPS.length - 1 ? STEPS[idx + 1] : '/tariffs'),
     skip: () => {
       track('onboarding_skipped', { screen: SCREEN_IDS[idx], metadata: { step: idx + 1 } });
       nav('/tariffs');

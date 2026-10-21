@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { api, rub } from '../../lib/api';
-import { track } from '../../lib/analytics';
+import { ctx, track } from '../../lib/analytics';
 import { haptic } from '../../lib/telegram';
 import { ErrorState, Header, Loading, Screen, plural } from '../../ui';
 import { useTicker } from './Onboarding';
@@ -50,8 +50,10 @@ export function Tariffs() {
     api<OfferState>('/api/offer/start', { body: {} })
       .then((s) => {
         setState(s);
-        const hl = s.tariffs.find((t) => t.highlighted);
-        if (hl) setSelected(hl.id);
+        // A/B «tariff_default»: какой тариф выбран по умолчанию (m1 / m3 / m6), иначе — выделенный
+        const ab = ctx.variants.tariff_default;
+        const def = s.tariffs.find((t) => t.id === ab) ?? s.tariffs.find((t) => t.highlighted);
+        if (def) setSelected(def.id);
       })
       .catch(setError);
   };

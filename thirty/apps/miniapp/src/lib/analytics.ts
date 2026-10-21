@@ -15,7 +15,7 @@ const session = (() => {
 type Ev = { event_id: string; session_id: string; event_name: string; screen_id?: string; tariff_id?: string; flow_id?: string; experiment_variant?: string; timestamp: string; metadata?: Record<string, unknown> };
 let queue: Ev[] = [];
 let timer: number | null = null;
-export const ctx: { variant?: string; flowId?: string } = {};
+export const ctx: { variant?: string; flowId?: string; variants: Record<string, string> } = { variants: {} };
 
 const device = /iphone|ipad/i.test(navigator.userAgent) ? 'ios' : /android/i.test(navigator.userAgent) ? 'android' : 'desktop';
 
