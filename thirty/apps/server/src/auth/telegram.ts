@@ -108,4 +108,11 @@ export async function requireUser(req: FastifyRequest, _reply: FastifyReply) {
   });
   if (user.deletedAt) throw new HttpError(403, 'account_deleted');
   req.user = user;
+  // Подписанный start_param (t.me/...?startapp=) или параметр из URL кнопки web_app (только для учёта кликов)
+  const urlParam = req.headers['x-start-param'];
+  const sp = tg.startParam ?? (typeof urlParam === 'string' && /^m_[0-9a-f]{32}_[a-z_]{1,24}$/.test(urlParam) ? urlParam : undefined);
+  if (sp && req.method === 'GET' && req.url.startsWith('/api/me')) {
+    const { handleStartParam } = await import('../modules/entry');
+    await handleStartParam(user, sp).catch((e) => console.warn('[entry]', (e as Error).message));
+  }
 }

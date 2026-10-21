@@ -14,6 +14,7 @@ import type { ParsedWebhook, SubscriptionRef } from '../payments/types';
 import { ensureFlow } from './flows';
 import { track } from './analytics';
 import { notify } from './notify';
+import { registerBotConversion } from './bot';
 
 export const LIVE_STATUSES = ['prestart', 'active', 'past_due', 'canceled_at_period_end'] as const;
 
@@ -297,6 +298,7 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
   if ('alreadyPaid' in outcome) return outcome;
   const sub = outcome.subscription;
   if (needsShift && sub.providerSubscriptionId) await syncChargeDate(sub.id);
+  await registerBotConversion(payment.userId);
   await track({ userId: payment.userId, eventName: 'payment_success', screenId: 'S09', tariffId: tariff.id, metadata: { amount: payment.amount, paymentId: payment.id }, dedupeKey: `payment_success:${payment.id}` });
   await notify(
     payment.userId,
