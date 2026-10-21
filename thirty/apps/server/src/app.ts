@@ -38,7 +38,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     credentials: true,
   });
   await app.register(cookie);
-  await app.register(rateLimit, { max: 300, timeWindow: '1 minute', global: true });
+  // В тестах лимиты частоты отключены (allowList), в остальном — глобальный лимит + точечные на маршрутах
+  await app.register(rateLimit, { max: 300, timeWindow: '1 minute', global: true, allowList: () => config.NODE_ENV === 'test' });
   await app.register(multipart);
 
   app.addHook('onSend', async (_req, reply, payload) => {

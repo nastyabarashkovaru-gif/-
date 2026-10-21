@@ -144,6 +144,10 @@ model Subscription {
   nextChargeDate         DateTime?          @db.Date
   providerSubscriptionId String?
   providerLocked         Boolean            @default(false)
+  /** Телефон/e-mail покупателя из webhook — нужен для REST-методов Prodamus */
+  providerCustomer       Json               @default("{}")
+  /** Автопродление выключено у провайдера (иначе задача повторяет запрос) */
+  providerDeactivatedAt  DateTime?
   canceledAt             DateTime?
   cancelReason           String?
   createdAt              DateTime           @default(now())
@@ -183,6 +187,7 @@ model Payment {
   kind              PaymentKind
   tariffId          String?
   upsellCode        String?
+  priceVariant      String? // promo | regular
   amount            Int
   status            PaymentStatus @default(initiated)
   provider          String        @default("prodamus")
@@ -192,6 +197,8 @@ model Payment {
   months            Int?
   idempotencyKey    String        @unique
   failureReason     String?
+  /** Повторная успешная оплата при уже живой подписке — доступ не выдаётся, нужен возврат */
+  needsRefund       Boolean       @default(false)
   paidAt            DateTime?
   refundedAt        DateTime?
   createdAt         DateTime      @default(now())

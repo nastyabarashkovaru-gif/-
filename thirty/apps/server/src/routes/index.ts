@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import { billingRoutes } from './billing';
 
-/** Маршруты следующих этапов подключаются здесь */
-export async function registerExtraRoutes(_app: FastifyInstance) {}
+export async function registerExtraRoutes(app: FastifyInstance) {
+  await app.register(billingRoutes);
+}
