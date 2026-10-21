@@ -8,7 +8,7 @@
  * TEST_CLEANUP=true — удаляет всех тестовых респондентов и их ответы.
  * TEST_RESET_USERNAME=<username> — снимает у пользователя отметку об отмене и таймер предложения 299 ₽ и Premium,
  *   оплаченный только тестовыми платежами (если есть хоть один боевой платёж — подписку не трогает).
- * TEST_GRANT_YEAR_USERNAME=<username> — выдаёт годовой Premium вручную (source 'manual', без автопродления) на год;
+ * TEST_GRANT_YEAR_USERNAME=<username> / TEST_GRANT_MONTH_USERNAME=<username> — выдаёт Premium вручную (source 'manual', без автопродления) на год / месяц;
  *   подписку с автосписанием в CloudPayments при этом отменяет, чтобы она не списывала поверх.
  * TEST_RESET_QA_USERNAME=<username> — HUSH 2.0 с нуля: удаляет личную ссылку, входящие, свои вопросы с ответами и анкеты
  *   (подписку и платежи не трогает).
@@ -69,7 +69,11 @@ export async function runTestSeed(): Promise<void> {
     if (!rows.length) console.warn(`[test] @${resetName} не найден`);
   }
 
-  const grantName = (process.env.TEST_GRANT_YEAR_USERNAME || '').replace(/^@/, '').toLowerCase();
+  for (const [envName, plan, period] of [
+    ['TEST_GRANT_YEAR_USERNAME', 'year', '1 year'],
+    ['TEST_GRANT_MONTH_USERNAME', 'month', '1 month'],
+  ] as const) {
+  const grantName = (process.env[envName] || '').replace(/^@/, '').toLowerCase();
   if (grantName) {
     const { rows } = await pool.query(
       'SELECT u.id, e.subscription_id FROM users u LEFT JOIN entitlements e ON e.user_id = u.id WHERE lower(u.username) = $1',
@@ -86,14 +90,15 @@ export async function runTestSeed(): Promise<void> {
       }
       await pool.query(
         `INSERT INTO entitlements (user_id, plan, auto_renew, renews_at, source)
-         VALUES ($1, 'year', FALSE, now() + interval '1 year', 'manual')
-         ON CONFLICT (user_id) DO UPDATE SET plan = 'year', auto_renew = FALSE, renews_at = now() + interval '1 year',
+         VALUES ($1, $2, FALSE, now() + $3::interval, 'manual')
+         ON CONFLICT (user_id) DO UPDATE SET plan = $2, auto_renew = FALSE, renews_at = now() + $3::interval,
            source = 'manual', subscription_id = NULL, base_amount = NULL, discount_next = FALSE, updated_at = now()`,
-        [id],
+        [id, plan, period],
       );
-      console.log(`[test] @${grantName}: выдан годовой Premium до ${new Date(Date.now() + 365 * 864e5).toLocaleDateString('ru-RU')}`);
+      console.log(`[test] @${grantName}: выдан Premium (${plan}) на ${period}`);
     }
     if (!rows.length) console.warn(`[test] @${grantName} не найден`);
+  }
   }
 
   const inboxName = (process.env.TEST_INBOX_USERNAME || '').replace(/^@/, '').toLowerCase();
