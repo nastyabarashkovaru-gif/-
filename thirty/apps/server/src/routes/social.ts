@@ -107,7 +107,9 @@ export async function socialRoutes(app: FastifyInstance) {
     r.post('/api/buddy/invite', async (req) => {
       const m = await currentMembership(req.user!.id);
       if (!m) throw forbidden('no_membership');
-      return createInvite(req.user!.id, m.flowId);
+      const inv = await createInvite(req.user!.id, m.flowId);
+      const { appLink } = await import('../lib/telegram');
+      return { ...inv, url: appLink(inv.startParam) };
     });
     r.post('/api/buddy/accept', async (req) => acceptInvite(req.user!.id, parse(z.object({ token: z.string().min(4).max(32) }), req.body).token));
     r.post('/api/buddy/replace', async (req) => {

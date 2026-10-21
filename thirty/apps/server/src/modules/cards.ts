@@ -107,7 +107,10 @@ export async function renderCardPng(stats: Record<string, any>, link: string): P
   <text x="128" y="470" font-family="Inter" font-weight="600" font-size="40" fill="#20211F" fill-opacity="0.55">${esc(title.toUpperCase())}</text>
   <text x="128" y="640" font-family="Inter" font-weight="700" font-size="150" fill="#20211F">${esc(big)}</text>
   <text x="128" y="720" font-family="Inter" font-size="40" fill="#20211F" fill-opacity="0.6">${esc(sub)}</text>
-  ${delta ? `<rect x="128" y="790" width="824" height="110" rx="28" fill="#E3F5EA"/><text x="168" y="862" font-family="Inter" font-weight="600" font-size="44" fill="#2FB56C">${esc(delta)} ↑</text>` : ''}
+  ${delta ? (() => {
+    const up = stats.week === 1 || stats.delta >= 0;
+    return `<rect x="128" y="790" width="824" height="110" rx="28" fill="${up ? '#E3F5EA' : '#F1F0ED'}"/><text x="168" y="862" font-family="Inter" font-weight="600" font-size="44" fill="${up ? '#2FB56C' : '#6B6B66'}">${esc(delta)}${up ? ' ↑' : ''}</text>`;
+  })() : ''}
   <text x="128" y="1010" font-family="Inter" font-size="40" fill="#20211F">Серия: <tspan font-weight="700">${stats.streak} ${plural(stats.streak, 'день', 'дня', 'дней')}</tspan>   ·   Всего: <tspan font-weight="700">${stats.percent}%</tspan></text>
   <rect x="64" y="1200" width="952" height="150" rx="48" fill="#FF6B35"/>
   <text x="540" y="1295" text-anchor="middle" font-family="Inter" font-weight="600" font-size="52" fill="#FFFFFF">Присоединяйся к челленджу</text>
