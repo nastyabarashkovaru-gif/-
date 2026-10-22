@@ -20,7 +20,7 @@ export function Tariffs() {
   return (
     <>
       <h1>Тарифы и ценность</h1>
-      <p className="muted">Сумма продления должна совпадать с суммой подписки в кабинете Prodamus. Перечёркнутая цена = месяцы × базовая цена месяца и подписывается как «стоимость отдельных месяцев».</p>
+      <p className="muted">Продление идёт по цене покупки: акционной или обычной — поэтому суммы подписок в кабинете Prodamus должны совпадать с этими ценами. Перечёркнутая цена = месяцы × базовая цена месяца и подписывается как «стоимость отдельных месяцев».</p>
       <View s={s}>{(data: any) => (
         <>
           {data.tariffs.map((t: any) => {
@@ -31,7 +31,7 @@ export function Tariffs() {
               <div className="card" key={t.id}>
                 <h2>{t.title} <span className="muted">({t.id}, {t.months} мес.)</span></h2>
                 <div className="row">
-                  {[['promoPrice', 'Акционная, ₽'], ['regularPrice', 'После таймера, ₽'], ['comparisonMonthPrice', 'Базовая цена месяца, ₽'], ['renewalPrice', 'Продление, ₽'], ['goalLimit', 'Лимит целей (пусто — без лимита)'], ['prodamusSubscriptionPromo', 'ID подписки Prodamus (акция)'], ['prodamusSubscriptionRegular', 'ID подписки Prodamus (обычная)'], ['badge', 'Бейдж']].map(([k, l]) => (
+                  {[['promoPrice', 'Акционная, ₽'], ['regularPrice', 'После таймера, ₽'], ['comparisonMonthPrice', 'Базовая цена месяца, ₽'], ['goalLimit', 'Лимит целей (пусто — без лимита)'], ['prodamusSubscriptionPromo', 'ID подписки Prodamus (акция)'], ['prodamusSubscriptionRegular', 'ID подписки Prodamus (обычная)'], ['badge', 'Бейдж']].map(([k, l]) => (
                     <label className="f" key={k}>{l}<input value={val(k)} onChange={(x) => set(k, x.target.value)} style={{ width: 150 }} /></label>
                   ))}
                   <label className="f">Выделить<input type="checkbox" checked={Boolean(val('highlighted'))} onChange={(x) => set('highlighted', x.target.checked)} /></label>

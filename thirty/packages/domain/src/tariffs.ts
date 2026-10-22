@@ -9,6 +9,7 @@ export interface TariffConfig {
   promoPrice: number;
   regularPrice: number;
   comparisonMonthPrice: number;
+  /** Справочно: фактическое продление идёт по цене покупки (акционной или обычной) */
   renewalPrice: number;
   highlighted: boolean;
   badge: string | null;
@@ -23,7 +24,7 @@ export const DEFAULT_TARIFFS: TariffConfig[] = [
     months: 1,
     goalLimit: 1,
     promoPrice: 999,
-    regularPrice: 1490,
+    regularPrice: 2990,
     comparisonMonthPrice: 2990,
     renewalPrice: 999,
     highlighted: false,
@@ -46,7 +47,7 @@ export const DEFAULT_TARIFFS: TariffConfig[] = [
     months: 3,
     goalLimit: 3,
     promoPrice: 2490,
-    regularPrice: 3490,
+    regularPrice: 8970,
     comparisonMonthPrice: 2990,
     renewalPrice: 2490,
     highlighted: true,
@@ -67,7 +68,7 @@ export const DEFAULT_TARIFFS: TariffConfig[] = [
     months: 6,
     goalLimit: null,
     promoPrice: 3990,
-    regularPrice: 5490,
+    regularPrice: 17940,
     comparisonMonthPrice: 2990,
     renewalPrice: 3990,
     highlighted: false,

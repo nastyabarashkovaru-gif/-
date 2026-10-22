@@ -19,7 +19,7 @@ export const DEFAULT_SETTINGS = {
   'flow.mandatoryDays': 'all',
   'offer.durationMinutes': 180,
   'payment.pendingWindowMinutes': 30,
-  'prize.formula': { percentOfRevenue: 0, fixed: 0, cap: null as number | null },
+  'prize.formula': { percentOfRevenue: 10, fixed: 0, cap: null as number | null },
   'prize.rulesText':
     'Приз получают участники с идеальным результатом: 100% обязательных выполнений по всем целям, ни одного пропущенного ежедневного отчёта и подтверждённое достижение всех выбранных целей. Все претенденты проходят ручную проверку доказательств. Призовых мест не больше трёх; при равенстве места распределяются по публичному тай-брейку: процент выполнения → полностью закрытые дни → самая длинная серия → время подачи итоговой анкеты.',
   'value.items': [
@@ -37,7 +37,7 @@ export const DEFAULT_SETTINGS = {
     habits: { evidence: 'checkbox', photoRequired: false, selfReported: true, note: 'Отметка — честное слово участника.' },
     selfdev: { evidence: 'checkbox', photoRequired: false, selfReported: true, note: 'Отметка о выполнении.' },
   } as EvidencePolicy,
-  'support.username': 'thirty_days_support',
+  'support.username': 'barashkova_a',
   'chats.inviteTtlHours': 72,
   'minAge': 18,
   'features': {

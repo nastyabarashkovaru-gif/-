@@ -20,7 +20,7 @@ export function Profile() {
   const nav = useNavigate();
   const { me, refresh } = useMe();
   const { data, error, loading, reload } = useLoad(() => api<SubSummary>('/api/subscription'));
-  const support = () => openTelegram('https://t.me/thirty_days_support');
+  const support = () => openTelegram(me?.support ?? 'https://t.me/barashkova_a');
   if (!me) return null;
   const s = data?.subscription;
   return (
@@ -84,6 +84,7 @@ export function Profile() {
 /** S36–S38: три экрана удержания, но отменить можно с любого шага, без обязательного обращения в поддержку */
 export function CancelFlow() {
   const nav = useNavigate();
+  const { me } = useMe();
   const [step, setStep] = useState(1);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -131,7 +132,7 @@ export function CancelFlow() {
             <div className="h3">Может, поможет что-то из этого?</div>
             <div className="list-item card-link" onClick={() => nav('/buddy')}><div className="grow">Сменить бадди</div><ChevronRight size={18} /></div>
             <div className="list-item card-link" onClick={() => nav('/club')}><div className="grow">Прийти на созвон с экспертом</div><ChevronRight size={18} /></div>
-            <div className="list-item card-link" onClick={() => openTelegram('https://t.me/thirty_days_support')}><div className="grow">Обсудить с поддержкой</div><ChevronRight size={18} /></div>
+            <div className="list-item card-link" onClick={() => openTelegram(me?.support ?? 'https://t.me/barashkova_a')}><div className="grow">Обсудить с поддержкой</div><ChevronRight size={18} /></div>
             <div className="muted small">В следующем месяце можно выбрать другие цели — анкета заполняется заново.</div>
           </div>
           <div className="spacer" />

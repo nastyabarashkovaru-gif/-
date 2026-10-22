@@ -60,7 +60,8 @@ export function tariffView(t: Tariff, promo: boolean) {
     comparisonLabel: `стоимость ${t.months} ${t.months === 1 ? 'отдельного месяца' : 'отдельных месяцев'}`,
     savingsPercent: q.savingsPercent,
     perMonth: q.perMonth,
-    renewalPrice: t.renewalPrice,
+    // Продление — по той же цене, по которой куплен первый период (решение владельца)
+    renewalPrice: q.price,
   };
 }
 
@@ -92,10 +93,10 @@ export async function checkoutPreview(userId: bigint, tariffId: string) {
     flows: plan.flows.map((f) => ({ startsOn: f, title: monthName(f) })),
     startsOn: plan.firstFlow,
     paidUntil: fromDbDateEnd(plan.lastFlow),
-    nextCharge: { date: plan.chargeDate, amount: tariff.renewalPrice, covers: plan.renewalFlows.map(monthName) },
+    nextCharge: { date: plan.chargeDate, amount: view.price, covers: plan.renewalFlows.map(monthName) },
     text: {
       today: `Сегодня спишем ${view.price.toLocaleString('ru-RU')} ₽ за ${tariff.months === 1 ? 'поток' : `${tariff.months} потока подряд`}: ${plan.flows.map(monthName).join(', ')}.`,
-      renewal: `Автопродление: ${humanDate(plan.chargeDate, true)} спишем ${tariff.renewalPrice.toLocaleString('ru-RU')} ₽ за следующие ${tariff.months === 1 ? 'месяц' : `${tariff.months} месяца`} (${plan.renewalFlows.map(monthName).join(', ')}). Отключить можно в профиле в любой момент до этой даты.`,
+      renewal: `Автопродление: ${humanDate(plan.chargeDate, true)} спишем ${view.price.toLocaleString('ru-RU')} ₽ за следующие ${tariff.months === 1 ? 'месяц' : `${tariff.months} месяца`} (${plan.renewalFlows.map(monthName).join(', ')}). Отключить можно в профиле в любой момент до этой даты.`,
     },
   };
 }
@@ -265,7 +266,7 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
         userId: payment.userId,
         tariffId: tariff.id,
         status: subscriptionStatusOn({ today: paidOn, paidFromFlow: firstFlow, paidThroughFlow: lastFlow, autoRenew: true, nextChargeDate: chargeDate }),
-        renewalPrice: tariff.renewalPrice,
+        renewalPrice: payment.amount,
         priceVariant: payment.priceVariant ?? 'promo',
         paidFromFlow: toDbDate(firstFlow),
         paidThroughFlow: toDbDate(lastFlow),
@@ -284,7 +285,7 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
       });
     }
     await tx.billingSchedule.create({
-      data: { subscriptionId: sub.id, dueDate: toDbDate(chargeDate), coversFromFlow: toDbDate(addMonths(lastFlow, 1)), months: tariff.months, amount: tariff.renewalPrice },
+      data: { subscriptionId: sub.id, dueDate: toDbDate(chargeDate), coversFromFlow: toDbDate(addMonths(lastFlow, 1)), months: tariff.months, amount: payment.amount },
     });
     await tx.priceOffer.updateMany({ where: { userId: payment.userId, consumedAt: null, expiresAt: { gt: now } }, data: { consumedAt: now } });
     await tx.user.update({ where: { id: payment.userId }, data: { onboardingStage: 'paid', ...(tariff.months >= 6 ? { sixMonthBadge: true } : {}) } });
@@ -303,7 +304,7 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
   await notify(
     payment.userId,
     'payment_success',
-    { tariff: tariff.title, flows: flows.map(monthName).join(', '), next_date: humanDate(chargeDate, true), next_amount: tariff.renewalPrice },
+    { tariff: tariff.title, flows: flows.map(monthName).join(', '), next_date: humanDate(chargeDate, true), next_amount: payment.amount },
     `payment_success:${payment.id}`,
   );
   return { subscriptionId: sub.id };

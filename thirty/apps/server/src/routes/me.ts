@@ -8,6 +8,7 @@ import { ALLOWED_MIME, newKey, signedMediaUrl, sniffImage, storage, verifyMediaS
 import { clientBatch, ingest } from '../modules/analytics';
 import { activeConsents, consentInput, profileInput, publicUser, recordConsents } from '../modules/users';
 import { currentMembership, flowInfo } from '../modules/flows';
+import { getSetting } from '../settings';
 
 export async function meRoutes(app: FastifyInstance) {
   app.register(async (r) => {
@@ -35,6 +36,7 @@ export async function meRoutes(app: FastifyInstance) {
         },
         consents: [...(await activeConsents(u.id))],
         startParam: req.tg?.startParam ?? null,
+        support: `https://t.me/${await getSetting('support.username')}`,
         membership: m ? { id: m.id, status: m.status, tariffId: m.tariffId, flow: flowInfo(m.flow), registeredAt: m.registeredAt } : null,
         subscription: sub ? { id: sub.id, status: sub.status, tariffId: sub.tariffId, tariffTitle: sub.tariff.title, autoRenew: sub.autoRenew } : null,
       });

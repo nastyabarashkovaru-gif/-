@@ -48,11 +48,15 @@ describe('таймер предложения', () => {
     clock.set('2026-10-21T12:00:01Z');
     const late = await api('GET', '/api/offer', U);
     expect(late.body.offer.active).toBe(false);
-    expect(late.body.tariffs.map((t: { price: number }) => t.price)).toEqual([1490, 3490, 5490]);
+    expect(late.body.tariffs.map((t: { price: number }) => t.price)).toEqual([2990, 8970, 17940]);
     // ссылка после таймера — по обычной цене
     await api('POST', '/api/consents', U, { kinds: CONSENTS });
     const co = await api('POST', '/api/checkout', U, { tariffId: 'm1', idempotencyKey: 'after-timer-1' });
-    expect(co.body.amount).toBe(1490);
+    expect(co.body.amount).toBe(2990);
+    // продление — по цене покупки: после таймера 2990, без перечёркнутой «скидки»
+    const pv = await api('GET', '/api/checkout/preview?tariff=m1', U);
+    expect(pv.body.nextCharge.amount).toBe(2990);
+    expect(pv.body.tariff.savingsPercent).toBe(0);
   });
 });
 
@@ -124,7 +128,7 @@ describe('оплата и права доступа', () => {
     await prisma.payment.updateMany({ data: { status: 'pending', subscriptionId: null } });
     await prisma.subscription.deleteMany();
     const co2 = await api('POST', '/api/checkout', U, { tariffId: 'm3', idempotencyKey: 'race-key-2' });
-    expect(co2.body).toMatchObject({ amount: 3490 });
+    expect(co2.body).toMatchObject({ amount: 8970 });
     await webhook({ ...paidEvent(co.paymentId, 999, U), order_id: 'r1' });
     await webhook({ ...paidEvent(co2.body.paymentId, co2.body.amount, U), order_id: 'r2' });
     expect(await prisma.subscription.count()).toBe(1);
