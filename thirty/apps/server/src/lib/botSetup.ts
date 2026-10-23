@@ -22,6 +22,8 @@ export async function setupBot() {
     await tg('setChatMenuButton', { menu_button: { type: 'web_app', text: '30 дней', web_app: { url: `${config.PUBLIC_URL}/` } } });
     await tg('setMyCommands', { commands: [{ command: 'start', description: 'Открыть «30 дней»' }, { command: 'stop', description: 'Отписаться от рекламных напоминаний' }, { command: 'support', description: 'Поддержка' }] });
     console.log(`[bot] @${me.username}: webhook → ${config.PUBLIC_URL}`);
+    const info = await tg<{ url: string; pending_update_count: number; last_error_date?: number; last_error_message?: string; allowed_updates?: string[]; ip_address?: string }>('getWebhookInfo', {});
+    console.log(`[bot] webhookInfo url=${info.url} pending=${info.pending_update_count} ip=${info.ip_address ?? '-'} allowed=${(info.allowed_updates ?? []).join('|')} lastError=${info.last_error_message ?? '-'}${info.last_error_date ? ` at ${new Date(info.last_error_date * 1000).toISOString()}` : ''}`);
   } catch (e) {
     console.error('[bot] настройка не удалась:', (e as Error).message);
   }
