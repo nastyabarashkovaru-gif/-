@@ -16,6 +16,7 @@ export async function seed() {
       update: {},
     });
   }
+  await applyProdamusSubscriptionIds();
   await seedTemplates();
   const upsells = [
     { code: 'blog_vip', title: 'Блог VIP', price: 15000, description: 'Личный разбор ваших роликов экспертом. Объём и сроки разбора уточняются до оплаты.', disclaimer: 'Без гарантий роста подписчиков и дохода.' },
@@ -34,4 +35,18 @@ if (process.argv[1]?.endsWith('seed.ts')) {
     console.log('seed ok');
     process.exit(0);
   });
+}
+
+/**
+ * ID подписок Prodamus из переменной PRODAMUS_SUBSCRIPTIONS
+ * («m1:promo:3113454,m1:regular:3113523,…»). Заполняет только пустые поля — правки из админки не затираются.
+ */
+async function applyProdamusSubscriptionIds() {
+  const raw = process.env.PRODAMUS_SUBSCRIPTIONS ?? '';
+  for (const part of raw.split(',').map((x) => x.trim()).filter(Boolean)) {
+    const [tariffId, variant, id] = part.split(':');
+    if (!['m1', 'm3', 'm6'].includes(tariffId) || !/^\d+$/.test(id ?? '')) continue;
+    const field = variant === 'regular' ? 'prodamusSubscriptionRegular' : 'prodamusSubscriptionPromo';
+    await prisma.tariff.updateMany({ where: { id: tariffId, [field]: null }, data: { [field]: Number(id) } });
+  }
 }
