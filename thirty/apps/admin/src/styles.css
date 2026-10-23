@@ -43,3 +43,5 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; colo
 .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.3); display: flex; align-items: center; justify-content: center; z-index: 10; }
 .modal { background: #fff; border-radius: 16px; padding: 20px; width: min(640px, 92vw); max-height: 88vh; overflow: auto; }
 pre { white-space: pre-wrap; font-size: 12px; background: #faf8f5; padding: 10px; border-radius: 10px; max-height: 300px; overflow: auto; }
+.card { overflow-x: auto; }
+@media (max-width: 760px) { .layout { grid-template-columns: 1fr; } .side { position: static; height: auto; display: flex; flex-wrap: wrap; gap: 4px; } .side .brand, .side .who { width: 100%; } main { padding: 16px 12px; } }

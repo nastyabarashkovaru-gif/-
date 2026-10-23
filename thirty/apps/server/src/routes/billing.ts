@@ -75,6 +75,9 @@ export async function billingRoutes(app: FastifyInstance) {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const raw = typeof body.__raw === 'string' ? body.__raw : JSON.stringify(body);
     const parsed = paymentProvider().parseWebhook(req.headers, body);
+    // Диагностика без персональных данных: какие поля прислал провайдер
+    const sub = (body as { subscription?: Record<string, unknown> }).subscription;
+    console.log(`[prodamus] kind=${parsed.kind} status=${parsed.status} valid=${parsed.valid} order_num=${parsed.paymentId ? 'yes' : 'no'} sub=${parsed.providerSubscriptionId ?? '-'} keys=${Object.keys(body).filter((k) => k !== '__raw').join(',')}${sub && typeof sub === 'object' ? ` subKeys=${Object.keys(sub).join(',')}` : ''}`);
     const result = await handleWebhook(parsed, raw);
     if ((result as { rejected?: string }).rejected) return reply.status(400).send({ ok: false });
     return reply.send('success');

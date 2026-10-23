@@ -122,6 +122,17 @@ export async function handleUpdate(update: TgUpdate) {
   }
   const msg = update.message;
   if (!msg?.text || !msg.from) return;
+  // В группе: /bind (или любое сообщение, которое видит бот-админ) регистрирует группу для привязки в админке
+  if (msg.chat.type === 'group' || msg.chat.type === 'supergroup') {
+    const chatId = BigInt(msg.chat.id);
+    const existing = await prisma.telegramChat.findUnique({ where: { telegramChatId: chatId } });
+    if (!existing) await prisma.telegramChat.create({ data: { kind: 'pending', title: msg.chat.title ?? `Группа ${msg.chat.id}`, telegramChatId: chatId, active: false } });
+    else if (msg.chat.title && existing.title !== msg.chat.title) await prisma.telegramChat.update({ where: { id: existing.id }, data: { title: msg.chat.title } });
+    if (msg.text.startsWith('/bind')) {
+      await tg('sendMessage', { chat_id: msg.chat.id, text: existing?.active ? 'Группа уже подключена к «30 дням» ✅' : 'Группа найдена ✅ Теперь привяжите её в админке: раздел «Чаты» → «Привязать».' }).catch(() => undefined);
+    }
+    return;
+  }
   if (msg.chat.type !== 'private') return;
   const userId = BigInt(msg.from.id);
   const [cmd, payload] = msg.text.trim().split(/\s+/, 2);

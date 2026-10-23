@@ -55,6 +55,15 @@ describe('бот', () => {
     expect((await prisma.user.findUniqueOrThrow({ where: { id: 100n } })).allowsWrite).toBe(true);
   });
 
+  it('/bind в группе регистрирует группу для привязки в админке', async () => {
+    const app = await getApp();
+    const upd = { message: { message_id: 5, chat: { id: -100777, type: 'supergroup', title: '30 дней — Ноябрь' }, from: { id: 1, first_name: 'A' }, text: '/bind@Dney30_bot' } };
+    await app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: upd });
+    const chat = await prisma.telegramChat.findUniqueOrThrow({ where: { telegramChatId: -100777n } });
+    expect(chat).toMatchObject({ kind: 'pending', title: '30 дней — Ноябрь', active: false });
+    expect(calls.find((c) => c.method === 'sendMessage')!.body.text).toContain('Группа найдена');
+  });
+
   it('рекламные шаблоны: выключены до утверждения, требуют согласия, лимиты и журнал', async () => {
     await prisma.user.create({ data: { id: 200n, firstName: 'A', allowsWrite: true } });
     expect(await sendTemplate(200n, 'nudge_tariffs_no_select', {}, 'k1')).toBe('skipped'); // выключен

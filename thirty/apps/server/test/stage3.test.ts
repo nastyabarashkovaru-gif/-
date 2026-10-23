@@ -206,6 +206,16 @@ describe('оплата и права доступа', () => {
   });
 });
 
+describe('чужие уведомления магазина', () => {
+  it('подписки других продуктов не ломают webhook и ничего не меняют', async () => {
+    const r = await webhook({ order_id: 'other-1', sum: '5000.00', payment_status: 'success', autopayment: '1', subscription_id: '999999', customer_extra: 'x' });
+    expect(r).toEqual({ ignored: 'foreign' });
+    const r2 = await webhook({ order_num: 'not-ours-123', order_id: 'other-2', sum: '100.00', payment_status: 'success' });
+    expect(r2).toEqual({ ignored: 'foreign' });
+    expect(await prisma.subscription.count()).toBe(0);
+  });
+});
+
 describe('Prodamus', () => {
   it('подпись: сортировка ключей, строки, экранирование слешей, вложенность', () => {
     expect(normalize({ b: 1, a: { d: null, c: 2 } })).toEqual({ a: { c: '2' }, b: '1' });

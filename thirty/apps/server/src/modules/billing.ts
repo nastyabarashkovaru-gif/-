@@ -195,6 +195,11 @@ export async function handleWebhook(parsed: ParsedWebhook, rawBody: string) {
     await prisma.paymentEvent.update({ where: { id: event.id }, data: { error: 'bad_signature', processedAt: clock.now() } });
     return { rejected: 'bad_signature' };
   }
+  // Уведомления по другим продуктам магазина (не «30 дней») — пропускаем с ответом 200, чтобы Prodamus не повторял
+  if (!(await isOurEvent(parsed))) {
+    await prisma.paymentEvent.update({ where: { id: event.id }, data: { processedAt: clock.now(), error: 'foreign_event_ignored' } });
+    return { ignored: 'foreign' };
+  }
   try {
     let result: unknown;
     if (parsed.kind === 'payment' && parsed.paymentId) result = await handlePaymentEvent(parsed, event.id);
@@ -207,6 +212,18 @@ export async function handleWebhook(parsed: ParsedWebhook, rawBody: string) {
     await prisma.paymentEvent.update({ where: { id: event.id }, data: { error: (e as Error).message.slice(0, 500) } });
     throw e;
   }
+}
+
+/** Событие относится к «30 дням»: наш номер заказа или подписка одного из наших тарифов / уже известная подписка */
+async function isOurEvent(p: ParsedWebhook): Promise<boolean> {
+  if (p.paymentId && (await prisma.payment.findUnique({ where: { id: p.paymentId } }).catch(() => null))) return true;
+  if (p.providerSubscriptionId) {
+    const known = await prisma.subscription.findFirst({ where: { providerSubscriptionId: p.providerSubscriptionId } });
+    if (known) return true;
+    const tariffIds = (await prisma.tariff.findMany()).flatMap((t) => [t.prodamusSubscriptionPromo, t.prodamusSubscriptionRegular]).filter(Boolean).map(String);
+    if (tariffIds.includes(p.providerSubscriptionId)) return true;
+  }
+  return false;
 }
 
 async function handlePaymentEvent(p: ParsedWebhook, eventId: string) {
