@@ -27,6 +27,11 @@ export async function seed() {
   if (config.ADMIN_BOOTSTRAP_LOGIN && config.ADMIN_BOOTSTRAP_PASSWORD) {
     const exists = await prisma.adminUser.findUnique({ where: { login: config.ADMIN_BOOTSTRAP_LOGIN } });
     if (!exists) await prisma.adminUser.create({ data: { login: config.ADMIN_BOOTSTRAP_LOGIN, passwordHash: await hashPassword(config.ADMIN_BOOTSTRAP_PASSWORD), role: 'owner' } });
+    // Аварийный сброс: ADMIN_BOOTSTRAP_RESET=true задаёт пароль из переменной и сбрасывает 2FA (после входа переменную убрать)
+    else if (process.env.ADMIN_BOOTSTRAP_RESET === 'true') {
+      await prisma.adminUser.update({ where: { id: exists.id }, data: { passwordHash: await hashPassword(config.ADMIN_BOOTSTRAP_PASSWORD), totpEnabled: false, totpSecret: null, active: true } });
+      console.log(`[seed] admin ${config.ADMIN_BOOTSTRAP_LOGIN}: пароль и 2FA сброшены`);
+    }
   }
 }
 

@@ -42,6 +42,13 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(rateLimit, { max: 300, timeWindow: '1 minute', global: true, allowList: () => config.NODE_ENV === 'test' });
   await app.register(multipart);
 
+  // Короткий журнал запросов к API (без query string и тел) — виден в логах Railway
+  app.addHook('onResponse', async (req, reply) => {
+    if (config.NODE_ENV === 'test' || !req.url.startsWith('/a')) return;
+    const path = req.url.split('?')[0];
+    if (path.startsWith('/api/') || path.startsWith('/admin-api/')) console.log(`[http] ${req.method} ${path} ${reply.statusCode}`);
+  });
+
   app.addHook('onSend', async (_req, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');

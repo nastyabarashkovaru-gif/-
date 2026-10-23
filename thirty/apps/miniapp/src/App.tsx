@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { api } from './lib/api';
 import { ctx, track } from './lib/analytics';
-import { startParam } from './lib/telegram';
+import { inTelegram, startParam } from './lib/telegram';
 import { MeContext, type Me } from './state';
 import { ErrorState, Loading, ToastHost } from './ui';
 import { Welcome, DemoHome, ClubIntro, Cases, Value } from './screens/onboarding/Onboarding';
@@ -85,6 +85,17 @@ export function App() {
     }
   }, [start, nav]);
 
+  if (error && (error as { status?: number }).status === 401 && !inTelegram) {
+    return (
+      <div className="screen" style={{ justifyContent: 'center' }}>
+        <div className="state" style={{ color: 'var(--ink)' }}>
+          <h1 className="h1"><span style={{ color: 'var(--orange)' }}>30 дней</span></h1>
+          <p>Приложение работает внутри Telegram. Откройте его через бота.</p>
+          <a className="btn btn-primary" href="https://t.me/Dney30_bot">Открыть в Telegram</a>
+        </div>
+      </div>
+    );
+  }
   if (error) return <div className="screen"><ErrorState error={error} retry={() => location.reload()} /></div>;
   if (!me || !start) return <div className="screen"><Loading /></div>;
 
