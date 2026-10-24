@@ -51,7 +51,10 @@ export function UserDetail({ canEdit }: { canEdit: boolean }) {
         </div>
         <div className="card">
           <h2>Подписки и оплаты</h2>
-          {u.subscriptions.map((s: any) => <div key={s.id}>{s.tariffId} <Status v={s.status} /> · {d(s.paidFromFlow)} — {d(s.paidThroughFlow)} · след. списание {d(s.nextChargeDate)} {s.autoRenew ? '' : '(автопродление выключено)'}</div>)}
+          {u.subscriptions.map((s: any) => <div key={s.id}>{s.tariffId} <Status v={s.status} /> · {d(s.paidFromFlow)} — {d(s.paidThroughFlow)} · след. списание {d(s.nextChargeDate)} {s.autoRenew ? '' : '(автопродление выключено)'}
+            {s.autoRenew && ['prestart', 'active', 'past_due'].includes(s.status) && (
+              <button className="btn light" style={{ padding: '2px 8px', marginLeft: 6 }} onClick={async () => { if (await withReason('Отменить автопродление по обращению', (reason) => api(`/admin-api/users/${u.user.id}/cancel-subscription`, { body: { reason } }))) location.reload(); }}>отменить автопродление</button>
+            )}</div>)}
           <table><thead><tr><th>Дата</th><th>Вид</th><th>Сумма</th><th>Статус</th></tr></thead><tbody>{u.payments.map((p: any) => <tr key={p.id}><td>{dt(p.createdAt)}</td><td>{p.kind}</td><td>{rub(p.amount)}</td><td><Status v={p.status} /></td></tr>)}</tbody></table>
         </div>
         {u.memberships.map((m: any) => (

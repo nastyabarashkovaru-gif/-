@@ -8,8 +8,8 @@ import { useMe } from '../../state';
 import { Empty, ErrorState, Header, Loading, Screen, errorText, humanDate, plural, toast, useLoad } from '../../ui';
 
 export const CATEGORIES = [
-  { id: 'money', title: 'Деньги', emoji: '💰' },
-  { id: 'weightloss', title: 'Похудение', emoji: '🥗' },
+  { id: 'money', title: 'Деньги', emoji: '💸' },
+  { id: 'weightloss', title: 'Похудение', emoji: '🥑' },
   { id: 'blog', title: 'Блог', emoji: '📱' },
   { id: 'english', title: 'Английский', emoji: '🇬🇧' },
   { id: 'habits', title: 'Привычки и дисциплина', emoji: '🔥' },

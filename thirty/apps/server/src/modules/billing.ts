@@ -593,6 +593,8 @@ export async function subscriptionSummary(userId: bigint) {
           tariffId: sub.tariffId,
           tariffTitle: sub.tariff.title,
           months: sub.tariff.months,
+          goalLimit: sub.tariff.goalLimit,
+          price: sub.renewalPrice,
           autoRenew: sub.autoRenew,
           paidFrom: fromDbDate(sub.paidFromFlow),
           paidUntil: addMonths(fromDbDate(sub.paidThroughFlow), 1),

@@ -62,10 +62,10 @@ export async function billingRoutes(app: FastifyInstance) {
 
     /** Шаги удержания S36–S38 — только аналитика, отмену они не блокируют */
     r.post('/api/subscription/cancel-step', async (req) => {
-      const { step } = parse(z.object({ step: z.number().int().min(1).max(3) }), req.body);
+      const { step, reason } = parse(z.object({ step: z.number().int().min(1).max(4), reason: z.string().max(100).optional() }), req.body);
       const sub = await prisma.subscription.findFirst({ where: { userId: req.user!.id }, orderBy: { createdAt: 'desc' } });
       if (step === 1) await track({ userId: req.user!.id, eventName: 'cancel_started', screenId: 'S36', tariffId: sub?.tariffId });
-      await track({ userId: req.user!.id, eventName: 'cancel_step_view', screenId: `S3${5 + step}`, tariffId: sub?.tariffId, metadata: { step } });
+      await track({ userId: req.user!.id, eventName: 'cancel_step_view', screenId: `S3${5 + step}`, tariffId: sub?.tariffId, metadata: { step, ...(reason ? { reason } : {}) } });
       return { ok: true };
     });
   });

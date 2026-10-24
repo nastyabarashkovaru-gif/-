@@ -10,7 +10,7 @@ import { signedMediaUrl } from '../lib/storage';
 import { setHidden } from '../modules/feedChat';
 import { DEFAULT_SETTINGS, getSetting, setSetting, type SettingKey } from '../settings';
 import { dashboard, funnel, retention, screens, toCsv } from '../modules/adminAnalytics';
-import { markRefunded } from '../modules/billing';
+import { cancelAutoRenew, markRefunded } from '../modules/billing';
 import { bindChat } from '../modules/chats';
 import { ensureFlow, flowInfo } from '../modules/flows';
 import { computeLeaderboard, loadFacts, memberStats } from '../modules/rating';
@@ -185,6 +185,12 @@ export async function adminRoutes(app: FastifyInstance) {
     });
 
     /** Карточка пользователя: воронка, экраны, клики по тарифам, оплаты, подписка, потоки, отчёты, согласия, модерация */
+    r.post<{ Params: { id: string } }>('/admin-api/users/:id/cancel-subscription', perm('payments'), async (req) => {
+      const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(500) }), req.body);
+      const r = await cancelAutoRenew(BigInt(req.params.id), `support: ${reason}`);
+      await audit(req, 'subscription.cancel', 'user', req.params.id, { reason });
+      return jsonSafe(r);
+    });
     r.get<{ Params: { id: string } }>('/admin-api/users/:id', perm('users'), async (req) => {
       if (!/^\d+$/.test(req.params.id)) throw notFound();
       const id = BigInt(req.params.id);

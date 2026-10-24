@@ -110,7 +110,7 @@ describe('бот', () => {
 });
 
 describe('чаты (критерий №7)', () => {
-  it('чат потока — только его участникам; тематические — всем оплатившим; вступление через проверку заявки', async () => {
+  it('чат потока — только его участникам; тематические — только по категориям целей; вступление через проверку заявки', async () => {
     clock.set('2026-10-21T09:00:00Z');
     await paidUser(1, NOV);
     await paidUser(2, '2026-12-01');
@@ -120,7 +120,14 @@ describe('чаты (критерий №7)', () => {
 
     expect((await api('POST', `/api/chats/${flowChat.id}/invite`, 1)).status).toBe(200);
     expect((await api('POST', `/api/chats/${flowChat.id}/invite`, 2)).status).toBe(403);
+    // тематический чат «Деньги» — только если среди целей есть «Деньги»
+    const english = await prisma.telegramChat.create({ data: { kind: 'topic', topic: 'english', telegramChatId: -1003n, title: 'Английский' } });
+    expect((await api('POST', `/api/chats/${topic.id}/invite`, 2)).status).toBe(403);
+    await api('POST', '/api/goals', 2, { category: 'money', title: 'Накопить 50 000', pointA: '0', pointB: '50 000', confirmMethod: 'screenshot' });
     expect((await api('POST', `/api/chats/${topic.id}/invite`, 2)).status).toBe(200);
+    expect((await api('POST', `/api/chats/${english.id}/invite`, 2)).status).toBe(403);
+    const club = await api('GET', '/api/club', 2);
+    expect(club.body.topicChats.filter((t: { available: boolean }) => t.available).map((t: { topic: string }) => t.topic)).toEqual(['money']);
     const link = calls.find((c) => c.method === 'createChatInviteLink')!;
     expect(link.body).toMatchObject({ chat_id: -1001, creates_join_request: true });
 

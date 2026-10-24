@@ -3,16 +3,17 @@ export const MAIN_PITCH =
   '30 дней, чтобы доказать себе, что ты можешь. Выбери цель, выполняй задания, отмечай прогресс каждый день. А мы дадим тебе бадди, окружение, еженедельные созвоны и возможность побороться за главный приз.';
 
 export const GOAL_CATEGORIES = [
-  { id: 'money', title: 'Деньги', emoji: '💰' },
-  { id: 'weightloss', title: 'Похудение', emoji: '🥗' },
+  { id: 'money', title: 'Деньги', emoji: '💸' },
+  { id: 'weightloss', title: 'Похудение', emoji: '🥑' },
   { id: 'blog', title: 'Блог', emoji: '📱' },
   { id: 'english', title: 'Английский', emoji: '🇬🇧' },
-  { id: 'habits', title: 'Привычки', emoji: '🌱' },
+  { id: 'habits', title: 'Привычки и дисциплина', emoji: '🔥' },
+  { id: 'other', title: 'Другое', emoji: '✨' },
   { id: 'selfdev', title: 'Саморазвитие', emoji: '📚' },
 ] as const;
 
-/** Пять постоянных тематических чатов */
-export const TOPIC_CHATS = GOAL_CATEGORIES.filter((c) => c.id !== 'selfdev');
+/** Пять постоянных тематических чатов (у «Другое» и «Саморазвития» своего чата нет) */
+export const TOPIC_CHATS = GOAL_CATEGORIES.filter((c) => c.id !== 'selfdev' && c.id !== 'other');
 
 export function plural(n: number, one: string, few: string, many: string): string {
   const m10 = n % 10;

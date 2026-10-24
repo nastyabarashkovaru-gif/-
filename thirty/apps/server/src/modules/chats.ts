@@ -23,11 +23,15 @@ export async function accessibleChats(userId: bigint, now = clock.now()): Promis
     .filter((m) => addDays(flowBounds(fromDbDate(m.flow.startsOn)).endsOn, FLOW_CHAT_GRACE_DAYS) >= today)
     .map((m) => m.flowId);
   const live = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
+  // Тематические чаты — только по категориям целей участника (решение владельца 24.10)
+  const topics = live
+    ? [...new Set((await prisma.goal.findMany({ where: { membership: { userId, flowId: { in: flowIds } } }, select: { category: true } })).map((g) => g.category as string))]
+    : [];
   return prisma.telegramChat.findMany({
     where: {
       active: true,
       telegramChatId: { not: null },
-      OR: [{ kind: 'flow', flowId: { in: flowIds } }, ...(live ? [{ kind: 'topic' }] : [])],
+      OR: [{ kind: 'flow', flowId: { in: flowIds } }, ...(topics.length ? [{ kind: 'topic' as const, topic: { in: topics } }] : [])],
     },
   });
 }

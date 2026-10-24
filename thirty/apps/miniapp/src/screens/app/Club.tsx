@@ -1,79 +1,60 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { Users, MessagesSquare, Video, ChevronRight, ExternalLink } from 'lucide-react';
+import { MessagesSquare, ArrowUpRight, Lock, CalendarDays, ExternalLink } from 'lucide-react';
 import { api } from '../../lib/api';
 import { openExternal, openTelegram } from '../../lib/telegram';
-import { Empty, ErrorState, Header, Loading, Screen, errorText, humanDate, toast, useLoad } from '../../ui';
+import { AppBar, ErrorState, Header, Loading, Screen, errorText, humanDate, toast, useLoad } from '../../ui';
 
 interface Meeting { id: string; direction: string; directionTitle: string; title: string; description: string | null; startsAt: string; durationMin: number; status: string; expert: { name: string; photoUrl: string | null; bio: string | null } | null; nextStep?: string | null; joined?: boolean }
-interface ClubData { paid: boolean; flowChat: { id: string; title: string } | null; topicChats: { topic: string; title: string; emoji: string; id: string | null; available: boolean }[]; meetings: Meeting[] }
+interface ClubData { paid: boolean; flowChat: { id: string; title: string } | null; flow: { startsOn: string; title: string } | null; topicChats: { topic: string; title: string; emoji: string; id: string | null; available: boolean }[]; meetings: Meeting[] }
 
 const time = (iso: string) => new Date(iso).toLocaleString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' });
 
 async function joinChat(id: string) {
   try {
     const r = await api<{ url: string | null; joined: boolean }>(`/api/chats/${id}/invite`, { body: {} });
-    if (r.joined) toast('Вы уже в этом чате');
+    if (r.joined) toast('Ты уже в этом чате — открой его в Telegram');
     else if (r.url) openTelegram(r.url);
   } catch (e) {
     toast(errorText(e));
   }
 }
 
-/** S27: клуб — чат потока, пять тематических чатов, календарь созвонов (как на макете) */
+/** Сообщество: общий чат потока и тематические чаты по категориям целей (закрытые — серые с замком) */
 export function Club() {
-  const nav = useNavigate();
   const { data, error, loading, reload } = useLoad(() => api<ClubData>('/api/club'));
   return (
     <Screen id="S27" nav>
-      <Header title="Клуб" />
-      {loading ? <Loading /> : error ? <ErrorState error={error} retry={reload} /> : (
+      <AppBar />
+      <div>
+        <h1 className="h2" style={{ fontSize: 26 }}>Твоё сообщество 💜</h1>
+        <p className="sub" style={{ fontSize: 15 }}>Присоединяйся к чатам по категориям твоих целей.</p>
+      </div>
+      {loading && !data ? <Loading /> : error || !data ? <ErrorState error={error} retry={reload} /> : (
         <>
-          <div className="card">
-            <div className="row" style={{ alignItems: 'flex-start' }}>
-              <div className="tile-icon"><Users size={24} /></div>
-              <div className="grow col" style={{ gap: 6 }}>
-                <div className="h3">Общий чат моего потока</div>
-                <div className="muted">Только участники, которые стартовали в одну дату. Знакомства, поддержка, общение и объявления.</div>
-                {data!.flowChat ? <button className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => joinChat(data!.flowChat!.id)}>Открыть чат</button> : <span className="muted small">Чат откроется ближе к старту</span>}
-              </div>
-            </div>
-            <div className="divider" />
-            <div className="row" style={{ alignItems: 'flex-start' }}>
-              <div className="tile-icon"><MessagesSquare size={24} /></div>
-              <div className="grow col">
-                <div className="h3">Тематические клубы</div>
-                <div className="grid2">
-                  {data!.topicChats.map((c) => (
-                    <button key={c.topic} className="chip" disabled={!c.id} style={{ opacity: c.id ? 1 : 0.5 }} onClick={() => c.id && joinChat(c.id)}>{c.emoji} {c.title}</button>
-                  ))}
-                </div>
-                <div className="muted small">Объединяют участников разных потоков. Можно состоять сразу в нескольких.</div>
-              </div>
-            </div>
-            <div className="divider" />
-            <div className="row" style={{ alignItems: 'flex-start' }}>
-              <div className="tile-icon"><Video size={24} /></div>
-              <div className="grow"><div className="h3">Созвоны с экспертами</div><div className="muted">Ближайшие встречи, тема, кнопка присоединения и отзыв после занятия.</div></div>
-            </div>
+          <button className="hero-card card-link" style={{ flexDirection: 'row', alignItems: 'center', gap: 16, border: 0, textAlign: 'left', cursor: data.flowChat ? 'pointer' : 'default', opacity: data.flowChat ? 1 : 0.6 }}
+            onClick={() => (data.flowChat ? joinChat(data.flowChat.id) : toast('Чат потока откроется ближе к старту'))}>
+            <MessagesSquare size={28} strokeWidth={1.8} />
+            <span className="grow"><span style={{ display: 'block', fontSize: 20, fontWeight: 700 }}>Общий чат потока</span>{data.flow && <span style={{ opacity: 0.9 }}>{humanDate(data.flow.startsOn, true)}</span>}</span>
+            {data.flowChat ? <ArrowUpRight size={18} /> : <Lock size={18} />}
+          </button>
+          <h2 className="h2" style={{ fontSize: 20, marginTop: 6 }}>Тематические чаты</h2>
+          {data.topicChats.map((t) => (
+            <button key={t.topic} className={`card topic-row ${t.available ? 'card-link' : 'locked'}`} disabled={!t.available} onClick={() => t.id && joinChat(t.id)}>
+              <span className="topic-emoji">{t.emoji}</span>
+              <span className="grow h3" style={{ textAlign: 'left', fontSize: 17 }}>Чат «{t.title}»</span>
+              {t.available ? <ArrowUpRight size={17} color="var(--accent)" /> : <Lock size={17} />}
+            </button>
+          ))}
+          <div className="panel" style={{ gap: 6, padding: 16 }}>
+            <span className="row" style={{ gap: 8, color: 'var(--accent-ink)', fontWeight: 600, fontSize: 17 }}><CalendarDays size={19} />Созвоны с лидерами</span>
+            <span className="muted">Анонсы и расписание всех созвонов публикуются в тематических чатах.</span>
           </div>
-          {data!.meetings.length === 0 ? <Empty title="Расписание созвонов скоро появится" /> : (
-            <div className="card">
-              {data!.meetings.map((m) => (
-                <div className="list-item card-link" key={m.id} onClick={() => nav(`/meeting/${m.id}`)}>
-                  <div className="grow"><div style={{ fontWeight: 600 }}>{m.title}</div><div className="muted small">{time(m.startsAt)} МСК · {m.directionTitle}</div></div>
-                  <ChevronRight size={20} />
-                </div>
-              ))}
-            </div>
-          )}
-          {!data!.paid && <div className="banner warn">Чаты и созвоны доступны участникам с оплаченным доступом.</div>}
         </>
       )}
     </Screen>
   );
 }
 
-/** S28: созвон */
 export function MeetingScreen() {
   const { id = '' } = useParams();
   const nav = useNavigate();

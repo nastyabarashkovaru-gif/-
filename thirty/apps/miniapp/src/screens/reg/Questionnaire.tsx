@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   Target, Sparkles, Lightbulb, CircleX, CircleCheck, Trophy, Plus, Route, ArrowDown, ShieldCheck, ListChecks, ClipboardCheck,
-  CalendarDays, ChevronDown, ChevronUp, Handshake, Hourglass, CheckCheck, BookOpen, ArrowRight, Pencil, Wallet, HeartPulse, Smartphone, Languages, Flame, Shapes,
+  CalendarDays, ChevronDown, ChevronUp, Handshake, Hourglass, CheckCheck, BookOpen, ArrowRight, Pencil,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { track } from '../../lib/analytics';
@@ -13,12 +13,12 @@ import { useMembership, type MembershipView } from './Registration';
 
 /** Категории целей анкеты (решение владельца 24.10) */
 export const GOAL_CATEGORIES = [
-  { id: 'money', title: 'Деньги', Icon: Wallet },
-  { id: 'blog', title: 'Блог', Icon: Smartphone },
-  { id: 'weightloss', title: 'Похудение', Icon: HeartPulse },
-  { id: 'english', title: 'Английский', Icon: Languages },
-  { id: 'habits', title: 'Привычки и дисциплина', Icon: Flame },
-  { id: 'other', title: 'Другое', Icon: Shapes },
+  { id: 'money', title: 'Деньги', emoji: '💸' },
+  { id: 'weightloss', title: 'Похудение', emoji: '🥑' },
+  { id: 'blog', title: 'Блог', emoji: '📱' },
+  { id: 'english', title: 'Английский', emoji: '🇬🇧' },
+  { id: 'habits', title: 'Привычки и дисциплина', emoji: '🔥' },
+  { id: 'other', title: 'Другое', emoji: '✨' },
 ] as const;
 
 const CONFIRM = [
@@ -171,13 +171,17 @@ function GoalsForm({ m }: { m: MembershipView }) {
             )}
           </div>
           <textarea className="textarea" placeholder="Я обязуюсь..." value={d.title} maxLength={200} onChange={(e) => set(i, { title: e.target.value })} />
-          <span className="small muted" style={{ fontWeight: 500 }}>К какой категории относится цель?</span>
-          <div className="chips">
-            {GOAL_CATEGORIES.map(({ id, title, Icon }) => (
-              <button key={id} type="button" className={`chip ${d.category === id ? 'on' : ''}`} style={{ minHeight: 38, padding: '7px 11px', fontSize: 14 }} onClick={() => set(i, { category: id })}>
-                <Icon size={15} strokeWidth={1.8} />{title}
-              </button>
-            ))}
+          <div className="card" style={{ gap: 10, marginTop: 4 }}>
+            <span className="row h3" style={{ gap: 8, alignItems: 'flex-start' }}><Target size={18} color="var(--accent)" style={{ marginTop: 2 }} />К какой категории относится твоя цель?</span>
+            <span className="muted small" style={{ marginTop: -4 }}>Так другие участники смогут найти тебя по интересам.</span>
+            <div className="grid2">
+              {GOAL_CATEGORIES.map(({ id, title, emoji }) => (
+                <button key={id} type="button" className={`cat-btn ${d.category === id ? 'on' : ''}`} aria-pressed={d.category === id} onClick={() => set(i, { category: id })}>
+                  {emoji} {title}
+                </button>
+              ))}
+            </div>
+            {d.category && <span className="row small" style={{ gap: 6, color: 'var(--accent)' }}><CircleCheck size={15} />Выбрано: {GOAL_CATEGORIES.find((c) => c.id === d.category)?.title}</span>}
           </div>
         </div>
       ))}

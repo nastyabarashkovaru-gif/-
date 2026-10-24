@@ -1,4 +1,5 @@
-import { TOPIC_CHATS } from '@thirty/domain';
+import { TOPIC_CHATS, fromDbDate } from '@thirty/domain';
+import { currentMembership } from './flows';
 import { clock } from '../clock';
 import { prisma } from '../db';
 import { forbidden, notFound } from '../http';
@@ -42,10 +43,12 @@ export async function clubOverview(userId: bigint) {
     orderBy: { startsAt: 'asc' },
   });
   await track({ userId, eventName: 'club_open', screenId: 'S27' });
-  const flowChat = chats.find((c) => c.kind === 'flow');
+  const membership = await currentMembership(userId);
+  const flowChat = chats.find((c) => c.kind === 'flow' && c.flowId === membership?.flowId) ?? chats.find((c) => c.kind === 'flow');
   return {
     paid: await hasPaidAccess(userId),
     flowChat: flowChat ? { id: flowChat.id, title: flowChat.title } : null,
+    flow: membership ? { startsOn: fromDbDate(membership.flow.startsOn), title: membership.flow.title } : null,
     topicChats: TOPIC_CHATS.map((t) => {
       const c = chats.find((x) => x.kind === 'topic' && x.topic === t.id);
       return { topic: t.id, title: t.title, emoji: t.emoji, id: c?.id ?? null, available: Boolean(c) };

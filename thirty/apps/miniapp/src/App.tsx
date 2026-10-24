@@ -18,7 +18,7 @@ import { ReportScreen, ReportHistory, ReportView } from './screens/app/Report';
 import { Feed, ParticipantScreen } from './screens/app/Feed';
 import { Club, MeetingScreen } from './screens/app/Club';
 import { BuddyScreen } from './screens/app/Buddy';
-import { Profile, CancelFlow, Archive, Upsells } from './screens/app/Profile';
+import { Profile, CancelFlow, Archive, Upsells, MySubscription, MyQuestionnaire } from './screens/app/Profile';
 import { CardScreen, ReviewScreen, FinalScreen } from './screens/app/Finale';
 
 /** Экран по параметру кнопки бота: m_<log>_<screen> */
@@ -135,6 +135,8 @@ export function App() {
         <Route path="/meeting/:id" element={<MeetingScreen />} />
         <Route path="/buddy" element={<BuddyScreen />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/profile/subscription" element={<MySubscription />} />
+        <Route path="/profile/questionnaire" element={<MyQuestionnaire />} />
         <Route path="/cancel" element={<CancelFlow />} />
         <Route path="/archive" element={<Archive />} />
         <Route path="/upsells" element={<Upsells />} />
