@@ -76,7 +76,7 @@ export async function billingRoutes(app: FastifyInstance) {
   app.get<{ Params: { kind: string } }>('/api/public/docs/:kind', async (req) => {
     if (req.params.kind !== 'offer' && req.params.kind !== 'privacy') throw notFound();
     const support = `@${await getSetting('support.username')}`;
-    const text = (req.params.kind === 'offer' ? offerDoc : privacyDoc).replaceAll('{{seller}}', await getSetting('legal.seller')).replaceAll('{{support}}', support);
+    const text = (req.params.kind === 'offer' ? offerDoc : privacyDoc).replaceAll('{{sellerGenitive}}', await getSetting('legal.sellerGenitive')).replaceAll('{{seller}}', await getSetting('legal.seller')).replaceAll('{{requisites}}', await getSetting('legal.requisites')).replaceAll('{{support}}', support);
     return { text };
   });
 
