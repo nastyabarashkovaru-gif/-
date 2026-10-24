@@ -114,7 +114,7 @@ export async function adminRoutes(app: FastifyInstance) {
       return after;
     });
     r.put('/admin-api/value-items', perm('tariffs'), async (req) => {
-      const items = parse(z.array(z.object({ id: z.string().max(32), title: z.string().max(120), price: z.number().int().min(0), priceLabel: z.string().max(60).optional(), enabled: z.boolean() })).max(20), req.body);
+      const items = parse(z.array(z.object({ id: z.string().max(32), title: z.string().max(120), price: z.number().int().min(0), priceLabel: z.string().max(60).optional(), emoji: z.string().max(16).optional(), enabled: z.boolean() })).max(20), req.body);
       await audit(req, 'value.update', 'setting', 'value.items', { before: await getSetting('value.items'), after: items });
       await setSetting('value.items', items);
       return { items };

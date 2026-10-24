@@ -5,6 +5,7 @@ export interface ValueItem {
   title: string;
   price: number;
   priceLabel?: string;
+  emoji?: string;
   enabled: boolean;
 }
 
@@ -23,11 +24,13 @@ export const DEFAULT_SETTINGS = {
   'prize.rulesText':
     'Приз получают участники с идеальным результатом: 100% обязательных выполнений по всем целям, ни одного пропущенного ежедневного отчёта и подтверждённое достижение всех выбранных целей. Все претенденты проходят ручную проверку доказательств. Призовых мест не больше трёх; при равенстве места распределяются по публичному тай-брейку: процент выполнения → полностью закрытые дни → самая длинная серия → время подачи итоговой анкеты.',
   'value.items': [
-    { id: 'coach', title: 'Коуч по финансам', price: 3000, enabled: true },
-    { id: 'english', title: 'Английский с репетитором', price: 1500, priceLabel: 'от 1 500 ₽/мес', enabled: true },
-    { id: 'blog', title: 'Мини-обучение по блогу', price: 15000, enabled: true },
-    { id: 'planners', title: 'Планнеры и трекеры', price: 3999, enabled: true },
-    { id: 'products', title: 'Полезные продукты клуба', price: 1500, enabled: true },
+    { id: 'psychologist', emoji: '🧠', title: 'Сессия с психологом', price: 3000, priceLabel: 'от 3 000 ₽', enabled: true },
+    { id: 'coach', emoji: '🎯', title: 'Сессия с коучем', price: 3000, priceLabel: 'от 3 000 ₽', enabled: true },
+    { id: 'english', emoji: '🇬🇧', title: 'Сессия с репетитором', price: 1500, priceLabel: 'от 1 500 ₽', enabled: true },
+    { id: 'weekly', emoji: '🎥', title: 'Живые еженедельные разборы', price: 3000, enabled: true },
+    { id: 'blog', emoji: '📚', title: 'Обучение по блогу', price: 15000, enabled: true },
+    { id: 'planners', emoji: '📅', title: 'Планнеры и трекеры', price: 3999, enabled: true },
+    { id: 'products', emoji: '🥑', title: 'Продуктовая корзина для похудения', price: 1500, enabled: true },
   ] as ValueItem[],
   'evidence.policy': {
     money: { evidence: 'checkbox_photo', photoRequired: false, selfReported: false, note: 'Скриншот по желанию. Не показывайте номера карт и суммы на счетах.' },

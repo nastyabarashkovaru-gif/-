@@ -5,7 +5,7 @@ import { ctx, track } from './lib/analytics';
 import { inTelegram, startParam } from './lib/telegram';
 import { MeContext, type Me } from './state';
 import { ErrorState, Loading, ToastHost } from './ui';
-import { Welcome, OnboardingStep } from './screens/onboarding/Onboarding';
+import { Welcome, OnboardingStep, AboutScreen } from './screens/onboarding/Onboarding';
 import { Materials } from './screens/onboarding/Materials';
 import { Tariffs } from './screens/onboarding/Tariffs';
 import { Checkout, PaymentWait } from './screens/onboarding/Checkout';
@@ -106,6 +106,7 @@ export function App() {
       <Routes>
         <Route path="/welcome" element={<Welcome />} />
         <Route path="/onboarding/:n" element={<OnboardingStep />} />
+        <Route path="/about/:topic/:i" element={<AboutScreen />} />
         <Route path="/materials" element={<Materials />} />
         <Route path="/tariffs" element={<Tariffs />} />
         <Route path="/checkout/:tariff" element={<Checkout />} />

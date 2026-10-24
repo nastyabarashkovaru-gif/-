@@ -22,6 +22,9 @@ export async function seed() {
     const old = row && ((row.features as string[]).some((f) => /эксперт/i.test(f)) || row.badge === 'Хит продаж');
     if (old) await prisma.tariff.update({ where: { id: t.id }, data: { features: t.features, badge: t.badge } });
   }
+  // Редизайн 25.10: старый состав экрана ценности (без эмодзи) заменяем новым утверждённым
+  const value = await prisma.setting.findUnique({ where: { key: 'value.items' } });
+  if (value && Array.isArray(value.value) && (value.value as { emoji?: string }[]).every((i) => !i.emoji)) await prisma.setting.delete({ where: { key: 'value.items' } });
   await applyProdamusSubscriptionIds();
   await seedTemplates();
   const upsells = [

@@ -60,7 +60,7 @@ describe('аналитика (критерии №1, №14)', () => {
       const events = [ev(uid, 0, 'app_open'), ev(uid, 1, 'screen_view', { screen_id: 'O01' }), ev(uid, 1, 'onboarding_step_view', { screen_id: 'O01' })];
       if (uid <= 3) {
         events.push(ev(uid, 2, 'screen_view', { screen_id: 'O02' }));
-        for (let n = 2; n <= 11; n++) events.push(ev(uid, 2 + n, 'onboarding_step_view', { screen_id: `O${String(n).padStart(2, '0')}` }));
+        for (let n = 2; n <= 3; n++) events.push(ev(uid, 2 + n, 'onboarding_step_view', { screen_id: `O${String(n).padStart(2, '0')}` }));
         events.push(ev(uid, 14, 'tariff_view'));
       }
       if (uid <= 2) events.push(ev(uid, 15, 'tariff_select', { tariff_id: uid === 1 ? 'm3' : 'm1' }));

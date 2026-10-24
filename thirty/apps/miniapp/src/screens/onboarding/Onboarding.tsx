@@ -1,15 +1,16 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   HeartHandshake, MessagesSquare, Video, ChartNoAxesColumnIncreasing, Users, Smile, Heart, Wallet, HeartPulse, Smartphone, Languages, Flame,
-  Mic, MessageCircle, PhoneOff, User, CalendarCheck, TrendingUp, Brain, CircleCheck, Target, Pencil, LayoutGrid, Camera, Trophy, Sparkles, Check,
+  Mic, MessageCircle, PhoneOff, User, CalendarCheck, TrendingUp, Brain, CircleCheck, Target, Pencil, LayoutGrid, Camera, Trophy, Sparkles, Check, ArrowLeft, ArrowRight, ChevronDown, X,
 } from 'lucide-react';
-import { api } from '../../lib/api';
+import { api, rub } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
-import { BrandBar, Cta, Dots, Screen } from '../../ui';
+import { BrandBar, Cta, Dots, ErrorState, Loading, Screen, useLoad } from '../../ui';
 
-const TOTAL = 11;
-export const onbPath = (n: number) => (n === 1 ? '/welcome' : `/onboarding/${n}`);
+/** Онбординг: 3 экрана + тарифы (4-й). Подробные объяснения механик — по кнопкам «Подробнее» */
+const TOTAL = 4;
+export const onbPath = (n: number) => (n === 1 ? '/welcome' : n >= TOTAL ? '/tariffs' : `/onboarding/${n}`);
 const screenId = (n: number) => `O${String(n).padStart(2, '0')}`;
 
 function useStep(n: number) {
@@ -20,21 +21,46 @@ function useStep(n: number) {
       track('onboarding_started', { screen: screenId(1) });
     }
     track('onboarding_step_view', { screen: screenId(n), metadata: { step: n } });
-    if (n === TOTAL) track('value_screen_view', { screen: screenId(n) });
+    if (n === 3) track('value_screen_view', { screen: screenId(n) });
     void api('/api/me/screen', { body: { screen: onbPath(n), stage: 'onboarding' } }).catch(() => undefined);
   }, [n]);
-  // A/B «onboarding_flow»: вариант short — с первого экрана сразу на последний
-  return () => nav(n === 1 && ctx.variants.onboarding_flow === 'short' ? onbPath(TOTAL) : n < TOTAL ? onbPath(n + 1) : '/tariffs');
+  // A/B «onboarding_flow»: вариант short — с первого экрана сразу к тарифам
+  return () => nav(n === 1 && ctx.variants.onboarding_flow === 'short' ? '/tariffs' : onbPath(n + 1));
 }
 
-function Onb({ n, children, cta = 'Дальше' }: { n: number; children: ReactNode; cta?: ReactNode }) {
+/** Каркас шагов 1–3: логотип и «n / 4», полоски прогресса, белая карточка, чёрная кнопка, «Назад», точки */
+function Step({ n, children, cta }: { n: number; children: ReactNode; cta: string }) {
   const next = useStep(n);
+  const nav = useNavigate();
   return (
     <Screen id={screenId(n)} className="onb">
-      <BrandBar right={<span className="counter">{String(n).padStart(2, '0')} / {TOTAL}</span>} />
-      <div className="onb-body">{children}</div>
+      <BrandBar right={<span className="counter">{n} / {TOTAL}</span>} />
+      <div className="steps">{Array.from({ length: TOTAL }, (_, i) => <i key={i} className={i < n ? 'on' : ''} />)}</div>
+      <div className="card onb-card">
+        {children}
+        <button className="btn btn-dark" onClick={next}>{cta}<ArrowRight size={17} /></button>
+      </div>
+      {n > 1 && <button className="link-accent" style={{ color: 'var(--muted)', fontWeight: 500 }} onClick={() => nav(onbPath(n - 1))}><ArrowLeft size={16} />Назад</button>}
       <Dots count={TOTAL} at={n - 1} />
-      <Cta onClick={next}>{cta}</Cta>
+    </Screen>
+  );
+}
+
+/** Экран-объяснение механики («Подробнее»): прежние иллюстрированные экраны */
+const AboutCtx = createContext<{ topic: string; i: number; total: number } | null>(null);
+
+function Onb({ children, cta }: { n: number; children: ReactNode; cta?: ReactNode }) {
+  const about = useContext(AboutCtx)!;
+  const nav = useNavigate();
+  const last = about.i === about.total - 1;
+  const close = () => nav('/onboarding/2', { replace: true });
+  return (
+    <Screen id={`OA_${about.topic}_${about.i + 1}`} className="onb">
+      <BrandBar right={<button className="link-btn" style={{ padding: 4, textDecoration: 'none' }} aria-label="Закрыть" onClick={close}><X size={22} /></button>} />
+      <div className="onb-body">{children}</div>
+      {about.total > 1 && <Dots count={about.total} at={about.i} />}
+      <Cta onClick={() => (last ? close() : nav(`/about/${about.topic}/${about.i + 1}`, { replace: true }))}>{last ? 'Понятно' : cta ?? 'Дальше'}</Cta>
+      {about.i > 0 && <button className="link-accent" style={{ color: 'var(--muted)', fontWeight: 500 }} onClick={() => nav(`/about/${about.topic}/${about.i - 1}`, { replace: true })}><ArrowLeft size={16} />Назад</button>}
     </Screen>
   );
 }
@@ -47,37 +73,6 @@ function Title({ children, lead }: { children: ReactNode; lead?: ReactNode }) {
     </div>
   );
 }
-
-const S1 = () => (
-  <Onb n={1} cta="Вступить в челлендж">
-    <img className="onb-art" src="/img/onb-team.png" alt="" style={{ maxWidth: 270 }} />
-    <Title lead="Вступай в наше сообщество «30 дней», где мы все вместе идём к своим целям! Жми кнопку ниже!">
-      Твои следующие 30 дней могут изменить <em>ВСЁ</em>
-    </Title>
-  </Onb>
-);
-
-const S2 = () => (
-  <Onb n={2}>
-    <Title lead="Всё, чтобы не сдаться на полпути:">
-      Ты не просто ставишь цель. Ты получаешь <em>целую команду поддержки!</em>
-    </Title>
-    <div className="grid2">
-      {([
-        [HeartHandshake, '', 'Бадди', 'Личный партнёр по дисциплине'],
-        [MessagesSquare, 'green', 'Чаты', 'Окружение единомышленников'],
-        [Video, 'orange', 'Лидеры', 'Созвоны каждую неделю'],
-        [ChartNoAxesColumnIncreasing, 'gold', 'Прогресс', 'Отчёты, рейтинг и результаты'],
-      ] as const).map(([I, c, t, s]) => (
-        <div key={t} className="card center" style={{ alignItems: 'center', gap: 6, padding: '16px 10px 18px' }}>
-          <span className={`ic lg ${c}`} style={c === 'orange' ? { color: '#ec7a52' } : undefined}><I size={28} strokeWidth={1.8} /></span>
-          <div className="h3" style={{ marginTop: 6 }}>{t}</div>
-          <div className="muted small">{s}</div>
-        </div>
-      ))}
-    </div>
-  </Onb>
-);
 
 const S3 = () => (
   <Onb n={3}>
@@ -326,32 +321,111 @@ const S10 = () => (
   </Onb>
 );
 
-const S11 = () => (
-  <Onb n={11} cta="Хочу присоединиться! 😍">
-    <div className="panel" style={{ margin: '0 22px', padding: '0 0 14px', overflow: 'hidden', background: '#eee9ff' }}>
-      <img src="/img/onb-thanks.png" alt="" style={{ width: '100%' }} />
-      <div className="card row" style={{ border: 0, flexDirection: 'row', margin: '0 14px', padding: '10px 14px' }}>
-        <span className="row grow" style={{ gap: 8, fontWeight: 600, color: 'var(--accent-ink)', fontSize: 14 }}><Users size={16} color="var(--accent)" />Ты не один!</span>
-        <span className="row" style={{ gap: 5, fontSize: 12, color: 'var(--muted)' }}><Heart size={13} color="var(--pink)" />Мы рядом</span>
-      </div>
-    </div>
-    <Title lead="Новые привычки. Новые люди. Новая версия тебя.">
-      Через 30 дней ты скажешь себе <em>спасибо!</em>
-    </Title>
-    <p className="lead-accent">И всё это — вместе с теми, кто верит в тебя и идёт рядом.</p>
-  </Onb>
-);
+const ABOUT: Record<string, (() => ReactNode)[]> = {
+  buddy: [S3],
+  chats: [S4, S5],
+  calls: [S6, S7],
+  reports: [S8, S9, S10],
+};
 
-const SCREENS = [S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11];
+export function AboutScreen() {
+  const { topic = '', i = '0' } = useParams();
+  const list = ABOUT[topic];
+  const idx = Math.max(0, Math.min(Number(i) || 0, (list?.length ?? 1) - 1));
+  if (!list) return <Navigate to="/onboarding/2" replace />;
+  const S = list[idx];
+  return (
+    <AboutCtx.Provider value={{ topic, i: idx, total: list.length }}>
+      <S key={`${topic}${idx}`} />
+    </AboutCtx.Provider>
+  );
+}
+
+/* ───────────── Шаги 1–3 ───────────── */
 
 export function Welcome() {
-  return <S1 />;
+  return (
+    <Step n={1} cta="Узнать подробнее">
+      <span className="onb-emoji">🚀</span>
+      <h1 className="hero" style={{ fontSize: 27 }}>Вступай в сообщество «30 дней»! 😍</h1>
+      <p className="lead-accent" style={{ color: 'var(--accent)', fontSize: 16 }}>Следующие 30 дней МОГУТ ИЗМЕНИТЬ ВСЁ! 💜</p>
+      <div className="col" style={{ gap: 14, margin: '6px 0' }}>
+        {([['', 'Выбирай цели, которые давно откладываешь'], ['green', 'Находи единомышленников'], ['peach', 'Общайся, присылай отчёты, забирай призы']] as const).map(([c, t], k) => (
+          <div key={t} className="row" style={{ gap: 14 }}>
+            <span className={`num-sq ${c}`}>{k + 1}</span>
+            <span style={{ fontSize: 17 }}>{t}</span>
+          </div>
+        ))}
+      </div>
+      <div className="panel center" style={{ color: 'var(--accent-ink)', fontWeight: 600, fontSize: 16 }}>Новые привычки, новые люди, новая версия тебя — «30 дней» 💜</div>
+    </Step>
+  );
+}
+
+const MECHANICS = [
+  { topic: 'buddy', icon: <span>🤝</span>, c: '', title: 'Бадди', text: 'Мы все делимся на пары' },
+  { topic: 'chats', icon: <span>💬</span>, c: 'green', title: 'Чаты', text: 'Окружение единомышленников' },
+  { topic: 'calls', icon: <Video size={30} strokeWidth={1.8} />, c: 'orange', title: 'Созвоны', text: 'Разбор твоих шагов каждую неделю' },
+  { topic: 'reports', icon: <span>📸</span>, c: 'blue', title: 'Отчёты', text: 'Каждый день делишься результатом' },
+];
+
+function Mechanics() {
+  const nav = useNavigate();
+  return (
+    <Step n={2} cta="Что ещё входит в клуб?">
+      <h1 className="hero" style={{ fontSize: 30 }}>Сдаться сложнее, когда вас двое 🤝</h1>
+      <div className="grid2" style={{ marginTop: 4 }}>
+        {MECHANICS.map((m) => (
+          <button key={m.topic} className="mech" onClick={() => nav(`/about/${m.topic}/0`)}>
+            <span className={`mech-ic ${m.c}`}>{m.icon}</span>
+            <span className="h3" style={{ fontSize: 18 }}>{m.title}</span>
+            <span className="muted" style={{ fontSize: 14 }}>{m.text}</span>
+            <span className="row" style={{ gap: 4, color: 'var(--accent)', fontWeight: 500, marginTop: 'auto' }}>Подробнее <ChevronDown size={16} /></span>
+          </button>
+        ))}
+      </div>
+    </Step>
+  );
+}
+
+function Value() {
+  const { data, error, loading, reload } = useLoad(() => api<{ items: { id: string; title: string; price: number; priceLabel?: string; emoji?: string }[]; total: number }>('/api/public/value'));
+  return (
+    <Step n={3} cta="Узнать стоимость вступления">
+      <div>
+        <h1 className="h2" style={{ fontSize: 26 }}>Что входит в клуб</h1>
+        <p className="sub" style={{ fontSize: 15 }}>Если покупать всё это по отдельности</p>
+      </div>
+      {loading && !data ? <Loading lines={2} /> : error || !data ? <ErrorState error={error} retry={reload} /> : (
+        <>
+          <div>
+            {data.items.map((i) => (
+              <div key={i.id} className="value-row">
+                <span className="value-ic">{i.emoji ?? '✨'}</span>
+                <span className="grow" style={{ fontSize: 16 }}>{i.title}</span>
+                <span className="muted nowrap">{i.priceLabel ?? rub(i.price)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="row between" style={{ padding: '4px 0' }}>
+            <span className="h3" style={{ fontSize: 18 }}>Общая ценность</span>
+            <span style={{ fontSize: 26, fontWeight: 700 }}>{rub(data.total)}</span>
+          </div>
+          <div className="row" style={{ background: 'var(--green-soft)', color: 'var(--green)', borderRadius: 16, padding: '14px 16px', gap: 10, alignItems: 'flex-start', fontWeight: 600 }}>
+            <CircleCheck size={20} style={{ flexShrink: 0, marginTop: 1 }} />Всё это уже включено в стоимость клуба для наших участников
+          </div>
+        </>
+      )}
+    </Step>
+  );
 }
 
 export function OnboardingStep() {
   const n = Number(useParams().n);
-  const S = SCREENS[n - 1] as (typeof SCREENS)[number] | undefined;
-  return S && n > 1 ? <S key={n} /> : <S1 />;
+  if (n === 2) return <Mechanics />;
+  if (n === 3) return <Value />;
+  if (n >= 4) return <Navigate to="/tariffs" replace />;
+  return <Navigate to="/welcome" replace />;
 }
 
 export function useTicker(ms: number) {

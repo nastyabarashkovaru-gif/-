@@ -53,12 +53,13 @@ function ValueItems({ items, reload }: { items: any[]; reload: () => void }) {
   const [list, setList] = useState(items);
   return (
     <div className="card">
-      <h2>Экран ценности S05</h2>
+      <h2>Экран «Что входит в клуб» (онбординг, шаг 3)</h2>
       <p className="muted">Показывайте только реально включённые предложения с проверенными сравнительными ценами.</p>
-      <table><thead><tr><th>Вкл.</th><th>Название</th><th>Цена, ₽</th><th>Подпись цены</th><th /></tr></thead>
+      <table><thead><tr><th>Вкл.</th><th>Эмодзи</th><th>Название</th><th>Цена, ₽</th><th>Подпись цены</th><th /></tr></thead>
         <tbody>{list.map((i, k) => (
           <tr key={k}>
             <td><input type="checkbox" checked={i.enabled} onChange={(e) => setList(list.map((x, j) => (j === k ? { ...x, enabled: e.target.checked } : x)))} /></td>
+            <td><input value={i.emoji ?? ''} style={{ width: 50 }} onChange={(e) => setList(list.map((x, j) => (j === k ? { ...x, emoji: e.target.value || undefined } : x)))} /></td>
             <td><input value={i.title} onChange={(e) => setList(list.map((x, j) => (j === k ? { ...x, title: e.target.value } : x)))} /></td>
             <td><input type="number" value={i.price} onChange={(e) => setList(list.map((x, j) => (j === k ? { ...x, price: Number(e.target.value) } : x)))} /></td>
             <td><input value={i.priceLabel ?? ''} onChange={(e) => setList(list.map((x, j) => (j === k ? { ...x, priceLabel: e.target.value || undefined } : x)))} /></td>

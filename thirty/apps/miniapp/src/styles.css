@@ -314,3 +314,20 @@ img { max-width: 100%; display: block; }
 .notif-dot { width: 8px; height: 8px; border-radius: 50%; background: #e06a8a; flex-shrink: 0; }
 .bubble.focus { box-shadow: 0 0 0 2px var(--accent); }
 .bar.soft { background: var(--accent-soft); }
+
+/* Онбординг v3: 3 шага + тарифы */
+.onb-card { gap: 16px; padding: 22px 18px; }
+.btn-dark { background: #181818; color: #fff; min-height: 52px; font-weight: 500; }
+.btn-dark:active { background: #000; }
+.onb-emoji { width: 120px; height: 120px; border-radius: 28px; background: #ede9fd; display: flex; align-items: center; justify-content: center; font-size: 64px; line-height: 1; align-self: center; }
+.num-sq { width: 44px; height: 44px; border-radius: 13px; background: #efe9fd; color: var(--accent); font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.num-sq.green { background: #e9f6f0; }
+.num-sq.peach { background: #fcf0e4; }
+.mech { border: 1px solid var(--line); background: #fbfbfe; border-radius: 20px; padding: 14px 10px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; cursor: pointer; min-height: 186px; }
+.mech:active { transform: scale(0.985); }
+.mech-ic { width: 62px; height: 62px; border-radius: 18px; background: #f0e9fd; display: flex; align-items: center; justify-content: center; font-size: 28px; margin-bottom: 4px; color: #e08a4f; }
+.mech-ic.green { background: #e9f6f0; }
+.mech-ic.orange { background: #fcf0e2; }
+.mech-ic.blue { background: #e8eefd; }
+.value-row { display: flex; align-items: center; gap: 14px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.value-ic { width: 40px; height: 40px; border-radius: 12px; background: #f7f5fa; display: flex; align-items: center; justify-content: center; font-size: 21px; flex-shrink: 0; }
