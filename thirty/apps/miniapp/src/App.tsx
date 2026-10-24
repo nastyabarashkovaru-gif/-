@@ -9,7 +9,8 @@ import { Welcome, OnboardingStep } from './screens/onboarding/Onboarding';
 import { Materials } from './screens/onboarding/Materials';
 import { Tariffs } from './screens/onboarding/Tariffs';
 import { Checkout, PaymentWait } from './screens/onboarding/Checkout';
-import { RegProfile, RegFlow, RegGoals, RegTasks, RegBefore, RegBuddy, RegChats, RegWaiting } from './screens/reg/Registration';
+import { RegProfile, RegFlow, RegTasks, RegBefore, RegBuddy, RegChats, RegWaiting } from './screens/reg/Registration';
+import { GoalsStep, PointsStep, PlanStep, ConfirmStep } from './screens/reg/Questionnaire';
 import { Home } from './screens/app/Home';
 import { GoalScreen } from './screens/app/Goal';
 import { ReportScreen, ReportHistory, ReportView } from './screens/app/Report';
@@ -22,7 +23,7 @@ import { CardScreen, ReviewScreen, FinalScreen } from './screens/app/Finale';
 
 /** Экран по параметру кнопки бота: m_<log>_<screen> */
 const SCREEN_ROUTES: Record<string, string> = {
-  welcome: '/welcome', resume: '/', tariffs: '/tariffs', checkout: '/tariffs', reg_profile: '/reg/profile', reg_goals: '/reg/goals', reg_buddy: '/reg/buddy',
+  welcome: '/welcome', resume: '/', tariffs: '/tariffs', checkout: '/tariffs', reg_profile: '/reg/goals', reg_goals: '/reg/goals', reg_buddy: '/reg/buddy',
   home: '/', report: '/report', card: '/cards', review: '/review', buddy: '/buddy', meeting: '/club', final: '/final', profile: '/profile', support: '/profile',
 };
 
@@ -36,7 +37,7 @@ function initialRoute(me: Me): string {
   const m = sp?.match(/^m_[0-9a-f]{32}_([a-z_]+)$/);
   const fromBot = m ? SCREEN_ROUTES[m[1]] : null;
   if (me.membership) {
-    if (me.membership.status === 'reserved') return fromBot && fromBot.startsWith('/reg') ? fromBot : '/reg/profile';
+    if (me.membership.status === 'reserved') return fromBot && fromBot.startsWith('/reg') ? fromBot : '/reg/goals';
     if (fromBot && fromBot !== '/') return fromBot;
     return '/';
   }
@@ -111,7 +112,10 @@ export function App() {
         <Route path="/checkout/wait/:paymentId" element={<PaymentWait />} />
         <Route path="/reg/profile" element={<RegProfile />} />
         <Route path="/reg/flow" element={<RegFlow />} />
-        <Route path="/reg/goals" element={<RegGoals />} />
+        <Route path="/reg/goals" element={<GoalsStep />} />
+        <Route path="/reg/points/:i" element={<PointsStep />} />
+        <Route path="/reg/plan/:i" element={<PlanStep />} />
+        <Route path="/reg/confirm" element={<ConfirmStep />} />
         <Route path="/reg/tasks/:goalId" element={<RegTasks />} />
         <Route path="/reg/before" element={<RegBefore />} />
         <Route path="/reg/buddy" element={<RegBuddy />} />

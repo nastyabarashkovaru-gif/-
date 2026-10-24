@@ -37,7 +37,7 @@ async function paidUser(id: number, flow = NOV, tariff = 'm1', interests: string
 }
 
 async function fixDaily(id: number) {
-  const g = await api('POST', '/api/goals', id, { category: 'habits', title: 'Привычка', successCriterion: 'Каждый день' });
+  const g = await api('POST', '/api/goals', id, { category: 'habits', title: 'Привычка', pointA: 'старт', pointB: 'финиш', confirmMethod: 'daily_reports', successCriterion: 'Каждый день' });
   const t = await api('POST', `/api/goals/${g.body.id}/tasks`, id, { title: 'Сделать', frequency: 'daily' });
   await api('POST', '/api/membership/fix', id);
   return { goalId: g.body.id as string, taskId: t.body.id as string };

@@ -25,7 +25,7 @@ export function Home() {
 
   if (loading) return <Screen id="S19" nav><Loading /></Screen>;
   if (error || !data) return <Screen id="S19" nav><ErrorState error={error} retry={reload} /></Screen>;
-  if (data.state === 'registration') return <Navigate to="/reg/profile" replace />;
+  if (data.state === 'registration') return <Navigate to="/reg/goals" replace />;
   const { flow, stats } = data;
   const upcoming = data.state === 'waiting';
   const daysToStart = Math.max(0, Math.ceil((new Date(`${flow.startsOn}T00:00:00+03:00`).getTime() - Date.now()) / 86400_000));

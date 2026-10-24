@@ -8,17 +8,26 @@ import { getSetting } from '../settings';
 import { flowToday } from './flows';
 import { track } from './analytics';
 
+export const CONFIRM_METHODS = ['screenshot', 'photo_video', 'document', 'daily_reports', 'other'] as const;
+
 export const goalInput = z.object({
-  category: z.enum(['money', 'weightloss', 'blog', 'english', 'habits', 'selfdev']),
-  title: z.string().trim().min(3).max(120),
-  successCriterion: z.string().trim().min(3).max(300),
+  category: z.enum(['money', 'weightloss', 'blog', 'english', 'habits', 'selfdev', 'other']),
+  title: z.string().trim().min(3).max(200),
+  successCriterion: z.string().trim().max(300).default(''),
+  pointA: z.string().trim().max(300).nullable().optional(),
+  pointB: z.string().trim().max(300).nullable().optional(),
+  confirmMethod: z.enum(CONFIRM_METHODS).nullable().optional(),
+  confirmNote: z.string().trim().max(300).nullable().optional(),
   isPublic: z.boolean().default(true),
 });
+/** PATCH: без значений по умолчанию, чтобы частичное обновление не затирало поля */
+export const goalPatch = goalInput.extend({ successCriterion: z.string().trim().max(300), isPublic: z.boolean() }).partial();
 
 export const taskInput = z.object({
-  title: z.string().trim().min(2).max(120),
-  frequency: z.enum(['daily', 'every_n_days', 'n_per_week']),
+  title: z.string().trim().min(2).max(160),
+  frequency: z.enum(['daily', 'every_n_days', 'n_per_week', 'once']),
   n: z.number().int().min(1).max(31).default(1),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   evidence: z.enum(['checkbox', 'photo', 'screenshot', 'checkbox_photo', 'link']).optional(),
   criteria: z.string().trim().max(300).optional(),
 });
@@ -31,6 +40,8 @@ type MembershipFull = FlowMembership & { flow: Flow };
  */
 export async function canEditGoals(m: MembershipFull, now = clock.now()): Promise<boolean> {
   if (m.status === 'revoked' || m.status === 'finished') return false;
+  // После отправки анкеты («Это твоё обещание себе») цели и план менять нельзя
+  if (m.goalsLockedAt) return false;
   const today = flowToday(m.flow, now);
   const startsOn = fromDbDate(m.flow.startsOn);
   if (today < startsOn) return true;
@@ -71,7 +82,7 @@ async function ownGoal(userId: bigint, goalId: string) {
   return goal;
 }
 
-export async function updateGoal(userId: bigint, goalId: string, input: Partial<z.infer<typeof goalInput>>) {
+export async function updateGoal(userId: bigint, goalId: string, input: z.infer<typeof goalPatch>) {
   const goal = await ownGoal(userId, goalId);
   await assertEditable(goal.membership);
   return prisma.goal.update({ where: { id: goalId }, data: input });
@@ -96,15 +107,25 @@ export async function createTask(userId: bigint, goalId: string, input: z.infer<
   const goal = await ownGoal(userId, goalId);
   await assertEditable(goal.membership);
   if (input.frequency === 'n_per_week' && input.n > 7) throw badRequest('bad_schedule', 'Не больше 7 раз в неделю');
+  const dueDate = checkDueDate(goal.membership, input.frequency, input.dueDate);
   const count = await prisma.task.count({ where: { goalId } });
   if (count >= 10) throw conflict('task_limit', 'Не больше 10 задач на цель');
   const { evidence, selfReported } = await policyEvidence(goal.category, input.evidence);
   const task = await prisma.task.create({
-    data: { goalId, title: input.title, frequency: input.frequency, n: input.frequency === 'daily' ? 1 : input.n, evidence, selfReported, criteria: input.criteria },
+    data: { goalId, title: input.title, frequency: input.frequency, n: input.frequency === 'daily' || input.frequency === 'once' ? 1 : input.n, dueDate, evidence, selfReported, criteria: input.criteria },
   });
   await track({ userId, eventName: 'task_created', screenId: 'S14', flowId: goal.membership.flowId, metadata: { frequency: input.frequency, evidence } });
   await unfixIfNeeded(goal.membershipId);
   return task;
+}
+
+/** Дедлайн одноразовой задачи — день внутри месяца потока */
+function checkDueDate(m: MembershipFull, frequency: string, dueDate: string | null | undefined): Date | null {
+  if (frequency !== 'once') return null;
+  if (!dueDate) throw badRequest('due_date_required', 'Выбери дату, до которой выполнишь задачу');
+  const { startsOn, endsOn } = { startsOn: fromDbDate(m.flow.startsOn), endsOn: fromDbDate(m.flow.endsOn) };
+  if (dueDate < startsOn || dueDate > endsOn) throw badRequest('due_date_out_of_flow', 'Дата должна быть внутри месяца челленджа');
+  return toDbDate(dueDate);
 }
 
 async function ownTask(userId: bigint, taskId: string) {
@@ -121,8 +142,11 @@ export async function updateTask(userId: bigint, taskId: string, input: Partial<
   if (input.criteria !== undefined) data.criteria = input.criteria;
   if (input.frequency) {
     data.frequency = input.frequency;
-    data.n = input.frequency === 'daily' ? 1 : (input.n ?? task.n);
+    data.n = input.frequency === 'daily' || input.frequency === 'once' ? 1 : (input.n ?? task.n);
+    if (input.frequency === 'n_per_week' && data.n > 7) throw badRequest('bad_schedule', 'Не больше 7 раз в неделю');
   } else if (input.n) data.n = input.n;
+  const freq = input.frequency ?? task.frequency;
+  data.dueDate = freq === 'once' ? checkDueDate(task.goal.membership, freq, input.dueDate === undefined && task.dueDate ? fromDbDate(task.dueDate) : input.dueDate) : null;
   if (input.evidence) Object.assign(data, await policyEvidence(task.goal.category, input.evidence));
   const updated = await prisma.task.update({ where: { id: taskId }, data });
   await unfixIfNeeded(task.goal.membershipId);
@@ -145,8 +169,8 @@ async function unfixIfNeeded(membershipId: string) {
 }
 
 /**
- * Фиксация анкеты: у каждой цели есть задачи, генерируется план обязательных выполнений на весь месяц.
- * Если поток уже идёт (поздний вход), анкета сразу блокируется.
+ * Отправка анкеты: у каждой цели есть точки А/Б, способ подтверждения и действия; генерируется план
+ * обязательных выполнений на весь месяц, анкета блокируется (решение владельца: после отправки менять нельзя).
  */
 export async function fixGoals(userId: bigint, membershipId: string) {
   const m = await loadOwnMembership(userId, membershipId);
@@ -154,13 +178,15 @@ export async function fixGoals(userId: bigint, membershipId: string) {
   const goals = await prisma.goal.findMany({ where: { membershipId }, include: { tasks: true } });
   if (!goals.length) throw badRequest('no_goals', 'Добавьте хотя бы одну цель');
   const empty = goals.find((g) => g.tasks.length === 0);
-  if (empty) throw badRequest('goal_without_tasks', `Добавьте задачи к цели «${empty.title}»`);
+  if (empty) throw badRequest('goal_without_tasks', `Добавь действия к цели «${empty.title}»`);
+  const noPoints = goals.find((g) => !g.pointA || !g.pointB || !g.confirmMethod);
+  if (noPoints) throw badRequest('goal_without_points', `Заполни точку А, точку Б и способ подтверждения для цели «${noPoints.title}»`);
   const startsOn = fromDbDate(m.flow.startsOn);
   const now = clock.now();
   const started = flowToday(m.flow, now) >= startsOn;
   const rows = goals.flatMap((g) =>
     g.tasks.flatMap((t) =>
-      generateOccurrences({ frequency: t.frequency, n: t.n }, startsOn).map((o) => ({
+      generateOccurrences({ frequency: t.frequency, n: t.n, dueDate: t.dueDate ? fromDbDate(t.dueDate) : null }, startsOn).map((o) => ({
         taskId: t.id,
         membershipId,
         windowStart: toDbDate(o.windowStart),
@@ -174,10 +200,12 @@ export async function fixGoals(userId: bigint, membershipId: string) {
     prisma.taskOccurrence.createMany({ data: rows }),
     prisma.flowMembership.update({
       where: { id: membershipId },
-      data: { status: started ? 'active' : 'registered', registeredAt: now, ...(started ? { goalsLockedAt: now } : {}) },
+      data: { status: started ? 'active' : 'registered', registeredAt: now, goalsLockedAt: now },
     }),
+    // Категории целей становятся интересами: по ним открываются тематические чаты
+    prisma.user.update({ where: { id: userId }, data: { interests: [...new Set(goals.map((g) => g.category))] } }),
   ]);
-  return { occurrences: rows.length, locked: started };
+  return { occurrences: rows.length, locked: true };
 }
 
 export function serializeGoal(g: Goal & { tasks: Task[] }) {
@@ -186,16 +214,27 @@ export function serializeGoal(g: Goal & { tasks: Task[] }) {
     category: g.category,
     title: g.title,
     successCriterion: g.successCriterion,
+    pointA: g.pointA,
+    pointB: g.pointB,
+    confirmMethod: g.confirmMethod,
+    confirmNote: g.confirmNote,
     isPublic: g.isPublic,
     finalAchieved: g.finalAchieved,
-    tasks: g.tasks.map((t) => ({ id: t.id, title: t.title, frequency: t.frequency, n: t.n, evidence: t.evidence, criteria: t.criteria, selfReported: t.selfReported })),
+    tasks: g.tasks.map((t) => ({ id: t.id, title: t.title, frequency: t.frequency, n: t.n, dueDate: t.dueDate ? fromDbDate(t.dueDate) : null, evidence: t.evidence, criteria: t.criteria, selfReported: t.selfReported })),
   };
 }
 
-export function scheduleLabel(t: Pick<Task, 'frequency' | 'n'>): string {
-  if (t.frequency === 'daily') return 'Каждый день';
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+export function scheduleLabel(t: Pick<Task, 'frequency' | 'n'> & { dueDate?: Date | null }): string {
+  if (t.frequency === 'daily') return 'Ежедневно';
+  if (t.frequency === 'once') {
+    if (!t.dueDate) return 'Однократно';
+    const [, m, d] = fromDbDate(t.dueDate).split('-').map(Number);
+    return `Однократно, до ${d} ${MONTHS_GEN[m - 1]}`;
+  }
   if (t.frequency === 'every_n_days') return t.n === 1 ? 'Каждый день' : `Раз в ${t.n} ${plural(t.n, 'день', 'дня', 'дней')}`;
-  return `${t.n} раз в неделю`;
+  return `${t.n} ${plural(t.n, 'раз', 'раза', 'раз')} в неделю`;
 }
 
 export type { ISODate };

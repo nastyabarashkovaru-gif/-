@@ -306,6 +306,7 @@ enum GoalCategory {
   english
   habits
   selfdev
+  other
 }
 
 model Goal {
@@ -315,6 +316,12 @@ model Goal {
   category         GoalCategory
   title            String
   successCriterion String
+  /// Точка А — где участник сейчас; точка Б — результат через 30 дней
+  pointA           String?
+  pointB           String?
+  /// Как подтвердим результат: screenshot | photo_video | document | daily_reports | other
+  confirmMethod    String?
+  confirmNote      String?
   isPublic         Boolean        @default(true)
   sort             Int            @default(0)
   finalAchieved    Boolean?
@@ -328,6 +335,7 @@ enum Frequency {
   daily
   every_n_days
   n_per_week
+  once
 }
 
 enum EvidenceType {
@@ -345,6 +353,8 @@ model Task {
   title        String
   frequency    Frequency
   n            Int          @default(1)
+  /// Одноразовая задача: выполнить до этой даты включительно
+  dueDate      DateTime?    @db.Date
   evidence     EvidenceType @default(checkbox)
   criteria     String?
   selfReported Boolean      @default(false)

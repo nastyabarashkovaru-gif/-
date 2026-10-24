@@ -7,7 +7,7 @@ import { forbidden, jsonSafe, notFound } from '../http';
 import { parse } from '../lib/validate';
 import { signedMediaUrl } from '../lib/storage';
 import { currentMembership, flowInfo, previousMembership } from '../modules/flows';
-import { canEditGoals, createGoal, createTask, deleteGoal, deleteTask, fixGoals, goalInput, goalLimitFor, scheduleLabel, serializeGoal, taskInput, updateGoal, updateTask } from '../modules/goals';
+import { canEditGoals, createGoal, createTask, deleteGoal, deleteTask, fixGoals, goalInput, goalLimitFor, goalPatch, scheduleLabel, serializeGoal, taskInput, updateGoal, updateTask } from '../modules/goals';
 import { goalStats, memberStats } from '../modules/rating';
 import { reportInput, submitReport, todayChecklist } from '../modules/reports';
 import { track } from '../modules/analytics';
@@ -42,7 +42,7 @@ export async function memberRoutes(app: FastifyInstance) {
     if (!m) throw forbidden('no_membership', 'Сначала оплатите участие');
     return createGoal(req.user!.id, m.id, parse(goalInput, req.body));
   });
-  app.patch<{ Params: { id: string } }>('/api/goals/:id', async (req) => updateGoal(req.user!.id, req.params.id, parse(goalInput.partial(), req.body)));
+  app.patch<{ Params: { id: string } }>('/api/goals/:id', async (req) => updateGoal(req.user!.id, req.params.id, parse(goalPatch, req.body)));
   app.delete<{ Params: { id: string } }>('/api/goals/:id', async (req) => {
     await deleteGoal(req.user!.id, req.params.id);
     return { ok: true };

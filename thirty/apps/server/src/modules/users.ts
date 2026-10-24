@@ -18,7 +18,7 @@ export const profileInput = z.object({
       }
     }, 'Неизвестный часовой пояс')
     .optional(),
-  interests: z.array(z.enum(['money', 'weightloss', 'blog', 'english', 'habits', 'selfdev'])).max(6).optional(),
+  interests: z.array(z.enum(['money', 'weightloss', 'blog', 'english', 'habits', 'selfdev', 'other'])).max(7).optional(),
   visibility: z.enum(['public', 'members', 'hidden']).optional(),
   marketingOptIn: z.boolean().optional(),
 });

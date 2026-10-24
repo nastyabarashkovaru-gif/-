@@ -12,7 +12,8 @@ export const CATEGORIES = [
   { id: 'weightloss', title: 'Похудение', emoji: '🥗' },
   { id: 'blog', title: 'Блог', emoji: '📱' },
   { id: 'english', title: 'Английский', emoji: '🇬🇧' },
-  { id: 'habits', title: 'Привычки и отказы', emoji: '🌱' },
+  { id: 'habits', title: 'Привычки и дисциплина', emoji: '🔥' },
+  { id: 'other', title: 'Другое', emoji: '✨' },
   { id: 'selfdev', title: 'Саморазвитие', emoji: '📚' },
 ];
 export const catTitle = (id: string) => CATEGORIES.find((c) => c.id === id)?.title ?? id;
@@ -36,7 +37,11 @@ export interface MembershipView {
   goalLimit: number | null;
   canEdit: boolean;
   flow: { id: string; title: string; startsOn: string; endsOn: string; days: number; phase: string; today: string };
-  goals: { id: string; category: string; title: string; successCriterion: string; isPublic: boolean; tasks: { id: string; title: string; frequency: string; n: number; evidence: string; criteria: string | null; schedule: string }[] }[];
+  goals: {
+    id: string; category: string; title: string; successCriterion: string; isPublic: boolean;
+    pointA: string | null; pointB: string | null; confirmMethod: string | null; confirmNote: string | null;
+    tasks: { id: string; title: string; frequency: string; n: number; dueDate: string | null; evidence: string; criteria: string | null; schedule: string }[];
+  }[];
   before: { text: string | null; metrics: Record<string, string>; media: { id: string; url: string }[] } | null;
 }
 

@@ -10,7 +10,7 @@ beforeEach(resetDb);
 
 async function setupGoal(userId: number, tariff = 'm1', task: object = { title: 'Не курить', frequency: 'daily' }, category = 'habits') {
   await grantMembership(userId, NOV, tariff);
-  const g = await api('POST', '/api/goals', userId, { category, title: '30 дней без сигарет', successCriterion: 'Ни одной сигареты' });
+  const g = await api('POST', '/api/goals', userId, { category, title: '30 дней без сигарет', pointA: 'старт', pointB: 'финиш', confirmMethod: 'daily_reports', successCriterion: 'Ни одной сигареты' });
   expect(g.status).toBe(200);
   const t = await api('POST', `/api/goals/${g.body.id}/tasks`, userId, task);
   expect(t.status).toBe(200);
@@ -42,7 +42,7 @@ describe('цели и задачи', () => {
   it('лимит целей: 1 месяц — одна (критерий №4)', async () => {
     clock.set('2026-10-21T10:00:00Z');
     await setupGoal(1, 'm1');
-    const second = await api('POST', '/api/goals', 1, { category: 'money', title: 'Накопить', successCriterion: '50 000 ₽' });
+    const second = await api('POST', '/api/goals', 1, { category: 'money', title: 'Накопить', pointA: 'старт', pointB: 'финиш', confirmMethod: 'daily_reports', successCriterion: '50 000 ₽' });
     expect(second.status).toBe(409);
     expect(second.body.code).toBe('goal_limit');
   });
@@ -50,12 +50,12 @@ describe('цели и задачи', () => {
   it('3 месяца — до трёх, 6 месяцев — больше трёх целей и все в рейтинге (ТЗ 1.1)', async () => {
     clock.set('2026-10-21T10:00:00Z');
     await grantMembership(3, NOV, 'm3');
-    for (let i = 0; i < 3; i++) expect((await api('POST', '/api/goals', 3, { category: 'money', title: `Цель ${i}`, successCriterion: 'ok ok' })).status).toBe(200);
-    expect((await api('POST', '/api/goals', 3, { category: 'money', title: 'Четвёртая', successCriterion: 'ok ok' })).status).toBe(409);
+    for (let i = 0; i < 3; i++) expect((await api('POST', '/api/goals', 3, { category: 'money', title: `Цель ${i}`, pointA: 'старт', pointB: 'финиш', confirmMethod: 'daily_reports', successCriterion: 'ok ok' })).status).toBe(200);
+    expect((await api('POST', '/api/goals', 3, { category: 'money', title: 'Четвёртая', pointA: 'старт', pointB: 'финиш', confirmMethod: 'daily_reports', successCriterion: 'ok ok' })).status).toBe(409);
 
     await grantMembership(6, NOV, 'm6');
     for (let i = 0; i < 5; i++) {
-      const g = await api('POST', '/api/goals', 6, { category: 'english', title: `Цель ${i}`, successCriterion: 'ok ok' });
+      const g = await api('POST', '/api/goals', 6, { category: 'english', title: `Цель ${i}`, pointA: 'старт', pointB: 'финиш', confirmMethod: 'daily_reports', successCriterion: 'ok ok' });
       expect(g.status).toBe(200);
       expect((await api('POST', `/api/goals/${g.body.id}/tasks`, 6, { title: 'Урок', frequency: 'daily' })).status).toBe(200);
     }
@@ -63,29 +63,55 @@ describe('цели и задачи', () => {
     expect(fix.body.occurrences).toBe(5 * 30);
   });
 
-  it('до старта можно менять, после старта — нельзя (критерий №5)', async () => {
+  it('до отправки анкеты можно менять, после отправки — нельзя (критерий №5, решение 24.10)', async () => {
     clock.set('2026-10-21T10:00:00Z');
-    const { taskId } = await setupGoal(10);
-    expect((await api('POST', '/api/membership/fix', 10)).status).toBe(200);
+    const { goalId, taskId } = await setupGoal(10);
     expect((await api('PATCH', `/api/tasks/${taskId}`, 10, { title: 'Не курить вообще' })).status).toBe(200);
-    // изменение до старта снимает фиксацию
-    expect((await api('GET', '/api/membership', 10)).body.membership.status).toBe('reserved');
-    expect((await api('POST', '/api/membership/fix', 10)).status).toBe(200);
+    // без точек А/Б анкету не отправить
+    await api('PATCH', `/api/goals/${goalId}`, 10, { pointB: null });
+    expect((await api('POST', '/api/membership/fix', 10)).body.code).toBe('goal_without_points');
+    await api('PATCH', `/api/goals/${goalId}`, 10, { pointB: '30 дней без сигарет' });
+    const g = (await api('GET', '/api/membership', 10)).body.membership.goals[0];
+    expect(g).toMatchObject({ pointA: 'старт', pointB: '30 дней без сигарет', confirmMethod: 'daily_reports', successCriterion: 'Ни одной сигареты' });
+    expect((await api('POST', '/api/membership/fix', 10)).body).toMatchObject({ locked: true });
+
+    const m0 = await api('GET', '/api/membership', 10);
+    expect(m0.body.membership.status).toBe('registered');
+    expect(m0.body.membership.canEdit).toBe(false);
+    expect((await api('PATCH', `/api/tasks/${taskId}`, 10, { title: 'Другое' })).status).toBe(403);
+    expect((await api('POST', '/api/membership/fix', 10)).status).toBe(403);
 
     clock.set('2026-11-02T10:00:00Z');
     await refreshFlowStatuses();
     const m = await api('GET', '/api/membership', 10);
     expect(m.body.membership.status).toBe('active');
-    expect(m.body.membership.canEdit).toBe(false);
     expect((await api('PATCH', `/api/tasks/${taskId}`, 10, { frequency: 'n_per_week', n: 2 })).status).toBe(403);
     expect((await api('DELETE', `/api/tasks/${taskId}`, 10)).status).toBe(403);
     expect((await api('POST', '/api/goals', 10, { category: 'money', title: 'Новая', successCriterion: 'ok ok' })).status).toBe(403);
   });
 
+  it('одноразовая задача: дата обязательна и внутри месяца; категория «Другое»', async () => {
+    clock.set('2026-10-21T10:00:00Z');
+    await grantMembership(12, NOV, 'm1');
+    const g = await api('POST', '/api/goals', 12, { category: 'other', title: 'Набрать 1 000 подписчиков', pointA: '250', pointB: '1 000', confirmMethod: 'screenshot' });
+    expect(g.status).toBe(200);
+    expect((await api('POST', `/api/goals/${g.body.id}/tasks`, 12, { title: 'Шапка профиля', frequency: 'once' })).body.code).toBe('due_date_required');
+    expect((await api('POST', `/api/goals/${g.body.id}/tasks`, 12, { title: 'Шапка профиля', frequency: 'once', dueDate: '2026-12-05' })).body.code).toBe('due_date_out_of_flow');
+    expect((await api('POST', `/api/goals/${g.body.id}/tasks`, 12, { title: 'Шапка профиля', frequency: 'once', dueDate: '2026-11-05' })).status).toBe(200);
+    expect((await api('POST', `/api/goals/${g.body.id}/tasks`, 12, { title: 'Статистика', frequency: 'n_per_week', n: 3 })).status).toBe(200);
+    const m = (await api('GET', '/api/membership', 12)).body.membership;
+    expect(m.goals[0].tasks.map((t: { schedule: string }) => t.schedule)).toEqual(['Однократно, до 5 ноября', '3 раза в неделю']);
+    const fix = await api('POST', '/api/membership/fix', 12);
+    expect(fix.status).toBe(200);
+    const once = await prisma.taskOccurrence.findMany({ where: { task: { frequency: 'once' } } });
+    expect(once).toHaveLength(1);
+    expect(once[0].windowEnd.toISOString().slice(0, 10)).toBe('2026-11-05');
+  });
+
   it('политика категории не даёт убрать обязательное фото', async () => {
     clock.set('2026-10-21T10:00:00Z');
     await grantMembership(11, NOV, 'm1');
-    const g = await api('POST', '/api/goals', 11, { category: 'weightloss', title: 'Минус 3 кг', successCriterion: 'Весы -3' });
+    const g = await api('POST', '/api/goals', 11, { category: 'weightloss', title: 'Минус 3 кг', pointA: 'старт', pointB: 'финиш', confirmMethod: 'daily_reports', successCriterion: 'Весы -3' });
     const t = await api('POST', `/api/goals/${g.body.id}/tasks`, 11, { title: 'Тренировка', frequency: 'daily', evidence: 'checkbox' });
     expect(t.body.evidence).toBe('photo');
   });
@@ -142,7 +168,7 @@ describe('рейтинг и претенденты', () => {
     await grantMembership(41, NOV, 'm3');
     const tasks41: string[] = [];
     for (let i = 0; i < 3; i++) {
-      const g = await api('POST', '/api/goals', 41, { category: 'habits', title: `Цель ${i}`, successCriterion: 'ok ok' });
+      const g = await api('POST', '/api/goals', 41, { category: 'habits', title: `Цель ${i}`, pointA: 'старт', pointB: 'финиш', confirmMethod: 'daily_reports', successCriterion: 'ok ok' });
       tasks41.push((await api('POST', `/api/goals/${g.body.id}/tasks`, 41, { title: 'Дело', frequency: 'daily' })).body.id);
     }
     await api('POST', '/api/membership/fix', 41);

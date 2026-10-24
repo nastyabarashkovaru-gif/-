@@ -293,3 +293,20 @@ describe('карточки, призы, воронка', () => {
     expect(counts.B).toBeGreaterThan(850);
   });
 });
+
+describe('одноразовая задача', () => {
+  it('одно выполнение с окном до дедлайна; дедлайн за пределами месяца обрезается', () => {
+    expect(generateOccurrences({ frequency: 'once', n: 1, dueDate: '2026-11-05' }, '2026-11-01')).toEqual([{ windowStart: '2026-11-01', windowEnd: '2026-11-05', slot: 0 }]);
+    expect(generateOccurrences({ frequency: 'once', n: 1, dueDate: '2026-12-10' }, '2026-11-01')[0].windowEnd).toBe('2026-11-30');
+    expect(() => generateOccurrences({ frequency: 'once', n: 1 }, '2026-11-01')).toThrow();
+  });
+  it('до дедлайна невыполненная задача не снижает процент', () => {
+    const occurrences = [
+      { windowStart: '2026-11-01', windowEnd: '2026-11-01', done: true },
+      { windowStart: '2026-11-01', windowEnd: '2026-11-05', done: false },
+    ];
+    const base = { flowStart: '2026-11-01', flowEnd: '2026-11-30', reportDates: ['2026-11-01'], occurrences };
+    expect(computeStats({ ...base, today: '2026-11-03' }).ratio).toBe(1);
+    expect(computeStats({ ...base, today: '2026-11-06' }).ratio).toBe(0.5);
+  });
+});
