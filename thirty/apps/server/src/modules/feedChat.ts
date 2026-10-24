@@ -5,6 +5,7 @@ import { prisma } from '../db';
 import { forbidden, notFound } from '../http';
 import { signedMediaUrl } from '../lib/storage';
 import { currentMembership } from './flows';
+import { pushNotification } from './notifications';
 
 /** Общий чат отчётов потока (S23): отчёты публикуются автоматически, участники пишут и отвечают на сообщения */
 
@@ -92,6 +93,9 @@ export async function postChat(userId: bigint, input: z.infer<typeof chatMessage
     if (!parent || parent.flowId !== m.flowId) throw notFound('message_not_found');
   }
   const row = await prisma.feedMessage.create({ data: { flowId: m.flowId, userId, text: input.text, replyToId: input.replyToId ?? null, createdAt: clock.now() }, include });
+  if (row.replyTo && row.replyTo.userId !== userId) {
+    await pushNotification(row.replyTo.userId, 'chat_reply', { title: 'Тебе ответили в чате', body: `${nameOf(row.user)}: ${input.text.slice(0, 120)}`, link: `/feed?msg=${row.id}` }, `chat_reply:${row.id}`);
+  }
   return (await serialize([row], userId))[0];
 }
 

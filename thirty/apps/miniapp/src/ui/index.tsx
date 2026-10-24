@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Bell, Home, LayoutList, MessagesSquare, User, WifiOff, RefreshCw } from 'lucide-react';
-import { ApiError } from '../lib/api';
+import { ApiError, api } from '../lib/api';
 import { screenView } from '../lib/analytics';
 import { haptic } from '../lib/telegram';
 
@@ -229,8 +229,16 @@ export function Cta({ children, onClick, disabled, type }: { children: ReactNode
 }
 
 /** Шапка разделов приложения: логотип, колокольчик уведомлений, профиль */
-export function AppBar({ unread = false }: { unread?: boolean }) {
+export function AppBar() {
   const nav = useNavigate();
+  const [unread, setUnread] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const check = () => api<{ unread: number }>('/api/notifications/unread').then((r) => alive && setUnread(r.unread > 0)).catch(() => undefined);
+    void check();
+    const t = setInterval(check, 30_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
   return (
     <div className="brand-bar" style={{ minHeight: 44 }}>
       <span className="brand"><b>30</b>дней</span>
@@ -245,11 +253,11 @@ export function AppBar({ unread = false }: { unread?: boolean }) {
   );
 }
 
-/** Цвет процента выполнения: ≥80 зелёный, ≥60 фиолетовый, ≥40 жёлтый, ниже — красный */
+/** Цвет процента участника (решение владельца 24.10): >80 зелёный, 50–80 фиолетовый, 30–<50 жёлтый, <30 красный */
 export function pctColor(p: number | null | undefined) {
   if (p === null || p === undefined) return 'var(--muted-2)';
-  if (p >= 80) return 'var(--green)';
-  if (p >= 60) return 'var(--accent)';
-  if (p >= 40) return 'var(--gold-ink)';
+  if (p > 80) return 'var(--green)';
+  if (p >= 50) return 'var(--accent)';
+  if (p >= 30) return 'var(--gold-ink)';
   return 'var(--danger)';
 }

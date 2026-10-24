@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, CreditCard, ClipboardList, History, Headphones, User, ArrowLeft, Lock, Target, CircleCheck, X, HeartHandshake, Flame, Users, MessagesSquare, Trophy, ClipboardCheck, MessageCircleHeart } from 'lucide-react';
 import { api, rub } from '../../lib/api';
+import { formatMetric } from '../../lib/metric';
 import { openTelegram } from '../../lib/telegram';
 import { useMe } from '../../state';
 import { AppBar, Avatar, BrandBar, Dots, Empty, ErrorState, Header, Loading, Screen, errorText, humanDate, plural, toast, useLoad } from '../../ui';
@@ -157,14 +158,14 @@ export function CancelFlow() {
   const { me } = useMe();
   const [step, setStep] = useState(1);
   const [reason, setReason] = useState('');
-  const home = useLoad(() => api<{ stats?: { percent: number; dayNumber: number | null; successfulDays: number }; goals?: { title: string }[] }>('/api/home'));
+  const home = useLoad(() => api<{ stats?: { percent: number; dayNumber: number | null; successfulDays: number }; goals?: { title: string; numeric: boolean; unit: string; current: number | null; progress: number | null; planPercent: number | null }[] }>('/api/home'));
   useEffect(() => {
     void api('/api/subscription/cancel-step', { body: { step } }).catch(() => undefined);
   }, [step]);
   const stay = () => nav('/');
   const goal = home.data?.goals?.[0];
   const days = home.data?.stats?.dayNumber ?? 0;
-  const pct = home.data?.stats?.percent ?? 0;
+  const goalPct = goal ? (goal.numeric && goal.progress !== null ? goal.progress : goal.planPercent ?? home.data?.stats?.percent ?? 0) : 0;
 
   return (
     <Screen id={`S3${5 + step}`}>
@@ -181,8 +182,11 @@ export function CancelFlow() {
               <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <span className="row h3" style={{ gap: 8 }}><Target size={18} color="var(--accent)" />Твоё обещание себе</span>
                 <div style={{ fontWeight: 500 }}>{goal.title}</div>
-                <div className="bar"><i style={{ width: `${pct}%` }} /></div>
-                <div className="row between small"><span className="muted">Выполнено действий по плану</span><b style={{ color: 'var(--accent)' }}>{pct}%</b></div>
+                <div className="bar soft"><i style={{ width: `${goalPct}%` }} /></div>
+                <div className="row between small">
+                  <span className="muted">{goal.numeric && goal.current !== null ? `Текущий результат: ${formatMetric(goal.current, goal.unit)}` : 'Выполнено действий'}</span>
+                  <b style={{ color: 'var(--accent)' }}>{goalPct}%</b>
+                </div>
                 {days > 0 && (
                   <>
                     <div className="divider" />

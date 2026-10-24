@@ -55,6 +55,7 @@ model User {
   attendances   Attendance[]
   experiments   ExperimentAssignment[]
   feedMessages  FeedMessage[]
+  notifications Notification[]
 
   @@index([city])
   @@index([createdAt])
@@ -330,13 +331,29 @@ model Goal {
   /// Как подтвердим результат: screenshot | photo_video | document | daily_reports | other
   confirmMethod    String?
   confirmNote      String?
+  /// Последний введённый «Текущий результат» (для числовых целей)
+  currentValue     Float?
+  currentUpdatedAt DateTime?
   isPublic         Boolean        @default(true)
   sort             Int            @default(0)
   finalAchieved    Boolean?
   finalComment     String?
   createdAt        DateTime       @default(now())
 
-  tasks Task[]
+  tasks  Task[]
+  values GoalValue[]
+}
+
+/// История «Текущего результата» по отчётам
+model GoalValue {
+  id        String   @id @default(uuid())
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  value     Float
+  reportId  String?
+  createdAt DateTime @default(now())
+
+  @@index([goalId, createdAt])
 }
 
 enum Frequency {
@@ -918,4 +935,20 @@ model FeedMessage {
   createdAt DateTime      @default(now())
 
   @@index([flowId, createdAt])
+}
+
+/// Уведомления в приложении (колокольчик): формируются по реальным событиям
+model Notification {
+  id        String    @id @default(uuid())
+  userId    BigInt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String // buddy_report | chat_reply | report_due
+  title     String
+  body      String?
+  link      String?
+  dedupeKey String?   @unique
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
 }

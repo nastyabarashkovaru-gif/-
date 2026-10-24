@@ -25,6 +25,7 @@ function cardSig(id: string) {
 }
 
 import { chatMessageInput, listChat, postChat } from '../modules/feedChat';
+import { listNotifications, markRead, unreadCount } from '../modules/notifications';
 
 export async function socialRoutes(app: FastifyInstance) {
   app.register(async (r) => {
@@ -35,6 +36,11 @@ export async function socialRoutes(app: FastifyInstance) {
       if (!req.query.cursor) await track({ userId: req.user!.id, eventName: 'feed_open', screenId: 'S23' });
       return jsonSafe(await feed({ cursor: req.query.cursor, sort: req.query.sort === 'popular' ? 'popular' : 'new', flowId: req.query.flowId }));
     });
+    // Уведомления (колокольчик)
+    r.get('/api/notifications', async (req) => listNotifications(req.user!.id));
+    r.get('/api/notifications/unread', async (req) => ({ unread: await unreadCount(req.user!.id) }));
+    r.post<{ Params: { id: string } }>('/api/notifications/:id/read', async (req) => markRead(req.user!.id, req.params.id));
+
     // Общий чат отчётов потока
     r.get<{ Querystring: { before?: string; after?: string } }>('/api/feed/chat', async (req) => {
       if (!req.query.before && !req.query.after) await track({ userId: req.user!.id, eventName: 'feed_open', screenId: 'S23' });

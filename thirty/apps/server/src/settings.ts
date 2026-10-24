@@ -45,12 +45,12 @@ export const DEFAULT_SETTINGS = {
     offer_referral_restore: false,
     upsells: false,
   } as Record<string, boolean>,
-  /** «Полезные материалы»: url заполняет владелец в админке (Настройки → materials) */
+  /** «Полезные материалы»: одна ссылка на канал для всех карточек (можно поменять в админке: Настройки → materials) */
   'materials': [
-    { id: 'goal', kind: 'Гайд', title: 'Как выбрать цель', text: 'Определи, чего ты действительно хочешь достичь за 30 дней.', icon: 'target', url: '' },
-    { id: 'basket', kind: 'Подборка', title: 'Моя продуктовая корзина', text: 'Продукты, с которыми я похудела на 7 кг без ограничений.', icon: 'basket', url: '' },
-    { id: 'monetize', kind: 'Обучение', title: 'Монетизация блога', text: 'Как начать зарабатывать на своём контенте.', icon: 'trend', url: '' },
-    { id: 'podcast', kind: 'Подкаст', title: 'Как выбрать свою тему блога', text: 'Найди направление, о котором захочется рассказывать.', icon: 'headphones', url: '' },
+    { id: 'goal', kind: 'Гайд', title: 'Как выбрать цель', text: 'Определи, чего ты действительно хочешь достичь за 30 дней.', icon: 'target', url: 'https://t.me/+DAqhaepx_0oxZjM6' },
+    { id: 'basket', kind: 'Подборка', title: 'Моя продуктовая корзина', text: 'Продукты, с которыми я похудела на 7 кг без ограничений.', icon: 'basket', url: 'https://t.me/+DAqhaepx_0oxZjM6' },
+    { id: 'monetize', kind: 'Обучение', title: 'Монетизация блога', text: 'Как начать зарабатывать на своём контенте.', icon: 'trend', url: 'https://t.me/+DAqhaepx_0oxZjM6' },
+    { id: 'podcast', kind: 'Подкаст', title: 'Как выбрать свою тему блога', text: 'Найди направление, о котором захочется рассказывать.', icon: 'headphones', url: 'https://t.me/+DAqhaepx_0oxZjM6' },
   ] as { id: string; kind: string; title: string; text: string; icon: string; url: string }[],
   'cases': [] as { name: string; text: string; result: string }[],
 };

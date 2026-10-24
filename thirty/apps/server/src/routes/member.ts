@@ -114,7 +114,12 @@ export async function memberRoutes(app: FastifyInstance) {
         days: stats.days,
       },
       comparison: compareWithPrevious(prevStats ? prevStats.successfulDays : null, stats.successfulDays),
-      goals: goals.map((g) => ({ ...serializeGoal(g), tasks: g.tasks.map((t) => ({ id: t.id, title: t.title, schedule: scheduleLabel(t), evidence: t.evidence })) })),
+      goals: await Promise.all(goals.map(async (g) => ({
+        ...serializeGoal(g),
+        // Для нечисловых целей прогресс — процент выполненных запланированных действий
+        planPercent: info.phase === 'upcoming' ? null : Math.round((await goalStats(g.id, m.id, m.flow)).ratio * 100),
+        tasks: g.tasks.map((t) => ({ id: t.id, title: t.title, schedule: scheduleLabel(t), evidence: t.evidence })),
+      }))),
       todayReported: Boolean(today && today.status === 'accepted'),
       buddy: await buddyCard(user.id, m.flowId),
       perks: tariffPerks(tariff?.months ?? 1),

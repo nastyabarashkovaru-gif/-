@@ -434,12 +434,12 @@ function ConfirmForm({ m }: { m: MembershipView }) {
         Это твоё <em>обещание себе!</em> 🤝
       </Head>
       {m.goals.map((g, i) => <PromiseCard key={g.id} goal={g} i={i} total={m.goals.length} />)}
-      <label className="check">
+      <label className="card promise-check">
         <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-        <span>Я подтверждаю, что осознанно выбираю эти цели и обязуюсь выполнять запланированные действия, ежедневно отчитываться и отвечать за свой результат.</span>
+        <span>Я подтверждаю, что осознанно выбираю эти цели и обязуюсь выполнять запланированные действия, ежедневно отчитываться и отвечать за свои результаты.</span>
       </label>
       {incomplete >= 0 && <div className="banner warn">Заполни точки А/Б и план действий для цели «{m.goals[incomplete].title}».</div>}
-      <Cta disabled={!agree || busy || incomplete >= 0} onClick={submit}>Отправить анкету</Cta>
+      <Cta disabled={!agree || busy || incomplete >= 0} onClick={submit}>Я беру на себя ответственность 💜</Cta>
     </Screen>
   );
 }
@@ -448,34 +448,30 @@ function PromiseCard({ goal, i, total }: { goal: Goal; i: number; total: number 
   const nav = useNavigate();
   const [open, setOpen] = useState(true);
   const edit = (to: string) => (
-    <button className="link-btn" style={{ padding: 2, textDecoration: 'none' }} aria-label="Изменить" onClick={() => nav(to)}><Pencil size={14} /></button>
+    <button className="pencil" aria-label="Изменить" onClick={() => nav(to)}><Pencil size={15} /></button>
   );
   return (
     <div className="card" style={{ gap: 12 }}>
-      <div className="row between">
-        <span className="row" style={{ gap: 10 }}><span className="ic sq" style={{ width: 32, height: 32, borderRadius: 9 }}><Target size={16} /></span><span className="h3">{total > 1 ? `Цель ${i + 1}` : 'Моя цель'}</span></span>
-        {edit('/reg/goals')}
+      <span className="row" style={{ gap: 10 }}><span className="ic sq" style={{ width: 34, height: 34, borderRadius: 10 }}><Target size={17} /></span><span className="h3" style={{ fontSize: 17 }}>{total > 1 ? `Цель ${i + 1}` : 'Твоя цель'}</span></span>
+      <div className="row" style={{ background: 'var(--bg)', borderRadius: 14, padding: '12px 14px', alignItems: 'flex-start' }}>
+        <span className="grow" style={{ fontSize: 17, fontWeight: 600 }}>{goal.title}</span>{edit('/reg/goals')}
       </div>
-      <div style={{ fontSize: 16, fontWeight: 500 }}>{goal.title}</div>
-      <div className="divider" />
       <div className="grid2">
-        <div style={{ background: 'var(--bg)', borderRadius: 14, padding: '10px 12px' }}>
-          <div className="row between"><span className="label" style={{ color: 'var(--muted)' }}>Точка А</span>{edit(`/reg/points/${i}`)}</div>
-          <div style={{ fontSize: 14, marginTop: 4 }}>{goal.pointA || '—'}</div>
+        <div className="row" style={{ background: 'var(--bg)', borderRadius: 14, padding: '12px', alignItems: 'flex-start' }}>
+          <span className="grow"><span className="label" style={{ color: 'var(--muted)', display: 'block', fontSize: 12 }}>Точка А</span><span style={{ display: 'block', marginTop: 6, fontSize: 15 }}>{goal.pointA || '—'}</span></span>{edit(`/reg/points/${i}`)}
         </div>
-        <div style={{ background: 'var(--accent-soft)', borderRadius: 14, padding: '10px 12px' }}>
-          <div className="row between"><span className="label" style={{ color: 'var(--accent)' }}>Точка Б</span>{edit(`/reg/points/${i}`)}</div>
-          <div style={{ fontSize: 14, marginTop: 4, color: 'var(--accent-ink)', fontWeight: 600 }}>{goal.pointB || '—'}</div>
+        <div className="row" style={{ background: 'var(--accent-soft)', borderRadius: 14, padding: '12px', alignItems: 'flex-start' }}>
+          <span className="grow"><span className="label" style={{ color: 'var(--accent)', display: 'block', fontSize: 12 }}>Точка Б</span><span style={{ display: 'block', marginTop: 6, fontSize: 15, color: 'var(--ink-2)' }}>{goal.pointB || '—'}</span></span>{edit(`/reg/points/${i}`)}
         </div>
       </div>
-      <button className="row between" style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer' }} onClick={() => setOpen(!open)}>
-        <span className="row" style={{ gap: 8, fontWeight: 600 }}><ListChecks size={16} color="var(--accent)" />Мои действия <span className="pill" style={{ padding: '1px 8px', fontSize: 12 }}>{goal.tasks.length}</span></span>
-        {open ? <ChevronUp size={16} color="var(--muted-2)" /> : <ChevronDown size={16} color="var(--muted-2)" />}
+      <button className="row between" style={{ border: 0, background: 'none', padding: '4px 0', cursor: 'pointer' }} onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span className="row h3" style={{ gap: 10, fontSize: 17 }}><ListChecks size={18} color="var(--accent)" />План действий</span>
+        {open ? <ChevronUp size={19} color="var(--accent)" /> : <ChevronDown size={19} color="var(--accent)" />}
       </button>
       {open && goal.tasks.map((t) => (
-        <div className="row" key={t.id} style={{ alignItems: 'flex-start', gap: 10 }}>
-          <CircleCheck size={17} color="var(--accent)" style={{ marginTop: 2 }} />
-          <div className="grow"><div style={{ fontSize: 15 }}>{t.title}</div><div className="muted small">{t.schedule}</div></div>
+        <div className="row" key={t.id} style={{ alignItems: 'flex-start', gap: 10, background: 'var(--bg)', borderRadius: 14, padding: '12px 12px' }}>
+          <CircleCheck size={18} color="var(--accent)" style={{ marginTop: 2 }} />
+          <div className="grow"><div style={{ fontSize: 15 }}>{t.title}</div><div className="muted small" style={{ marginTop: 3 }}>{t.schedule}</div></div>
           {edit(`/reg/plan/${i}`)}
         </div>
       ))}

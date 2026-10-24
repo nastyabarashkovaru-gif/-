@@ -2,6 +2,7 @@ import { addDays, flowBounds, fromDbDate, localDate, humanDate, quote, cardForFl
 import { DateTime } from 'luxon';
 import { clock } from '../clock';
 import { prisma } from '../db';
+import { pushNotification } from '../modules/notifications';
 import { getSetting, feature } from '../settings';
 import { sendTemplate } from '../modules/bot';
 import { LIVE_STATUSES } from '../modules/billing';
@@ -145,7 +146,10 @@ export async function runFlowChains(now = clock.now(), send: Send = sendTemplate
       const hoursLeft = (dayDeadline(today, flow.timezone).getTime() - now.getTime()) / 3600_000;
       for (const m of members) {
         const report = await prisma.dailyReport.findUnique({ where: { membershipId_date: { membershipId: m.id, date: new Date(`${today}T00:00:00Z`) } } });
-        if (!report && hoursLeft <= 3 && hoursLeft > 0.25) await send(m.userId, 'report_reminder', { hours: Math.ceil(hoursLeft) }, `report_reminder:${m.id}:${today}`);
+        if (!report && hoursLeft <= 3 && hoursLeft > 0.25) {
+          await send(m.userId, 'report_reminder', { hours: Math.ceil(hoursLeft) }, `report_reminder:${m.id}:${today}`);
+          await pushNotification(m.userId, 'report_due', { title: 'Пора сдать отчёт!', body: `До конца дня ${Math.ceil(hoursLeft)} ч. Отметь действия и прикрепи фото.`, link: '/?report=1' }, `report_due:${m.id}:${today}`);
+        }
         if (hour >= 10 && today > startsOn) {
           const yesterday = addDays(today, -1);
           const y = await prisma.dailyReport.findUnique({ where: { membershipId_date: { membershipId: m.id, date: new Date(`${yesterday}T00:00:00Z`) } } });

@@ -1,4 +1,4 @@
-import { fromDbDate, toDbDate, flowPhase } from '@thirty/domain';
+import { fromDbDate, toDbDate, flowPhase, isNumericGoal, metricUnit } from '@thirty/domain';
 import { z } from 'zod';
 import { clock } from '../clock';
 import { prisma } from '../db';
@@ -7,6 +7,8 @@ import { getSetting } from '../settings';
 import { signedMediaUrl } from '../lib/storage';
 import { flowToday } from './flows';
 import { track } from './analytics';
+import { buddyOf } from './buddy';
+import { pushNotification } from './notifications';
 
 export const reportInput = z.object({
   items: z
@@ -21,6 +23,8 @@ export const reportInput = z.object({
     )
     .max(100),
   text: z.string().trim().max(2000).optional(),
+  /** «Текущий результат» по числовым целям — необязательно */
+  progress: z.array(z.object({ goalId: z.string().uuid(), value: z.number().finite() })).max(30).default([]),
   /** Фото отчёта: минимум одно на весь отчёт */
   mediaIds: z.array(z.string().uuid()).max(6).default([]),
   /** Пользователь видел предупреждение, что отчёт публичный */
@@ -69,10 +73,21 @@ export async function submitReport(userId: bigint, membershipId: string, input: 
       if (item.mediaIds.length) await tx.reportEvidence.createMany({ data: item.mediaIds.map((mediaId) => ({ itemId: ri.id, mediaId })) });
       marked++;
     }
-    await tx.feedMessage.create({ data: { flowId: m.flowId, userId, reportId: report.id, text: input.text || null, createdAt: now } });
-    return { reportId: report.id, date: today, marked };
+    for (const p of input.progress) {
+      const goal = await tx.goal.findFirst({ where: { id: p.goalId, membershipId } });
+      if (!goal) continue;
+      await tx.goal.update({ where: { id: goal.id }, data: { currentValue: p.value, currentUpdatedAt: now } });
+      await tx.goalValue.create({ data: { goalId: goal.id, value: p.value, reportId: report.id, createdAt: now } });
+    }
+    const msg = await tx.feedMessage.create({ data: { flowId: m.flowId, userId, reportId: report.id, text: input.text || null, createdAt: now } });
+    return { reportId: report.id, date: today, marked, messageId: msg.id };
   }).then(async (r) => {
     await track({ userId, eventName: 'report_submitted', screenId: 'S21', flowId: m.flowId, metadata: { marked: r.marked, items: input.items.length, photos: allMedia.length } });
+    const buddy = await buddyOf(userId, m.flowId);
+    if (buddy) {
+      const me = await prisma.user.findUnique({ where: { id: userId } });
+      await pushNotification(buddy.otherId, 'buddy_report', { title: 'Твой бадди прислал отчёт!', body: me ? `${me.displayName || me.firstName} — отчёт за сегодня` : null, link: `/feed?msg=${r.messageId}` }, `buddy_report:${r.reportId}`);
+    }
     return r;
   });
 }
@@ -97,6 +112,11 @@ export async function todayChecklist(membershipId: string) {
       id: g.id,
       title: g.title,
       category: g.category,
+      numeric: isNumericGoal(g.pointA, g.pointB),
+      unit: metricUnit(g.pointB),
+      current: g.currentValue,
+      pointA: g.pointA,
+      pointB: g.pointB,
       tasks: g.tasks.map((t) => {
         const open = occ.filter((o) => o.taskId === t.id);
         return {

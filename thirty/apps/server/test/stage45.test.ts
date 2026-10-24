@@ -240,6 +240,51 @@ describe('общий чат отчётов', () => {
   });
 });
 
+describe('уведомления и текущий результат', () => {
+  it('отчёт бадди и ответ в чате создают уведомления; прочтение гасит точку; «текущий результат» считает прогресс', async () => {
+    clock.set('2026-10-21T10:00:00Z');
+    await grantMembership(60, '2026-11-01', 'm1');
+    await grantMembership(61, '2026-11-01', 'm1');
+    const g = await api('POST', '/api/goals', 60, { category: 'weightloss', title: 'Минус 3 кг', pointA: '60 кг', pointB: '57 кг', confirmMethod: 'photo_video' });
+    const t = await api('POST', `/api/goals/${g.body.id}/tasks`, 60, { title: 'Шаги', frequency: 'daily' });
+    await api('POST', '/api/membership/fix', 60);
+    await fixDaily(61);
+    const flow = await prisma.flow.findFirstOrThrow({ where: { startsOn: new Date('2026-11-01T00:00:00Z') } });
+    const pair = await prisma.buddyPair.create({ data: { flowId: flow.id, userA: 60n, userB: 61n, source: 'admin' } });
+    await prisma.buddyAssignment.createMany({ data: [{ flowId: flow.id, userId: 60n, pairId: pair.id }, { flowId: flow.id, userId: 61n, pairId: pair.id }] });
+    clock.set('2026-11-01T09:00:00Z');
+    await refreshFlowStatuses();
+    expect((await api('GET', '/api/notifications/unread', 61)).body.unread).toBe(0);
+    const rep = await api('POST', '/api/reports', 60, { items: [{ taskId: t.body.id, done: true }], progress: [{ goalId: g.body.id, value: 58.5 }], mediaIds: [(await upload(60)).body.id], publicAck: true });
+    expect(rep.status).toBe(200);
+    const n61 = await api('GET', '/api/notifications', 61);
+    expect(n61.body.unread).toBe(1);
+    expect(n61.body.items[0]).toMatchObject({ kind: 'buddy_report', title: 'Твой бадди прислал отчёт!', link: `/feed?msg=${rep.body.messageId}`, read: false });
+    const home = await api('GET', '/api/home', 60);
+    expect(home.body.goals[0]).toMatchObject({ numeric: true, unit: 'кг', current: 58.5, progress: 50 });
+
+    clock.set('2026-11-01T09:10:00Z');
+    const reply = await api('POST', '/api/feed/chat', 61, { text: 'Так держать!', replyToId: rep.body.messageId });
+    const n60 = await api('GET', '/api/notifications', 60);
+    expect(n60.body.items[0]).toMatchObject({ kind: 'chat_reply', title: 'Тебе ответили в чате', link: `/feed?msg=${reply.body.id}` });
+    // на свой собственный ответ уведомление не приходит
+    await api('POST', '/api/feed/chat', 60, { text: 'Спасибо!', replyToId: reply.body.id });
+    expect((await api('GET', '/api/notifications/unread', 60)).body.unread).toBe(1);
+    expect((await api('GET', '/api/notifications/unread', 61)).body.unread).toBe(2);
+    const read = await api('POST', `/api/notifications/${n60.body.items[0].id}/read`, 60);
+    expect(read.body.unread).toBe(0);
+    expect((await api('POST', `/api/notifications/${n60.body.items[0].id}/read`, 61)).status).toBe(404);
+
+    // «Пора сдать отчёт!» — за 3 часа до конца дня тем, кто ещё не сдал (один раз в день)
+    clock.set('2026-11-02T19:00:00Z'); // 22:00 МСК
+    await runFlowChains(clock.now(), async () => undefined);
+    await runFlowChains(clock.now(), async () => undefined);
+    const due = await prisma.notification.findMany({ where: { kind: 'report_due' } });
+    expect(due.map((d) => d.userId).sort()).toEqual([60n, 61n]);
+    expect(due[0]).toMatchObject({ title: 'Пора сдать отчёт!', link: '/?report=1' });
+  });
+});
+
 describe('финал, отзывы, карточки', () => {
   it('карточки 7/14/21/28 с реальными цифрами и QR; отзыв не влияет на рейтинг (№12, №13)', async () => {
     clock.set('2026-10-21T09:00:00Z');

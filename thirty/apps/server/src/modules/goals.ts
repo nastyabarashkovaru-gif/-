@@ -1,4 +1,4 @@
-import { plural, canAddGoal, flowPhase, fromDbDate, generateOccurrences, toDbDate, dayOfMonth, type ISODate } from '@thirty/domain';
+import { plural, canAddGoal, isNumericGoal, metricUnit, goalProgressPercent, flowPhase, fromDbDate, generateOccurrences, toDbDate, dayOfMonth, type ISODate } from '@thirty/domain';
 import type { FlowMembership, Flow, Goal, Task } from '@prisma/client';
 import { z } from 'zod';
 import { clock } from '../clock';
@@ -218,6 +218,10 @@ export function serializeGoal(g: Goal & { tasks: Task[] }) {
     pointB: g.pointB,
     confirmMethod: g.confirmMethod,
     confirmNote: g.confirmNote,
+    numeric: isNumericGoal(g.pointA, g.pointB),
+    unit: metricUnit(g.pointB),
+    current: g.currentValue,
+    progress: goalProgressPercent(g.pointA, g.pointB, g.currentValue),
     isPublic: g.isPublic,
     finalAchieved: g.finalAchieved,
     tasks: g.tasks.map((t) => ({ id: t.id, title: t.title, frequency: t.frequency, n: t.n, dueDate: t.dueDate ? fromDbDate(t.dueDate) : null, evidence: t.evidence, criteria: t.criteria, selfReported: t.selfReported })),

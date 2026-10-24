@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { MessagesSquare, Reply, Send, SlidersHorizontal, Trophy, User, X, ChevronRight } from 'lucide-react';
 import { api } from '../../lib/api';
 import { openTelegram } from '../../lib/telegram';
@@ -12,7 +12,8 @@ type Tab = 'chat' | 'board' | 'people';
 
 /** Лента: общий чат отчётов, лидерборд и все участники */
 export function Feed() {
-  const [tab, setTab] = useState<Tab>(() => (sessionStorage.getItem('thirty.feedTab') as Tab) || 'chat');
+  const focus = new URLSearchParams(useLocation().search).get('msg');
+  const [tab, setTab] = useState<Tab>(() => (focus ? 'chat' : (sessionStorage.getItem('thirty.feedTab') as Tab) || 'chat'));
   const pick = (t: Tab) => { setTab(t); sessionStorage.setItem('thirty.feedTab', t); };
   return (
     <Screen id={tab === 'chat' ? 'S23' : tab === 'board' ? 'S26' : 'S24'} nav>
@@ -26,7 +27,7 @@ export function Feed() {
           <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => pick(k)}>{l}</button>
         ))}
       </div>
-      {tab === 'chat' ? <Chat /> : tab === 'board' ? <Board /> : <People />}
+      {tab === 'chat' ? <Chat focus={focus} /> : tab === 'board' ? <Board /> : <People />}
     </Screen>
   );
 }
@@ -45,7 +46,7 @@ interface ChatPage { flow: { id: string; title: string; startsOn: string }; mess
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
-function Chat() {
+function Chat({ focus }: { focus: string | null }) {
   const [flow, setFlow] = useState<ChatPage['flow'] | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -59,17 +60,29 @@ function Chat() {
   const load = useCallback(async () => {
     try {
       const r = await api<ChatPage>('/api/feed/chat');
+      let list = r.messages;
+      let more = r.hasMore;
+      // Переход из уведомления: догружаем историю, пока не найдём нужное сообщение
+      for (let i = 0; focus && more && !list.some((m) => m.id === focus) && i < 10; i++) {
+        const older = await api<ChatPage>(`/api/feed/chat?before=${list[0].id}`);
+        list = [...older.messages, ...list];
+        more = older.hasMore;
+      }
       setFlow(r.flow);
-      setMsgs(r.messages);
-      setHasMore(r.hasMore);
-      last.current = r.messages.at(-1)?.id ?? null;
+      setMsgs(list);
+      setHasMore(more);
+      last.current = list.at(-1)?.id ?? null;
       setError(null);
-      // Как в Telegram: открываем чат на последних сообщениях
-      requestAnimationFrame(() => window.scrollTo({ top: document.body.scrollHeight }));
+      // Как в Telegram: открываем чат на последних сообщениях (или на сообщении из уведомления)
+      requestAnimationFrame(() => {
+        const el = focus ? document.getElementById(`m-${focus}`) : null;
+        if (el) el.scrollIntoView({ block: 'center' });
+        else window.scrollTo({ top: document.body.scrollHeight });
+      });
     } catch (e) {
       setError(e);
     }
-  }, []);
+  }, [focus]);
   useEffect(() => { void load(); }, [load]);
 
   // Новые сообщения подтягиваем раз в 5 секунд, пока вкладка открыта
@@ -122,7 +135,7 @@ function Chat() {
         {hasMore && <button className="link-btn" onClick={older}>Показать предыдущие</button>}
         {msgs.length === 0 && <div className="muted center small" style={{ padding: '12px 0' }}>Здесь появятся отчёты и сообщения участников твоего потока.</div>}
         {msgs.map((m) => (
-          <div key={m.id} className={`bubble ${m.mine ? 'mine' : ''}`}>
+          <div key={m.id} id={`m-${m.id}`} className={`bubble ${m.mine ? 'mine' : ''} ${m.id === focus ? 'focus' : ''}`}>
             <div className="row between"><span className="bubble-name">{m.user.name}</span><span className="muted small">{time(m.createdAt)}</span></div>
             {m.replyTo && <div className="bubble-quote"><b>{m.replyTo.name}</b><span>{m.replyTo.text}</span></div>}
             {m.hidden ? <div className="muted small">Сообщение скрыто модератором</div> : (

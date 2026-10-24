@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Camera, Check, CircleCheck, Circle, Flag, ImagePlus, MessageCircle, Send, ShieldAlert, X } from 'lucide-react';
 import { api, uploadImage } from '../../lib/api';
+import { formatMetric, parseNumber } from '../../lib/metric';
 import { haptic } from '../../lib/telegram';
 import { useMe } from '../../state';
 import { Avatar, Empty, ErrorState, Header, Loading, Screen, Sheet, errorText, humanDate, toast, useLoad } from '../../ui';
@@ -10,7 +11,7 @@ interface Checklist {
   date: string;
   reportId: string | null;
   reportStatus: string | null;
-  goals: { id: string; title: string; category: string; tasks: { id: string; title: string; evidence: string; photoRequired: boolean; policyNote: string | null; dueToday: boolean; remainingInWindow: number; doneToday: boolean }[] }[];
+  goals: { id: string; title: string; category: string; numeric: boolean; unit: string; current: number | null; tasks: { id: string; title: string; evidence: string; photoRequired: boolean; policyNote: string | null; dueToday: boolean; remainingInWindow: number; doneToday: boolean }[] }[];
 }
 
 /** Форма отчёта за сегодня (внутри главной): отметки действий, пара слов и обязательное фото */
@@ -21,11 +22,14 @@ export function ReportForm({ onSent }: { onSent: () => void }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [values, setValues] = useState<Record<string, string>>({});
 
   if (loading) return <Loading lines={1} />;
   if (error || !data) return <ErrorState error={error} retry={reload} />;
   if (data.reportStatus === 'rejected') return <div className="banner err">Отчёт за сегодня отклонён модератором. Подать апелляцию можно в истории отчётов.</div>;
   const tasks = data.goals.flatMap((g) => g.tasks).filter((t) => t.doneToday || t.remainingInWindow > 0);
+  const numericGoals = data.goals.filter((g) => g.numeric);
+  const badValue = Object.values(values).some((v) => v.trim() !== '' && parseNumber(v) === null);
 
   const submit = async () => {
     setBusy(true);
@@ -34,6 +38,7 @@ export function ReportForm({ onSent }: { onSent: () => void }) {
         body: {
           items: tasks.filter((t) => done[t.id] && !t.doneToday).map((t) => ({ taskId: t.id, done: true })),
           mediaIds: photos.map((p) => p.id),
+          progress: Object.entries(values).map(([goalId, v]) => ({ goalId, value: parseNumber(v) })).filter((p) => p.value !== null),
           text: text.trim() || undefined,
           publicAck: true,
         },
@@ -63,6 +68,22 @@ export function ReportForm({ onSent }: { onSent: () => void }) {
         })}
         {tasks.length === 0 && <div className="muted small">На сегодня нет запланированных действий — расскажи, как прошёл день.</div>}
       </div>
+ {numericGoals.length > 0 && (
+        <div className="col" style={{ gap: 8 }}>
+          <div className="h3">Текущий результат <span className="muted small" style={{ fontWeight: 400 }}>— по желанию</span></div>
+          {numericGoals.map((g) => (
+            <label key={g.id} className="field" style={{ gap: 6 }}>
+              <span className="muted small" style={{ fontWeight: 400 }}>{g.title}</span>
+              <span className="row" style={{ gap: 8 }}>
+                <input className="input" inputMode="decimal" placeholder={g.current !== null ? `Было: ${formatMetric(g.current, '')}` : 'Например, 58,5'} value={values[g.id] ?? ''}
+                  onChange={(e) => setValues({ ...values, [g.id]: e.target.value.replace(/[^\d.,\s-]/g, '') })} />
+                {g.unit && <span className="muted nowrap">{g.unit}</span>}
+              </span>
+            </label>
+          ))}
+          {badValue && <span className="small" style={{ color: 'var(--danger)' }}>Введи число, например 58,5</span>}
+        </div>
+      )}
       <textarea className="textarea" placeholder="Расскажи, как прошёл день..." maxLength={2000} value={text} onChange={(e) => setText(e.target.value)} />
       <div className="card" style={{ gap: 8 }}>
         <span className="row h3" style={{ gap: 8 }}><Camera size={18} color="var(--accent)" />Фотоотчёт *</span>
@@ -90,7 +111,7 @@ export function ReportForm({ onSent }: { onSent: () => void }) {
           </label>
         )}
       </div>
-      <button className="btn btn-primary" disabled={busy || photos.length === 0} onClick={submit}>{busy ? 'Отправляем…' : 'Отправить отчёт'}<Send size={17} /></button>
+      <button className="btn btn-primary" disabled={busy || photos.length === 0 || badValue} onClick={submit}>{busy ? 'Отправляем…' : 'Отправить отчёт'}<Send size={17} /></button>
     </div>
   );
 }

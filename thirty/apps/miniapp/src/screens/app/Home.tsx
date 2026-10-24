@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { HeartHandshake, MessagesSquare, BookOpen, ChevronRight, ChevronDown, ChevronUp, ArrowRight, CircleCheck, TrendingUp, ClipboardCheck, PenLine } from 'lucide-react';
 import { api } from '../../lib/api';
+import { formatMetric } from '../../lib/metric';
 import { AppBar, ErrorState, Loading, Screen, humanDate, plural, useLoad } from '../../ui';
 import { catTitle } from '../reg/Registration';
 import { ReportForm } from './Report';
@@ -12,6 +13,11 @@ interface HomeGoal {
   title: string;
   pointA: string | null;
   pointB: string | null;
+  numeric: boolean;
+  unit: string;
+  current: number | null;
+  progress: number | null;
+  planPercent: number | null;
   tasks: { id: string; title: string; schedule: string }[];
 }
 
@@ -30,7 +36,9 @@ interface HomeData {
 export function Home() {
   const nav = useNavigate();
   const { data, error, loading, reload } = useLoad(() => api<HomeData>('/api/home'));
-  const [reportOpen, setReportOpen] = useState(false);
+  // Переход из уведомления «Пора сдать отчёт!» сразу открывает форму
+  const loc = useLocation();
+  const [reportOpen, setReportOpen] = useState(() => new URLSearchParams(loc.search).get('report') === '1');
 
   if (loading && !data) return <Screen id="S19" nav><Loading /></Screen>;
   if (error || !data) return <Screen id="S19" nav><ErrorState error={error} retry={reload} /></Screen>;
@@ -153,6 +161,7 @@ function GoalItem({ goal, n }: { goal: HomeGoal; n: number }) {
             <ArrowRight size={15} color="var(--muted-2)" style={{ marginTop: 14 }} />
             <div className="grow" style={{ textAlign: 'right' }}><div className="label" style={{ color: 'var(--accent)' }}>Точка Б</div><div style={{ marginTop: 4, color: 'var(--accent-ink)', fontWeight: 600 }}>{goal.pointB ?? '—'}</div></div>
           </div>
+          <GoalProgress goal={goal} />
           <div className="h3">План действий</div>
           {goal.tasks.map((t) => (
             <div className="row" key={t.id} style={{ alignItems: 'flex-start', gap: 10 }}>
@@ -162,6 +171,26 @@ function GoalItem({ goal, n }: { goal: HomeGoal; n: number }) {
           ))}
         </>
       )}
+    </div>
+  );
+}
+
+/** Прогресс цели: для числовых — по «Текущему результату» между точками А и Б, для остальных — по выполненным действиям */
+function GoalProgress({ goal }: { goal: HomeGoal }) {
+  if (goal.numeric) {
+    if (goal.current === null || goal.progress === null) return <div className="muted small">Укажи «Текущий результат» в ежедневном отчёте — здесь появится прогресс.</div>;
+    return (
+      <div className="col" style={{ gap: 8 }}>
+        <div className="row between"><span className="muted">Сейчас: {formatMetric(goal.current, goal.unit)}</span><b style={{ color: 'var(--accent)' }}>{goal.progress}% пути</b></div>
+        <div className="bar soft"><i style={{ width: `${goal.progress}%` }} /></div>
+      </div>
+    );
+  }
+  if (goal.planPercent === null) return null;
+  return (
+    <div className="col" style={{ gap: 8 }}>
+      <div className="row between"><span className="muted">Выполнено действий</span><b style={{ color: 'var(--accent)' }}>{goal.planPercent}%</b></div>
+      <div className="bar soft"><i style={{ width: `${goal.planPercent}%` }} /></div>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   flowBounds, nearestJoinableFlow, planPurchase, planRenewal, subscriptionStatusOn, coversFlow, generateOccurrences,
   computeStats, isPerfect, rank, compareWithPrevious, quote, offerActive, matchBuddies, weekCardStats, cardForFlowDay,
-  prizePool, assignPlaces, funnelRates, pickVariant, canAddGoal, DEFAULT_TARIFFS, dayDeadline, localDate, eachDay,
+  goalProgressPercent, parseMetric, metricUnit, isNumericGoal, prizePool, assignPlaces, funnelRates, pickVariant, canAddGoal, DEFAULT_TARIFFS, dayDeadline, localDate, eachDay,
   canRequestReplacement, formatRub, MAIN_PITCH,
 } from './index';
 
@@ -319,5 +319,19 @@ describe('рейтинг по процентам (решение 24.10)', () => 
       { userId: 'c', ratio: 0.95, reportDays: 1, successfulDays: 1, longestStreak: 1 },
     ]);
     expect(r.map((x) => [x.userId, x.rank])).toEqual([['c', 1], ['b', 2], ['a', 3]]);
+  });
+});
+
+describe('прогресс числовой цели', () => {
+  it('работает на снижение и на рост, ограничен 0–100', () => {
+    expect(goalProgressPercent('60 кг', '57 кг', 58.5)).toBe(50);
+    expect(goalProgressPercent('250 подписчиков', '1 000 подписчиков', 700)).toBe(60);
+    expect(goalProgressPercent('0 ₽', '100 000 ₽', 40000)).toBe(40);
+    expect(goalProgressPercent('60 кг', '57 кг', 61)).toBe(0);
+    expect(goalProgressPercent('60 кг', '57 кг', 55)).toBe(100);
+    expect(goalProgressPercent('Встаю в 9:00', 'Встаю в 9:00', 8)).toBeNull();
+    expect(parseMetric('58,5 кг')).toBe(58.5);
+    expect(metricUnit('1 000 подписчиков')).toBe('подписчиков');
+    expect(isNumericGoal('A2', 'Могу говорить')).toBe(false);
   });
 });

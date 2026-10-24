@@ -10,3 +10,4 @@ export * from './weekly';
 export * from './prize';
 export * from './funnel';
 export * from './copy';
+export * from './progress';
