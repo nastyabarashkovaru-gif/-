@@ -69,7 +69,7 @@ export async function submitReport(userId: bigint, membershipId: string, input: 
       if (item.mediaIds.length) await tx.reportEvidence.createMany({ data: item.mediaIds.map((mediaId) => ({ itemId: ri.id, mediaId })) });
       marked++;
     }
-    await tx.feedMessage.create({ data: { flowId: m.flowId, userId, reportId: report.id, text: input.text || null } });
+    await tx.feedMessage.create({ data: { flowId: m.flowId, userId, reportId: report.id, text: input.text || null, createdAt: now } });
     return { reportId: report.id, date: today, marked };
   }).then(async (r) => {
     await track({ userId, eventName: 'report_submitted', screenId: 'S21', flowId: m.flowId, metadata: { marked: r.marked, items: input.items.length, photos: allMedia.length } });

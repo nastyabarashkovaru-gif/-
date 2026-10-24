@@ -1,4 +1,5 @@
 import { buildApp } from './app';
+import { clock } from './clock';
 import { config } from './config';
 import { prisma } from './db';
 import { seed } from './seed';
@@ -6,6 +7,8 @@ import { startScheduler } from './jobs/scheduler';
 import { setupBot } from './lib/botSetup';
 
 async function main() {
+  // Только для локального просмотра экранов: «сейчас» = DEV_FAKE_NOW
+  if (config.NODE_ENV !== 'production' && process.env.DEV_FAKE_NOW) clock.set(process.env.DEV_FAKE_NOW);
   await seed();
   const app = await buildApp({ logger: true });
   await app.listen({ port: config.PORT, host: '0.0.0.0' });

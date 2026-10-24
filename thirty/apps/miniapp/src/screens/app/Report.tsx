@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Camera, CircleCheck, Circle, Flag, MessageCircle, ShieldAlert, X } from 'lucide-react';
+import { Camera, Check, CircleCheck, Circle, Flag, ImagePlus, MessageCircle, Send, ShieldAlert, X } from 'lucide-react';
 import { api, uploadImage } from '../../lib/api';
 import { haptic } from '../../lib/telegram';
 import { useMe } from '../../state';
@@ -13,46 +13,34 @@ interface Checklist {
   goals: { id: string; title: string; category: string; tasks: { id: string; title: string; evidence: string; photoRequired: boolean; policyNote: string | null; dueToday: boolean; remainingInWindow: number; doneToday: boolean }[] }[];
 }
 
-/** S21: отчёт за сегодня. Доказательство — по политике задачи; отчёт публичный, предупреждаем до отправки. */
-export function ReportScreen() {
-  const nav = useNavigate();
+/** Форма отчёта за сегодня (внутри главной): отметки действий, пара слов и обязательное фото */
+export function ReportForm({ onSent }: { onSent: () => void }) {
   const { data, error, loading, reload } = useLoad(() => api<Checklist>('/api/report/today'));
   const [done, setDone] = useState<Record<string, boolean>>({});
-  const [media, setMedia] = useState<Record<string, { id: string; url: string }[]>>({});
-  const [links, setLinks] = useState<Record<string, string>>({});
+  const [photos, setPhotos] = useState<{ id: string; url: string }[]>([]);
   const [text, setText] = useState('');
-  const [ack, setAck] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  if (loading) return <Screen id="S21"><Loading /></Screen>;
-  if (error || !data) return <Screen id="S21"><ErrorState error={error} retry={reload} /></Screen>;
-  if (data.reportStatus === 'rejected') {
-    return (
-      <Screen id="S21">
-        <Header title="Отчёт за сегодня" back="/" />
-        <div className="banner err">Отчёт за сегодня отклонён модератором. Подать апелляцию можно в истории отчётов.</div>
-        <button className="btn btn-secondary" onClick={() => nav('/reports')}>История отчётов</button>
-      </Screen>
-    );
-  }
-  const tasks = data.goals.flatMap((g) => g.tasks.map((t) => ({ ...t, goal: g.title })));
-  const open = tasks.filter((t) => !t.doneToday && t.remainingInWindow > 0);
-  const chosen = open.filter((t) => done[t.id]);
-  const missingEvidence = chosen.filter((t) => (t.photoRequired && !(media[t.id]?.length)) || (t.evidence === 'link' && !links[t.id] && !(media[t.id]?.length)));
+  if (loading) return <Loading lines={1} />;
+  if (error || !data) return <ErrorState error={error} retry={reload} />;
+  if (data.reportStatus === 'rejected') return <div className="banner err">Отчёт за сегодня отклонён модератором. Подать апелляцию можно в истории отчётов.</div>;
+  const tasks = data.goals.flatMap((g) => g.tasks).filter((t) => t.doneToday || t.remainingInWindow > 0);
 
   const submit = async () => {
     setBusy(true);
     try {
       await api('/api/reports', {
         body: {
-          items: chosen.map((t) => ({ taskId: t.id, done: true, mediaIds: (media[t.id] ?? []).map((m) => m.id), link: links[t.id] || undefined })),
+          items: tasks.filter((t) => done[t.id] && !t.doneToday).map((t) => ({ taskId: t.id, done: true })),
+          mediaIds: photos.map((p) => p.id),
           text: text.trim() || undefined,
           publicAck: true,
         },
       });
       haptic('success');
-      toast('Отчёт опубликован 💪');
-      nav('/');
+      toast('Отчёт отправлен в общий чат 💜');
+      onSent();
     } catch (e) {
       haptic('error');
       toast(errorText(e));
@@ -62,67 +50,62 @@ export function ReportScreen() {
   };
 
   return (
+    <div className="col" style={{ background: 'var(--bg)', borderRadius: 18, padding: 14, gap: 12 }}>
+      <div className="h3">Что ты сделала сегодня?</div>
+      <div role="group">
+        {tasks.map((t) => {
+          const on = t.doneToday || done[t.id];
+          return (
+            <button key={t.id} type="button" className={`radio check-radio ${on ? 'on' : ''}`} disabled={t.doneToday} onClick={() => { haptic(); setDone({ ...done, [t.id]: !done[t.id] }); }}>
+              <i>{on && <Check size={13} strokeWidth={3} />}</i>{t.title}
+            </button>
+          );
+        })}
+        {tasks.length === 0 && <div className="muted small">На сегодня нет запланированных действий — расскажи, как прошёл день.</div>}
+      </div>
+      <textarea className="textarea" placeholder="Расскажи, как прошёл день..." maxLength={2000} value={text} onChange={(e) => setText(e.target.value)} />
+      <div className="card" style={{ gap: 8 }}>
+        <span className="row h3" style={{ gap: 8 }}><Camera size={18} color="var(--accent)" />Фотоотчёт *</span>
+        <span className="muted small">Фото или скриншот выполненного действия. Без вложения отчёт отправить нельзя.</span>
+        {photos.length > 0 && (
+          <div className="photo-grid">
+            {photos.map((p) => (
+              <div key={p.id} style={{ position: 'relative' }}>
+                <img src={p.url} alt="Фото отчёта" />
+                <button className="photo-x" aria-label="Убрать фото" onClick={() => setPhotos(photos.filter((x) => x.id !== p.id))}><X size={13} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+        {photos.length < 6 && (
+          <label className="btn btn-secondary" style={{ minHeight: 48 }}>
+            <ImagePlus size={18} />{uploading ? 'Загружаем…' : 'Прикрепить фото'}
+            <input type="file" accept="image/*" hidden disabled={uploading} onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (!f) return;
+              setUploading(true);
+              try { setPhotos([...photos, await uploadImage(f)]); } catch (x) { toast(errorText(x)); } finally { setUploading(false); }
+            }} />
+          </label>
+        )}
+      </div>
+      <button className="btn btn-primary" disabled={busy || photos.length === 0} onClick={submit}>{busy ? 'Отправляем…' : 'Отправить отчёт'}<Send size={17} /></button>
+    </div>
+  );
+}
+
+/** Отчёт за сегодня отдельной страницей (кнопки бота ведут сюда) */
+export function ReportScreen() {
+  const nav = useNavigate();
+  return (
     <Screen id="S21">
-      <Header title="Отчёт за сегодня" sub={humanDate(data.date)} back="/" />
-      {open.length === 0 ? (
-        <Empty icon={<CircleCheck size={48} color="var(--green)" />} title="На сегодня всё отмечено" text="Отличная работа! Возвращайся завтра." action={<button className="btn btn-secondary btn-sm" onClick={() => nav('/')}>На главную</button>} />
-      ) : (
-        <>
-          {data.goals.map((g) => (
-            <div className="card" key={g.id}>
-              <div className="label">{g.title}</div>
-              {g.tasks.map((t) => {
-                const isDone = t.doneToday;
-                const unavailable = !isDone && t.remainingInWindow === 0;
-                const on = isDone || done[t.id];
-                return (
-                  <div key={t.id} className="col" style={{ gap: 10, opacity: unavailable ? 0.5 : 1 }}>
-                    <button className="row" style={{ border: 0, background: 'none', padding: 0, cursor: isDone || unavailable ? 'default' : 'pointer', textAlign: 'left', minHeight: 44 }}
-                      disabled={isDone || unavailable} onClick={() => { haptic(); setDone({ ...done, [t.id]: !done[t.id] }); }}>
-                      {on ? <CircleCheck size={28} color="var(--green)" /> : <Circle size={28} color="#cfccc6" />}
-                      <div className="grow">
-                        <div style={{ fontWeight: 600 }}>{t.title}</div>
-                        <div className="muted small">{isDone ? 'Уже отмечено сегодня' : unavailable ? 'План на эту неделю выполнен' : t.dueToday ? 'Нужно сегодня' : 'Можно отметить сегодня'}</div>
-                      </div>
-                    </button>
-                    {done[t.id] && !isDone && (t.photoRequired || t.evidence === 'checkbox_photo' || t.evidence === 'screenshot' || t.evidence === 'photo') && (
-                      <div className="col" style={{ paddingLeft: 40 }}>
-                        {t.policyNote && <div className="muted small">{t.policyNote}</div>}
-                        <div className="photo-grid">{(media[t.id] ?? []).map((m) => <img key={m.id} src={m.url} alt="Доказательство" />)}</div>
-                        <label className="btn btn-light btn-sm" style={{ alignSelf: 'flex-start' }}>
-                          <Camera size={18} /> {t.photoRequired ? 'Добавить фото (обязательно)' : 'Добавить фото'}
-                          <input type="file" accept="image/*" hidden onChange={async (e) => {
-                            const f = e.target.files?.[0];
-                            if (!f) return;
-                            try { const up = await uploadImage(f); setMedia({ ...media, [t.id]: [...(media[t.id] ?? []), up] }); } catch (x) { toast(errorText(x)); }
-                          }} />
-                        </label>
-                      </div>
-                    )}
-                    {done[t.id] && !isDone && t.evidence === 'link' && (
-                      <input className="input" style={{ marginLeft: 40, width: 'calc(100% - 40px)' }} placeholder="Ссылка на публикацию" value={links[t.id] ?? ''} onChange={(e) => setLinks({ ...links, [t.id]: e.target.value })} />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-          <div className="card">
-            <label className="field"><span>Пара слов о дне (необязательно)</span><textarea className="textarea" maxLength={2000} value={text} onChange={(e) => setText(e.target.value)} /></label>
-          </div>
-          <div className="banner warn">
-            <ShieldAlert size={16} style={{ verticalAlign: '-3px' }} /> Отчёт увидят участники клуба. Не публикуйте номера карт, суммы на счетах, документы, адреса и интимные фото.
-          </div>
-          <label className="check"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /><span>Понимаю, что отчёт публичный</span></label>
-          {missingEvidence.length > 0 && <div className="banner err">Добавьте доказательство: {missingEvidence.map((t) => t.title).join(', ')}</div>}
-          <button className="btn btn-primary" disabled={busy || !ack || chosen.length === 0 || missingEvidence.length > 0} onClick={submit}>{busy ? 'Публикуем…' : 'Опубликовать отчёт'}</button>
-        </>
-      )}
+      <Header title="Отчёт за сегодня" back="/" />
+      <ReportForm onSent={() => nav('/')} />
     </Screen>
   );
 }
 
-/** S22: история своих отчётов */
 export function ReportHistory() {
   const nav = useNavigate();
   const { data, error, loading, reload } = useLoad(() => api<{ reports: { id: string; date: string; status: string; items: number; comments: number }[] }>('/api/reports/mine'));

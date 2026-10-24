@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import { clock } from '../clock';
 import { prisma } from '../db';
 import { forbidden, notFound } from '../http';
 import { signedMediaUrl } from '../lib/storage';
@@ -63,18 +64,19 @@ export async function listChat(userId: bigint, q: { before?: string; after?: str
   const m = await chatFlow(userId);
   const limit = Math.min(q.limit ?? 30, 100);
   const where: Prisma.FeedMessageWhereInput = { flowId: m.flowId };
+  // Курсор — пара (время, id): сообщения с одинаковым временем не теряются
   if (q.after) {
     const a = await prisma.feedMessage.findUnique({ where: { id: q.after } });
-    if (a) where.createdAt = { gt: a.createdAt };
+    if (a) where.OR = [{ createdAt: { gt: a.createdAt } }, { createdAt: a.createdAt, id: { gt: a.id } }];
   }
   if (q.before) {
     const b = await prisma.feedMessage.findUnique({ where: { id: q.before } });
-    if (b) where.createdAt = { lt: b.createdAt };
+    if (b) where.OR = [{ createdAt: { lt: b.createdAt } }, { createdAt: b.createdAt, id: { lt: b.id } }];
   }
   const rows = await prisma.feedMessage.findMany({
     where,
     include,
-    orderBy: [{ createdAt: q.after ? 'asc' : 'desc' }, { id: 'asc' }],
+    orderBy: [{ createdAt: q.after ? 'asc' : 'desc' }, { id: q.after ? 'asc' : 'desc' }],
     take: limit + 1,
   });
   const more = rows.length > limit;
@@ -89,7 +91,7 @@ export async function postChat(userId: bigint, input: z.infer<typeof chatMessage
     const parent = await prisma.feedMessage.findUnique({ where: { id: input.replyToId } });
     if (!parent || parent.flowId !== m.flowId) throw notFound('message_not_found');
   }
-  const row = await prisma.feedMessage.create({ data: { flowId: m.flowId, userId, text: input.text, replyToId: input.replyToId ?? null }, include });
+  const row = await prisma.feedMessage.create({ data: { flowId: m.flowId, userId, text: input.text, replyToId: input.replyToId ?? null, createdAt: clock.now() }, include });
   return (await serialize([row], userId))[0];
 }
 

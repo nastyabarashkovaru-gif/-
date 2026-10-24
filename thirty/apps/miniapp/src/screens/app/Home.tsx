@@ -1,112 +1,167 @@
+import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { CircleCheck, Send, SlidersHorizontal, TrendingUp, User, Clock, Trophy, Sparkles } from 'lucide-react';
+import { HeartHandshake, MessagesSquare, BookOpen, ChevronRight, ChevronDown, ChevronUp, ArrowRight, CircleCheck, TrendingUp, ClipboardCheck, PenLine } from 'lucide-react';
 import { api } from '../../lib/api';
-import { openTelegram } from '../../lib/telegram';
-import { useMe } from '../../state';
-import { Bar, DayGrid, ErrorState, Loading, Screen, humanDate, plural, useLoad, type DayState } from '../../ui';
+import { AppBar, ErrorState, Loading, Screen, humanDate, plural, useLoad } from '../../ui';
 import { catTitle } from '../reg/Registration';
+import { ReportForm } from './Report';
+
+interface HomeGoal {
+  id: string;
+  category: string;
+  title: string;
+  pointA: string | null;
+  pointB: string | null;
+  tasks: { id: string; title: string; schedule: string }[];
+}
 
 interface HomeData {
   state: 'waiting' | 'active' | 'finished' | 'registration' | 'no_membership';
   membership: { id: string; status: string; finalSubmittedAt: string | null };
   flow: { title: string; startsOn: string; endsOn: string; days: number; today: string; phase: string };
-  stats: { percent: number; ratio: number; successfulDays: number; completed: number; scheduled: number; missedReports: number; currentStreak: number; dayNumber: number | null; days: { date: string; state: DayState }[] };
+  stats: { percent: number; successfulDays: number; dayNumber: number | null };
   comparison: { firstMonth: boolean; baseline: number; current: number; delta: number };
-  goals: { id: string; category: string; title: string; tasks: { id: string; title: string; schedule: string }[] }[];
+  goals: HomeGoal[];
   todayReported: boolean;
-  buddy: { state: 'paired'; buddy: { name: string; photoUrl: string | null; percent: number | null; writeUrl: string } } | { state: 'waiting' | 'invited' };
+  buddy: { state: 'paired'; buddy: { id: string; name: string; photoUrl: string | null; percent: number | null; writeUrl: string } } | { state: 'waiting' | 'invited' };
 }
 
-/** S19: главная — только личный прогресс (как на утверждённом макете) */
+/** Главная: до старта — «Ты уже в команде!», после — «Твой путь к результату» с отчётом за сегодня */
 export function Home() {
   const nav = useNavigate();
-  const { me } = useMe();
   const { data, error, loading, reload } = useLoad(() => api<HomeData>('/api/home'));
+  const [reportOpen, setReportOpen] = useState(false);
 
-  if (loading) return <Screen id="S19" nav><Loading /></Screen>;
+  if (loading && !data) return <Screen id="S19" nav><Loading /></Screen>;
   if (error || !data) return <Screen id="S19" nav><ErrorState error={error} retry={reload} /></Screen>;
   if (data.state === 'registration') return <Navigate to="/reg/goals" replace />;
+  if (data.state === 'no_membership') return <Navigate to="/welcome" replace />;
   const { flow, stats } = data;
-  const upcoming = data.state === 'waiting';
-  const daysToStart = Math.max(0, Math.ceil((new Date(`${flow.startsOn}T00:00:00+03:00`).getTime() - Date.now()) / 86400_000));
+  const before = data.state === 'waiting';
+  const day = stats.dayNumber ?? 0;
+  const left = Math.max(0, flow.days - day);
+  const dayPct = flow.days ? Math.round((day / flow.days) * 100) : 0;
 
   return (
     <Screen id="S19" nav>
-      <div className="screen-head">
-        <div>
-          <h1 className="h1">Мои 30 дней</h1>
-          <p className="sub">{humanDate(flow.startsOn)} — {humanDate(flow.endsOn)}</p>
-        </div>
-        <button className="icon-btn" aria-label="Мои цели и задачи" onClick={() => nav('/reg/goals')}><SlidersHorizontal size={20} /></button>
+      <AppBar />
+      <div>
+        <h1 className="h2" style={{ fontSize: 24 }}>{before ? 'Ты уже в команде! 💜' : data.state === 'finished' ? 'Челлендж завершён! 🎉' : 'Твой путь к результату 🚀'}</h1>
+        <p className="sub" style={{ fontSize: 15 }}>{before ? 'Твои цели сохранены. Совсем скоро начинаем!' : 'Каждый день приближает тебя к результату.'}</p>
       </div>
 
-      {upcoming && (
-        <div className="card peach">
-          <div className="row"><Clock size={22} color="var(--orange)" /><div className="grow"><div className="h3">Поток «{flow.title}» стартует {humanDate(flow.startsOn)}</div><div className="muted small">Осталось {daysToStart} {plural(daysToStart, 'день', 'дня', 'дней')}. Цели можно поправить до старта.</div></div></div>
+      <div className="hero-card">
+        <div className="row between">
+          <span style={{ opacity: 0.9 }}>Твой челлендж</span>
+          <span className="hero-pill">{before ? 'Ожидание старта' : `День ${Math.min(day, flow.days)} из ${flow.days}`}</span>
         </div>
-      )}
-
-      <div className="card">
-        <div className="row between" style={{ alignItems: 'flex-start' }}>
-          <div>
-            <div className="label">Твой прогресс</div>
-            <div className="big-num" style={{ whiteSpace: 'nowrap' }}>{stats.successfulDays} из {flow.days} {plural(flow.days, 'дня', 'дней', 'дней')}</div>
-          </div>
-          <div className="badge-pct">{stats.percent}%</div>
-        </div>
-        <Bar value={stats.ratio} />
-        <DayGrid days={stats.days} />
-        <div className="row green small"><TrendingUp size={18} /> {stats.successfulDays} {plural(stats.successfulDays, 'успешный день', 'успешных дня', 'успешных дней')} в этом месяце</div>
-      </div>
-
-      {!upcoming && (
-        <div className="card">
-          <div className="h3">Сравнение с прошлым месяцем</div>
-          <div className="row between"><span className="muted">{data.comparison.firstMonth ? 'Стартовая точка' : 'Прошлый месяц'}</span><span>{data.comparison.baseline} успешных дней</span></div>
-          <div className="row between"><span className="muted">Этот месяц</span><span className="green">{data.comparison.current} {plural(data.comparison.current, 'успешный день', 'успешных дня', 'успешных дней')}</span></div>
-          <div className="delta">{data.comparison.delta >= 0 ? '+' : '−'}{Math.abs(data.comparison.delta)} {plural(Math.abs(data.comparison.delta), 'успешный день', 'успешных дня', 'успешных дней')} {data.comparison.delta >= 0 ? '↑' : '↓'}</div>
-          {data.comparison.firstMonth && <p className="muted small" style={{ margin: 0 }}>Первый месяц: считаем от стартовой точки 0 — мы не знаем, что было до вступления.</p>}
-        </div>
-      )}
-
-      {data.goals.map((g) => (
-        <div className="card card-link" key={g.id} onClick={() => nav(`/goal/${g.id}`)}>
-          <div className="row between"><div className="h3">Моя цель</div><span className="pill">{catTitle(g.category).split(' ')[0]}</span></div>
-          <div className="h2" style={{ fontWeight: 600 }}>{g.title}</div>
-          {g.tasks.slice(0, 3).map((t) => (
-            <div className="row muted" key={t.id}><CircleCheck size={20} color={data.todayReported ? 'var(--green)' : '#cfccc6'} /> {t.title} <span className="small">· {t.schedule.toLowerCase()}</span></div>
-          ))}
-        </div>
-      ))}
-
-      {data.state === 'active' && (
-        data.todayReported
-          ? <button className="btn btn-secondary" onClick={() => nav('/report')}><CircleCheck size={20} /> Отчёт сдан — дополнить</button>
-          : <button className="btn btn-primary" onClick={() => nav('/report')}>Сдать отчёт за сегодня</button>
-      )}
-      {data.state === 'finished' && !data.membership.finalSubmittedAt && (
-        <button className="btn btn-primary" onClick={() => nav('/final')}><Trophy size={20} /> Подвести итоги месяца</button>
-      )}
-
-      <div className="card">
-        <div className="h3">Мой бадди</div>
-        {data.buddy.state === 'paired' ? (
-          <div className="row">
-            <div className="ava lg">{data.buddy.buddy.photoUrl ? <img src={data.buddy.buddy.photoUrl} alt="" /> : <User size={24} />}</div>
-            <div className="grow card-link" onClick={() => nav('/buddy')}>
-              <div className="h3">{data.buddy.buddy.name}</div>
-              {data.buddy.buddy.percent !== null && <div className="green">Прогресс: {data.buddy.buddy.percent}%</div>}
-            </div>
-            <button className="icon-btn peach" aria-label="Написать бадди" onClick={() => openTelegram((data.buddy as { buddy: { writeUrl: string } }).buddy.writeUrl)}><Send size={18} /></button>
-          </div>
+        {before ? (
+          <>
+            <div className="hero-title">Старт {humanDate(flow.startsOn)}! ✨</div>
+            <div style={{ opacity: 0.9 }}>Твоё обещание себе уже зафиксировано.</div>
+          </>
         ) : (
-          <div className="row card-link" onClick={() => nav('/reg/buddy')}>
-            <div className="ava lg"><Sparkles size={22} /></div>
-            <div className="grow"><div style={{ fontWeight: 600 }}>{data.buddy.state === 'invited' ? 'Ждём ответа друга' : 'Подбираем бадди'}</div><div className="muted small">Подбор завершится до старта потока</div></div>
-          </div>
+          <>
+            <div className="hero-title">{data.state === 'finished' ? 'Ты дошла до финиша!' : `${day}-й день. Продолжаем! 🔥`}</div>
+            {data.state !== 'finished' && <div style={{ opacity: 0.9 }}>Не сбавляй темп — до финиша {plural(left, 'остался', 'осталось', 'осталось')} {left} {plural(left, 'день', 'дня', 'дней')}.</div>}
+            <div className="hero-bar"><i style={{ width: `${dayPct}%` }} /></div>
+            <div className="row between" style={{ fontSize: 14 }}><span>{Math.min(day, flow.days)} / {flow.days} дней</span><span>{dayPct}%</span></div>
+            {!data.comparison.firstMonth && data.comparison.delta > 0 && (
+              <div className="row" style={{ gap: 6, fontSize: 14 }}><TrendingUp size={15} />На {data.comparison.delta} {plural(data.comparison.delta, 'день', 'дня', 'дней')} больше, чем в предыдущем месяце</div>
+            )}
+          </>
         )}
       </div>
-      {me?.user.sixMonthBadge && <div className="pill green" style={{ alignSelf: 'center' }}>🏅 Участник 6 месяцев</div>}
+
+      {data.state === 'active' && (
+        <div className="card" style={{ gap: 10 }}>
+          <div className="row between">
+            <span className="row h3" style={{ gap: 8, fontSize: 17 }}><ClipboardCheck size={19} color="var(--accent)" />Отчёт за сегодня</span>
+            <span className="small" style={{ color: data.todayReported ? 'var(--green)' : 'var(--muted-2)' }}>{data.todayReported ? 'Отправлен' : 'Не отправлен'}</span>
+          </div>
+          {data.todayReported ? (
+            <div className="row" style={{ gap: 8, color: 'var(--green)' }}><CircleCheck size={17} />Отчёт за сегодня отправлен. Так держать!</div>
+          ) : (
+            <>
+              <p className="muted" style={{ margin: 0 }}>Отметь действия и обязательно прикрепи фото.</p>
+              <button className="btn btn-primary" onClick={() => setReportOpen(!reportOpen)}><PenLine size={18} />Заполнить отчёт</button>
+              {reportOpen && <ReportForm onSent={() => { setReportOpen(false); reload(); }} />}
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="row between" style={{ marginTop: 6 }}>
+        <h2 className="h2" style={{ fontSize: 22 }}>Мои цели 🎯</h2>
+        <span className="pill green">{data.goals.length} {plural(data.goals.length, 'цель', 'цели', 'целей')}</span>
+      </div>
+      {data.goals.map((g, i) => <GoalItem key={g.id} goal={g} n={i + 1} />)}
+
+      <div className="grid2" style={{ alignItems: 'stretch' }}>
+        <div className="card" style={{ gap: 8 }}>
+          <span className="row h3" style={{ gap: 8 }}><HeartHandshake size={20} color="var(--accent)" />Мой бадди</span>
+          {data.buddy.state === 'paired' ? (
+            <>
+              <div style={{ fontWeight: 600, color: 'var(--ink-2)' }}>{data.buddy.buddy.name}</div>
+              <button className="link-accent" style={{ alignSelf: 'flex-start', padding: 0, fontWeight: 500 }} onClick={() => nav(`/u/${(data.buddy as { buddy: { id: string } }).buddy.id}`)}>Посмотреть профиль</button>
+            </>
+          ) : (
+            <div className="muted">{before ? `Откроется ${humanDate(flow.startsOn)}` : 'Подбираем бадди'}</div>
+          )}
+          <div className="spacer" />
+          {before && data.buddy.state !== 'paired' && (
+            <>
+              <div className="divider" />
+              <button className="link-accent" style={{ alignSelf: 'flex-start', padding: 0, fontWeight: 500, textDecoration: 'underline', textUnderlineOffset: 3 }} onClick={() => nav('/reg/buddy')}>Выбрать бадди заранее</button>
+            </>
+          )}
+        </div>
+        <button className="card card-link" style={{ gap: 8, textAlign: 'left' }} onClick={() => nav('/club')}>
+          <span className="row h3" style={{ gap: 8 }}><MessagesSquare size={20} color="var(--accent)" />Моё сообщество</span>
+          <span style={{ color: 'var(--ink-2)' }}>Твои чаты</span>
+          <span className="muted small">Общение и созвоны</span>
+          <span className="spacer" />
+          <span className="row" style={{ gap: 4, color: 'var(--accent)', fontWeight: 500 }}>Перейти <ArrowRight size={15} /></span>
+        </button>
+      </div>
+      <button className="card card-link" style={{ flexDirection: 'row', alignItems: 'center', textAlign: 'left' }} onClick={() => nav('/materials')}>
+        <BookOpen size={20} color="var(--accent)" />
+        <span className="grow"><span className="h3" style={{ display: 'block' }}>Полезные материалы</span><span className="muted small">Гайды, обучение, подкасты</span></span>
+        <ChevronRight size={18} color="var(--accent)" />
+      </button>
     </Screen>
+  );
+}
+
+function GoalItem({ goal, n }: { goal: HomeGoal; n: number }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="card" style={{ gap: 12 }}>
+      <button className="row" style={{ border: 0, background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', alignItems: 'flex-start' }} onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span className="ic sq" style={{ width: 40, height: 40, borderRadius: 12, fontSize: 18, fontWeight: 600 }}>{n}</span>
+        <span className="grow">
+          <span className="muted small" style={{ display: 'block' }}>Цель {n} · {catTitle(goal.category)}</span>
+          <span className="h3" style={{ display: 'block', fontSize: 16, marginTop: 2 }}>{goal.title}</span>
+        </span>
+        {open ? <ChevronUp size={18} color="var(--accent)" /> : <ChevronDown size={18} color="var(--accent)" />}
+      </button>
+      {open && (
+        <>
+          <div className="divider" />
+          <div className="row between" style={{ alignItems: 'flex-start' }}>
+            <div className="grow"><div className="label" style={{ color: 'var(--muted)' }}>Точка А</div><div style={{ marginTop: 4 }}>{goal.pointA ?? '—'}</div></div>
+            <ArrowRight size={15} color="var(--muted-2)" style={{ marginTop: 14 }} />
+            <div className="grow" style={{ textAlign: 'right' }}><div className="label" style={{ color: 'var(--accent)' }}>Точка Б</div><div style={{ marginTop: 4, color: 'var(--accent-ink)', fontWeight: 600 }}>{goal.pointB ?? '—'}</div></div>
+          </div>
+          <div className="h3">План действий</div>
+          {goal.tasks.map((t) => (
+            <div className="row" key={t.id} style={{ alignItems: 'flex-start', gap: 10 }}>
+              <CircleCheck size={16} color="var(--accent)" style={{ marginTop: 3 }} />
+              <div><div>{t.title}</div><div className="muted small">{t.schedule.replace(/^Однократно, до/, 'До')}</div></div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Home, Users, Trophy, MessagesSquare, User, WifiOff, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bell, Home, LayoutList, MessagesSquare, User, WifiOff, RefreshCw } from 'lucide-react';
 import { ApiError } from '../lib/api';
 import { screenView } from '../lib/analytics';
 import { haptic } from '../lib/telegram';
@@ -41,9 +41,8 @@ export function Header({ title, sub, back, right }: { title: ReactNode; sub?: Re
 
 const TABS = [
   { path: '/', label: 'Главная', Icon: Home },
-  { path: '/feed', label: 'Лента', Icon: Users },
-  { path: '/rating', label: 'Рейтинг', Icon: Trophy },
-  { path: '/club', label: 'Клуб', Icon: MessagesSquare },
+  { path: '/feed', label: 'Лента', Icon: LayoutList },
+  { path: '/club', label: 'Сообщество', Icon: MessagesSquare },
   { path: '/profile', label: 'Профиль', Icon: User },
 ];
 
@@ -53,10 +52,10 @@ export function BottomNav() {
   return (
     <nav className="nav" aria-label="Навигация">
       {TABS.map(({ path, label, Icon }) => {
-        const on = path === '/' ? loc.pathname === '/' : loc.pathname.startsWith(path);
+        const on = path === '/' ? loc.pathname === '/' : loc.pathname.startsWith(path) || (path === '/feed' && (loc.pathname.startsWith('/rating') || loc.pathname.startsWith('/u/')));
         return (
           <button key={path} className={on ? 'on' : ''} onClick={() => { haptic(); nav(path); }} aria-current={on ? 'page' : undefined}>
-            <Icon size={24} strokeWidth={1.8} />
+            <span className="nav-ic"><Icon size={22} strokeWidth={1.8} /></span>
             {label}
           </button>
         );
@@ -227,4 +226,30 @@ export function Cta({ children, onClick, disabled, type }: { children: ReactNode
       <ArrowRight size={16} strokeWidth={2.2} />
     </button>
   );
+}
+
+/** Шапка разделов приложения: логотип, колокольчик уведомлений, профиль */
+export function AppBar({ unread = false }: { unread?: boolean }) {
+  const nav = useNavigate();
+  return (
+    <div className="brand-bar" style={{ minHeight: 44 }}>
+      <span className="brand"><b>30</b>дней</span>
+      <span className="row" style={{ gap: 14 }}>
+        <button className="bell" aria-label="Уведомления" onClick={() => nav('/notifications')}>
+          <Bell size={21} strokeWidth={1.8} />
+          {unread && <i />}
+        </button>
+        <button className="ic" style={{ border: 0, cursor: 'pointer' }} aria-label="Профиль" onClick={() => nav('/profile')}><User size={18} /></button>
+      </span>
+    </div>
+  );
+}
+
+/** Цвет процента выполнения: ≥80 зелёный, ≥60 фиолетовый, ≥40 жёлтый, ниже — красный */
+export function pctColor(p: number | null | undefined) {
+  if (p === null || p === undefined) return 'var(--muted-2)';
+  if (p >= 80) return 'var(--green)';
+  if (p >= 60) return 'var(--accent)';
+  if (p >= 40) return 'var(--gold-ink)';
+  return 'var(--danger)';
 }

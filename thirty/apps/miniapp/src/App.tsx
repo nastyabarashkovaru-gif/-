@@ -10,12 +10,12 @@ import { Materials } from './screens/onboarding/Materials';
 import { Tariffs } from './screens/onboarding/Tariffs';
 import { Checkout, PaymentWait } from './screens/onboarding/Checkout';
 import { RegProfile, RegFlow, RegTasks, RegBefore, RegBuddy, RegChats, RegWaiting } from './screens/reg/Registration';
-import { GoalsStep, PointsStep, PlanStep, ConfirmStep } from './screens/reg/Questionnaire';
+import { GoalsStep, PointsStep, PlanStep, ConfirmStep, ReadyScreen } from './screens/reg/Questionnaire';
+import { Notifications } from './screens/app/Notifications';
 import { Home } from './screens/app/Home';
 import { GoalScreen } from './screens/app/Goal';
 import { ReportScreen, ReportHistory, ReportView } from './screens/app/Report';
 import { Feed, ParticipantScreen } from './screens/app/Feed';
-import { Rating } from './screens/app/Rating';
 import { Club, MeetingScreen } from './screens/app/Club';
 import { BuddyScreen } from './screens/app/Buddy';
 import { Profile, CancelFlow, Archive, Upsells } from './screens/app/Profile';
@@ -116,6 +116,8 @@ export function App() {
         <Route path="/reg/points/:i" element={<PointsStep />} />
         <Route path="/reg/plan/:i" element={<PlanStep />} />
         <Route path="/reg/confirm" element={<ConfirmStep />} />
+        <Route path="/ready" element={<ReadyScreen />} />
+        <Route path="/notifications" element={<Notifications />} />
         <Route path="/reg/tasks/:goalId" element={<RegTasks />} />
         <Route path="/reg/before" element={<RegBefore />} />
         <Route path="/reg/buddy" element={<RegBuddy />} />
@@ -128,7 +130,7 @@ export function App() {
         <Route path="/report/:id" element={<ReportView />} />
         <Route path="/feed" element={<Feed />} />
         <Route path="/u/:id" element={<ParticipantScreen />} />
-        <Route path="/rating" element={<Rating />} />
+        <Route path="/rating" element={<Navigate to="/feed" replace />} />
         <Route path="/club" element={<Club />} />
         <Route path="/meeting/:id" element={<MeetingScreen />} />
         <Route path="/buddy" element={<BuddyScreen />} />

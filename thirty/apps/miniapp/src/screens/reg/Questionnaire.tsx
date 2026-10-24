@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   Target, Sparkles, Lightbulb, CircleX, CircleCheck, Trophy, Plus, Route, ArrowDown, ShieldCheck, ListChecks, ClipboardCheck,
-  CalendarDays, ChevronDown, ChevronUp, Handshake, Pencil, Wallet, HeartPulse, Smartphone, Languages, Flame, Shapes,
+  CalendarDays, ChevronDown, ChevronUp, Handshake, Hourglass, CheckCheck, BookOpen, ArrowRight, Pencil, Wallet, HeartPulse, Smartphone, Languages, Flame, Shapes,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { track } from '../../lib/analytics';
@@ -414,7 +414,7 @@ function ConfirmForm({ m }: { m: MembershipView }) {
       haptic('success');
       await requestWriteAccess();
       await refresh();
-      nav('/', { replace: true });
+      nav('/ready', { replace: true });
     } catch (e) {
       toast(errorText(e));
     } finally {
@@ -476,5 +476,43 @@ function PromiseCard({ goal, i, total }: { goal: Goal; i: number; total: number 
         </div>
       ))}
     </div>
+  );
+}
+
+/* ───────────── После отправки анкеты ───────────── */
+
+export function ReadyScreen() {
+  const nav = useNavigate();
+  const { me } = useMe();
+  const flow = me?.membership?.flow;
+  const started = flow ? flow.phase !== 'upcoming' : false;
+  return (
+    <Screen id="S17">
+      <BrandBar right={<span className="row" style={{ gap: 5, color: 'var(--green)', fontWeight: 600, fontSize: 14 }}><CircleCheck size={15} />Анкета готова</span>} />
+      <img src="/img/success.png" alt="" style={{ width: '62%', maxWidth: 240, alignSelf: 'center', marginTop: 12 }} />
+      <div className="col" style={{ gap: 10 }}>
+        <h1 className="hero">Ты готова <em>к большим переменам!</em> 💜</h1>
+        <p className="lead">Ты поставила цели, составила план действий и дала себе обещание. {started ? 'Челлендж уже идёт — начинай действовать вместе с нами!' : 'Осталось дождаться старта и начать действовать вместе с нами!'}</p>
+      </div>
+      {flow && (
+        <div className="card center" style={{ alignItems: 'center', gap: 8 }}>
+          <span className="row muted" style={{ gap: 8, fontSize: 15 }}><CalendarDays size={17} color="var(--accent)" />Старт твоего челленджа</span>
+          <div style={{ color: 'var(--accent-2)', fontSize: 30, fontWeight: 700 }}>{humanDate(flow.startsOn)}</div>
+          <span className="pill" style={{ fontSize: 15, padding: '7px 16px' }}><Hourglass size={15} />{started ? 'Уже начали!' : 'Скоро начинаем!'}</span>
+          <span className="muted small">{started ? 'Ежедневные отчёты и отслеживание прогресса уже открыты.' : 'В день старта откроются ежедневные отчёты и отслеживание прогресса.'}</span>
+        </div>
+      )}
+      <div className="panel" style={{ gap: 10, padding: 16 }}>
+        <span className="row" style={{ gap: 8, color: 'var(--accent-ink)', fontWeight: 600, fontSize: 17 }}><CheckCheck size={18} />Ты уже сделала главное</span>
+        {['Доступ к сообществу оформлен', 'Цели и план действий сохранены', 'Ты готова к первому дню'].map((t) => (
+          <span key={t} className="row" style={{ gap: 10, color: 'var(--ink-2)' }}><CircleCheck size={18} color="var(--green-2)" />{t}</span>
+        ))}
+      </div>
+      <Cta onClick={() => nav('/club')}>Перейти в сообщество 💜</Cta>
+      <button className="btn" style={{ background: '#fff', border: '1px solid #ddd5fa', color: 'var(--accent)', minHeight: 50 }} onClick={() => nav('/materials')}>
+        <BookOpen size={18} />Полезные материалы<ArrowRight size={16} />
+      </button>
+      <button className="link-btn" onClick={() => nav('/')}>На главную</button>
+    </Screen>
   );
 }

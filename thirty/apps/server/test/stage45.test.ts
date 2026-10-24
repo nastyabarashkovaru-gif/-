@@ -220,6 +220,7 @@ describe('общий чат отчётов', () => {
     await api('POST', '/api/reports', 50, { items: [{ taskId, done: true }], mediaIds: [(await upload(50)).body.id], publicAck: true, text: 'Сделала!' });
     const first = (await api('GET', '/api/feed/chat', 51)).body.messages[0];
     expect(first).toMatchObject({ text: 'Сделала!', mine: false, user: { id: '50' } });
+    clock.set('2026-11-01T09:05:00Z');
     const reply = await api('POST', '/api/feed/chat', 51, { text: 'Умница!', replyToId: first.id });
     expect(reply.body).toMatchObject({ text: 'Умница!', replyTo: { id: first.id, text: 'Сделала!' } });
     const newer = await api('GET', `/api/feed/chat?after=${first.id}`, 50);
