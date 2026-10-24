@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Home, Users, Trophy, MessagesSquare, User, WifiOff, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Home, Users, Trophy, MessagesSquare, User, WifiOff, RefreshCw } from 'lucide-react';
 import { ApiError } from '../lib/api';
 import { screenView } from '../lib/analytics';
 import { haptic } from '../lib/telegram';
@@ -199,4 +199,32 @@ const MONTHS_GEN = ['января', 'февраля', 'марта', 'апрел�
 export function humanDate(iso: string, year = false) {
   const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
   return `${d} ${MONTHS_GEN[m - 1]}${year ? ` ${y}` : ''}`;
+}
+
+/** Шапка макетов: логотип «30 дней» слева, счётчик или статус справа */
+export function BrandBar({ right }: { right?: ReactNode }) {
+  return (
+    <div className="brand-bar">
+      <span className="brand"><b>30</b>дней</span>
+      {right}
+    </div>
+  );
+}
+
+export function Dots({ count, at }: { count: number; at: number }) {
+  return (
+    <div className="dots" aria-label={`Шаг ${at + 1} из ${count}`}>
+      {Array.from({ length: count }, (_, i) => <i key={i} className={i === at ? 'on' : ''} />)}
+    </div>
+  );
+}
+
+/** Основная кнопка макетов: текст и стрелка → */
+export function Cta({ children, onClick, disabled, type }: { children: ReactNode; onClick?: () => void; disabled?: boolean; type?: 'submit' }) {
+  return (
+    <button className="btn btn-primary" onClick={onClick} disabled={disabled} type={type ?? 'button'}>
+      {children}
+      <ArrowRight size={16} strokeWidth={2.2} />
+    </button>
+  );
 }

@@ -5,7 +5,8 @@ import { ctx, track } from './lib/analytics';
 import { inTelegram, startParam } from './lib/telegram';
 import { MeContext, type Me } from './state';
 import { ErrorState, Loading, ToastHost } from './ui';
-import { Welcome, DemoHome, ClubIntro, Cases, Value } from './screens/onboarding/Onboarding';
+import { Welcome, OnboardingStep } from './screens/onboarding/Onboarding';
+import { Materials } from './screens/onboarding/Materials';
 import { Tariffs } from './screens/onboarding/Tariffs';
 import { Checkout, PaymentWait } from './screens/onboarding/Checkout';
 import { RegProfile, RegFlow, RegGoals, RegTasks, RegBefore, RegBuddy, RegChats, RegWaiting } from './screens/reg/Registration';
@@ -89,7 +90,7 @@ export function App() {
     return (
       <div className="screen" style={{ justifyContent: 'center' }}>
         <div className="state" style={{ color: 'var(--ink)' }}>
-          <h1 className="h1"><span style={{ color: 'var(--orange)' }}>30 дней</span></h1>
+          <span className="brand"><b>30</b>дней</span>
           <p>Приложение работает внутри Telegram. Откройте его через бота.</p>
           <a className="btn btn-primary" href="https://t.me/Dney30_bot">Открыть в Telegram</a>
         </div>
@@ -103,10 +104,8 @@ export function App() {
     <MeContext.Provider value={{ me, refresh }}>
       <Routes>
         <Route path="/welcome" element={<Welcome />} />
-        <Route path="/onboarding/home" element={<DemoHome />} />
-        <Route path="/onboarding/club" element={<ClubIntro />} />
-        <Route path="/onboarding/cases" element={<Cases />} />
-        <Route path="/onboarding/value" element={<Value />} />
+        <Route path="/onboarding/:n" element={<OnboardingStep />} />
+        <Route path="/materials" element={<Materials />} />
         <Route path="/tariffs" element={<Tariffs />} />
         <Route path="/checkout/:tariff" element={<Checkout />} />
         <Route path="/checkout/wait/:paymentId" element={<PaymentWait />} />

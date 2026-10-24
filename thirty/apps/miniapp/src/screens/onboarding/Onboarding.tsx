@@ -1,225 +1,357 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Users, MessagesSquare, Video, Trophy, Send, Check, CircleCheck, TrendingUp, SlidersHorizontal, ShieldCheck, Eye } from 'lucide-react';
-import { api, rub } from '../../lib/api';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  HeartHandshake, MessagesSquare, Video, ChartNoAxesColumnIncreasing, Users, Smile, Heart, Wallet, HeartPulse, Smartphone, Languages, Flame,
+  Mic, MessageCircle, PhoneOff, User, CalendarCheck, TrendingUp, Brain, CircleCheck, Target, Pencil, LayoutGrid, Camera, Trophy, Sparkles, Check,
+} from 'lucide-react';
+import { api } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
-import { Bar, DayGrid, Screen, useLoad, Loading, ErrorState, type DayState } from '../../ui';
+import { BrandBar, Cta, Dots, Screen } from '../../ui';
 
-/** Основная формулировка ТЗ §1 — без изменения смысла */
-export const MAIN_PITCH =
-  '30 дней, чтобы доказать себе, что ты можешь. Выбери цель, выполняй задания, отмечай прогресс каждый день. А мы дадим тебе бадди, окружение, еженедельные созвоны и возможность побороться за главный приз.';
+const TOTAL = 11;
+export const onbPath = (n: number) => (n === 1 ? '/welcome' : `/onboarding/${n}`);
+const screenId = (n: number) => `O${String(n).padStart(2, '0')}`;
 
-const STEPS = ['/welcome', '/onboarding/home', '/onboarding/club', '/onboarding/cases', '/onboarding/value'];
-const SCREEN_IDS = ['S01', 'S02', 'S03', 'S04', 'S05'];
-
-function useStep(idx: number) {
+function useStep(n: number) {
   const nav = useNavigate();
   useEffect(() => {
-    if (idx === 0 && !sessionStorage.getItem('thirty.onbStarted')) {
+    if (n === 1 && !sessionStorage.getItem('thirty.onbStarted')) {
       sessionStorage.setItem('thirty.onbStarted', '1');
-      track('onboarding_started', { screen: 'S01' });
+      track('onboarding_started', { screen: screenId(1) });
     }
-    track('onboarding_step_view', { screen: SCREEN_IDS[idx], metadata: { step: idx + 1 } });
-    if (idx === 4) track('value_screen_view', { screen: 'S05' });
-    void api('/api/me/screen', { body: { screen: STEPS[idx], stage: 'onboarding' } }).catch(() => undefined);
-  }, [idx]);
-  return {
-    // A/B «onboarding_flow»: вариант short — сразу от приветствия к экрану ценности
-    next: () => nav(idx === 0 && ctx.variants.onboarding_flow === 'short' ? '/onboarding/value' : idx < STEPS.length - 1 ? STEPS[idx + 1] : '/tariffs'),
-    skip: () => {
-      track('onboarding_skipped', { screen: SCREEN_IDS[idx], metadata: { step: idx + 1 } });
-      nav('/tariffs');
-    },
-  };
+    track('onboarding_step_view', { screen: screenId(n), metadata: { step: n } });
+    if (n === TOTAL) track('value_screen_view', { screen: screenId(n) });
+    void api('/api/me/screen', { body: { screen: onbPath(n), stage: 'onboarding' } }).catch(() => undefined);
+  }, [n]);
+  // A/B «onboarding_flow»: вариант short — с первого экрана сразу на последний
+  return () => nav(n === 1 && ctx.variants.onboarding_flow === 'short' ? onbPath(TOTAL) : n < TOTAL ? onbPath(n + 1) : '/tariffs');
 }
 
-function Dots({ idx }: { idx: number }) {
+function Onb({ n, children, cta = 'Дальше' }: { n: number; children: ReactNode; cta?: ReactNode }) {
+  const next = useStep(n);
   return (
-    <div className="dots" aria-label={`Шаг ${idx + 1} из ${STEPS.length}`}>
-      {STEPS.map((s, i) => <i key={s} className={i === idx ? 'on' : ''} />)}
-    </div>
-  );
-}
-
-function OnbLayout({ idx, children, cta = 'Дальше' }: { idx: number; children: ReactNode; cta?: string }) {
-  const { next, skip } = useStep(idx);
-  return (
-    <Screen id={SCREEN_IDS[idx]}>
-      <div className="row between">
-        <Dots idx={idx} />
-        <button className="btn btn-ghost btn-sm" onClick={skip}>Пропустить</button>
-      </div>
-      {children}
-      <div className="spacer" />
-      <button className="btn btn-primary" onClick={next}>{cta}</button>
+    <Screen id={screenId(n)} className="onb">
+      <BrandBar right={<span className="counter">{String(n).padStart(2, '0')} / {TOTAL}</span>} />
+      <div className="onb-body">{children}</div>
+      <Dots count={TOTAL} at={n - 1} />
+      <Cta onClick={next}>{cta}</Cta>
     </Screen>
   );
 }
 
-export function Welcome() {
+function Title({ children, lead }: { children: ReactNode; lead?: ReactNode }) {
   return (
-    <OnbLayout idx={0} cta="Начать">
-      <div className="col" style={{ gap: 16, marginTop: 8 }}>
-        <span className="pill" style={{ alignSelf: 'flex-start' }}>Клуб дисциплины</span>
-        <h1 className="hero"><em>30 дней</em>, чтобы доказать себе, что ты можешь</h1>
-        <p style={{ margin: 0, fontSize: 17 }}>{MAIN_PITCH.replace('30 дней, чтобы доказать себе, что ты можешь. ', '')}</p>
+    <div className="col" style={{ gap: 10 }}>
+      <h1 className="hero">{children}</h1>
+      {lead && <p className="lead">{lead}</p>}
+    </div>
+  );
+}
+
+const S1 = () => (
+  <Onb n={1} cta="Вступить в челлендж">
+    <img className="onb-art" src="/img/onb-team.png" alt="" style={{ maxWidth: 270 }} />
+    <Title lead="Вступай в наше сообщество «30 дней», где мы все вместе идём к своим целям! Жми кнопку ниже!">
+      Твои следующие 30 дней могут изменить <em>ВСЁ</em>
+    </Title>
+  </Onb>
+);
+
+const S2 = () => (
+  <Onb n={2}>
+    <Title lead="Всё, чтобы не сдаться на полпути:">
+      Ты не просто ставишь цель. Ты получаешь <em>целую команду поддержки!</em>
+    </Title>
+    <div className="grid2">
+      {([
+        [HeartHandshake, '', 'Бадди', 'Личный партнёр по дисциплине'],
+        [MessagesSquare, 'green', 'Чаты', 'Окружение единомышленников'],
+        [Video, 'orange', 'Лидеры', 'Созвоны каждую неделю'],
+        [ChartNoAxesColumnIncreasing, 'gold', 'Прогресс', 'Отчёты, рейтинг и результаты'],
+      ] as const).map(([I, c, t, s]) => (
+        <div key={t} className="card center" style={{ alignItems: 'center', gap: 6, padding: '16px 10px 18px' }}>
+          <span className={`ic lg ${c}`} style={c === 'orange' ? { color: '#ec7a52' } : undefined}><I size={28} strokeWidth={1.8} /></span>
+          <div className="h3" style={{ marginTop: 6 }}>{t}</div>
+          <div className="muted small">{s}</div>
+        </div>
+      ))}
+    </div>
+  </Onb>
+);
+
+const S3 = () => (
+  <Onb n={3}>
+    <img className="onb-art" src="/img/onb-buddy.png" alt="" style={{ maxWidth: 290 }} />
+    <Title
+      lead={<>Каждому участнику выдаётся <b>БАДДИ</b> — партнёр по челленджу, с кем вы проходите этот путь вместе: отслеживаете ключевые задачи, подбадриваете и не даёте слиться.</>}
+    >
+      Сдаться сложнее, когда <em>вас двое!</em>
+    </Title>
+    <div className="panel" style={{ flexDirection: 'row', alignItems: 'center', padding: '10px 12px' }}>
+      <Users size={16} color="var(--accent)" />
+      <div className="grow center" style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-ink)' }}>Можешь доверить выбор бадди нам или прийти с другом!</div>
+    </div>
+  </Onb>
+);
+
+const CHAT = [
+  ['Аня', 'День 7! Сегодня впервые встала в 7 утра 😍', '09:12', 'orange', 0],
+  ['Маша', 'Ааа, умница! 💜 Я тоже сегодня не сдалась!', '09:14', 'green', 0],
+  ['Катя', 'Мой первый отчёт готов! 3/3 задачи выполнены 🔥', '09:20', 'pink', 12],
+] as const;
+
+const S4 = () => (
+  <Onb n={4}>
+    <div className="mini" style={{ margin: '0 22px' }}>
+      <div className="row" style={{ gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--line)' }}>
+        <span className="ic"><Users size={18} /></span>
+        <div className="grow"><div className="h3">Наш поток 💜</div><div className="muted" style={{ fontSize: 11 }}>Общий чат участников</div></div>
+        <span className="pill green" style={{ fontSize: 11, padding: '3px 8px' }}>Вместе</span>
       </div>
-      <div className="card">
-        {[
-          [Send, 'Бадди на весь месяц', 'Подберём партнёра — идти вдвоём легче'],
-          [MessagesSquare, 'Окружение', 'Чат твоего потока и тематические клубы'],
-          [Video, 'Еженедельные созвоны', 'Групповые встречи с экспертами по направлениям'],
-          [Trophy, 'Главный приз', 'Для тех, кто выполнит все обязательства'],
-        ].map(([Icon, t, s]) => {
-          const I = Icon as typeof Send;
-          return (
-            <div className="row" key={t as string}>
-              <div className="tile-icon"><I size={22} /></div>
-              <div className="grow"><div className="h3" style={{ fontSize: 16 }}>{t as string}</div><div className="muted small">{s as string}</div></div>
+      {CHAT.map(([name, text, time, c, likes]) => (
+        <div className="row" key={name} style={{ alignItems: 'flex-start', gap: 8 }}>
+          <span className={`ic ${c}`} style={{ width: 26, height: 26 }}><Smile size={14} /></span>
+          <div className="grow" style={{ background: '#f2f0fb', borderRadius: 14, padding: '10px 12px' }}>
+            <div style={{ color: 'var(--accent)', fontWeight: 600, fontSize: 12 }}>{name}</div>
+            <div style={{ fontSize: 14, marginTop: 4 }}>{text}</div>
+            <div className="row between" style={{ marginTop: 4, fontSize: 10, color: 'var(--muted-2)' }}>
+              <span>{likes ? <span className="row" style={{ gap: 4 }}><Heart size={11} color="var(--pink)" />{likes}</span> : null}</span>
+              <span>{time}</span>
             </div>
-          );
+          </div>
+        </div>
+      ))}
+    </div>
+    <Title lead="В общем чате твоего потока можно быть собой, делиться победами, задавать вопросы и каждый день видеть отчёты других участников.">
+      Здесь все свои. <em>И все идут вперёд!</em>
+    </Title>
+  </Onb>
+);
+
+export const CHAT_CATEGORIES = [
+  { id: 'money', title: 'Деньги', Icon: Wallet, c: 'green' },
+  { id: 'weightloss', title: 'Похудение', Icon: HeartPulse, c: 'pink' },
+  { id: 'blog', title: 'Блог', Icon: Smartphone, c: '' },
+  { id: 'english', title: 'Английский', Icon: Languages, c: 'blue' },
+  { id: 'habits', title: 'Привычки', Icon: Flame, c: 'orange' },
+] as const;
+
+const S5 = () => (
+  <Onb n={5}>
+    <Title lead="Общайся с единомышленниками, делись опытом и находи поддержку в тематических чатах сообщества.">
+      Найди людей, которые хотят <em>того же, что и ты!</em>
+    </Title>
+    <div className="panel">
+      <div className="row" style={{ justifyContent: 'center', gap: 8, color: 'var(--accent-ink)', fontWeight: 600, fontSize: 14, padding: '2px 0 4px' }}>
+        <MessagesSquare size={16} /> Чаты по твоим целям
+      </div>
+      <div className="grid2">
+        {CHAT_CATEGORIES.map(({ id, title, Icon, c }, i) => (
+          <div key={id} className="card center" style={{ alignItems: 'center', gap: 8, border: 0, padding: '12px 8px', gridColumn: i === 4 ? '1 / -1' : undefined }}>
+            <span className={`ic xl ${c}`}><Icon size={22} strokeWidth={1.8} /></span>
+            <div className="h3" style={{ fontSize: 15 }}>{title}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </Onb>
+);
+
+const S6 = () => (
+  <Onb n={6}>
+    <div className="mini" style={{ margin: '0 22px' }}>
+      <div className="row" style={{ gap: 10 }}>
+        <span className="ic sq" style={{ width: 30, height: 30, borderRadius: 9 }}><Video size={16} /></span>
+        <div className="h3 grow">Еженедельный созвон</div>
+        <span className="pill green" style={{ fontSize: 11, padding: '3px 8px' }}>В эфире</span>
+      </div>
+      <img src="/img/onb-call.png" alt="" style={{ borderRadius: 14, width: '100%' }} />
+      <div className="row" style={{ gap: 8 }}>
+        {(['#e9f6ee:#58a978', '#fbe7ea:#d87c8c', '#e7e9fc:#6c51df'] as const).map((p) => {
+          const [bg, fg] = p.split(':');
+          return <div key={p} className="grow" style={{ background: bg, borderRadius: 10, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><User size={20} color={fg} /></div>;
         })}
       </div>
-    </OnbLayout>
-  );
-}
+      <div className="row" style={{ justifyContent: 'center', gap: 10 }}>
+        <span className="ic" style={{ width: 28, height: 28 }}><Mic size={13} /></span>
+        <span className="ic" style={{ width: 28, height: 28 }}><MessageCircle size={13} /></span>
+        <span className="ic" style={{ width: 28, height: 28, background: '#e05d5d', color: '#fff' }}><PhoneOff size={13} /></span>
+      </div>
+    </div>
+    <div className="panel" style={{ flexDirection: 'row', alignItems: 'center', margin: '0 22px', gap: 10 }}>
+      <CalendarCheck size={20} color="var(--accent)" />
+      <div className="grow">
+        <div style={{ fontWeight: 600, color: 'var(--accent-ink)', fontSize: 14 }}>Разбор недели + план действий</div>
+        <div className="muted" style={{ fontSize: 12 }}>Каждую неделю — новый шаг к цели</div>
+      </div>
+    </div>
+    <Title lead="Каждую неделю встречайся с лидером своей темы, разбирай прошедшую неделю и ставь задачи на следующую. Только так можно быстро и постоянно расти!">
+      Ты не обязан разбираться <em>во всём самостоятельно!</em>
+    </Title>
+  </Onb>
+);
 
-/** S02: пример главной — данные демонстрационные (как на утверждённом макете) */
-export function DemoHome() {
-  const days: { date: string; state: DayState }[] = Array.from({ length: 30 }, (_, i) => ({ date: `d${i}`, state: i < 12 ? 'success' : i === 12 ? 'today' : 'future' }));
-  return (
-    <OnbLayout idx={1}>
-      <div>
-        <h2 className="h2">Так выглядит твоя главная</h2>
-        <p className="sub">Только твой прогресс — без лишнего шума</p>
-      </div>
-      <div className="card peach" style={{ padding: 12 }}>
-        <div className="row between" style={{ padding: '4px 8px' }}>
-          <div><div className="h2">Мои 30 дней</div><div className="muted small">1 ноября — 30 ноября</div></div>
-          <div className="icon-btn"><SlidersHorizontal size={18} /></div>
-        </div>
-        <div className="card">
-          <div className="row between">
-            <div><div className="label">Твой прогресс</div><div className="big-num">12 из 30 дней</div></div>
-            <div className="badge-pct">40%</div>
-          </div>
-          <Bar value={0.4} />
-          <DayGrid days={days} />
-          <div className="row green small"><TrendingUp size={18} /> 12 успешных дней в этом месяце</div>
-        </div>
-        <div className="card" style={{ marginTop: 10 }}>
-          <div className="row between"><div className="h3">Моя цель</div><span className="pill">Привычки</span></div>
-          <div className="h2" style={{ fontWeight: 600 }}>30 дней без сигарет</div>
-          <div className="row muted"><CircleCheck size={20} color="var(--green)" /> Сегодня не курила</div>
-          <div className="btn btn-primary" aria-hidden>Сдать отчёт за сегодня</div>
-        </div>
-        <div className="card" style={{ marginTop: 10 }}>
-          <div className="h3">Мой бадди</div>
-          <div className="row">
-            <div className="ava lg"><Users size={24} /></div>
-            <div className="grow"><div className="h3">Алина</div><div className="green">Прогресс: 47%</div></div>
-            <div className="icon-btn peach"><Send size={18} /></div>
-          </div>
-        </div>
-      </div>
-      <p className="muted small center">Пример оформления, данные демонстрационные</p>
-    </OnbLayout>
-  );
-}
+const LEADERS = [
+  [TrendingUp, 'green', 'Деньги · Финансовый коуч', 'Подсветит возможности роста дохода, которые ты пока не замечаешь.'],
+  [Languages, 'blue', 'Английский · Репетитор', 'Разговорный клуб, где ты практикуешь английский, а не просто учишь слова.'],
+  [Brain, 'orange', 'Привычки · Психолог', 'Поможет понять свои паттерны поведения и заменить вредные привычки полезными.'],
+  [Smartphone, '', 'Блог · Лидер по продвижению', 'Разборы роста подписчиков, монетизации и продвижения твоего блога.'],
+  [HeartPulse, 'pink', 'Похудение · Лидер по питанию и спорту', 'Поможет выстроить питание и тренировки под твою цель.'],
+] as const;
 
-/** S03: окружение — три блока как на макете раздела «Клуб» */
-export function ClubIntro() {
-  return (
-    <OnbLayout idx={2}>
-      <div>
-        <h2 className="h2">Ты будешь не один</h2>
-        <p className="sub">В разделе «Клуб» — три блока</p>
+const S7 = () => (
+  <Onb n={7}>
+    <Title lead="Получай помощь профессионалов на еженедельных встречах по твоей теме.">
+      У каждой цели — <em>свой лидер!</em>
+    </Title>
+    <div className="col">
+      {LEADERS.map(([I, c, t, s]) => (
+        <div className="card row" key={t} style={{ padding: 12, gap: 12, flexDirection: 'row' }}>
+          <span className={`ic sq ${c}`} style={{ width: 48, height: 48, borderRadius: 14 }}><I size={20} strokeWidth={1.8} /></span>
+          <div className="grow"><div className="h3" style={{ fontSize: 15 }}>{t}</div><div className="muted small" style={{ marginTop: 3 }}>{s}</div></div>
+        </div>
+      ))}
+      <div className="panel" style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <CircleCheck size={18} color="var(--accent)" />
+        <div style={{ fontWeight: 600, color: 'var(--accent-ink)', fontSize: 15 }}>Все созвоны уже входят в стоимость клуба!</div>
       </div>
-      <div className="card">
-        <div className="row" style={{ alignItems: 'flex-start' }}>
-          <div className="tile-icon"><Users size={24} /></div>
-          <div className="grow"><div className="h3">Общий чат моего потока</div><p className="muted" style={{ margin: '6px 0 0' }}>Только участники, которые стартовали в одну дату. Там знакомства, поддержка, общение и организационные объявления.</p></div>
+    </div>
+  </Onb>
+);
+
+const S8 = () => (
+  <Onb n={8}>
+    <div className="panel" style={{ margin: '0 22px' }}>
+      <div className="row between">
+        <div className="row" style={{ gap: 8 }}>
+          <span className="ic white sq" style={{ width: 30, height: 30, borderRadius: 9 }}><Target size={16} /></span>
+          <span style={{ fontWeight: 600, color: 'var(--accent-ink)' }}>Мой челлендж</span>
+        </div>
+        <span className="pill" style={{ background: '#fff', fontSize: 12 }}>30 дней</span>
+      </div>
+      <div className="card" style={{ border: 0, gap: 10 }}>
+        <div className="row between"><span className="muted small">Моя цель</span><Pencil size={13} color="var(--muted-2)" /></div>
+        <div className="row" style={{ gap: 10 }}>
+          <span className="ic sq green" style={{ width: 34, height: 34, borderRadius: 10 }}><Heart size={16} /></span>
+          <div><div className="h3">30 дней без сладкого</div><div className="muted" style={{ fontSize: 12 }}>Здоровье и привычки</div></div>
         </div>
         <div className="divider" />
-        <div className="row" style={{ alignItems: 'flex-start' }}>
-          <div className="tile-icon"><MessagesSquare size={24} /></div>
-          <div className="grow col">
-            <div className="h3">Тематические клубы</div>
-            <div className="grid2">
-              {['💰 Деньги', '🥗 Похудение', '📱 Блог', '🇬🇧 Английский', '🌱 Привычки'].map((t) => <div key={t} className="chip" style={{ cursor: 'default' }}>{t}</div>)}
-            </div>
-            <p className="muted small" style={{ margin: 0 }}>Объединяют участников разных потоков. Можно состоять сразу в нескольких.</p>
+        <div style={{ fontWeight: 600, fontSize: 14 }}>Мои ежедневные действия</div>
+        {['Не есть добавленный сахар', 'Следить за питанием'].map((t) => (
+          <div className="row" key={t} style={{ gap: 8, fontSize: 14, color: 'var(--ink-2)' }}><CircleCheck size={16} color="var(--green-2)" />{t}</div>
+        ))}
+        <div className="row" style={{ gap: 8, fontSize: 14, color: 'var(--ink-2)' }}><span style={{ width: 16, height: 16, borderRadius: 8, background: '#cbc6d6' }} />Выложить отчёт за день</div>
+      </div>
+      <div className="card row" style={{ border: 0, flexDirection: 'row', padding: '10px 14px', gap: 8, color: 'var(--accent-ink)', fontWeight: 600, fontSize: 14 }}>
+        <Users size={16} color="var(--accent)" /> Ты идёшь к цели не один 💜
+      </div>
+    </div>
+    <Title lead="Выбери свою цель, определи ежедневные действия и начни двигаться к ней вместе с сообществом!">
+      Представь, чего ты добьёшься <em>за 30 дней!</em>
+    </Title>
+  </Onb>
+);
+
+const S9 = () => {
+  const cells = Array.from({ length: 28 }, (_, i) => i + 1);
+  return (
+    <Onb n={9}>
+      <div className="panel" style={{ margin: '0 22px' }}>
+        <div className="row between">
+          <span className="row" style={{ gap: 8, fontWeight: 600, color: 'var(--accent-ink)' }}><LayoutGrid size={16} /> Мой прогресс</span>
+          <span className="pill" style={{ background: '#fff', fontSize: 12 }}>День 18 / 30</span>
+        </div>
+        <div className="card" style={{ border: 0, gap: 10 }}>
+          <div className="row between" style={{ alignItems: 'flex-start' }}>
+            <div><div className="muted small">Моя цель</div><div className="h3" style={{ marginTop: 2 }}>30 дней без сладкого</div></div>
+            <span className="ic sq green" style={{ width: 32, height: 32, borderRadius: 10 }}><Heart size={15} /></span>
+          </div>
+          <div className="row between"><span className="small" style={{ color: 'var(--ink-2)' }}>Выполнено</span><b style={{ color: 'var(--accent)', fontSize: 17 }}>83%</b></div>
+          <div className="bar"><i style={{ width: '83%' }} /></div>
+          <div className="days">
+            {cells.map((d) => (
+              <div key={d} className={`day ${d <= 15 ? 'success' : d <= 18 ? 'today' : ''}`} style={d >= 16 && d <= 18 ? { fontWeight: 400 } : undefined}>
+                {d <= 15 ? <Check size={12} /> : d}
+              </div>
+            ))}
           </div>
         </div>
-        <div className="divider" />
-        <div className="row" style={{ alignItems: 'flex-start' }}>
-          <div className="tile-icon"><Video size={24} /></div>
-          <div className="grow"><div className="h3">Созвоны с экспертами</div><p className="muted" style={{ margin: '6px 0 0' }}>Каждую неделю — групповой созвон по каждому направлению. Ближайшие встречи, описание темы, кнопка присоединения и отзыв после занятия.</p></div>
+        <div className="grid2">
+          <div className="stat"><span className="row" style={{ gap: 6, fontSize: 13, color: 'var(--muted)' }}><Camera size={14} color="var(--accent)" />Отчёты</span><b>15 / 18</b><span>Дней с отчётами</span></div>
+          <div className="stat"><span className="row" style={{ gap: 6, fontSize: 13, color: 'var(--muted)' }}><Trophy size={14} color="var(--gold)" />Рейтинг</span><b>#12</b><span>Среди участников</span></div>
+        </div>
+        <div className="card row" style={{ border: 0, flexDirection: 'row', padding: '10px 12px', gap: 10 }}>
+          <span className="ic sq green" style={{ width: 32, height: 32, borderRadius: 10 }}><Users size={15} /></span>
+          <div className="grow"><div style={{ fontWeight: 600, fontSize: 13 }}>Твой бадди тоже в деле!</div><div className="muted" style={{ fontSize: 11 }}>Сегодня уже выполнил задачи</div></div>
+          <CircleCheck size={16} color="var(--green-2)" />
         </div>
       </div>
-    </OnbLayout>
+      <Title lead="В удобном приложении отмечай выполненные задачи, делись отчётами и следи за своим прогрессом и рейтингом участников.">
+        Каждый день ты становишься <em>ближе к цели!</em>
+      </Title>
+    </Onb>
   );
+};
+
+const PODIUM = [
+  { place: 2, h: 76, bg: '#b8b2d2', av: '#ecebf3', ic: '#8c86a8', label: '#77718c' },
+  { place: 1, h: 116, bg: '#e7b34e', av: '#fbe3a4', ic: '#c58f2c', label: '#b07f2a' },
+  { place: 3, h: 56, bg: '#d7a58c', av: '#f8e1d6', ic: '#c2826a', label: '#77718c' },
+];
+
+const S10 = () => (
+  <Onb n={10}>
+    <div className="panel" style={{ margin: '0 22px', paddingBottom: 14 }}>
+      <div className="row" style={{ justifyContent: 'center', gap: 8, fontWeight: 600, color: 'var(--accent-ink)' }}>
+        <Sparkles size={15} color="var(--gold)" /> Лидеры челленджа <Sparkles size={15} color="var(--gold)" />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, alignItems: 'end', marginTop: 4 }}>
+        {PODIUM.map((p) => (
+          <div key={p.place} className="col" style={{ alignItems: 'center', gap: 6 }}>
+            <span className="ic" style={{ width: p.place === 1 ? 64 : 52, height: p.place === 1 ? 64 : 52, background: p.av, color: p.ic }}><User size={p.place === 1 ? 26 : 20} /></span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: p.label }}>{p.place} место</span>
+            <div style={{ background: p.bg, height: p.h, width: '100%', borderRadius: '10px 10px 0 0', color: '#fff', fontSize: 26, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{p.place}</div>
+          </div>
+        ))}
+      </div>
+      <div className="card row" style={{ border: 0, flexDirection: 'row', padding: 12, gap: 10 }}>
+        <span className="ic sq gold" style={{ width: 34, height: 34, borderRadius: 10 }}><Trophy size={17} /></span>
+        <div className="grow"><div className="h3" style={{ fontSize: 14 }}>Топ-3 участника</div><div className="muted" style={{ fontSize: 12 }}>Призовые места по итогам челленджа</div></div>
+        <Sparkles size={15} color="var(--gold)" />
+      </div>
+    </div>
+    <Title lead="Выполняй свои задачи, не пропускай отчёты и борись за одно из трёх призовых мест!">
+      Продержись до конца. <em>Забери награду!</em>
+    </Title>
+  </Onb>
+);
+
+const S11 = () => (
+  <Onb n={11} cta="Хочу присоединиться! 😍">
+    <div className="panel" style={{ margin: '0 22px', padding: '0 0 14px', overflow: 'hidden', background: '#eee9ff' }}>
+      <img src="/img/onb-thanks.png" alt="" style={{ width: '100%' }} />
+      <div className="card row" style={{ border: 0, flexDirection: 'row', margin: '0 14px', padding: '10px 14px' }}>
+        <span className="row grow" style={{ gap: 8, fontWeight: 600, color: 'var(--accent-ink)', fontSize: 14 }}><Users size={16} color="var(--accent)" />Ты не один!</span>
+        <span className="row" style={{ gap: 5, fontSize: 12, color: 'var(--muted)' }}><Heart size={13} color="var(--pink)" />Мы рядом</span>
+      </div>
+    </div>
+    <Title lead="Новые привычки. Новые люди. Новая версия тебя.">
+      Через 30 дней ты скажешь себе <em>спасибо!</em>
+    </Title>
+    <p className="lead-accent">И всё это — вместе с теми, кто верит в тебя и идёт рядом.</p>
+  </Onb>
+);
+
+const SCREENS = [S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11];
+
+export function Welcome() {
+  return <S1 />;
 }
 
-/** S04: кейсы (только реальные, из админки) и правила приза */
-export function Cases() {
-  const { data, error, loading, reload } = useLoad(() => api<{ prizeRules: string; cases: { name: string; text: string; result: string }[] }>('/api/public/rules'));
-  return (
-    <OnbLayout idx={3}>
-      <div>
-        <h2 className="h2">Как побороться за приз</h2>
-        <p className="sub">Правила одинаковые для всех тарифов</p>
-      </div>
-      {loading ? <Loading lines={1} /> : error ? <ErrorState error={error} retry={reload} /> : (
-        <>
-          {data!.cases.length > 0 && data!.cases.map((c) => (
-            <div className="card" key={c.name}><div className="h3">{c.name}</div><p style={{ margin: 0 }}>{c.text}</p><span className="pill green">{c.result}</span></div>
-          ))}
-          <div className="card">
-            <div className="row"><Trophy size={22} color="var(--orange)" /><div className="h3">Правила приза</div></div>
-            <p style={{ margin: 0 }} className="small">{data!.prizeRules}</p>
-          </div>
-          <div className="card">
-            <div className="row"><Eye size={22} color="var(--orange)" /><div className="h3">Отчёты — публичные</div></div>
-            <p style={{ margin: 0 }} className="small">Все принятые отчёты видны участникам клуба в ленте. Фото «ДО» и «ПОСЛЕ» — только с твоего отдельного согласия.</p>
-          </div>
-          <div className="card">
-            <div className="row"><ShieldCheck size={22} color="var(--green)" /><div className="h3">Честный рейтинг</div></div>
-            <p style={{ margin: 0 }} className="small">Считаем процент выполненных обязательств по всем твоим целям. Больше целей не даёт преимущества.</p>
-          </div>
-        </>
-      )}
-    </OnbLayout>
-  );
-}
-
-/** S05: ценность до тарифов — только позиции, включённые и подтверждённые в админке */
-export function Value() {
-  const { data, error, loading, reload } = useLoad(() => api<{ items: { id: string; title: string; price: number; priceLabel?: string }[]; total: number }>('/api/public/value'));
-  return (
-    <OnbLayout idx={4} cta="Выбрать тариф">
-      <div>
-        <h2 className="h2">Что входит в клуб</h2>
-        <p className="sub">Если покупать то же самое по отдельности</p>
-      </div>
-      {loading ? <Loading lines={1} /> : error ? <ErrorState error={error} retry={reload} /> : (
-        <div className="card">
-          {data!.items.map((i) => (
-            <div className="list-item" key={i.id}>
-              <Check size={20} color="var(--green)" />
-              <div className="grow">{i.title}</div>
-              <div className="muted">{i.priceLabel ?? rub(i.price)}</div>
-            </div>
-          ))}
-          <div className="row between" style={{ paddingTop: 8 }}>
-            <div className="h3">Итого</div>
-            <div className="h2" style={{ textDecoration: 'line-through', color: 'var(--muted)' }}>{rub(data!.total)}</div>
-          </div>
-          <div className="pill green" style={{ alignSelf: "flex-start" }}>Всё это — внутри клуба</div>
-        </div>
-      )}
-    </OnbLayout>
-  );
+export function OnboardingStep() {
+  const n = Number(useParams().n);
+  const S = SCREENS[n - 1] as (typeof SCREENS)[number] | undefined;
+  return S && n > 1 ? <S key={n} /> : <S1 />;
 }
 
 export function useTicker(ms: number) {

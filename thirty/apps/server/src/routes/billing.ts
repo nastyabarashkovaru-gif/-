@@ -32,6 +32,7 @@ export async function billingRoutes(app: FastifyInstance) {
       return { items, total: items.reduce((a, i) => a + i.price, 0) };
     });
 
+    r.get('/api/public/materials', async () => ({ items: await getSetting('materials') }));
     r.get('/api/public/rules', async () => ({ prizeRules: await getSetting('prize.rulesText'), cases: await getSetting('cases') }));
 
     r.get<{ Querystring: { tariff: string } }>('/api/checkout/preview', async (req) => jsonSafe(await checkoutPreview(req.user!.id, String(req.query.tariff ?? ''))));

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { CalendarDays, CircleCheck, CircleX, Clock, RefreshCw } from 'lucide-react';
+import { CalendarDays, CalendarHeart, CircleCheck, CircleX, Clock, RefreshCw } from 'lucide-react';
 import { api, rub } from '../../lib/api';
 import { haptic, openExternal } from '../../lib/telegram';
 import { useMe } from '../../state';
-import { ErrorState, Header, Loading, Screen, errorText, humanDate, toast, useLoad } from '../../ui';
+import { BrandBar, Cta, ErrorState, Header, Loading, Screen, errorText, humanDate, toast, useLoad } from '../../ui';
 import { countdown, type TariffView } from './Tariffs';
 
 interface Preview {
@@ -102,7 +102,7 @@ export function Checkout() {
 export function PaymentWait() {
   const { paymentId = '' } = useParams();
   const nav = useNavigate();
-  const { refresh } = useMe();
+  const { me, refresh } = useMe();
   const [st, setSt] = useState<{ status: string; waitingTooLong: boolean; needsRefund: boolean } | null>(null);
   const [error, setError] = useState<unknown>(null);
 
@@ -130,16 +130,25 @@ export function PaymentWait() {
   if (error) return <Screen id="S10"><ErrorState error={error} retry={() => location.reload()} /></Screen>;
   if (!st) return <Screen id="S09"><Loading lines={1} /></Screen>;
   if (st.status === 'paid') {
+    const flow = me?.membership?.flow;
     return (
       <Screen id="S09">
-        <div className="spacer" />
-        <div className="state" style={{ color: 'var(--ink)' }}>
-          <CircleCheck size={64} color="var(--green)" />
-          <h1 className="h1">Оплата прошла!</h1>
-          <p className="muted">{st.needsRefund ? 'У вас уже была действующая подписка — повторный платёж вернём, двойного списания за доступ не будет.' : 'Ты в клубе. Осталось заполнить анкету и выбрать цели — это 5 минут.'}</p>
+        <BrandBar right={<span className="badge-ok"><CircleCheck size={13} />Ты в клубе!</span>} />
+        <img src="/img/success.png" alt="" style={{ width: '62%', maxWidth: 240, alignSelf: 'center', marginTop: 16 }} />
+        <div className="col" style={{ gap: 10 }}>
+          <h1 className="hero">Ура! Теперь ты <em>часть нашей команды!</em> 🎉</h1>
+          <p className="lead">Ты сделал первый шаг к большим изменениям. Впереди — новые люди, поддержка и 30 дней движения к своей цели!</p>
         </div>
+        {st.needsRefund && <div className="banner warn">У тебя уже была действующая подписка — повторный платёж вернём, двойного списания не будет.</div>}
+        {flow && (
+          <div className="card center" style={{ alignItems: 'center', gap: 6 }}>
+            <span className="row muted" style={{ gap: 8, fontSize: 14 }}><CalendarHeart size={16} color="var(--accent)" />{flow.phase === 'upcoming' ? 'Твой челлендж начинается' : 'Твой челлендж уже идёт'}</span>
+            <div style={{ color: 'var(--accent-2)', fontSize: 28, fontWeight: 700 }}>{flow.phase === 'upcoming' ? humanDate(flow.startsOn) : `с ${humanDate(flow.startsOn)}`}</div>
+            <span className="muted" style={{ fontSize: 12 }}>А пока давай познакомимся и подготовим твою цель!</span>
+          </div>
+        )}
         <div className="spacer" />
-        <button className="btn btn-primary" onClick={() => nav('/reg/profile')}>Заполнить анкету</button>
+        <Cta onClick={() => nav('/reg/goals')}>Приступить к заполнению целей</Cta>
       </Screen>
     );
   }

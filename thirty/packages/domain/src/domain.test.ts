@@ -96,9 +96,9 @@ describe('тарифы и цены (ТЗ 1.1)', () => {
     expect(formatRub(17940)).toBe('17 940 ₽');
   });
 
-  it('в карточке месячного тарифа нет «архив» / «preview» / «превью»', () => {
+  it('в карточке месячного тарифа нет «превью»; архив доступен всем (решение 24.10)', () => {
     const text = DEFAULT_TARIFFS[0].features.join(' ').toLowerCase();
-    expect(text).not.toMatch(/архив|preview|превью/);
+    expect(text).not.toMatch(/preview|превью/);
   });
 
   it('6-месячный тариф не обещает доп. материалов', () => {

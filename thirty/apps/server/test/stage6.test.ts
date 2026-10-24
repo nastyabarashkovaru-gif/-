@@ -43,7 +43,6 @@ describe('админка: доступ', () => {
     const owner = await adminSession('owner');
     expect((await owner('PATCH', '/admin-api/tariffs/m1', { promoPrice: 990 }, false)).status).toBe(403);
     expect((await owner('PATCH', '/admin-api/tariffs/m1', { promoPrice: 999 })).status).toBe(200);
-    expect((await owner('PATCH', '/admin-api/tariffs/m1', { features: ['Архив результатов'] })).status).toBe(400);
     const mod = await adminSession('moderator');
     expect((await mod('GET', '/admin-api/moderation')).status).toBe(200);
     expect((await mod('PATCH', '/admin-api/tariffs/m1', { promoPrice: 1 })).status).toBe(403);
@@ -58,9 +57,13 @@ describe('аналитика (критерии №1, №14)', () => {
     clock.set('2026-10-21T09:00:00Z');
     const ev = (uid: number, n: number, name: string, extra: object = {}) => ({ event_id: `e-${uid}-${n}-${name}`, session_id: `sess-${uid}`, event_name: name, timestamp: new Date(Date.UTC(2026, 9, 21, 9, n)).toISOString(), ...extra });
     for (let uid = 1; uid <= 4; uid++) {
-      const events = [ev(uid, 0, 'app_open'), ev(uid, 1, 'screen_view', { screen_id: 'S01' }), ev(uid, 1, 'onboarding_step_view', { screen_id: 'S01' })];
-      if (uid <= 3) events.push(ev(uid, 2, 'screen_view', { screen_id: 'S02' }), ev(uid, 2, 'onboarding_step_view', { screen_id: 'S02' }), ev(uid, 3, 'onboarding_step_view', { screen_id: 'S03' }), ev(uid, 4, 'onboarding_step_view', { screen_id: 'S04' }), ev(uid, 5, 'value_screen_view'), ev(uid, 6, 'tariff_view'));
-      if (uid <= 2) events.push(ev(uid, 7, 'tariff_select', { tariff_id: uid === 1 ? 'm3' : 'm1' }));
+      const events = [ev(uid, 0, 'app_open'), ev(uid, 1, 'screen_view', { screen_id: 'O01' }), ev(uid, 1, 'onboarding_step_view', { screen_id: 'O01' })];
+      if (uid <= 3) {
+        events.push(ev(uid, 2, 'screen_view', { screen_id: 'O02' }));
+        for (let n = 2; n <= 11; n++) events.push(ev(uid, 2 + n, 'onboarding_step_view', { screen_id: `O${String(n).padStart(2, '0')}` }));
+        events.push(ev(uid, 14, 'tariff_view'));
+      }
+      if (uid <= 2) events.push(ev(uid, 15, 'tariff_select', { tariff_id: uid === 1 ? 'm3' : 'm1' }));
       // повторная отправка тех же событий (ретрай клиента) не задваивает
       const sent = await api('POST', '/api/events', uid, { events });
       expect(sent.body).toMatchObject({ accepted: events.length });
@@ -71,16 +74,16 @@ describe('аналитика (критерии №1, №14)', () => {
     const f = await owner('GET', '/admin-api/analytics/funnel?from=2026-10-20&to=2026-10-22');
     const step = (k: string) => f.body.steps.find((s: { key: string }) => s.key === k);
     expect(step('open')).toMatchObject({ count: 4, pctStart: 100 });
-    expect(step('s01').count).toBe(4);
-    expect(step('s02')).toMatchObject({ count: 3, pctPrev: 75, pctStart: 75 });
+    expect(step('o01').count).toBe(4);
+    expect(step('o02')).toMatchObject({ count: 3, pctPrev: 75, pctStart: 75 });
     expect(step('tariffs').count).toBe(3);
     expect(step('select')).toMatchObject({ count: 2, pctPrev: 66.7, pctStart: 50 });
     expect(f.body.tariffClicks).toEqual({ m1: 1, m3: 1 });
     const scr = await owner('GET', '/admin-api/analytics/screens?from=2026-10-20&to=2026-10-22');
-    expect(scr.body.find((s: { screen: string }) => s.screen === 'S01')).toMatchObject({ views: 4, users: 4, exits: 1 });
+    expect(scr.body.find((s: { screen: string }) => s.screen === 'O01')).toMatchObject({ views: 4, users: 4, exits: 1 });
     const u = await owner('GET', '/admin-api/users/1');
     expect(u.body.tariffClicks).toEqual([expect.objectContaining({ tariff: 'm3' })]);
-    expect(u.body.screens.map((s: { screen: string }) => s.screen)).toEqual(['S02', 'S01']);
+    expect(u.body.screens.map((s: { screen: string }) => s.screen)).toEqual(['O02', 'O01']);
     const csv = await owner('GET', '/admin-api/export/events?from=2026-10-20&to=2026-10-22');
     expect(csv.status).toBe(200);
     expect(String(csv.body)).toContain('event_id;user_id;session_id');

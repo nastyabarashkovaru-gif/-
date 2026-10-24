@@ -45,6 +45,13 @@ export const DEFAULT_SETTINGS = {
     offer_referral_restore: false,
     upsells: false,
   } as Record<string, boolean>,
+  /** «Полезные материалы»: url заполняет владелец в админке (Настройки → materials) */
+  'materials': [
+    { id: 'goal', kind: 'Гайд', title: 'Как выбрать цель', text: 'Определи, чего ты действительно хочешь достичь за 30 дней.', icon: 'target', url: '' },
+    { id: 'basket', kind: 'Подборка', title: 'Моя продуктовая корзина', text: 'Продукты, с которыми я похудела на 7 кг без ограничений.', icon: 'basket', url: '' },
+    { id: 'monetize', kind: 'Обучение', title: 'Монетизация блога', text: 'Как начать зарабатывать на своём контенте.', icon: 'trend', url: '' },
+    { id: 'podcast', kind: 'Подкаст', title: 'Как выбрать свою тему блога', text: 'Найди направление, о котором захочется рассказывать.', icon: 'headphones', url: '' },
+  ] as { id: string; kind: string; title: string; text: string; icon: string; url: string }[],
   'cases': [] as { name: string; text: string; result: string }[],
 };
 

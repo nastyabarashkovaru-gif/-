@@ -16,6 +16,12 @@ export async function seed() {
       update: {},
     });
   }
+  // Редизайн 24.10: старые формулировки («эксперты», «Хит продаж») заменяем на утверждённые; правки владельца не трогаем
+  for (const t of DEFAULT_TARIFFS) {
+    const row = await prisma.tariff.findUnique({ where: { id: t.id } });
+    const old = row && ((row.features as string[]).some((f) => /эксперт/i.test(f)) || row.badge === 'Хит продаж');
+    if (old) await prisma.tariff.update({ where: { id: t.id }, data: { features: t.features, badge: t.badge } });
+  }
   await applyProdamusSubscriptionIds();
   await seedTemplates();
   const upsells = [

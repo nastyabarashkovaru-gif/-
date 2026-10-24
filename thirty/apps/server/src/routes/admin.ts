@@ -108,7 +108,6 @@ export async function adminRoutes(app: FastifyInstance) {
       );
       const before = await prisma.tariff.findUnique({ where: { id: req.params.id } });
       if (!before) throw notFound();
-      if (req.params.id === 'm1' && body.features?.some((f) => /архив|preview|превью/i.test(f))) throw badRequest('m1_words', 'В тарифе «1 месяц» нельзя упоминать архив/превью (ТЗ 1.1)');
       const after = await prisma.tariff.update({ where: { id: req.params.id }, data: body });
       await audit(req, 'tariff.update', 'tariff', req.params.id, { before, after });
       return after;
