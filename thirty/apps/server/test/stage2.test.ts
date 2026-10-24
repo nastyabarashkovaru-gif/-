@@ -129,20 +129,28 @@ describe('отчёты', () => {
     expect(noAck.status).toBe(400);
     const noPhoto = await api('POST', '/api/reports', 20, { items: [{ taskId, done: true }], publicAck: true });
     expect(noPhoto.status).toBe(400);
-    expect(noPhoto.body.code).toBe('evidence_required');
+    expect(noPhoto.body.code).toBe('photo_required');
 
     const media = await upload(20);
     expect(media.status).toBe(200);
-    const ok = await api('POST', '/api/reports', 20, { items: [{ taskId, done: true, mediaIds: [media.body.id] }], publicAck: true });
+    // фото — одно на весь отчёт, не на каждое действие
+    const ok = await api('POST', '/api/reports', 20, { items: [{ taskId, done: true }], mediaIds: [media.body.id], text: 'Готово', publicAck: true });
     expect(ok.status).toBe(200);
     expect(ok.body).toMatchObject({ date: '2026-11-01', marked: 1 });
-    // повтор в тот же день не создаёт второе выполнение
-    const again = await api('POST', '/api/reports', 20, { items: [{ taskId, done: true, mediaIds: [media.body.id] }], publicAck: true });
-    expect(again.body.marked).toBe(0);
+    // один отчёт в день
+    const again = await api('POST', '/api/reports', 20, { items: [{ taskId, done: true }], mediaIds: [media.body.id], publicAck: true });
+    expect(again.status).toBe(409);
+    expect(again.body.code).toBe('already_reported');
+    // отчёт сразу в общем чате потока
+    const chat = await api('GET', '/api/feed/chat', 20);
+    expect(chat.body.messages).toHaveLength(1);
+    expect(chat.body.messages[0]).toMatchObject({ text: 'Готово', mine: true, report: { done: ['Фото тарелки'] } });
+    expect(chat.body.messages[0].report.photos).toHaveLength(1);
 
     // чужое медиа использовать нельзя
     const other = await upload(21);
-    const steal = await api('POST', '/api/reports', 20, { items: [{ taskId, done: true, mediaIds: [other.body.id] }], publicAck: true });
+    clock.set('2026-11-02T09:00:00Z');
+    const steal = await api('POST', '/api/reports', 20, { items: [{ taskId, done: true }], mediaIds: [other.body.id], publicAck: true });
     expect(steal.status).toBe(400);
 
     // на следующий день вчерашний пропуск не исправить: отчёт пишется только на сегодняшнюю дату
@@ -176,8 +184,8 @@ describe('рейтинг и претенденты', () => {
     for (let day = 1; day <= 30; day++) {
       clock.set(`2026-11-${String(day).padStart(2, '0')}T09:00:00Z`);
       await refreshFlowStatuses();
-      expect((await api('POST', '/api/reports', 40, { items: [{ taskId: a.taskId, done: true }], publicAck: true })).status).toBe(200);
-      expect((await api('POST', '/api/reports', 41, { items: tasks41.map((taskId) => ({ taskId, done: true })), publicAck: true })).status).toBe(200);
+      expect((await api('POST', '/api/reports', 40, { items: [{ taskId: a.taskId, done: true }], mediaIds: [(await upload(40)).body.id], publicAck: true })).status).toBe(200);
+      expect((await api('POST', '/api/reports', 41, { items: tasks41.map((taskId) => ({ taskId, done: true })), mediaIds: [(await upload(41)).body.id], publicAck: true })).status).toBe(200);
     }
     clock.set('2026-12-01T09:00:00Z');
     await refreshFlowStatuses();

@@ -310,3 +310,14 @@ describe('одноразовая задача', () => {
     expect(computeStats({ ...base, today: '2026-11-06' }).ratio).toBe(0.5);
   });
 });
+
+describe('рейтинг по процентам (решение 24.10)', () => {
+  it('при равном проценте выше тот, у кого больше отчётов вовремя', () => {
+    const r = rank([
+      { userId: 'a', ratio: 0.9, reportDays: 10, successfulDays: 12, longestStreak: 9 },
+      { userId: 'b', ratio: 0.9, reportDays: 12, successfulDays: 8, longestStreak: 3 },
+      { userId: 'c', ratio: 0.95, reportDays: 1, successfulDays: 1, longestStreak: 1 },
+    ]);
+    expect(r.map((x) => [x.userId, x.rank])).toEqual([['c', 1], ['b', 2], ['a', 3]]);
+  });
+});

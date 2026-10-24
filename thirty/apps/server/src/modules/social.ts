@@ -117,8 +117,13 @@ export async function participants(viewerId: bigint, q: { q?: string; flowStart?
     orderBy: { id: 'asc' },
     include: { memberships: { where: { status: { not: 'revoked' } }, include: { flow: true, goals: { where: { isPublic: true } } }, orderBy: { flow: { startsOn: 'desc' } }, take: 1 } },
   });
+  const page = rows.slice(0, 30);
+  const entries = await prisma.leaderboardEntry.findMany({
+    where: { OR: page.filter((u) => u.memberships[0]).map((u) => ({ userId: u.id, flowId: u.memberships[0].flowId })) },
+  });
+  const pct = new Map(entries.map((e) => [`${e.flowId}:${e.userId}`, Math.round(e.ratio * 100)]));
   return {
-    items: rows.slice(0, 30).map((u) => ({
+    items: page.map((u) => ({
       id: u.id.toString(),
       name: displayName(u),
       photoUrl: u.photoUrl,
@@ -126,6 +131,8 @@ export async function participants(viewerId: bigint, q: { q?: string; flowStart?
       flowStart: u.memberships[0] ? fromDbDate(u.memberships[0].flow.startsOn) : null,
       flowTitle: u.memberships[0]?.flow.title ?? null,
       categories: [...new Set(u.memberships[0]?.goals.map((g) => g.category) ?? [])],
+      goal: u.memberships[0]?.goals.sort((a, b) => a.sort - b.sort)[0]?.title ?? null,
+      percent: u.memberships[0] ? (pct.get(`${u.memberships[0].flowId}:${u.id}`) ?? null) : null,
       sixMonthBadge: u.sixMonthBadge,
     })),
     nextCursor: rows.length > 30 ? rows[29].id.toString() : null,
@@ -151,7 +158,7 @@ export async function participantProfile(viewerId: bigint, id: string) {
     sixMonthBadge: u.sixMonthBadge,
     writeUrl: u.username ? `https://t.me/${u.username}` : `tg://user?id=${u.id}`,
     flow: current ? { title: current.flow.title, startsOn: fromDbDate(current.flow.startsOn) } : null,
-    goals: current?.goals.filter((g) => g.isPublic).map((g) => ({ title: g.title, category: g.category })) ?? [],
+    goals: current?.goals.filter((g) => g.isPublic).sort((a, b) => a.sort - b.sort).map((g) => ({ title: g.title, category: g.category, pointA: g.pointA, pointB: g.pointB })) ?? [],
     stats: stats ? { percent: Math.round(stats.ratio * 100), successfulDays: stats.successfulDays, currentStreak: stats.currentStreak } : null,
     flowsCount: memberships.length,
   };

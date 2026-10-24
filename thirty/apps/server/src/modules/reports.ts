@@ -20,20 +20,21 @@ export const reportInput = z.object({
       }),
     )
     .max(100),
-  text: z.string().max(2000).optional(),
+  text: z.string().trim().max(2000).optional(),
+  /** Фото отчёта: минимум одно на весь отчёт */
+  mediaIds: z.array(z.string().uuid()).max(6).default([]),
   /** Пользователь видел предупреждение, что отчёт публичный */
   publicAck: z.literal(true),
 });
 
 /**
- * Отчёт за сегодняшний день потока (по часовому поясу потока). Задним числом сдать нельзя.
- * За один день можно дослать выполнения в тот же отчёт до дедлайна, но не снять отметку.
- * Для каждой выполненной задачи проверяется требуемое доказательство.
+ * Отчёт за сегодняшний день потока (по часовому поясу потока): один отчёт в день, задним числом не сдать.
+ * Минимум одно фото на весь отчёт обязательно (решение владельца 24.10). Отчёт сразу публикуется в общий чат потока.
  */
 export async function submitReport(userId: bigint, membershipId: string, input: z.infer<typeof reportInput>) {
   const m = await prisma.flowMembership.findUnique({ where: { id: membershipId }, include: { flow: true } });
   if (!m || m.userId !== userId) throw notFound('membership_not_found');
-  if (m.status !== 'active') throw forbidden('not_active', 'Отчёты принимаются после фиксации целей во время потока');
+  if (m.status !== 'active') throw forbidden('not_active', 'Отчёты принимаются после отправки анкеты во время потока');
   const now = clock.now();
   const today = flowToday(m.flow, now);
   if (flowPhase(fromDbDate(m.flow.startsOn), today) !== 'active') throw forbidden('flow_not_active', 'Поток не идёт');
@@ -41,31 +42,20 @@ export async function submitReport(userId: bigint, membershipId: string, input: 
 
   const taskIds = [...new Set(input.items.map((i) => i.taskId))];
   if (taskIds.length !== input.items.length) throw badRequest('duplicate_task', 'Одна задача — одна отметка в день');
-  const tasks = await prisma.task.findMany({ where: { id: { in: taskIds }, goal: { membershipId } }, include: { goal: true } });
+  const tasks = await prisma.task.findMany({ where: { id: { in: taskIds }, goal: { membershipId } } });
   if (tasks.length !== taskIds.length) throw badRequest('unknown_task');
-  const policy = await getSetting('evidence.policy');
 
-  const mediaIds = input.items.flatMap((i) => i.mediaIds);
-  if (mediaIds.length) {
-    const own = await prisma.mediaFile.count({ where: { id: { in: mediaIds }, ownerId: userId } });
-    if (own !== new Set(mediaIds).size) throw badRequest('bad_media');
-  }
+  const allMedia = [...new Set([...input.mediaIds, ...input.items.flatMap((i) => i.mediaIds)])];
+  if (allMedia.length === 0) throw badRequest('photo_required', 'Прикрепи хотя бы одно фото — без него отчёт отправить нельзя');
+  const own = await prisma.mediaFile.count({ where: { id: { in: allMedia }, ownerId: userId } });
+  if (own !== allMedia.length) throw badRequest('bad_media');
 
-  for (const item of input.items) {
-    const task = tasks.find((t) => t.id === item.taskId)!;
-    const needsPhoto =
-      task.evidence === 'photo' || task.evidence === 'screenshot' || (task.evidence === 'checkbox_photo' && policy[task.goal.category]?.photoRequired);
-    if (needsPhoto && item.mediaIds.length === 0) throw badRequest('evidence_required', `Для «${task.title}» нужно фото или скриншот`);
-    if (task.evidence === 'link' && !item.link && item.mediaIds.length === 0) throw badRequest('evidence_required', `Для «${task.title}» нужна ссылка или скриншот`);
-  }
+  const existing = await prisma.dailyReport.findUnique({ where: { membershipId_date: { membershipId, date } } });
+  if (existing?.status === 'rejected') throw conflict('report_rejected', 'Отчёт за сегодня отклонён модератором — можно подать апелляцию');
+  if (existing) throw conflict('already_reported', 'Отчёт за сегодня уже отправлен');
 
   return prisma.$transaction(async (tx) => {
-    const report = await tx.dailyReport.upsert({
-      where: { membershipId_date: { membershipId, date } },
-      create: { membershipId, date, text: input.text },
-      update: input.text ? { text: input.text } : {},
-    });
-    if (report.status === 'rejected') throw conflict('report_rejected', 'Отчёт за сегодня отклонён модератором — можно подать апелляцию');
+    const report = await tx.dailyReport.create({ data: { membershipId, date, text: input.text || null, mediaIds: input.mediaIds } });
     let marked = 0;
     for (const item of input.items) {
       // Свободное выполнение с окном, включающим сегодня; для «N раз в неделю» — ближайший незакрытый слот
@@ -74,16 +64,15 @@ export async function submitReport(userId: bigint, membershipId: string, input: 
         orderBy: { slot: 'asc' },
       });
       if (!occ) continue;
-      const already = await tx.reportItem.findFirst({ where: { reportId: report.id, occurrence: { taskId: item.taskId } } });
-      if (already) continue;
       await tx.taskOccurrence.update({ where: { id: occ.id }, data: { status: 'done', doneAt: now } });
       const ri = await tx.reportItem.create({ data: { reportId: report.id, occurrenceId: occ.id, done: true, link: item.link, note: item.note } });
       if (item.mediaIds.length) await tx.reportEvidence.createMany({ data: item.mediaIds.map((mediaId) => ({ itemId: ri.id, mediaId })) });
       marked++;
     }
+    await tx.feedMessage.create({ data: { flowId: m.flowId, userId, reportId: report.id, text: input.text || null } });
     return { reportId: report.id, date: today, marked };
   }).then(async (r) => {
-    await track({ userId, eventName: 'report_submitted', screenId: 'S21', flowId: m.flowId, metadata: { marked: r.marked, items: input.items.length } });
+    await track({ userId, eventName: 'report_submitted', screenId: 'S21', flowId: m.flowId, metadata: { marked: r.marked, items: input.items.length, photos: allMedia.length } });
     return r;
   });
 }
@@ -102,6 +91,8 @@ export async function todayChecklist(membershipId: string) {
     date: today,
     reportId: report?.id ?? null,
     reportStatus: report?.status ?? null,
+    reportText: report?.text ?? null,
+    reportPhotos: (report?.mediaIds ?? []).map((id) => signedMediaUrl(id)),
     goals: goals.map((g) => ({
       id: g.id,
       title: g.title,
@@ -132,6 +123,7 @@ export function serializeReport(r: Awaited<ReturnType<typeof loadReport>>) {
     text: r.text,
     status: r.status,
     createdAt: r.createdAt,
+    photos: r.mediaIds.map((id) => signedMediaUrl(id)),
     user: { id: u.id.toString(), name: u.displayName || [u.firstName, u.lastName].filter(Boolean).join(' '), photoUrl: u.photoUrl, city: u.city },
     flow: { id: r.membership.flowId, title: r.membership.flow.title },
     items: r.items.map((i) => ({

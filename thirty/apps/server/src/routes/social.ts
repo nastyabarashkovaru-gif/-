@@ -24,6 +24,8 @@ function cardSig(id: string) {
   return createHmac('sha256', config.MEDIA_SIGNING_SECRET).update(`card:${id}`).digest('hex').slice(0, 24);
 }
 
+import { chatMessageInput, listChat, postChat } from '../modules/feedChat';
+
 export async function socialRoutes(app: FastifyInstance) {
   app.register(async (r) => {
     r.addHook('preHandler', requireUser);
@@ -33,6 +35,12 @@ export async function socialRoutes(app: FastifyInstance) {
       if (!req.query.cursor) await track({ userId: req.user!.id, eventName: 'feed_open', screenId: 'S23' });
       return jsonSafe(await feed({ cursor: req.query.cursor, sort: req.query.sort === 'popular' ? 'popular' : 'new', flowId: req.query.flowId }));
     });
+    // Общий чат отчётов потока
+    r.get<{ Querystring: { before?: string; after?: string } }>('/api/feed/chat', async (req) => {
+      if (!req.query.before && !req.query.after) await track({ userId: req.user!.id, eventName: 'feed_open', screenId: 'S23' });
+      return listChat(req.user!.id, req.query);
+    });
+    r.post('/api/feed/chat', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req) => postChat(req.user!.id, parse(chatMessageInput, req.body)));
     r.get<{ Params: { id: string } }>('/api/reports/:id', async (req) => jsonSafe(await reportDetails(req.params.id)));
     r.post<{ Params: { id: string } }>('/api/reports/:id/react', async (req) => react(req.user!.id, req.params.id, parse(z.object({ emoji: z.string() }), req.body).emoji));
     r.get<{ Params: { id: string } }>('/api/reports/:id/comments', async (req) => jsonSafe(await comments(req.params.id)));
@@ -54,6 +62,10 @@ export async function socialRoutes(app: FastifyInstance) {
       return participants(req.user!.id, q);
     });
     r.get<{ Params: { id: string } }>('/api/participants/:id', async (req) => participantProfile(req.user!.id, req.params.id));
+    r.get('/api/participants-cities', async () => {
+      const rows = await prisma.user.findMany({ where: { deletedAt: null, city: { not: null }, memberships: { some: { status: { in: ['registered', 'active', 'finished'] } } } }, select: { city: true }, distinct: ['city'], take: 300 });
+      return { cities: rows.map((r) => r.city!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')) };
+    });
     r.get('/api/flows', async () => {
       const flows = await prisma.flow.findMany({ orderBy: { startsOn: 'desc' }, take: 24 });
       return { flows: flows.map((f) => ({ id: f.id, title: f.title, startsOn: f.startsOn.toISOString().slice(0, 10), status: f.status })) };
@@ -69,6 +81,9 @@ export async function socialRoutes(app: FastifyInstance) {
       if (!fresh || Date.now() - fresh.computedAt.getTime() > 5 * 60_000) await computeLeaderboard(flowId);
       const rows = await prisma.leaderboardEntry.findMany({ where: { flowId }, orderBy: [{ rank: 'asc' }, { userId: 'asc' }], take: 500 });
       const users = await prisma.user.findMany({ where: { id: { in: rows.map((x) => x.userId) } } });
+      const firstGoals = await prisma.goal.findMany({ where: { membership: { flowId, userId: { in: rows.map((x) => x.userId) } } }, select: { category: true, sort: true, membership: { select: { userId: true } } }, orderBy: { sort: 'asc' } });
+      const catBy = new Map<string, string>();
+      for (const g of firstGoals) if (!catBy.has(g.membership.userId.toString())) catBy.set(g.membership.userId.toString(), g.category);
       const byId = new Map(users.map((u) => [u.id.toString(), u]));
       const flow = await prisma.flow.findUnique({ where: { id: flowId } });
       return jsonSafe({
@@ -82,6 +97,9 @@ export async function socialRoutes(app: FastifyInstance) {
             userId: x.userId.toString(),
             name: hidden ? 'Участник' : u ? u.displayName || [u.firstName, u.lastName].filter(Boolean).join(' ') : 'Участник',
             photoUrl: hidden ? null : u?.photoUrl ?? null,
+            city: hidden ? null : u?.city ?? null,
+            category: catBy.get(x.userId.toString()) ?? null,
+            reportDays: x.reportDays,
             rank: x.rank,
             percent: Math.round(x.ratio * 100),
             successfulDays: x.successfulDays,

@@ -7,6 +7,7 @@ import { prisma } from '../db';
 import { badRequest, forbidden, HttpError, jsonSafe, notFound } from '../http';
 import { parse } from '../lib/validate';
 import { signedMediaUrl } from '../lib/storage';
+import { setHidden } from '../modules/feedChat';
 import { DEFAULT_SETTINGS, getSetting, setSetting, type SettingKey } from '../settings';
 import { dashboard, funnel, retention, screens, toCsv } from '../modules/adminAnalytics';
 import { markRefunded } from '../modules/billing';
@@ -273,6 +274,17 @@ export async function adminRoutes(app: FastifyInstance) {
     r.post<{ Params: { id: string } }>('/admin-api/comments/:id/hide', perm('moderation'), async (req) => {
       const c = await prisma.reportComment.update({ where: { id: req.params.id }, data: { hidden: true } });
       await audit(req, 'comment.hide', 'comment', c.id);
+      return { ok: true };
+    });
+
+    r.get<{ Querystring: { flowId?: string } }>('/admin-api/feed', perm('moderation'), async (req) => {
+      const rows = await prisma.feedMessage.findMany({ where: req.query.flowId ? { flowId: req.query.flowId } : {}, orderBy: { createdAt: 'desc' }, take: 200, include: { user: true } });
+      return jsonSafe({ messages: rows.map((m) => ({ id: m.id, flowId: m.flowId, userId: m.userId, name: displayName(m.user), text: m.text, reportId: m.reportId, hidden: m.hidden, createdAt: m.createdAt })) });
+    });
+    r.post<{ Params: { id: string } }>('/admin-api/feed/:id/hide', perm('moderation'), async (req) => {
+      const { hidden } = parse(z.object({ hidden: z.boolean().default(true) }), req.body ?? {});
+      const m = await setHidden(req.params.id, hidden);
+      await audit(req, hidden ? 'feed.hide' : 'feed.unhide', 'feed_message', m.id);
       return { ok: true };
     });
 

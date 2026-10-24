@@ -134,6 +134,8 @@ export function isPerfect(f: MemberFacts, goalsAchieved: (boolean | null)[]): bo
 export interface RankInput {
   userId: string;
   ratio: number;
+  /** Отчёты, сданные вовремя (в свой день) */
+  reportDays?: number;
   successfulDays: number;
   longestStreak: number;
   /** ISO время подачи итоговой анкеты; раньше — выше. null — в конце */
@@ -142,12 +144,12 @@ export interface RankInput {
 
 /**
  * Публичные правила сортировки (одинаковые для всех тарифов):
- * 1) процент выполненных обязательств; 2) полностью закрытые дни; 3) самая длинная серия;
- * 4) кто раньше подал итоговую анкету. Число целей и фото не учитываются.
+ * 1) процент выполненных запланированных действий; 2) больше отчётов, сданных вовремя (решение владельца 24.10);
+ * 3) полностью закрытые дни; 4) самая длинная серия; 5) кто раньше подал итоговую анкету. Число целей и фото не учитываются.
  * Равные по всем критериям получают одинаковое место.
  */
 export function rank<T extends RankInput>(rows: T[]): (T & { rank: number })[] {
-  const key = (r: RankInput) => [-round6(r.ratio), -r.successfulDays, -r.longestStreak, r.finalSubmittedAt ?? '9999'] as const;
+  const key = (r: RankInput) => [-round6(r.ratio), -(r.reportDays ?? 0), -r.successfulDays, -r.longestStreak, r.finalSubmittedAt ?? '9999'] as const;
   const cmp = (a: RankInput, b: RankInput) => {
     const ka = key(a);
     const kb = key(b);

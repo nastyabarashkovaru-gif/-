@@ -61,12 +61,16 @@ export async function computeLeaderboard(flowId: string, now = clock.now()): Pro
   const ids = members.map((m) => m.id);
   const [occ, reports] = await Promise.all([
     prisma.taskOccurrence.findMany({ where: { membershipId: { in: ids } }, select: { membershipId: true, windowStart: true, windowEnd: true, status: true } }),
-    prisma.dailyReport.findMany({ where: { membershipId: { in: ids }, status: 'accepted' }, select: { membershipId: true, date: true } }),
+    prisma.dailyReport.findMany({ where: { membershipId: { in: ids }, status: 'accepted' }, select: { membershipId: true, date: true, late: true } }),
   ]);
-  const byM = new Map<string, { o: typeof occ; r: string[] }>();
-  for (const id of ids) byM.set(id, { o: [], r: [] });
+  const byM = new Map<string, { o: typeof occ; r: string[]; onTime: number }>();
+  for (const id of ids) byM.set(id, { o: [], r: [], onTime: 0 });
   for (const o of occ) byM.get(o.membershipId)!.o.push(o);
-  for (const r of reports) byM.get(r.membershipId)!.r.push(fromDbDate(r.date));
+  for (const r of reports) {
+    const d = byM.get(r.membershipId)!;
+    d.r.push(fromDbDate(r.date));
+    if (!r.late) d.onTime++;
+  }
   const startsOn = fromDbDate(flow.startsOn);
   const endsOn = flowBounds(startsOn).endsOn;
   const today = flowToday(flow, now);
@@ -84,6 +88,7 @@ export async function computeLeaderboard(flowId: string, now = clock.now()): Pro
       name: m.user.displayName || [m.user.firstName, m.user.lastName].filter(Boolean).join(' '),
       photoUrl: m.user.photoUrl,
       ratio: s.ratio,
+      reportDays: d.onTime,
       completed: s.completed,
       scheduled: s.scheduled,
       successfulDays: s.successfulDays,
@@ -110,6 +115,7 @@ export async function computeLeaderboard(flowId: string, now = clock.now()): Pro
         longestStreak: r.longestStreak,
         currentStreak: r.currentStreak,
         perfectSoFar: r.perfectSoFar,
+        reportDays: r.reportDays,
         rank: r.rank,
         computedAt: now,
       })),

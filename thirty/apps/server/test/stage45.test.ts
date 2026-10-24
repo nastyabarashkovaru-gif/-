@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { api, clock, getApp, grantMembership, prisma, resetDb } from './helpers';
+import { api, clock, getApp, grantMembership, prisma, resetDb, upload } from './helpers';
 import { setTelegramTransport, webhookSecret } from '../src/lib/telegram';
 import { seedTemplates, sendTemplate } from '../src/modules/bot';
 import { autoMatch } from '../src/modules/buddy';
@@ -183,7 +183,7 @@ describe('лента, участники, рейтинг', () => {
     await fixDaily(11);
     clock.set('2026-11-01T09:00:00Z');
     await refreshFlowStatuses();
-    await api('POST', '/api/reports', 10, { items: [{ taskId, done: true }], publicAck: true, text: 'День 1!' });
+    await api('POST', '/api/reports', 10, { items: [{ taskId, done: true }], mediaIds: [(await upload(10)).body.id], publicAck: true, text: 'День 1!' });
     const f = await api('GET', '/api/feed', 11);
     expect(f.body.items).toHaveLength(1);
     expect(f.body.items[0]).toMatchObject({ text: 'День 1!', user: { id: '10' } });
@@ -207,6 +207,31 @@ describe('лента, участники, рейтинг', () => {
   });
 });
 
+describe('общий чат отчётов', () => {
+  it('сообщения и ответы видны только участникам потока; скрытое модератором не показывается', async () => {
+    clock.set('2026-10-21T10:00:00Z');
+    await grantMembership(50, '2026-11-01', 'm1');
+    await grantMembership(51, '2026-11-01', 'm1');
+    await prisma.user.create({ data: { id: 52n, firstName: 'Чужой' } });
+    const { taskId } = await fixDaily(50);
+    await fixDaily(51);
+    clock.set('2026-11-01T09:00:00Z');
+    await refreshFlowStatuses();
+    await api('POST', '/api/reports', 50, { items: [{ taskId, done: true }], mediaIds: [(await upload(50)).body.id], publicAck: true, text: 'Сделала!' });
+    const first = (await api('GET', '/api/feed/chat', 51)).body.messages[0];
+    expect(first).toMatchObject({ text: 'Сделала!', mine: false, user: { id: '50' } });
+    const reply = await api('POST', '/api/feed/chat', 51, { text: 'Умница!', replyToId: first.id });
+    expect(reply.body).toMatchObject({ text: 'Умница!', replyTo: { id: first.id, text: 'Сделала!' } });
+    const newer = await api('GET', `/api/feed/chat?after=${first.id}`, 50);
+    expect(newer.body.messages.map((m: { text: string }) => m.text)).toEqual(['Умница!']);
+    expect((await api('GET', '/api/feed/chat', 52)).status).toBe(403);
+    expect((await api('POST', '/api/feed/chat', 52, { text: 'спам' })).status).toBe(403);
+    await prisma.feedMessage.update({ where: { id: reply.body.id }, data: { hidden: true } });
+    const after = (await api('GET', '/api/feed/chat', 50)).body.messages;
+    expect(after[1]).toMatchObject({ hidden: true, text: null });
+  });
+});
+
 describe('финал, отзывы, карточки', () => {
   it('карточки 7/14/21/28 с реальными цифрами и QR; отзыв не влияет на рейтинг (№12, №13)', async () => {
     clock.set('2026-10-21T09:00:00Z');
@@ -217,7 +242,7 @@ describe('финал, отзывы, карточки', () => {
       if (d === 3) continue;
       clock.set(`2026-11-0${d}T09:00:00Z`);
       await refreshFlowStatuses();
-      await api('POST', '/api/reports', 20, { items: [{ taskId, done: true }], publicAck: true });
+      await api('POST', '/api/reports', 20, { items: [{ taskId, done: true }], mediaIds: [(await upload(20)).body.id], publicAck: true });
     }
     clock.set('2026-11-06T09:00:00Z');
     expect((await api('POST', '/api/cards/1', 20)).status).toBe(403); // ещё рано

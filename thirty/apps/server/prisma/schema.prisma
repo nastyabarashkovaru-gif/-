@@ -18,42 +18,43 @@ enum Visibility {
 }
 
 model User {
-  id               BigInt     @id // Telegram user id
-  firstName        String
-  lastName         String?
-  username         String?
-  photoUrl         String?
-  displayName      String?
-  city             String?
-  timezone         String     @default("Europe/Moscow")
-  interests        String[]   @default([])
-  visibility       Visibility @default(public)
-  isAdult          Boolean    @default(false)
-  allowsWrite      Boolean    @default(false)
-  botBlocked       Boolean    @default(false)
-  marketingOptIn   Boolean    @default(false)
-  lastScreen       String?
-  onboardingStage  String     @default("new") // new | onboarding | tariffs | checkout | paid | registered
-  sixMonthBadge    Boolean    @default(false)
-  deletedAt        DateTime?
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  id              BigInt     @id // Telegram user id
+  firstName       String
+  lastName        String?
+  username        String?
+  photoUrl        String?
+  displayName     String?
+  city            String?
+  timezone        String     @default("Europe/Moscow")
+  interests       String[]   @default([])
+  visibility      Visibility @default(public)
+  isAdult         Boolean    @default(false)
+  allowsWrite     Boolean    @default(false)
+  botBlocked      Boolean    @default(false)
+  marketingOptIn  Boolean    @default(false)
+  lastScreen      String?
+  onboardingStage String     @default("new") // new | onboarding | tariffs | checkout | paid | registered
+  sixMonthBadge   Boolean    @default(false)
+  deletedAt       DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
-  consents         Consent[]
-  subscriptions    Subscription[]
-  payments         Payment[]
-  memberships      FlowMembership[]
-  offers           PriceOffer[]
-  media            MediaFile[]
-  events           AnalyticsEvent[]
-  botLogs          BotMessageLog[]
-  reviews          Review[]
-  referralLink     ReferralLink?
-  comments         ReportComment[]
-  reactions        ReportReaction[]
-  complaints       Complaint[]
-  attendances      Attendance[]
-  experiments      ExperimentAssignment[]
+  consents      Consent[]
+  subscriptions Subscription[]
+  payments      Payment[]
+  memberships   FlowMembership[]
+  offers        PriceOffer[]
+  media         MediaFile[]
+  events        AnalyticsEvent[]
+  botLogs       BotMessageLog[]
+  reviews       Review[]
+  referralLink  ReferralLink?
+  comments      ReportComment[]
+  reactions     ReportReaction[]
+  complaints    Complaint[]
+  attendances   Attendance[]
+  experiments   ExperimentAssignment[]
+  feedMessages  FeedMessage[]
 
   @@index([city])
   @@index([createdAt])
@@ -89,22 +90,22 @@ model Consent {
 // ───────────── Тарифы, предложения, подписки, платежи ─────────────
 
 model Tariff {
-  id                    String   @id // m1 | m3 | m6
-  title                 String
-  months                Int
-  goalLimit             Int? // null = без ограничения
-  promoPrice            Int // ₽, первые 3 часа
-  regularPrice          Int // ₽, после таймера
-  comparisonMonthPrice  Int      @default(2990) // «стоимость отдельных месяцев» = months × это
-  renewalPrice          Int // ₽, сумма повторного списания (должна совпадать с кабинетом Prodamus)
+  id                          String   @id // m1 | m3 | m6
+  title                       String
+  months                      Int
+  goalLimit                   Int? // null = без ограничения
+  promoPrice                  Int // ₽, первые 3 часа
+  regularPrice                Int // ₽, после таймера
+  comparisonMonthPrice        Int      @default(2990) // «стоимость отдельных месяцев» = months × это
+  renewalPrice                Int // ₽, сумма повторного списания (должна совпадать с кабинетом Prodamus)
   prodamusSubscriptionPromo   Int?
   prodamusSubscriptionRegular Int?
-  highlighted           Boolean  @default(false)
-  badge                 String?
-  features              Json     @default("[]")
-  sort                  Int      @default(0)
-  active                Boolean  @default(true)
-  updatedAt             DateTime @updatedAt
+  highlighted                 Boolean  @default(false)
+  badge                       String?
+  features                    Json     @default("[]")
+  sort                        Int      @default(0)
+  active                      Boolean  @default(true)
+  updatedAt                   DateTime @updatedAt
 
   subscriptions Subscription[]
 }
@@ -144,9 +145,13 @@ model Subscription {
   nextChargeDate         DateTime?          @db.Date
   providerSubscriptionId String?
   providerLocked         Boolean            @default(false)
-  /** Телефон/e-mail покупателя из webhook — нужен для REST-методов Prodamus */
+  /**
+   * Телефон/e-mail покупателя из webhook — нужен для REST-методов Prodamus
+   */
   providerCustomer       Json               @default("{}")
-  /** Автопродление выключено у провайдера (иначе задача повторяет запрос) */
+  /**
+   * Автопродление выключено у провайдера (иначе задача повторяет запрос)
+   */
   providerDeactivatedAt  DateTime?
   canceledAt             DateTime?
   cancelReason           String?
@@ -156,10 +161,10 @@ model Subscription {
   payments    Payment[]
   schedule    BillingSchedule[]
   memberships FlowMembership[]
+  // + частичный уникальный индекс «одна живая подписка на пользователя» (миграция SQL)
 
   @@index([userId])
   @@index([status, nextChargeDate])
-  // + частичный уникальный индекс «одна живая подписка на пользователя» (миграция SQL)
 }
 
 enum PaymentStatus {
@@ -179,30 +184,32 @@ enum PaymentKind {
 }
 
 model Payment {
-  id                String        @id @default(uuid())
-  userId            BigInt
-  user              User          @relation(fields: [userId], references: [id])
-  subscriptionId    String?
-  subscription      Subscription? @relation(fields: [subscriptionId], references: [id])
-  kind              PaymentKind
-  tariffId          String?
-  upsellCode        String?
-  priceVariant      String? // promo | regular
-  amount            Int
-  status            PaymentStatus @default(initiated)
-  provider          String        @default("prodamus")
-  providerOrderId   String?       @unique
-  paymentUrl        String?
-  coversFromFlow    DateTime?     @db.Date
-  months            Int?
-  idempotencyKey    String        @unique
-  failureReason     String?
-  /** Повторная успешная оплата при уже живой подписке — доступ не выдаётся, нужен возврат */
-  needsRefund       Boolean       @default(false)
-  paidAt            DateTime?
-  refundedAt        DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id              String        @id @default(uuid())
+  userId          BigInt
+  user            User          @relation(fields: [userId], references: [id])
+  subscriptionId  String?
+  subscription    Subscription? @relation(fields: [subscriptionId], references: [id])
+  kind            PaymentKind
+  tariffId        String?
+  upsellCode      String?
+  priceVariant    String? // promo | regular
+  amount          Int
+  status          PaymentStatus @default(initiated)
+  provider        String        @default("prodamus")
+  providerOrderId String?       @unique
+  paymentUrl      String?
+  coversFromFlow  DateTime?     @db.Date
+  months          Int?
+  idempotencyKey  String        @unique
+  failureReason   String?
+  /**
+   * Повторная успешная оплата при уже живой подписке — доступ не выдаётся, нужен возврат
+   */
+  needsRefund     Boolean       @default(false)
+  paidAt          DateTime?
+  refundedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   events PaymentEvent[]
 
@@ -211,31 +218,31 @@ model Payment {
 }
 
 model PaymentEvent {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   provider       String
   paymentId      String?
-  payment        Payment? @relation(fields: [paymentId], references: [id])
-  bodyHash       String   @unique // повторный webhook отсекается
+  payment        Payment?  @relation(fields: [paymentId], references: [id])
+  bodyHash       String    @unique // повторный webhook отсекается
   signatureValid Boolean
   status         String?
   payload        Json
   processedAt    DateTime?
   error          String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 }
 
 model BillingSchedule {
-  id              String       @id @default(uuid())
-  subscriptionId  String
-  subscription    Subscription @relation(fields: [subscriptionId], references: [id])
-  dueDate         DateTime     @db.Date
-  coversFromFlow  DateTime     @db.Date
-  months          Int
-  amount          Int
-  status          String       @default("scheduled") // scheduled | synced | charged | failed | canceled
+  id               String       @id @default(uuid())
+  subscriptionId   String
+  subscription     Subscription @relation(fields: [subscriptionId], references: [id])
+  dueDate          DateTime     @db.Date
+  coversFromFlow   DateTime     @db.Date
+  months           Int
+  amount           Int
+  status           String       @default("scheduled") // scheduled | synced | charged | failed | canceled
   providerSyncedAt DateTime?
-  syncError       String?
-  createdAt       DateTime     @default(now())
+  syncError        String?
+  createdAt        DateTime     @default(now())
 
   @@unique([subscriptionId, coversFromFlow])
 }
@@ -249,21 +256,22 @@ enum FlowStatus {
 }
 
 model Flow {
-  id        String     @id @default(uuid())
-  startsOn  DateTime   @unique @db.Date
-  endsOn    DateTime   @db.Date
-  timezone  String     @default("Europe/Moscow")
-  title     String
-  status    FlowStatus @default(upcoming)
+  id                String     @id @default(uuid())
+  startsOn          DateTime   @unique @db.Date
+  endsOn            DateTime   @db.Date
+  timezone          String     @default("Europe/Moscow")
+  title             String
+  status            FlowStatus @default(upcoming)
   prizePoolOverride Int?
-  finalizedAt DateTime?
-  createdAt DateTime   @default(now())
+  finalizedAt       DateTime?
+  createdAt         DateTime   @default(now())
 
   memberships FlowMembership[]
   chats       TelegramChat[]
   buddyPairs  BuddyPair[]
   leaderboard LeaderboardEntry[]
   candidates  PrizeCandidate[]
+  messages    FeedMessage[]
 }
 
 enum MembershipStatus {
@@ -289,11 +297,11 @@ model FlowMembership {
   finalSubmittedAt DateTime?
   createdAt        DateTime         @default(now())
 
-  goals        Goal[]
-  occurrences  TaskOccurrence[]
-  reports      DailyReport[]
-  beforeAfter  BeforeAfter[]
-  shareCards   ShareCard[]
+  goals       Goal[]
+  occurrences TaskOccurrence[]
+  reports     DailyReport[]
+  beforeAfter BeforeAfter[]
+  shareCards  ShareCard[]
 
   @@unique([userId, flowId])
   @@index([flowId, status])
@@ -402,6 +410,8 @@ model DailyReport {
   status       ReportStatus   @default(accepted)
   rejectReason String?
   late         Boolean        @default(false) // принят через апелляцию
+  /// Фото отчёта: минимум одно на весь отчёт (решение владельца 24.10)
+  mediaIds     String[]       @default([])
   createdAt    DateTime       @default(now())
 
   items      ReportItem[]
@@ -463,30 +473,30 @@ model ReportReaction {
 }
 
 model Complaint {
-  id         String       @id @default(uuid())
-  reporterId BigInt
-  reporter   User         @relation(fields: [reporterId], references: [id])
-  reportId   String?
-  report     DailyReport? @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  id           String       @id @default(uuid())
+  reporterId   BigInt
+  reporter     User         @relation(fields: [reporterId], references: [id])
+  reportId     String?
+  report       DailyReport? @relation(fields: [reportId], references: [id], onDelete: Cascade)
   targetUserId BigInt?
-  kind       String // report | comment | buddy | user
-  reason     String
-  status     String       @default("open") // open | resolved | dismissed
-  resolution String?
-  createdAt  DateTime     @default(now())
+  kind         String // report | comment | buddy | user
+  reason       String
+  status       String       @default("open") // open | resolved | dismissed
+  resolution   String?
+  createdAt    DateTime     @default(now())
 
   @@index([status, createdAt])
 }
 
 model ReportAppeal {
-  id         String      @id @default(uuid())
-  reportId   String
-  report     DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  reason     String
-  status     String      @default("open") // open | approved | rejected
-  decidedBy  String?
-  decision   String?
-  createdAt  DateTime    @default(now())
+  id        String      @id @default(uuid())
+  reportId  String
+  report    DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reason    String
+  status    String      @default("open") // open | approved | rejected
+  decidedBy String?
+  decision  String?
+  createdAt DateTime    @default(now())
 }
 
 model MediaFile {
@@ -518,19 +528,21 @@ model BeforeAfter {
 // ───────────── Рейтинг и призы ─────────────
 
 model LeaderboardEntry {
-  flowId          String
-  flow            Flow     @relation(fields: [flowId], references: [id])
-  userId          BigInt
-  ratio           Float
-  completed       Int
-  scheduled       Int
-  successfulDays  Int
-  missedReports   Int
-  longestStreak   Int
-  currentStreak   Int
-  perfectSoFar    Boolean
-  rank            Int
-  computedAt      DateTime @default(now())
+  flowId         String
+  flow           Flow     @relation(fields: [flowId], references: [id])
+  userId         BigInt
+  ratio          Float
+  completed      Int
+  scheduled      Int
+  successfulDays Int
+  missedReports  Int
+  longestStreak  Int
+  currentStreak  Int
+  perfectSoFar   Boolean
+  /// Дни с отчётом, сданным в свой день — второй критерий сортировки
+  reportDays     Int      @default(0)
+  rank           Int
+  computedAt     DateTime @default(now())
 
   @@id([flowId, userId])
   @@index([flowId, rank])
@@ -544,14 +556,14 @@ enum PrizeStatus {
 }
 
 model PrizeCandidate {
-  id          String      @id @default(uuid())
-  flowId      String
-  flow        Flow        @relation(fields: [flowId], references: [id])
-  userId      BigInt
-  status      PrizeStatus @default(awaiting_review)
-  place       Int?
-  tiebreak    Json        @default("{}")
-  createdAt   DateTime    @default(now())
+  id        String      @id @default(uuid())
+  flowId    String
+  flow      Flow        @relation(fields: [flowId], references: [id])
+  userId    BigInt
+  status    PrizeStatus @default(awaiting_review)
+  place     Int?
+  tiebreak  Json        @default("{}")
+  createdAt DateTime    @default(now())
 
   reviews PrizeReview[]
 
@@ -652,32 +664,32 @@ model ChatMembership {
 }
 
 model Expert {
-  id          String    @id @default(uuid())
+  id          String  @id @default(uuid())
   name        String
   direction   String // money | english | habits | blog | weightloss
   bio         String?
   photoUrl    String?
-  adminUserId String?   @unique
-  active      Boolean   @default(true)
+  adminUserId String? @unique
+  active      Boolean @default(true)
 
   meetings Meeting[]
 }
 
 model Meeting {
-  id           String    @id @default(uuid())
+  id           String   @id @default(uuid())
   expertId     String?
-  expert       Expert?   @relation(fields: [expertId], references: [id])
+  expert       Expert?  @relation(fields: [expertId], references: [id])
   direction    String
   title        String
   description  String?
   startsAt     DateTime
-  durationMin  Int       @default(60)
+  durationMin  Int      @default(60)
   joinUrl      String?
-  status       String    @default("scheduled") // scheduled | done | canceled
+  status       String   @default("scheduled") // scheduled | done | canceled
   nextStep     String?
   expertReport String?
-  stats        Json      @default("{}")
-  createdAt    DateTime  @default(now())
+  stats        Json     @default("{}")
+  createdAt    DateTime @default(now())
 
   attendances Attendance[]
 
@@ -685,13 +697,13 @@ model Meeting {
 }
 
 model Attendance {
-  meetingId       String
-  meeting         Meeting   @relation(fields: [meetingId], references: [id])
-  userId          BigInt
-  user            User      @relation(fields: [userId], references: [id])
-  joinClickedAt   DateTime?
-  attended        Boolean?
-  remindedAt      DateTime?
+  meetingId     String
+  meeting       Meeting   @relation(fields: [meetingId], references: [id])
+  userId        BigInt
+  user          User      @relation(fields: [userId], references: [id])
+  joinClickedAt DateTime?
+  attended      Boolean?
+  remindedAt    DateTime?
 
   @@id([meetingId, userId])
 }
@@ -699,24 +711,24 @@ model Attendance {
 // ───────────── Отзывы, карточки, рефералы ─────────────
 
 model Review {
-  id          String    @id @default(uuid())
-  userId      BigInt
-  user        User      @relation(fields: [userId], references: [id])
-  flowId      String?
-  trigger     String // day14 | final | meeting
-  meetingId   String?
-  rating      Int?
-  emotions    String[]  @default([])
-  changes     String?
-  result      String?
-  metrics     Json      @default("{}")
-  mediaIds    String[]  @default([])
-  allowText   Boolean   @default(false)
-  allowPhoto  Boolean   @default(false)
-  allowName   Boolean   @default(false)
+  id               String    @id @default(uuid())
+  userId           BigInt
+  user             User      @relation(fields: [userId], references: [id])
+  flowId           String?
+  trigger          String // day14 | final | meeting
+  meetingId        String?
+  rating           Int?
+  emotions         String[]  @default([])
+  changes          String?
+  result           String?
+  metrics          Json      @default("{}")
+  mediaIds         String[]  @default([])
+  allowText        Boolean   @default(false)
+  allowPhoto       Boolean   @default(false)
+  allowName        Boolean   @default(false)
   consentRevokedAt DateTime?
-  featured    Boolean   @default(false)
-  createdAt   DateTime  @default(now())
+  featured         Boolean   @default(false)
+  createdAt        DateTime  @default(now())
 
   @@index([trigger, createdAt])
 }
@@ -792,17 +804,17 @@ model ExperimentAssignment {
 // ───────────── Бот ─────────────
 
 model BotMessageTemplate {
-  key           String   @id
-  title         String
-  text          String
-  buttons       Json     @default("[]") // [{text, screen}]
-  enabled       Boolean  @default(false)
-  isMarketing   Boolean  @default(false)
-  delayMinutes  Int      @default(0)
-  capHours      Int      @default(24) // не чаще одного сообщения этого шаблона за N часов
-  priority      Int      @default(50)
-  approved      Boolean  @default(false)
-  updatedAt     DateTime @updatedAt
+  key          String   @id
+  title        String
+  text         String
+  buttons      Json     @default("[]") // [{text, screen}]
+  enabled      Boolean  @default(false)
+  isMarketing  Boolean  @default(false)
+  delayMinutes Int      @default(0)
+  capHours     Int      @default(24) // не чаще одного сообщения этого шаблона за N часов
+  priority     Int      @default(50)
+  approved     Boolean  @default(false)
+  updatedAt    DateTime @updatedAt
 }
 
 model BotMessageLog {
@@ -885,7 +897,25 @@ model UpsellRequest {
 }
 
 model JobRun {
-  key       String   @id // идемпотентный ключ однократной задачи
-  ranAt     DateTime @default(now())
-  result    Json?
+  key    String   @id // идемпотентный ключ однократной задачи
+  ranAt  DateTime @default(now())
+  result Json?
+}
+
+/// Общий чат отчётов потока: отчёты публикуются сюда автоматически, участники переписываются и отвечают на сообщения
+model FeedMessage {
+  id        String        @id @default(uuid())
+  flowId    String
+  flow      Flow          @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  userId    BigInt
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text      String?
+  reportId  String?       @unique
+  replyToId String?
+  replyTo   FeedMessage?  @relation("FeedReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   FeedMessage[] @relation("FeedReply")
+  hidden    Boolean       @default(false)
+  createdAt DateTime      @default(now())
+
+  @@index([flowId, createdAt])
 }
