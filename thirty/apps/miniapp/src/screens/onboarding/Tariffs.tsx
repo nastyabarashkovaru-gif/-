@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronUp, CircleCheck, Clock, HeartHandshake, Lock } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleCheck, Clock, HeartHandshake, Lock, Unlock } from 'lucide-react';
 import { api, rub } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
 import { haptic, openTelegram } from '../../lib/telegram';
@@ -138,6 +138,10 @@ export function Tariffs() {
             </span>
           </button>
         ))}
+      </div>
+      <div className="row" style={{ background: 'var(--green-soft)', color: 'var(--green)', borderRadius: 16, padding: '13px 14px', gap: 10, fontWeight: 600, fontSize: 14, alignItems: 'flex-start' }}>
+        <Unlock size={18} style={{ flexShrink: 0, marginTop: 1 }} />
+        <span>Доступ к полезным материалам, чатам и комьюнити откроется сразу после оплаты</span>
       </div>
       {chosen && (
         <div className="card" style={{ gap: 14 }}>

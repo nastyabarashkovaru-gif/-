@@ -185,6 +185,11 @@ export async function adminRoutes(app: FastifyInstance) {
     });
 
     /** Карточка пользователя: воронка, экраны, клики по тарифам, оплаты, подписка, потоки, отчёты, согласия, модерация */
+    r.post<{ Params: { id: string } }>('/admin-api/users/:id/reset-offer', perm('payments'), async (req) => {
+      const r = await prisma.priceOffer.deleteMany({ where: { userId: BigInt(req.params.id), consumedAt: null } });
+      await audit(req, 'offer.reset', 'user', req.params.id);
+      return { ok: true, removed: r.count };
+    });
     r.post<{ Params: { id: string } }>('/admin-api/users/:id/cancel-subscription', perm('payments'), async (req) => {
       const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(500) }), req.body);
       const r = await cancelAutoRenew(BigInt(req.params.id), `support: ${reason}`);

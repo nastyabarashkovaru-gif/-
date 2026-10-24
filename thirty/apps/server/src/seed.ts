@@ -25,6 +25,16 @@ export async function seed() {
   // Редизайн 25.10: старый состав экрана ценности (без эмодзи) заменяем новым утверждённым
   const value = await prisma.setting.findUnique({ where: { key: 'value.items' } });
   if (value && Array.isArray(value.value) && (value.value as { emoji?: string }[]).every((i) => !i.emoji)) await prisma.setting.delete({ where: { key: 'value.items' } });
+  // Разовый сброс таймеров скидки (OFFER_RESET=<метка>): удаляет неиспользованные окна цены, один раз на метку
+  const reset = process.env.OFFER_RESET;
+  if (reset) {
+    const key = `maintenance.offerReset:${reset}`.slice(0, 120);
+    if (!(await prisma.setting.findUnique({ where: { key } }))) {
+      const r = await prisma.priceOffer.deleteMany({ where: { consumedAt: null } });
+      await prisma.setting.create({ data: { key, value: { at: new Date().toISOString(), removed: r.count } } });
+      console.log(`[seed] таймеры скидки сброшены: ${r.count}`);
+    }
+  }
   await applyProdamusSubscriptionIds();
   await seedTemplates();
   const upsells = [

@@ -7,6 +7,7 @@ import { MeContext, type Me } from './state';
 import { ErrorState, Loading, ToastHost } from './ui';
 import { Welcome, OnboardingStep, AboutScreen } from './screens/onboarding/Onboarding';
 import { Materials } from './screens/onboarding/Materials';
+import { DocScreen } from './screens/onboarding/Docs';
 import { Tariffs } from './screens/onboarding/Tariffs';
 import { Checkout, PaymentWait } from './screens/onboarding/Checkout';
 import { RegProfile, RegFlow, RegTasks, RegBefore, RegBuddy, RegChats, RegWaiting } from './screens/reg/Registration';
@@ -108,6 +109,7 @@ export function App() {
         <Route path="/onboarding/:n" element={<OnboardingStep />} />
         <Route path="/about/:topic/:i" element={<AboutScreen />} />
         <Route path="/materials" element={<Materials />} />
+        <Route path="/docs/:kind" element={<DocScreen />} />
         <Route path="/tariffs" element={<Tariffs />} />
         <Route path="/checkout/:tariff" element={<Checkout />} />
         <Route path="/checkout/wait/:paymentId" element={<PaymentWait />} />

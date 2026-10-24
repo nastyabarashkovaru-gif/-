@@ -323,7 +323,7 @@ const S10 = () => (
 
 const ABOUT: Record<string, (() => ReactNode)[]> = {
   buddy: [S3],
-  chats: [S4, S5],
+  chats: [S5, S4],
   calls: [S6, S7],
   reports: [S8, S9, S10],
 };
@@ -347,7 +347,7 @@ export function Welcome() {
   return (
     <Step n={1} cta="Узнать подробнее">
       <span className="onb-emoji">🚀</span>
-      <h1 className="hero" style={{ fontSize: 27 }}>Вступай в сообщество «30 дней»! 😍</h1>
+      <h1 className="hero" style={{ fontSize: 27 }}>Вступай в сообщество<br /><span className="nowrap">«30 дней»! 😍</span></h1>
       <p className="lead-accent" style={{ color: 'var(--accent)', fontSize: 16 }}>Следующие 30 дней МОГУТ ИЗМЕНИТЬ ВСЁ! 💜</p>
       <div className="col" style={{ gap: 14, margin: '6px 0' }}>
         {([['', 'Выбирай цели, которые давно откладываешь'], ['green', 'Находи единомышленников'], ['peach', 'Общайся, присылай отчёты, забирай призы']] as const).map(([c, t], k) => (
@@ -403,13 +403,13 @@ function Value() {
               <div key={i.id} className="value-row">
                 <span className="value-ic">{i.emoji ?? '✨'}</span>
                 <span className="grow" style={{ fontSize: 16 }}>{i.title}</span>
-                <span className="muted nowrap">{i.priceLabel ?? rub(i.price)}</span>
+                <span className="muted nowrap" style={{ textDecoration: 'line-through' }}>{i.priceLabel ?? rub(i.price)}</span>
               </div>
             ))}
           </div>
           <div className="row between" style={{ padding: '4px 0' }}>
             <span className="h3" style={{ fontSize: 18 }}>Общая ценность</span>
-            <span style={{ fontSize: 26, fontWeight: 700 }}>{rub(data.total)}</span>
+            <span style={{ fontSize: 26, fontWeight: 700, textDecoration: 'line-through' }}>{rub(data.total)}</span>
           </div>
           <div className="row" style={{ background: 'var(--green-soft)', color: 'var(--green)', borderRadius: 16, padding: '14px 16px', gap: 10, alignItems: 'flex-start', fontWeight: 600 }}>
             <CircleCheck size={20} style={{ flexShrink: 0, marginTop: 1 }} />Всё это уже включено в стоимость клуба для наших участников

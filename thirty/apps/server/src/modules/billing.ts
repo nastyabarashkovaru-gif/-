@@ -77,7 +77,8 @@ export async function offerState(userId: bigint) {
 
 // ───────────── Checkout ─────────────
 
-export const REQUIRED_CONSENTS = ['personal_data', 'offer', 'public_reports', 'adult', 'autorenew'] as const;
+/** Перед оплатой — две галочки (решение владельца 25.10): оферта (включает правила клуба, 18+, публичность отчётов, автопродление) и персональные данные */
+export const REQUIRED_CONSENTS = ['personal_data', 'offer'] as const;
 
 /** Детали платежа для экрана S07: какие потоки, когда следующее списание и на какую сумму */
 export async function checkoutPreview(userId: bigint, tariffId: string) {
@@ -96,7 +97,7 @@ export async function checkoutPreview(userId: bigint, tariffId: string) {
     nextCharge: { date: plan.chargeDate, amount: view.price, covers: plan.renewalFlows.map(monthName) },
     text: {
       today: `Сегодня спишем ${view.price.toLocaleString('ru-RU')} ₽ за ${tariff.months === 1 ? 'поток' : `${tariff.months} потока подряд`}: ${plan.flows.map(monthName).join(', ')}.`,
-      renewal: `Автопродление: ${humanDate(plan.chargeDate, true)} спишем ${view.price.toLocaleString('ru-RU')} ₽ за следующие ${tariff.months === 1 ? 'месяц' : `${tariff.months} месяца`} (${plan.renewalFlows.map(monthName).join(', ')}). Отключить можно в профиле в любой момент до этой даты.`,
+      renewal: `Автопродление: ${humanDate(plan.chargeDate, true)} спишем ${view.price.toLocaleString('ru-RU')} ₽ за следующие ${tariff.months === 1 ? 'месяц' : `${tariff.months} ${tariff.months < 5 ? 'месяца' : 'месяцев'}`} (${plan.renewalFlows.map(monthName).join(', ')}). Отключить можно в любой момент до этой даты через поддержку.`,
     },
   };
 }

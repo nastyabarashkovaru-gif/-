@@ -27,8 +27,7 @@ export const DEFAULT_SETTINGS = {
     { id: 'psychologist', emoji: '🧠', title: 'Сессия с психологом', price: 3000, priceLabel: 'от 3 000 ₽', enabled: true },
     { id: 'coach', emoji: '🎯', title: 'Сессия с коучем', price: 3000, priceLabel: 'от 3 000 ₽', enabled: true },
     { id: 'english', emoji: '🇬🇧', title: 'Сессия с репетитором', price: 1500, priceLabel: 'от 1 500 ₽', enabled: true },
-    { id: 'weekly', emoji: '🎥', title: 'Живые еженедельные разборы', price: 3000, enabled: true },
-    { id: 'blog', emoji: '📚', title: 'Обучение по блогу', price: 15000, enabled: true },
+    { id: 'blog', emoji: '📚', title: 'Обучение по блогингу и заработку с блога', price: 19000, enabled: true },
     { id: 'planners', emoji: '📅', title: 'Планнеры и трекеры', price: 3999, enabled: true },
     { id: 'products', emoji: '🥑', title: 'Продуктовая корзина для похудения', price: 1500, enabled: true },
   ] as ValueItem[],
@@ -41,6 +40,8 @@ export const DEFAULT_SETTINGS = {
     selfdev: { evidence: 'checkbox', photoRequired: false, selfReported: true, note: 'Отметка о выполнении.' },
   } as EvidencePolicy,
   'support.username': 'barashkova_a',
+  /** Реквизиты для оферты и политики: ФИО/наименование, ИНН, ОГРНИП, e-mail */
+  'legal.seller': 'Исполнитель: [ФИО индивидуального предпринимателя или самозанятого], ИНН [—], ОГРНИП [—], e-mail [—]',
   'chats.inviteTtlHours': 72,
   'minAge': 18,
   'features': {

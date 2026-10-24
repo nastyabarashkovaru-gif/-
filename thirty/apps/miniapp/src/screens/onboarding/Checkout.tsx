@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CalendarDays, CalendarHeart, CircleCheck, CircleX, Clock, RefreshCw } from 'lucide-react';
 import { api, rub } from '../../lib/api';
@@ -17,13 +17,20 @@ interface Preview {
   text: { today: string; renewal: string };
 }
 
-const CONSENTS: { kind: string; label: string }[] = [
-  { kind: 'offer', label: 'Принимаю публичную оферту и правила клуба, включая правила приза' },
-  { kind: 'personal_data', label: 'Согласен(на) на обработку персональных данных' },
-  { kind: 'public_reports', label: 'Понимаю, что мои ежедневные отчёты будут видны участникам клуба' },
-  { kind: 'adult', label: 'Мне есть 18 лет' },
-  { kind: 'autorenew', label: 'Согласен(на) на автопродление на условиях выше; отключить можно в профиле' },
+const CONSENTS: { kind: string; label: ReactNode }[] = [
+  { kind: 'offer', label: <>Принимаю условия <a href="/docs/offer" onClick={docLink('/docs/offer')}>публичной оферты</a>, включая автопродление</> },
+  { kind: 'personal_data', label: <>Даю согласие на обработку <a href="/docs/privacy" onClick={docLink('/docs/privacy')}>персональных данных</a></> },
 ];
+
+/** Ссылка на документ внутри приложения (без перезагрузки и без внешнего браузера) */
+let docNav: ((to: string) => void) | null = null;
+function docLink(to: string) {
+  return (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    docNav?.(to);
+  };
+}
 
 /** S07: детали платежа — что спишем сегодня, когда и сколько спишем в следующий раз, согласия */
 export function Checkout() {
@@ -35,6 +42,7 @@ export function Checkout() {
   const [busy, setBusy] = useState(false);
   const [key] = useState(() => crypto.randomUUID());
   const all = CONSENTS.every((c) => checked.has(c.kind));
+  docNav = nav;
 
   useEffect(() => {
     void api('/api/me/screen', { body: { screen: `/checkout/${tariff}`, stage: 'checkout' } }).catch(() => undefined);

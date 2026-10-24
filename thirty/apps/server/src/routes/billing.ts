@@ -13,6 +13,8 @@ import {
   cancelAutoRenew, checkoutPreview, createCheckout, createDebtPayment, handleWebhook, offerState, resumeAutoRenew, startOffer, subscriptionSummary,
 } from '../modules/billing';
 
+import { offerDoc, privacyDoc } from '../legal/docs';
+
 export async function billingRoutes(app: FastifyInstance) {
   app.register(async (r) => {
     r.addHook('preHandler', requireUser);
@@ -68,6 +70,14 @@ export async function billingRoutes(app: FastifyInstance) {
       await track({ userId: req.user!.id, eventName: 'cancel_step_view', screenId: `S3${5 + step}`, tariffId: sub?.tariffId, metadata: { step, ...(reason ? { reason } : {}) } });
       return { ok: true };
     });
+  });
+
+  /** Документы: оферта и политика ПДн (открыты без авторизации) */
+  app.get<{ Params: { kind: string } }>('/api/public/docs/:kind', async (req) => {
+    if (req.params.kind !== 'offer' && req.params.kind !== 'privacy') throw notFound();
+    const support = `@${await getSetting('support.username')}`;
+    const text = (req.params.kind === 'offer' ? offerDoc : privacyDoc).replaceAll('{{seller}}', await getSetting('legal.seller')).replaceAll('{{support}}', support);
+    return { text };
   });
 
   /** Webhook Prodamus: подпись в заголовке Sign. Ответ 200 даже на дубликат — иначе провайдер будет повторять. */
