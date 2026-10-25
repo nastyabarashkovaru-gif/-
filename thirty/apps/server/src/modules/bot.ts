@@ -63,7 +63,6 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
   const short = id.replace(/-/g, '');
   const buttons = (tpl.buttons as { text: string; screen: string }[]).map((b) => [openAppButton(b.text, `m_${short}_${b.screen}`)]);
   let text = render(tpl.text, vars);
-  if (tpl.isMarketing) text += '\n\nОтписаться от напоминаний: /stop';
   try {
     const markup = buttons.length ? { inline_keyboard: buttons } : undefined;
     const image = tpl.imageUrl ? tpl.imageUrl.replace('{public_url}', config.PUBLIC_URL.replace(/\/$/, '')) : null;
@@ -165,16 +164,16 @@ export async function handleUpdate(update: TgUpdate) {
     // Напоминания включены по умолчанию, пока человек сам не отписался командой /stop
     const unsubscribed = await prisma.consent.findFirst({ where: { userId, kind: 'marketing_messages', revokedAt: { not: null } } });
     if (existed && !existed.marketingOptIn && !unsubscribed) await prisma.user.update({ where: { id: userId }, data: { marketingOptIn: true } });
-    const safe = payload && /^[A-Za-z0-9_-]{1,64}$/.test(payload) ? payload : undefined;
+    const safe = payload && payload !== 'hello' && /^[A-Za-z0-9_-]{1,64}$/.test(payload) ? payload : undefined;
     const tpl = await prisma.botMessageTemplate.findUnique({ where: { key: 'welcome' } });
     const button = (tpl?.buttons as { text: string }[] | undefined)?.[0]?.text ?? WELCOME_BUTTON;
-    // Сообщение 1 — один раз; при повторном /start только кнопка входа
-    let first = true;
+    // Сообщение 1 — один раз; при повторном /start только кнопка входа. Ссылка ?start=hello всегда показывает приветствие
+    let first = payload === 'hello';
     try {
       await prisma.botMessageLog.create({ data: { userId, templateKey: 'welcome', dedupeKey: `welcome:${userId}`, status: 'sent', sentAt: clock.now() } });
+      first = true;
     } catch (e) {
       if (!isUniqueViolation(e)) throw e;
-      first = false;
     }
     await tg('sendMessage', {
       chat_id: msg.chat.id,

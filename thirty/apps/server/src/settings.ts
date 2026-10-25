@@ -63,7 +63,7 @@ export const DEFAULT_SETTINGS = {
     chain_prepurchase: true,
   } as Record<string, boolean>,
   /** Instagram-аккаунт для отметки в сторис (без @) */
-  'instagram.account': 'barashkova_a',
+  'instagram.account': 'barashkova.aa',
   /** Сколько дней действует персональный промокод за сторис */
   'promo.personalDays': 3,
   /** «Полезные материалы»: одна ссылка на канал для всех карточек (можно поменять в админке: Настройки → materials) */

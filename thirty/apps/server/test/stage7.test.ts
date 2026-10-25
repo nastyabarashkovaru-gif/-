@@ -8,8 +8,11 @@ import { decideStoryRequest } from '../src/modules/stories';
 import { paymentProvider, setPaymentProvider } from '../src/payments';
 import { MockProvider, signMock } from '../src/payments/mock';
 import { handleWebhook } from '../src/modules/billing';
+import { adminBotLinkCode, adminBotSecret, setAdminBotTransport } from '../src/modules/adminBot';
+import { config } from '../src/config';
 
 let calls: { method: string; body: Record<string, any> }[] = [];
+let adminCalls: { method: string; body: Record<string, any> }[] = [];
 const sent = () => calls.filter((c) => c.method === 'sendMessage' || c.method === 'sendPhoto').map((c) => String(c.body.text ?? c.body.caption ?? '').replace(/[\u00a0\u202f]/g, ' '));
 
 beforeEach(async () => {
@@ -18,6 +21,12 @@ beforeEach(async () => {
   await seedPromos();
   setPaymentProvider(new MockProvider());
   calls = [];
+  adminCalls = [];
+  config.ADMIN_BOT_TOKEN = '1:ADMIN_TEST';
+  setAdminBotTransport(async (method, body) => {
+    adminCalls.push({ method, body });
+    return { message_id: 1 } as never;
+  });
   setTelegramTransport(async (method, body) => {
     calls.push({ method, body });
     return { message_id: 1 } as never;
@@ -45,6 +54,9 @@ describe('дожимная цепочка до оплаты', () => {
     await start(300);
     expect(sent()[0]).toContain('На связи Настя');
     expect(sent()[1]).toBe('Жми кнопку ниже, чтобы открыть приложение 👇');
+    const app0 = await getApp();
+    await app0.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { message: { message_id: 3, chat: { id: 300, type: 'private' }, from: { id: 300 }, text: '/start hello' } } });
+    expect(sent()[2]).toContain('На связи Настя');
     expect((await prisma.user.findUniqueOrThrow({ where: { id: 300n } })).marketingOptIn).toBe(true);
     calls = [];
 
@@ -136,6 +148,24 @@ describe('дожимная цепочка до оплаты', () => {
     const req = await api('POST', '/api/story-requests', 500, { instagram: '@anya.fit' });
     expect(req.body.request).toMatchObject({ status: 'pending', instagram: 'anya.fit' });
     expect((await api('POST', '/api/story-requests', 500, { instagram: 'anya.fit' })).body.code).toBe('story_pending');
+    // владелец получает заявку в служебном боте (подписка по секретной ссылке) и одной кнопкой высылает промокод
+    expect(adminCalls).toHaveLength(0); // никто не подписан
+    const admin = await getApp();
+    const hook = (payload: object) => admin.inject({ method: 'POST', url: '/api/telegram/admin-webhook', headers: { 'x-telegram-bot-api-secret-token': adminBotSecret() }, payload });
+    expect((await admin.inject({ method: 'POST', url: '/api/telegram/admin-webhook', payload: {} })).statusCode).toBe(401);
+    await hook({ message: { chat: { id: 77, type: 'private' }, text: '/start wrong' } });
+    await hook({ message: { chat: { id: 77, type: 'private' }, text: `/start ${adminBotLinkCode()}` } });
+    const req2 = await api('POST', '/api/story-requests', 501, { instagram: 'masha' });
+    const adminCard = adminCalls.find((c) => c.method === 'sendMessage' && String(c.body.text).includes('@masha'))!;
+    expect(adminCard.body.chat_id).toBe(77);
+    expect(adminCard.body.reply_markup.inline_keyboard[0][0]).toMatchObject({ text: '✅ Выслать промокод', callback_data: `sa:${req2.body.request.id}` });
+    await hook({ callback_query: { id: 'q0', from: { id: 99 }, data: `sa:${req2.body.request.id}`, message: { chat: { id: 99 }, message_id: 5 } } }); // чужой чат
+    expect((await api('GET', '/api/story-requests/mine', 501)).body.request.status).toBe('pending');
+    await hook({ callback_query: { id: 'q1', from: { id: 77 }, data: `sa:${req2.body.request.id}`, message: { chat: { id: 77 }, message_id: 5, text: 'заявка' } } });
+    const mine2 = (await api('GET', '/api/story-requests/mine', 501)).body.request;
+    expect(mine2.status).toBe('approved');
+    expect(sent().at(-1)).toContain(mine2.promo.code);
+    expect(adminCalls.find((c) => c.method === 'editMessageText')!.body.text).toContain('отправлен');
     const { code } = await decideStoryRequest(req.body.request.id, 'approve', 'owner');
     expect(code).toMatch(/^ВЕРНИ\d{5}$/);
     expect(sent().at(-1)).toContain(code);

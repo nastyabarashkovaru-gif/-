@@ -5,6 +5,7 @@ import { prisma } from './db';
 import { seed } from './seed';
 import { startScheduler } from './jobs/scheduler';
 import { setupBot } from './lib/botSetup';
+import { setupAdminBot } from './modules/adminBot';
 
 async function main() {
   // Только для локального просмотра экранов: «сейчас» = DEV_FAKE_NOW
@@ -13,6 +14,7 @@ async function main() {
   const app = await buildApp({ logger: true });
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   await setupBot();
+  await setupAdminBot();
   if (config.SCHEDULER) startScheduler();
   const stop = async () => {
     await app.close();

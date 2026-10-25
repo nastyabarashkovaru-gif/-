@@ -75,7 +75,7 @@ describe('бот', () => {
     expect(await sendTemplate(200n, 'nudge_tariffs_no_select', {}, 'k4')).toBe('skipped'); // лимит частоты
     const sent = calls.filter((c) => c.method === 'sendMessage');
     expect(sent).toHaveLength(1);
-    expect(sent[0].body.text).toContain('/stop');
+    expect(sent[0].body.text).not.toContain('/stop');
     const log = await prisma.botMessageLog.findFirstOrThrow({ where: { status: 'sent' } });
     // клик по кнопке → bot_message_click
     const short = log.id.replace(/-/g, '');

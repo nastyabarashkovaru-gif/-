@@ -24,6 +24,7 @@ function cardSig(id: string) {
   return createHmac('sha256', config.MEDIA_SIGNING_SECRET).update(`card:${id}`).digest('hex').slice(0, 24);
 }
 
+import { adminBotSecret, handleAdminUpdate } from '../modules/adminBot';
 import { chatMessageInput, listChat, postChat } from '../modules/feedChat';
 import { listNotifications, markRead, unreadCount } from '../modules/notifications';
 
@@ -224,6 +225,15 @@ export async function socialRoutes(app: FastifyInstance) {
   });
 
   /** Webhook бота: проверка секретного заголовка */
+  app.post('/api/telegram/admin-webhook', async (req, reply) => {
+    if (!config.ADMIN_BOT_TOKEN || req.headers['x-telegram-bot-api-secret-token'] !== adminBotSecret()) return reply.status(401).send();
+    try {
+      await handleAdminUpdate(req.body as never);
+    } catch (e) {
+      req.log.error(e as Error);
+    }
+    return reply.send({ ok: true });
+  });
   app.post('/api/telegram/webhook', async (req, reply) => {
     if (req.headers['x-telegram-bot-api-secret-token'] !== webhookSecret) return reply.status(401).send();
     try {

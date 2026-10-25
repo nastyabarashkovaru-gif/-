@@ -3,6 +3,7 @@ import { clock } from '../clock';
 import { prisma } from '../db';
 import { conflict, notFound } from '../http';
 import { notify } from './notify';
+import { notifyStoryRequest } from './adminBot';
 import { hasPaid, issuePersonalPromo } from './promos';
 
 /** «Вернуть скидку»: участник выкладывает карточку в сторис и отправляет заявку; модератор проверяет и выдаёт персональный промокод */
@@ -30,7 +31,8 @@ export async function submitStoryRequest(userId: bigint, input: z.infer<typeof s
   const open = await prisma.storyRequest.findFirst({ where: { userId, status: { in: ['pending', 'approved'] } } });
   if (open?.status === 'pending') throw conflict('story_pending', 'Заявка уже на проверке');
   if (open?.status === 'approved') throw conflict('story_approved', 'Промокод уже выдан');
-  await prisma.storyRequest.create({ data: { userId, instagram: input.instagram.replace(/^@/, ''), createdAt: clock.now() } });
+  const created = await prisma.storyRequest.create({ data: { userId, instagram: input.instagram.replace(/^@/, ''), createdAt: clock.now() } });
+  await notifyStoryRequest(created.id).catch((e) => console.error('[admin-bot]', (e as Error).message));
   return myStoryRequest(userId);
 }
 

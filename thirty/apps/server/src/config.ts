@@ -13,6 +13,8 @@ const schema = z.object({
   PUBLIC_URL: z.string().default(''),
   BOT_TOKEN: z.string().default(''),
   BOT_USERNAME: z.string().default(''),
+  /** Отдельный бот для владельца: уведомления о сторис с кнопкой «Выслать промокод» */
+  ADMIN_BOT_TOKEN: z.string().default(''),
   /** Короткое имя Mini App из BotFather (/newapp) для ссылок t.me/<bot>/<app>?startapp= */
   APP_SHORT_NAME: z.string().default('app'),
   INIT_DATA_MAX_AGE_SEC: z.coerce.number().default(24 * 3600),
