@@ -266,7 +266,7 @@ export async function adminRoutes(app: FastifyInstance) {
     r.get<{ Querystring: { status?: string } }>('/admin-api/story-requests', perm('moderation'), async (req) => {
       const rows = await prisma.storyRequest.findMany({ where: { status: req.query.status || 'pending' }, orderBy: { createdAt: 'desc' }, take: 200 });
       const users = await prisma.user.findMany({ where: { id: { in: rows.map((r) => r.userId) } } });
-      return jsonSafe(rows.map((r) => ({ ...r, name: displayName(users.find((u) => u.id === r.userId)!) })));
+      return jsonSafe(rows.map((r) => ({ ...r, name: displayName(users.find((u) => u.id === r.userId)!), screenshot: r.mediaId ? signedMediaUrl(r.mediaId) : null })));
     });
     r.post<{ Params: { id: string } }>('/admin-api/story-requests/:id', perm('moderation'), async (req) => {
       const { decision, reason } = parse(z.object({ decision: z.enum(['approve', 'reject']), reason: z.string().trim().min(3).max(300).optional() }), req.body);

@@ -27,6 +27,13 @@ export async function seedTemplates() {
     }
     await prisma.setting.create({ data: { key: v2, value: { at: new Date().toISOString() } } });
   }
+  // Разово (25.10): из сообщения 11 убрана фраза про «первые три часа»
+  const v3 = 'maintenance.chainV3';
+  if (!(await prisma.setting.findUnique({ where: { key: v3 } }))) {
+    const t11 = await prisma.botMessageTemplate.findUnique({ where: { key: 'chain_11' } });
+    if (t11) await prisma.botMessageTemplate.update({ where: { key: 'chain_11' }, data: { text: t11.text.replace(/\n*Это те же цены, которые были доступны тебе в первые три часа после знакомства с клубом\./, '') } });
+    await prisma.setting.create({ data: { key: v3, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { config } from '../config';
 import { prisma } from '../db';
+import { signedMediaUrl } from '../lib/storage';
 import { decideStoryRequest } from './stories';
 import { displayName } from './users';
 
@@ -58,24 +59,22 @@ export async function notifyStoryRequest(requestId: string) {
     '📸 <b>Новая сторис на проверку</b>',
     '',
     `Участник: ${esc(u ? displayName(u) : String(r.userId))}${u?.username ? ` (@${esc(u.username)})` : ''}`,
-    `Instagram: <a href="https://instagram.com/${esc(r.instagram)}">@${esc(r.instagram)}</a>`,
+    ...(r.instagram ? [`Instagram: <a href="https://instagram.com/${esc(r.instagram)}">@${esc(r.instagram)}</a>`] : []),
     '',
-    'Проверь, что сторис с карточкой опубликована и твой аккаунт отмечен.',
+    r.mediaId ? 'На скриншоте — сторис участника. Проверь, что карточка опубликована и твой аккаунт отмечен.' : 'Проверь, что сторис с карточкой опубликована и твой аккаунт отмечен.',
   ].join('\n');
+  const reply_markup = { inline_keyboard: [[{ text: '✅ Выслать промокод', callback_data: `sa:${r.id}` }], [{ text: '❌ Отклонить', callback_data: `sr:${r.id}` }]] };
+  // Скриншот Telegram забирает по подписанной ссылке (живёт сутки)
+  const photo = r.mediaId && config.PUBLIC_URL ? `${config.PUBLIC_URL}${signedMediaUrl(r.mediaId, 24 * 3600)}` : null;
   for (const chatId of await subscribers()) {
-    await call('sendMessage', {
-      chat_id: chatId,
-      text,
-      parse_mode: 'HTML',
-      disable_web_page_preview: true,
-      reply_markup: { inline_keyboard: [[{ text: '✅ Выслать промокод', callback_data: `sa:${r.id}` }], [{ text: '❌ Отклонить', callback_data: `sr:${r.id}` }]] },
-    }).catch((e) => console.error('[admin-bot]', (e as Error).message));
+    const sent = photo ? await call('sendPhoto', { chat_id: chatId, photo, caption: text, parse_mode: 'HTML', reply_markup }).then(() => true, (e) => (console.error('[admin-bot] photo', (e as Error).message), false)) : false;
+    if (!sent) await call('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup }).catch((e) => console.error('[admin-bot]', (e as Error).message));
   }
 }
 
 interface Update {
   message?: { chat: { id: number; type: string }; text?: string };
-  callback_query?: { id: string; from: { id: number; username?: string }; data?: string; message?: { chat: { id: number }; message_id: number; text?: string } };
+  callback_query?: { id: string; from: { id: number; username?: string }; data?: string; message?: { chat: { id: number }; message_id: number; text?: string; caption?: string; photo?: unknown[] } };
 }
 
 export async function handleAdminUpdate(u: Update) {
@@ -111,7 +110,8 @@ export async function handleAdminUpdate(u: Update) {
     result = `Уже обработано: ${(e as Error).message}`;
   }
   await call('answerCallbackQuery', { callback_query_id: q.id, text: result.slice(0, 190) });
-  await call('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: `${q.message.text ?? ''}\n\n${result}`, disable_web_page_preview: true }).catch(() => undefined);
+  if (q.message.photo) await call('editMessageCaption', { chat_id: q.message.chat.id, message_id: q.message.message_id, caption: `${q.message.caption ?? ''}\n\n${result}` }).catch(() => undefined);
+  else await call('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: `${q.message.text ?? ''}\n\n${result}`, disable_web_page_preview: true }).catch(() => undefined);
 }
 
 export async function setupAdminBot() {

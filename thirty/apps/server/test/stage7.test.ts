@@ -144,10 +144,14 @@ describe('дожимная цепочка до оплаты', () => {
     const card = await (await getApp()).inject({ method: 'GET', url: '/api/public/story-card.png' });
     expect(card.statusCode).toBe(200);
     expect(card.headers['content-type']).toBe('image/png');
-    expect((await api('POST', '/api/story-requests', 500, { instagram: 'not a nick!' })).status).toBe(400);
-    const req = await api('POST', '/api/story-requests', 500, { instagram: '@anya.fit' });
+    const shot = async (ownerId: number) => (await prisma.mediaFile.create({ data: { ownerId: BigInt(ownerId), storageKey: `media/test-${ownerId}.jpg`, mime: 'image/jpeg', size: 1 } })).id;
+    const shot500 = await shot(500);
+    expect((await api('POST', '/api/story-requests', 500, { instagram: 'anya.fit' })).status).toBe(400); // без скриншота нельзя
+    expect((await api('POST', '/api/story-requests', 500, { mediaId: shot500, instagram: 'not a nick!' })).status).toBe(400);
+    expect((await api('POST', '/api/story-requests', 501, { mediaId: shot500 })).body.code).toBe('media_not_found'); // чужой файл
+    const req = await api('POST', '/api/story-requests', 500, { mediaId: shot500, instagram: '@anya.fit' });
     expect(req.body.request).toMatchObject({ status: 'pending', instagram: 'anya.fit' });
-    expect((await api('POST', '/api/story-requests', 500, { instagram: 'anya.fit' })).body.code).toBe('story_pending');
+    expect((await api('POST', '/api/story-requests', 500, { mediaId: shot500 })).body.code).toBe('story_pending');
     // владелец получает заявку в служебном боте (подписка по секретной ссылке) и одной кнопкой высылает промокод
     expect(adminCalls).toHaveLength(0); // никто не подписан
     const admin = await getApp();
@@ -155,17 +159,18 @@ describe('дожимная цепочка до оплаты', () => {
     expect((await admin.inject({ method: 'POST', url: '/api/telegram/admin-webhook', payload: {} })).statusCode).toBe(401);
     await hook({ message: { chat: { id: 77, type: 'private' }, text: '/start wrong' } });
     await hook({ message: { chat: { id: 77, type: 'private' }, text: `/start ${adminBotLinkCode()}` } });
-    const req2 = await api('POST', '/api/story-requests', 501, { instagram: 'masha' });
-    const adminCard = adminCalls.find((c) => c.method === 'sendMessage' && String(c.body.text).includes('@masha'))!;
+    const req2 = await api('POST', '/api/story-requests', 501, { mediaId: await shot(501), instagram: 'masha' });
+    const adminCard = adminCalls.find((c) => c.method === 'sendPhoto' && String(c.body.caption).includes('@masha'))!;
+    expect(adminCard.body.photo).toMatch(/\/api\/media\/.+sig=/);
     expect(adminCard.body.chat_id).toBe(77);
     expect(adminCard.body.reply_markup.inline_keyboard[0][0]).toMatchObject({ text: '✅ Выслать промокод', callback_data: `sa:${req2.body.request.id}` });
     await hook({ callback_query: { id: 'q0', from: { id: 99 }, data: `sa:${req2.body.request.id}`, message: { chat: { id: 99 }, message_id: 5 } } }); // чужой чат
     expect((await api('GET', '/api/story-requests/mine', 501)).body.request.status).toBe('pending');
-    await hook({ callback_query: { id: 'q1', from: { id: 77 }, data: `sa:${req2.body.request.id}`, message: { chat: { id: 77 }, message_id: 5, text: 'заявка' } } });
+    await hook({ callback_query: { id: 'q1', from: { id: 77 }, data: `sa:${req2.body.request.id}`, message: { chat: { id: 77 }, message_id: 5, caption: 'заявка', photo: [{}] } } });
     const mine2 = (await api('GET', '/api/story-requests/mine', 501)).body.request;
     expect(mine2.status).toBe('approved');
     expect(sent().at(-1)).toContain(mine2.promo.code);
-    expect(adminCalls.find((c) => c.method === 'editMessageText')!.body.text).toContain('отправлен');
+    expect(adminCalls.find((c) => c.method === 'editMessageCaption')!.body.caption).toContain('отправлен');
     const { code } = await decideStoryRequest(req.body.request.id, 'approve', 'owner');
     expect(code).toMatch(/^ВЕРНИ\d{5}$/);
     expect(sent().at(-1)).toContain(code);

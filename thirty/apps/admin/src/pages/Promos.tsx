@@ -73,15 +73,16 @@ function Stories() {
   return (
     <div className="card">
       <h2>Заявки «Вернуть скидку» (сторис)</h2>
-      <p className="muted">Проверьте в Instagram, что человек выложил карточку и отметил аккаунт. «Засчитать» создаёт персональный одноразовый промокод и отправляет его в бот.</p>
+      <p className="muted">Проверьте по скриншоту (и в Instagram, если указан ник), что человек выложил карточку и отметил аккаунт. «Засчитать» создаёт персональный одноразовый промокод и отправляет его в бот.</p>
       <div className="row"><label className="f">Статус<select value={status} onChange={(e) => setStatus(e.target.value)}><option value="pending">На проверке</option><option value="approved">Засчитаны</option><option value="rejected">Отклонены</option></select></label></div>
       <View s={s}>{(rows: any[]) => rows.length === 0 ? <div className="muted">Заявок нет</div> : (
-        <table><thead><tr><th>Когда</th><th>Пользователь</th><th>Instagram</th><th>Решение</th></tr></thead>
+        <table><thead><tr><th>Когда</th><th>Пользователь</th><th>Скриншот</th><th>Instagram</th><th>Решение</th></tr></thead>
           <tbody>{rows.map((r) => (
             <tr key={r.id}>
               <td>{dt(r.createdAt)}</td>
               <td><Link to={`/users/${r.userId}`}>{r.name}</Link></td>
-              <td><a href={`https://instagram.com/${r.instagram}`} target="_blank" rel="noreferrer">@{r.instagram}</a></td>
+              <td>{r.screenshot ? <a href={r.screenshot} target="_blank" rel="noreferrer"><img src={r.screenshot} alt="Скриншот сторис" style={{ width: 60, borderRadius: 6 }} /></a> : '—'}</td>
+              <td>{r.instagram ? <a href={`https://instagram.com/${r.instagram}`} target="_blank" rel="noreferrer">@{r.instagram}</a> : '—'}</td>
               <td>{r.status === 'pending' ? (
                 <>
                   <button className="btn" onClick={async () => { if (await act(() => api(`/admin-api/story-requests/${r.id}`, { body: { decision: 'approve' } }))) s.reload(); }}>Засчитать</button>

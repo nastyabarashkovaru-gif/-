@@ -33,6 +33,7 @@ export async function resetAsNonBuyer(userId: bigint) {
     prisma.payment.updateMany({ where: { userId, status: 'paid' }, data: { status: 'refunded' } }),
     prisma.priceOffer.deleteMany({ where: { userId } }),
     prisma.promoRedemption.deleteMany({ where: { userId } }),
+    prisma.storyRequest.deleteMany({ where: { userId } }),
     prisma.botMessageLog.deleteMany({ where: { userId, OR: [{ templateKey: 'welcome' }, { templateKey: { startsWith: 'chain_' } }] } }),
     prisma.user.update({ where: { id: userId }, data: { onboardingStage: 'new', lastScreen: null, marketingOptIn: true } }),
   ]);

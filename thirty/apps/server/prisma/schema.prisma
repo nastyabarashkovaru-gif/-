@@ -998,6 +998,7 @@ model StoryRequest {
   id        String    @id @default(uuid())
   userId    BigInt
   instagram String
+  mediaId   String? // скриншот опубликованной сторис
   status    String    @default("pending") // pending | approved | rejected
   reason    String?
   promoId   String?

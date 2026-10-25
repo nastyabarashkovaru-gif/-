@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, Gift, Instagram, Clock, CircleCheck, CircleX, Copy } from 'lucide-react';
-import { api } from '../../lib/api';
+import { Download, Gift, Instagram, Clock, CircleCheck, CircleX, Copy, ImagePlus, X } from 'lucide-react';
+import { api, uploadImage } from '../../lib/api';
 import { downloadImage, haptic } from '../../lib/telegram';
 import { BrandBar, Cta, ErrorState, Loading, Screen, errorText, toast, useLoad } from '../../ui';
 
@@ -13,6 +13,9 @@ export function RestoreDiscount() {
   const card = useLoad(() => api<{ account: string; imageUrl: string }>('/api/story-card'));
   const mine = useLoad(() => api<{ request: Req | null }>('/api/story-requests/mine'));
   const [ig, setIg] = useState('');
+  const [posted, setPosted] = useState(false);
+  const [shot, setShot] = useState<{ id: string; url: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     void api('/api/me/screen', { body: { screen: '/restore' } }).catch(() => undefined);
@@ -22,7 +25,7 @@ export function RestoreDiscount() {
   const submit = async () => {
     setBusy(true);
     try {
-      await api('/api/story-requests', { body: { instagram: ig.trim() } });
+      await api('/api/story-requests', { body: { mediaId: shot!.id, instagram: ig.trim() } });
       haptic('success');
       mine.reload();
     } catch (e) {
@@ -56,8 +59,8 @@ export function RestoreDiscount() {
       ) : r?.status === 'pending' ? (
         <div className="panel" style={{ gap: 6, padding: 16, alignItems: 'center', textAlign: 'center' }}>
           <Clock size={24} color="var(--accent)" />
-          <div style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>Сторис на проверке</div>
-          <div className="muted small">Мы проверим публикацию @{r.instagram} и пришлём промокод в бот.</div>
+          <div style={{ color: 'var(--accent-ink)', fontWeight: 600, fontSize: 17 }}>Хорошо! Мы проверим и пришлём тебе скидку на вступление в бот 💜</div>
+          <div className="muted small">Обычно проверка занимает немного времени.</div>
         </div>
       ) : (
         <>
@@ -73,11 +76,30 @@ export function RestoreDiscount() {
           <img src={card.data!.imageUrl} alt="Карточка «Я иду на челлендж 30 дней»" style={{ width: '62%', alignSelf: 'center', borderRadius: 18, boxShadow: '0 6px 24px rgba(33,28,53,.12)' }} />
           <button className="btn btn-secondary" onClick={() => downloadImage(card.data!.imageUrl, '30-dney-story.png')}><Download size={18} />Скачать карточку</button>
           {r?.status === 'rejected' && <div className="banner err"><CircleX size={15} style={{ verticalAlign: -3 }} /> Прошлая заявка не прошла проверку{r.reason ? `: ${r.reason}` : ''}. Можно отправить ещё раз.</div>}
-          <div className="card" style={{ gap: 10 }}>
-            <span className="row h3" style={{ gap: 8 }}><Instagram size={18} color="var(--accent)" />Выложила сторис?</span>
-            <input className="input" placeholder="Твой ник в Instagram, например @nastya" value={ig} maxLength={60} onChange={(e) => setIg(e.target.value)} />
-            <Cta disabled={busy || ig.trim().length < 2} onClick={submit}>Отправить на проверку</Cta>
-          </div>
+          {!posted ? (
+            <Cta onClick={() => setPosted(true)}>Я выложила сторис ✅</Cta>
+          ) : (
+            <div className="card" style={{ gap: 10 }}>
+              <span className="row h3" style={{ gap: 8 }}><Instagram size={18} color="var(--accent)" />Прикрепи скриншот сторис</span>
+              <span className="muted small">Чтобы мы увидели карточку и отметку аккаунта.</span>
+              {shot ? (
+                <div className="photo-grid"><div style={{ position: 'relative' }}><img src={shot.url} alt="Скриншот сторис" /><button className="photo-x" aria-label="Убрать скриншот" onClick={() => setShot(null)}><X size={13} /></button></div></div>
+              ) : (
+                <label className="btn btn-secondary" style={{ minHeight: 48 }}>
+                  <ImagePlus size={18} />{uploading ? 'Загружаем…' : 'Прикрепить скриншот'}
+                  <input type="file" accept="image/*" hidden disabled={uploading} onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!f) return;
+                    setUploading(true);
+                    try { setShot(await uploadImage(f)); } catch (x) { toast(errorText(x)); } finally { setUploading(false); }
+                  }} />
+                </label>
+              )}
+              <input className="input" placeholder="Ник в Instagram (необязательно)" value={ig} maxLength={60} onChange={(e) => setIg(e.target.value)} />
+              <Cta disabled={busy || !shot} onClick={submit}>Отправить на проверку</Cta>
+            </div>
+          )}
         </>
       )}
       <button className="link-btn" onClick={() => nav('/tariffs')}>Посмотреть тарифы</button>
