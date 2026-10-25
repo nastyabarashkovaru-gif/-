@@ -351,10 +351,10 @@ export function Welcome() {
       <p className="lead-accent" style={{ color: 'var(--accent)', fontSize: 16 }}>Следующие 30 дней МОГУТ ИЗМЕНИТЬ ВСЁ!</p>
       <div className="col" style={{ gap: 14, margin: '6px 0' }}>
         {([['', 'Выбирай цели, которые давно откладываешь'], ['green', 'Находи единомышленников'], ['peach', 'Общайся, присылай отчёты, забирай призы']] as const).map(([c, t], k) => (
-          <div key={t} className="row" style={{ gap: 14, alignItems: 'flex-start' }}>
+          <div key={t} className="row" style={{ gap: 14, alignItems: k === 0 ? 'flex-start' : 'center' }}>
             <span className={`num-sq ${c}`}>{k + 1}</span>
-            {/* Первая строка текста — по центру квадрата с номером, остальные ниже */}
-            <span style={{ fontSize: 17, lineHeight: '24px', paddingTop: 10 }}>{k === 0 && <b style={{ color: 'var(--accent)' }}>Новый месяц — новый челлендж! </b>}{t}</span>
+            {/* Пункт с заголовком: верх квадрата с номером на одной линии с верхом текста */}
+            <span style={{ fontSize: 17, lineHeight: '24px' }}>{k === 0 && <b style={{ color: 'var(--accent)' }}>Новый месяц — новый челлендж! </b>}{t}</span>
           </div>
         ))}
       </div>
