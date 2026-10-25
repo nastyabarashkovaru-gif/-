@@ -95,7 +95,7 @@ export function Checkout() {
               </label>
             ))}
           </div>
-          <p className="muted small" style={{ margin: '0 4px' }}>{data!.text.today} Оплата проходит на защищённой странице платёжной системы. Доступ откроется после подтверждения платежа.</p>
+          <p className="muted small" style={{ margin: '0 4px' }}>Оплата проходит на защищённой странице платёжной системы. Доступ откроется после подтверждения платежа.</p>
           <button className="btn btn-primary" disabled={!all || busy} onClick={pay}>{busy ? 'Готовим оплату…' : `Оплатить ${rub(data!.tariff.price)}`}</button>
         </>
       )}
