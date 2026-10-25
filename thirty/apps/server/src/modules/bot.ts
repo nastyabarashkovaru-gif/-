@@ -34,6 +34,15 @@ export async function seedTemplates() {
     if (t11) await prisma.botMessageTemplate.update({ where: { key: 'chain_11' }, data: { text: t11.text.replace(/\n*Это те же цены, которые были доступны тебе в первые три часа после знакомства с клубом\./, '') } });
     await prisma.setting.create({ data: { key: v3, value: { at: new Date().toISOString() } } });
   }
+  // Разово (25.10): «30 дней» не разрывается переносом строки (неразрывный пробел)
+  const v4 = 'maintenance.chainV4';
+  if (!(await prisma.setting.findUnique({ where: { key: v4 } }))) {
+    for (const t of await prisma.botMessageTemplate.findMany({ where: { text: { contains: '30 ' } } })) {
+      const text = t.text.replace(/30 (дней|ДНЕЙ|днями|днях)/g, '30\u00a0$1');
+      if (text !== t.text) await prisma.botMessageTemplate.update({ where: { key: t.key }, data: { text } });
+    }
+    await prisma.setting.create({ data: { key: v4, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {
