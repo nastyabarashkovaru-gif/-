@@ -3,7 +3,7 @@ import {
   addMonths, chargeDateFor, coverage, fromDbDate, humanDate, localDate, offerActive, offerMsLeft, planPurchase, planRenewal, quote,
   subscriptionStatusOn, toDbDate, type ISODate,
 } from '@thirty/domain';
-import type { Payment, Subscription, Tariff } from '@prisma/client';
+import type { Payment, Prisma, Subscription, Tariff } from '@prisma/client';
 import { clock } from '../clock';
 import { config } from '../config';
 import { prisma, serializable, isUniqueViolation, type Tx } from '../db';
@@ -257,6 +257,12 @@ async function handlePaymentEvent(p: ParsedWebhook, eventId: string) {
   return { ignored: p.status };
 }
 
+/** Отменённое участие снова действует: старая анкета удаляется, заполняется заново */
+export async function reviveMembership(tx: Prisma.TransactionClient, membershipId: string, subscriptionId: string, tariffId: string) {
+  await tx.goal.deleteMany({ where: { membershipId } });
+  await tx.flowMembership.update({ where: { id: membershipId }, data: { status: 'reserved', subscriptionId, tariffId, goalsLockedAt: null, registeredAt: null, finalSubmittedAt: null } });
+}
+
 /** Первичная оплата: подписка + членство во всех оплаченных потоках, одной транзакцией */
 async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
   if (payment.status === 'paid') return { alreadyPaid: true };
@@ -299,11 +305,10 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
     await tx.payment.update({ where: { id: payment.id }, data: { status: 'paid', paidAt: now, providerOrderId: p.providerOrderId, subscriptionId: sub.id } });
     for (const f of flows) {
       const flow = await ensureFlow(f, tx);
-      await tx.flowMembership.upsert({
-        where: { userId_flowId: { userId: payment.userId, flowId: flow.id } },
-        create: { userId: payment.userId, flowId: flow.id, subscriptionId: sub.id, tariffId: tariff.id },
-        update: {},
-      });
+      const existing = await tx.flowMembership.findUnique({ where: { userId_flowId: { userId: payment.userId, flowId: flow.id } } });
+      // Повторная покупка после возврата/отмены: прежнее участие в потоке начинается заново
+      if (existing?.status === 'revoked') await reviveMembership(tx, existing.id, sub.id, tariff.id);
+      else if (!existing) await tx.flowMembership.create({ data: { userId: payment.userId, flowId: flow.id, subscriptionId: sub.id, tariffId: tariff.id } });
     }
     await tx.billingSchedule.create({
       data: { subscriptionId: sub.id, dueDate: toDbDate(chargeDate), coversFromFlow: toDbDate(addMonths(lastFlow, 1)), months: tariff.months, amount: payment.amount },

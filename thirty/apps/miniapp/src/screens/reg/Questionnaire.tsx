@@ -112,15 +112,14 @@ function AboutForm() {
   const [city, setCity] = useState(u.city ?? '');
   const [age, setAge] = useState(u.age ? String(u.age) : '');
   const [occupation, setOccupation] = useState(u.occupation ?? '');
-  const [aspiration, setAspiration] = useState(u.aspiration ?? '');
   const [busy, setBusy] = useState(false);
   const ageNum = Number(age);
-  const valid = name.trim().length >= 1 && city.trim().length >= 2 && Number.isInteger(ageNum) && ageNum >= 14 && ageNum <= 99 && occupation.trim().length >= 2 && aspiration.trim().length >= 2;
+  const valid = name.trim().length >= 1 && city.trim().length >= 2 && Number.isInteger(ageNum) && ageNum >= 14 && ageNum <= 99 && occupation.trim().length >= 2;
 
   const save = async () => {
     setBusy(true);
     try {
-      await api('/api/me', { method: 'PATCH', body: { displayName: name.trim(), city: city.trim(), age: ageNum, occupation: occupation.trim(), aspiration: aspiration.trim() } });
+      await api('/api/me', { method: 'PATCH', body: { displayName: name.trim(), city: city.trim(), age: ageNum, occupation: occupation.trim() } });
       await refresh();
       haptic('success');
       nav('/reg/goals');
@@ -152,11 +151,6 @@ function AboutForm() {
       <label className="field">
         <span className="h3" style={{ fontSize: 15 }}>Чем ты занимаешься?</span>
         <textarea className="textarea" rows={2} placeholder="Учусь, работаю, развиваю блог, создаю бизнес..." value={occupation} maxLength={300} onChange={(e) => setOccupation(e.target.value)} />
-      </label>
-      <label className="field">
-        <span className="h3" style={{ fontSize: 15 }}>К чему ты хочешь прийти?</span>
-        <textarea className="textarea" rows={2} placeholder="Например, хочу начать вести блог и стать увереннее в себе..." value={aspiration} maxLength={500} onChange={(e) => setAspiration(e.target.value)} />
-        <p className="hint">Необязательно формулировать идеальную цель — дальше мы поможем сделать её конкретной.</p>
       </label>
       <Note icon={<HeartHandshake size={17} />} title="Это увидит твой бадди">
         Твои ответы помогут начать общение без неловкого «Привет, расскажи о себе».

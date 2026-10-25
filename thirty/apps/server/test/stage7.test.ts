@@ -216,7 +216,9 @@ describe('дожимная цепочка до оплаты', () => {
     process.env.CHAIN_TEST_STEP_SEC = '1';
     try {
       await buy(777);
-      expect((await api('GET', '/api/me', 777)).body.subscription).not.toBeNull();
+      const me0 = (await api('GET', '/api/me', 777)).body;
+      expect(me0.subscription).not.toBeNull();
+      const firstStart = me0.membership.flow.startsOn;
       calls = [];
       await start(777);
       expect((await api('GET', '/api/me', 777)).body.subscription).toBeNull();
@@ -229,6 +231,10 @@ describe('дожимная цепочка до оплаты', () => {
       await api('POST', '/api/offer/start', 777);
       await runPrePurchaseChains(new Date(clock.now().getTime() + 11 * 60_000));
       expect(sent().length).toBe(0);
+      // Повторная покупка после сброса возвращает ближайший поток, а не следующий
+      await buy(777);
+      const me1 = (await api('GET', '/api/me', 777)).body;
+      expect(me1.membership).toMatchObject({ status: 'reserved', flow: { startsOn: firstStart } });
     } finally {
       delete process.env.CHAIN_TEST;
       delete process.env.CHAIN_TEST_STEP_SEC;

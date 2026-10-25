@@ -40,6 +40,22 @@ export async function seed() {
     await prisma.setting.deleteMany({ where: { key: 'value.items' } });
     await prisma.setting.create({ data: { key: 'maintenance.valueV3', value: { at: new Date().toISOString() } } });
   }
+  // 25.10: оплата после отмены не восстанавливала отменённое участие в потоке — чиним такие случаи один раз
+  if (!(await prisma.setting.findUnique({ where: { key: 'maintenance.reviveV1' } }))) {
+    const { reviveMembership } = await import('./modules/billing');
+    const revoked = await prisma.flowMembership.findMany({ where: { status: 'revoked' }, include: { flow: true } });
+    let fixed = 0;
+    for (const m of revoked) {
+      const sub = await prisma.subscription.findFirst({
+        where: { userId: m.userId, status: { in: ['prestart', 'active', 'past_due', 'canceled_at_period_end'] }, paidFromFlow: { lte: m.flow.startsOn }, paidThroughFlow: { gte: m.flow.startsOn } },
+      });
+      if (!sub) continue;
+      await prisma.$transaction((tx) => reviveMembership(tx, m.id, sub.id, sub.tariffId));
+      fixed++;
+    }
+    await prisma.setting.create({ data: { key: 'maintenance.reviveV1', value: { at: new Date().toISOString(), fixed } } });
+    if (fixed) console.log(`[seed] восстановлено участий в потоках: ${fixed}`);
+  }
   // Разовый сброс таймеров скидки (OFFER_RESET=<метка>): удаляет неиспользованные окна цены, один раз на метку
   const reset = process.env.OFFER_RESET;
   if (reset) {

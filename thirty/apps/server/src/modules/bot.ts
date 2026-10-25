@@ -43,6 +43,13 @@ export async function seedTemplates() {
     }
     await prisma.setting.create({ data: { key: v4, value: { at: new Date().toISOString() } } });
   }
+  // Разово (26.10): в сообщении об оплате больше нет строки про следующее списание
+  const v5 = 'maintenance.paymentSuccessV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v5 } }))) {
+    const t = await prisma.botMessageTemplate.findUnique({ where: { key: 'payment_success' } });
+    if (t) await prisma.botMessageTemplate.update({ where: { key: t.key }, data: { text: t.text.replace(/\nСледующее списание: \{next_date\}, \{next_amount\} ₽ \(отключить можно в профиле\)\./, '') } });
+    await prisma.setting.create({ data: { key: v5, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {

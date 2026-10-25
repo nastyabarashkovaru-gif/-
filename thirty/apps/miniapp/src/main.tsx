@@ -4,9 +4,11 @@ import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import { initTelegram } from './lib/telegram';
 import './styles.css';
+import { startTypography } from './lib/typo';
 
 initTelegram();
 
+startTypography(document.getElementById('root')!);
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
