@@ -3,7 +3,7 @@ import type { BotMessageTemplate } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma, isUniqueViolation } from '../db';
 import { openAppButton, tg, TelegramError } from '../lib/telegram';
-import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, WELCOME_BUTTON, WELCOME_TEXT } from './templates';
+import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, WELCOME_BUTTON, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
 import { config } from '../config';
 import { setNotifier } from './notify';
 import { track } from './analytics';
@@ -16,6 +16,17 @@ export async function seedTemplates() {
   for (const t of CHAIN_TEMPLATES) {
     await prisma.botMessageTemplate.upsert({ where: { key: t.key }, create: { ...t, approved: true }, update: {} });
   }
+  // Разово: тексты с жирным шрифтом и картинка приветствия (25.10)
+  const v2 = 'maintenance.chainV2';
+  if (!(await prisma.setting.findUnique({ where: { key: v2 } }))) {
+    for (const t of CHAIN_TEMPLATES) await prisma.botMessageTemplate.update({ where: { key: t.key }, data: { text: t.text } }).catch(() => undefined);
+    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT, imageUrl: WELCOME_IMAGE } }).catch(() => undefined);
+    for (const k of ['promo_issued']) {
+      const d = DEFAULT_TEMPLATES.find((x) => x.key === k);
+      if (d) await prisma.botMessageTemplate.update({ where: { key: k }, data: { text: d.text } }).catch(() => undefined);
+    }
+    await prisma.setting.create({ data: { key: v2, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {
@@ -27,8 +38,15 @@ export async function seedTemplates() {
 
 const MARKETING_DAILY_CAP = 2;
 
+const escHtml = (t: string) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
+
+/** Шаблоны — в HTML-разметке Telegram (<b>, <i>); подставляемые значения экранируются */
 function render(text: string, vars: Record<string, string | number>) {
-  return text.replace(/\{(\w+)\}/g, (_m, k) => (vars[k] === undefined ? '' : String(vars[k])));
+  return text.replace(/\{(\w+)\}/g, (_m, k) => (vars[k] === undefined ? '' : escHtml(String(vars[k]))));
+}
+
+export function imageUrlOf(url: string | null | undefined) {
+  return url ? url.replace('{public_url}', config.PUBLIC_URL.replace(/\/$/, '')) : null;
 }
 
 /**
@@ -65,11 +83,11 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
   let text = render(tpl.text, vars);
   try {
     const markup = buttons.length ? { inline_keyboard: buttons } : undefined;
-    const image = tpl.imageUrl ? tpl.imageUrl.replace('{public_url}', config.PUBLIC_URL.replace(/\/$/, '')) : null;
-    if (image && text.length <= 1024) await tg('sendPhoto', { chat_id: Number(userId), photo: image, caption: text, reply_markup: markup });
+    const image = imageUrlOf(tpl.imageUrl);
+    if (image && text.length <= 1024) await tg('sendPhoto', { chat_id: Number(userId), photo: image, caption: text, parse_mode: 'HTML', reply_markup: markup });
     else {
       if (image) await tg('sendPhoto', { chat_id: Number(userId), photo: image });
-      await tg('sendMessage', { chat_id: Number(userId), text, reply_markup: markup });
+      await tg('sendMessage', { chat_id: Number(userId), text, parse_mode: 'HTML', reply_markup: markup });
     }
     await prisma.botMessageLog.update({ where: { id }, data: { status: 'sent' } });
     await track({ userId, eventName: 'bot_message_sent', metadata: { template: key, logId: id } });
@@ -175,11 +193,10 @@ export async function handleUpdate(update: TgUpdate) {
     } catch (e) {
       if (!isUniqueViolation(e)) throw e;
     }
-    await tg('sendMessage', {
-      chat_id: msg.chat.id,
-      text: first ? tpl?.text ?? WELCOME_TEXT : 'Жми кнопку ниже, чтобы открыть приложение 👇',
-      reply_markup: { inline_keyboard: [[openAppButton(button, safe)]] },
-    });
+    const markup = { inline_keyboard: [[openAppButton(button, safe)]] };
+    const image = imageUrlOf(tpl?.imageUrl);
+    if (first && image) await tg('sendPhoto', { chat_id: msg.chat.id, photo: image, caption: tpl?.text ?? WELCOME_TEXT, parse_mode: 'HTML', reply_markup: markup });
+    else await tg('sendMessage', { chat_id: msg.chat.id, text: first ? tpl?.text ?? WELCOME_TEXT : 'Жми кнопку ниже, чтобы открыть приложение 👇', parse_mode: 'HTML', reply_markup: markup });
     return;
   }
   if (cmd === '/stop') {

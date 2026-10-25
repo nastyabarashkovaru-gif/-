@@ -13,7 +13,7 @@ import { config } from '../src/config';
 
 let calls: { method: string; body: Record<string, any> }[] = [];
 let adminCalls: { method: string; body: Record<string, any> }[] = [];
-const sent = () => calls.filter((c) => c.method === 'sendMessage' || c.method === 'sendPhoto').map((c) => String(c.body.text ?? c.body.caption ?? '').replace(/[\u00a0\u202f]/g, ' '));
+const sent = () => calls.filter((c) => c.method === 'sendMessage' || c.method === 'sendPhoto').map((c) => String(c.body.text ?? c.body.caption ?? '').replace(/[\u00a0\u202f]/g, ' ').replace(/<\/?b>/g, ''));
 
 beforeEach(async () => {
   await resetDb();
