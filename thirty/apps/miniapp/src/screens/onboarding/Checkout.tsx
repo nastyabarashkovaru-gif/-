@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { CalendarDays, CalendarHeart, CircleCheck, CircleX, Clock, RefreshCw } from 'lucide-react';
+import { CalendarDays, CalendarHeart, CircleCheck, CircleX, Clock } from 'lucide-react';
 import { api, demoKey, rub } from '../../lib/api';
 import { haptic, openExternal } from '../../lib/telegram';
 import { useMe } from '../../state';
@@ -80,11 +80,7 @@ export function Checkout() {
             <div className="divider" />
             <div className="row" style={{ alignItems: 'flex-start' }}><CalendarDays size={20} color="var(--orange)" /><div className="grow">
               <div style={{ fontWeight: 600 }}>Старт — {humanDate(data!.startsOn, true)}</div>
-              <div className="muted small">Оплаченные потоки: {data!.flows.map((f) => f.title).join(', ')}. Доступ к подготовке — сразу после оплаты.</div>
-            </div></div>
-            <div className="row" style={{ alignItems: 'flex-start' }}><RefreshCw size={20} color="var(--orange)" /><div className="grow">
-              <div style={{ fontWeight: 600 }}>Следующее списание — {humanDate(data!.nextCharge.date, true)}, {rub(data!.nextCharge.amount)}</div>
-              <div className="muted small">{data!.text.renewal}</div>
+              <div className="muted small">Оплачено на {data!.tariff.title.toLowerCase()}. Доступ к чатам, комьюнити и подготовке — сразу после оплаты.</div>
             </div></div>
           </div>
           <div className="card">
@@ -99,7 +95,7 @@ export function Checkout() {
               </label>
             ))}
           </div>
-          <p className="muted small" style={{ margin: '0 4px' }}>{data!.text.today} Оплата проходит на защищённой странице Prodamus. Доступ откроется после подтверждения платежа.</p>
+          <p className="muted small" style={{ margin: '0 4px' }}>{data!.text.today} Оплата проходит на защищённой странице платёжной системы. Доступ откроется после подтверждения платежа.</p>
           <button className="btn btn-primary" disabled={!all || busy} onClick={pay}>{busy ? 'Готовим оплату…' : `Оплатить ${rub(data!.tariff.price)}`}</button>
         </>
       )}
