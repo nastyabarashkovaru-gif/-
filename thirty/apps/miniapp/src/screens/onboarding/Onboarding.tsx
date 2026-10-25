@@ -29,7 +29,7 @@ function useStep(n: number) {
 }
 
 /** Каркас шагов 1–3: логотип и «n / 4», полоски прогресса, белая карточка, чёрная кнопка, «Назад», точки */
-function Step({ n, children, cta }: { n: number; children: ReactNode; cta: string }) {
+function Step({ n, children, cta, ctaClass = 'btn-dark' }: { n: number; children: ReactNode; cta: ReactNode; ctaClass?: string }) {
   const next = useStep(n);
   const nav = useNavigate();
   return (
@@ -38,7 +38,7 @@ function Step({ n, children, cta }: { n: number; children: ReactNode; cta: strin
       <div className="steps">{Array.from({ length: TOTAL }, (_, i) => <i key={i} className={i < n ? 'on' : ''} />)}</div>
       <div className="card onb-card">
         {children}
-        <button className="btn btn-dark" onClick={next}>{cta}<ArrowRight size={17} /></button>
+        <button className={`btn ${ctaClass}`} onClick={next}><span>{cta}</span><ArrowRight size={17} /></button>
       </div>
       {n > 1 && <button className="link-accent" style={{ color: 'var(--muted)', fontWeight: 500 }} onClick={() => nav(onbPath(n - 1))}><ArrowLeft size={16} />Назад</button>}
       <Dots count={TOTAL} at={n - 1} />
@@ -59,7 +59,7 @@ function Onb({ children, cta }: { n: number; children: ReactNode; cta?: ReactNod
       <BrandBar right={<button className="link-btn" style={{ padding: 4, textDecoration: 'none' }} aria-label="Закрыть" onClick={close}><X size={22} /></button>} />
       <div className="onb-body">{children}</div>
       {about.total > 1 && <Dots count={about.total} at={about.i} />}
-      <Cta onClick={() => (last ? close() : nav(`/about/${about.topic}/${about.i + 1}`, { replace: true }))}>{last ? 'Понятно' : cta ?? 'Дальше'}</Cta>
+      <Cta onClick={() => (last ? close() : nav(`/about/${about.topic}/${about.i + 1}`, { replace: true }))}>{last ? 'Вернуться' : cta ?? 'Дальше'}</Cta>
       {about.i > 0 && <button className="link-accent" style={{ color: 'var(--muted)', fontWeight: 500 }} onClick={() => nav(`/about/${about.topic}/${about.i - 1}`, { replace: true })}><ArrowLeft size={16} />Назад</button>}
     </Screen>
   );
@@ -345,7 +345,7 @@ export function AboutScreen() {
 
 export function Welcome() {
   return (
-    <Step n={1} cta="Узнать подробнее">
+    <Step n={1} cta="ХОЧУ ВСТУПИТЬ! 😍" ctaClass="btn-dark btn-shine">
       <span className="onb-emoji">🚀</span>
       <h1 className="hero" style={{ fontSize: 27 }}>Вступай в сообщество<br /><span className="nowrap">«30 дней»! 😍</span></h1>
       <p className="lead-accent" style={{ color: 'var(--accent)', fontSize: 16 }}>Следующие 30 дней МОГУТ ИЗМЕНИТЬ ВСЁ! 💜</p>
@@ -389,30 +389,28 @@ function Mechanics() {
 }
 
 function Value() {
-  const { data, error, loading, reload } = useLoad(() => api<{ items: { id: string; title: string; price: number; priceLabel?: string; emoji?: string }[]; total: number }>('/api/public/value'));
+  const { data, error, loading, reload } = useLoad(() => api<{ items: { id: string; title: string; emoji?: string; description?: string }[] }>('/api/public/value'));
   return (
-    <Step n={3} cta="Узнать стоимость вступления">
+    <Step n={3} cta="Узнать стоимость клуба 🔥" ctaClass="btn-fire btn-shine">
       <div>
         <h1 className="h2" style={{ fontSize: 26 }}>Что входит в клуб</h1>
-        <p className="sub" style={{ fontSize: 15 }}>Если покупать всё это по отдельности</p>
+        <p className="sub" style={{ fontSize: 15 }}>Всё это ты получаешь вместе с участием</p>
       </div>
       {loading && !data ? <Loading lines={2} /> : error || !data ? <ErrorState error={error} retry={reload} /> : (
         <>
           <div>
             {data.items.map((i) => (
-              <div key={i.id} className="value-row">
+              <div key={i.id} className="value-row" style={{ alignItems: 'flex-start' }}>
                 <span className="value-ic">{i.emoji ?? '✨'}</span>
-                <span className="grow" style={{ fontSize: 16 }}>{i.title}</span>
-                <span className="muted nowrap" style={{ textDecoration: 'line-through' }}>{i.priceLabel ?? rub(i.price)}</span>
+                <span className="grow">
+                  <span style={{ display: 'block', fontSize: 16, fontWeight: 600 }}>{i.title}</span>
+                  {i.description && <span className="muted" style={{ display: 'block', fontSize: 13, marginTop: 2, lineHeight: 1.35 }}>{i.description}</span>}
+                </span>
               </div>
             ))}
           </div>
-          <div className="row between" style={{ padding: '4px 0' }}>
-            <span className="h3" style={{ fontSize: 18 }}>Общая ценность</span>
-            <span style={{ fontSize: 26, fontWeight: 700, textDecoration: 'line-through' }}>{rub(data.total)}</span>
-          </div>
           <div className="row" style={{ background: 'var(--green-soft)', color: 'var(--green)', borderRadius: 16, padding: '14px 16px', gap: 10, alignItems: 'flex-start', fontWeight: 600 }}>
-            <CircleCheck size={20} style={{ flexShrink: 0, marginTop: 1 }} />Всё это уже включено в стоимость клуба для наших участников
+            <CircleCheck size={20} style={{ flexShrink: 0, marginTop: 1 }} /><span>Всё это <b>УЖЕ ВКЛЮЧЕНО</b> в стоимость клуба</span>
           </div>
         </>
       )}

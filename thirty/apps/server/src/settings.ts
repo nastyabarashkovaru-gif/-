@@ -6,8 +6,20 @@ export interface ValueItem {
   price: number;
   priceLabel?: string;
   emoji?: string;
+  /** Короткое пояснение под названием на экране «Что входит в клуб» */
+  description?: string;
   enabled: boolean;
 }
+
+/** Пояснения по умолчанию (если в админке не задано своё) */
+export const VALUE_DESCRIPTIONS: Record<string, string> = {
+  psychologist: 'Встречи с психологом: поддержка, работа со страхами, выгоранием и мотивацией',
+  coach: 'Помогает поставить цель, разбить её на шаги и не сбиться с пути',
+  english: 'Разговорная практика английского с репетитором',
+  blog: 'Как вести блог, набирать аудиторию и зарабатывать на нём',
+  planners: 'Готовые шаблоны, чтобы планировать день и отслеживать привычки',
+  products: 'Список продуктов и идеи блюд для правильного питания',
+};
 
 export interface EvidencePolicy {
   [category: string]: { evidence: 'checkbox' | 'photo' | 'screenshot' | 'checkbox_photo' | 'link'; photoRequired: boolean; selfReported: boolean; note: string };

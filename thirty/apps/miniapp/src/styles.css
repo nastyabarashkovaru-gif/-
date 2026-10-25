@@ -321,6 +321,12 @@ img { max-width: 100%; display: block; }
 .onb-card { gap: 16px; padding: 22px 18px; }
 .btn-dark { background: #181818; color: #fff; min-height: 52px; font-weight: 500; }
 .btn-dark:active { background: #000; }
+.btn-fire { background: linear-gradient(135deg, #ff8a1f, #ff5a1f); color: #fff; min-height: 54px; font-weight: 700; font-size: 17px; box-shadow: 0 8px 22px rgba(255, 106, 31, 0.38); }
+/* Переливающаяся кнопка: блик пробегает слева направо */
+.btn-shine { position: relative; overflow: hidden; isolation: isolate; }
+.btn-shine > * { position: relative; z-index: 1; }
+.btn-shine::after { content: ''; position: absolute; inset: 0; z-index: 0; background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.45) 50%, transparent 70%); transform: translateX(-120%); animation: shine 2.6s ease-in-out infinite; }
+@keyframes shine { 0%, 15% { transform: translateX(-120%); } 60%, 100% { transform: translateX(120%); } }
 .onb-emoji { width: 120px; height: 120px; border-radius: 28px; background: #ede9fd; display: flex; align-items: center; justify-content: center; font-size: 64px; line-height: 1; align-self: center; }
 .num-sq { width: 44px; height: 44px; border-radius: 13px; background: #efe9fd; color: var(--accent); font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .num-sq.green { background: #e9f6f0; }

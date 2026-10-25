@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronUp, CircleCheck, Clock, Gift, HeartHandshake, Lock, Unlock } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleCheck, Clock, Gift, HeartHandshake, Lock, Unlock, ArrowLeft } from 'lucide-react';
 import { api, rub } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
 import { haptic, openTelegram } from '../../lib/telegram';
@@ -94,7 +94,10 @@ export function Tariffs() {
 
   return (
     <Screen id="S06">
-      <BrandBar right={<span className="secure"><Lock size={12} />Безопасная оплата</span>} />
+      <div className="row between">
+        <button className="icon-btn" aria-label="Назад" onClick={() => nav('/onboarding/3')}><ArrowLeft size={20} /></button>
+        <span className="secure"><Lock size={12} />Безопасная оплата</span>
+      </div>
       <span className="ic lg" style={{ alignSelf: 'center', marginTop: 10 }}><HeartHandshake size={30} strokeWidth={1.8} /></span>
       <div className="col" style={{ gap: 10 }}>
         <h1 className="hero">Твоё новое окружение <em>уже ждёт тебя!</em></h1>
