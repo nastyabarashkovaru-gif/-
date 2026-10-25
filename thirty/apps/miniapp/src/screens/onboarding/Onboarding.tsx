@@ -348,12 +348,12 @@ export function Welcome() {
     <Step n={1} cta="ХОЧУ ВСТУПИТЬ! 😍" ctaClass="btn-dark btn-shine">
       <span className="onb-emoji">🚀</span>
       <h1 className="hero" style={{ fontSize: 27 }}>Вступай в сообщество<br /><span className="nowrap">«30 дней»! 😍</span></h1>
-      <p className="lead-accent" style={{ color: 'var(--accent)', fontSize: 16 }}>Следующие 30 дней МОГУТ ИЗМЕНИТЬ ВСЁ! 💜</p>
+      <p className="lead-accent" style={{ color: 'var(--accent)', fontSize: 16 }}>Следующие 30 дней МОГУТ ИЗМЕНИТЬ ВСЁ!</p>
       <div className="col" style={{ gap: 14, margin: '6px 0' }}>
         {([['', 'Выбирай цели, которые давно откладываешь'], ['green', 'Находи единомышленников'], ['peach', 'Общайся, присылай отчёты, забирай призы']] as const).map(([c, t], k) => (
           <div key={t} className="row" style={{ gap: 14 }}>
             <span className={`num-sq ${c}`}>{k + 1}</span>
-            <span style={{ fontSize: 17 }}>{t}</span>
+            <span style={{ fontSize: 17 }}>{k === 0 && <b style={{ color: 'var(--accent)' }}>Новый месяц — новый челлендж! </b>}{t}</span>
           </div>
         ))}
       </div>
