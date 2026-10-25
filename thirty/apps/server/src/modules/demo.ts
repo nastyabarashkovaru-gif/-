@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -48,20 +49,26 @@ const PEOPLE = [
 
 const TEXTS = ['Провела три созвона. Один клиент уже согласился!', 'Тренировка сделана, 9 000 шагов пройдено! 💪', 'Сегодня выложила новый Reels! Уже 2 000 просмотров 🔥', 'День закрыт, всё по плану 💜', 'Было тяжело, но сделала!', 'Встала в 7:00 без будильника 😍', 'Урок пройден, новые слова выучены 🇬🇧'];
 
-/** Демо-фото лежат в хранилище под постоянными ключами; после перезапуска сервера (временный диск) кладём их заново */
+/** Демо-фото на временном диске пропадают при перезапуске сервера — восстанавливаем их по ключам demo/p{N}-… */
 export async function ensureDemoPhotos() {
   if (!PHOTO_DIR) {
     console.warn('[demo] assets/demo не найдена — фото в отчётах будут пустыми');
     return;
   }
-  for (let i = 0; i < 5; i++) {
-    const file = path.join(PHOTO_DIR, `p${i}.jpg`);
-    if (existsSync(file)) await storage.put(`demo/p${i}.jpg`, readFileSync(file), 'image/jpeg');
+  const files = [0, 1, 2, 3, 4].map((i) => readFileSync(path.join(PHOTO_DIR!, `p${i}.jpg`)));
+  const rows = await prisma.mediaFile.findMany({ where: { storageKey: { startsWith: 'demo/' } }, select: { storageKey: true } });
+  for (const r of rows) {
+    const i = Number(/demo\/p(\d)-/.exec(r.storageKey)?.[1] ?? 0);
+    await storage.put(r.storageKey, files[i] ?? files[0], 'image/jpeg');
   }
 }
 
 async function photo(ownerId: bigint, i: number): Promise<string> {
-  const m = await prisma.mediaFile.create({ data: { ownerId, storageKey: `demo/p${i % 5}.jpg`, mime: 'image/jpeg', size: 0 } });
+  const n = i % 5;
+  const key = `demo/p${n}-${randomUUID()}.jpg`;
+  const buf = PHOTO_DIR ? readFileSync(path.join(PHOTO_DIR, `p${n}.jpg`)) : Buffer.alloc(0);
+  await storage.put(key, buf, 'image/jpeg');
+  const m = await prisma.mediaFile.create({ data: { ownerId, storageKey: key, mime: 'image/jpeg', size: buf.length } });
   return m.id;
 }
 
@@ -72,7 +79,6 @@ async function wipe() {
   await prisma.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(', ')} RESTART IDENTITY CASCADE`);
   clearSettingsCache();
   await seed();
-  await ensureDemoPhotos();
 }
 
 const ABOUT: Record<string, [number, string, string]> = {
@@ -163,6 +169,23 @@ async function reportFor(userId: bigint, membershipId: string, seedIdx: number, 
   await submitReport(userId, membershipId, { items, mediaIds: [await photo(userId, seedIdx)], text, progress, publicAck: true }).catch(() => undefined);
 }
 
+/** Прошлый месяц владельца (меньше успешных дней) — для «на N дней больше, чем в предыдущем месяце» */
+async function previousMonth(ownerId: bigint, flowStart: string) {
+  const prevStart = addMonths(flowStart, -1);
+  clock.set(at(addDays(prevStart, -3), 12));
+  const flow = await ensureFlow(prevStart);
+  const m = await prisma.flowMembership.create({ data: { userId: ownerId, flowId: flow.id, tariffId: 'm3' } });
+  await fillGoals(ownerId, m.id, [['habits', 'Вставать в 7:00 все 30 дней', 'Встаю в 9:00', 'Встаю в 7:00', [['Подъём в 7:00', 'daily']]]]);
+  const days = Math.round((Date.parse(flowStart) - Date.parse(prevStart)) / 86_400_000);
+  for (let day = 1; day <= days; day++) {
+    clock.set(at(addDays(prevStart, day - 1), 0, 5));
+    await refreshFlowStatuses();
+    if (day % 3 !== 1) continue;
+    clock.set(at(addDays(prevStart, day - 1), 21, 0));
+    await reportFor(ownerId, m.id, day);
+  }
+}
+
 export type Scenario = 'fresh' | 'waiting' | 'active';
 
 /** Переключение сценария; для «fresh» возвращает новый id пользователя (начать как новый человек) */
@@ -187,6 +210,7 @@ export async function runScenario(ownerId: bigint, ownerName: string, scenario: 
     clock.set(at(addDays(flowStart, -7), 10, 30));
     return { userId: ownerId.toString(), go: '/' };
   }
+  await previousMonth(ownerId, flowStart);
   // Идёт челлендж: 12 дней отчётов, переписка в чате, текущий — 13-й день, отчёт за сегодня ещё не сдан
   for (let day = 1; day <= 12; day++) {
     clock.set(at(addDays(flowStart, day - 1), 0, 5));

@@ -113,7 +113,8 @@ export async function memberRoutes(app: FastifyInstance) {
         dayNumber: info.phase === 'active' ? stats.days.findIndex((d) => d.date === info.today) + 1 : null,
         days: stats.days,
       },
-      comparison: compareWithPrevious(prevStats ? prevStats.successfulDays : null, stats.successfulDays),
+      // Сравниваем с тем же днём прошлого месяца: «на N дней больше, чем в предыдущем месяце»
+      comparison: compareWithPrevious(prevStats ? prevStats.days.slice(0, Math.max(0, stats.days.findIndex((d) => d.date === info.today) + 1) || prevStats.days.length).filter((d) => d.state === 'success').length : null, stats.successfulDays),
       goals: await Promise.all(goals.map(async (g) => ({
         ...serializeGoal(g),
         // Для нечисловых целей прогресс — процент выполненных запланированных действий

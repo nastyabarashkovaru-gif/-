@@ -76,13 +76,13 @@ export function Home() {
             {data.state !== 'finished' && <div style={{ opacity: 0.9 }}>Не сбавляй темп — до финиша {plural(left, 'остался', 'осталось', 'осталось')} {left} {plural(left, 'день', 'дня', 'дней')}.</div>}
             <div className="hero-bar"><i style={{ width: `${dayPct}%` }} /></div>
             <div className="row between" style={{ fontSize: 14 }}><span>{Math.min(day, flow.days)} / {flow.days} дней</span><span>{dayPct}%</span></div>
-            {!data.comparison.firstMonth && data.comparison.delta > 0 && (
-              <div className="row" style={{ gap: 6, fontSize: 14 }}><TrendingUp size={15} />На {data.comparison.delta} {plural(data.comparison.delta, 'день', 'дня', 'дней')} больше, чем в предыдущем месяце</div>
-            )}
           </>
         )}
       </div>
 
+      {!before && !data.comparison.firstMonth && data.comparison.delta > 0 && (
+        <div className="growth-note"><TrendingUp size={15} />На {data.comparison.delta} {plural(data.comparison.delta, 'день', 'дня', 'дней')} больше, чем в предыдущем месяце!</div>
+      )}
       {before && <button className="link-accent story-link" onClick={() => setShare(true)}><Instagram size={17} />А пока поделись в сторис, что ты идёшь на наш челлендж! 😍</button>}
       <StorySheet open={share} onClose={() => setShare(false)} />
       {data.state === 'active' && (
