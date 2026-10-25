@@ -3,7 +3,7 @@ import { prisma } from '../db';
 import { notFound } from '../http';
 
 /** Уведомления в приложении (колокольчик). Создаются только по реальным событиям; dedupeKey защищает от повторов. */
-export async function pushNotification(userId: bigint, kind: 'buddy_report' | 'chat_reply' | 'report_due', data: { title: string; body?: string | null; link?: string | null }, dedupeKey?: string) {
+export async function pushNotification(userId: bigint, kind: 'buddy_report' | 'chat_reply' | 'report_due' | 'buddy_proposal', data: { title: string; body?: string | null; link?: string | null }, dedupeKey?: string) {
   try {
     await prisma.notification.create({ data: { userId, kind, title: data.title, body: data.body ?? null, link: data.link ?? null, dedupeKey: dedupeKey ?? null, createdAt: clock.now() } });
   } catch (e) {

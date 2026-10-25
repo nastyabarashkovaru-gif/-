@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Send, Sparkles, User } from 'lucide-react';
 import { api } from '../../lib/api';
 import { openTelegram } from '../../lib/telegram';
+import { BuddyProposals } from '../reg/Registration';
 import { ErrorState, Header, Loading, Screen, Sheet, errorText, humanDate, toast, useLoad } from '../../ui';
 
 type BuddyState = { state: 'paired'; pairId: string; source: string; since: string; buddy: { id: string; name: string; photoUrl: string | null; percent: number | null; writeUrl: string } } | { state: 'waiting' | 'invited' | 'none' };
@@ -18,11 +19,13 @@ export function BuddyScreen() {
     return (
       <Screen id="S29">
         <Header title="Мой бадди" back="/" />
+        <BuddyProposals onChange={reload} />
         <div className="card center" style={{ alignItems: 'center' }}>
-          <Sparkles size={40} color="var(--orange)" />
+          <Sparkles size={40} color="var(--accent)" />
           <div className="h3">{data.state === 'invited' ? 'Ждём ответа друга' : 'Свободных партнёров пока нет'}</div>
           <div className="muted small">Как только появится подходящий участник — подберём и напишем в боте.</div>
         </div>
+        <button className="btn btn-primary" onClick={() => nav('/feed?tab=people')}>Выбрать из участников</button>
         <button className="btn btn-secondary" onClick={() => nav('/reg/buddy')}>Пригласить друга</button>
       </Screen>
     );

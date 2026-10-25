@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { MessagesSquare, Reply, Send, SlidersHorizontal, Trophy, User, X, ChevronRight } from 'lucide-react';
+import { HeartHandshake, MessagesSquare, Reply, Send, SlidersHorizontal, Trophy, User, X, ChevronRight } from 'lucide-react';
 import { api } from '../../lib/api';
 import { openTelegram } from '../../lib/telegram';
 import { useMe } from '../../state';
@@ -12,8 +12,9 @@ type Tab = 'chat' | 'board' | 'people';
 
 /** Лента: общий чат отчётов, лидерборд и все участники */
 export function Feed() {
-  const focus = new URLSearchParams(useLocation().search).get('msg');
-  const [tab, setTab] = useState<Tab>(() => (focus ? 'chat' : (sessionStorage.getItem('thirty.feedTab') as Tab) || 'chat'));
+  const q = new URLSearchParams(useLocation().search);
+  const focus = q.get('msg');
+  const [tab, setTab] = useState<Tab>(() => (focus ? 'chat' : q.get('tab') === 'people' ? 'people' : (sessionStorage.getItem('thirty.feedTab') as Tab) || 'chat'));
   const pick = (t: Tab) => { setTab(t); sessionStorage.setItem('thirty.feedTab', t); };
   return (
     <Screen id={tab === 'chat' ? 'S23' : tab === 'board' ? 'S26' : 'S24'} nav>
@@ -264,7 +265,33 @@ function People() {
 
 export function ParticipantScreen() {
   const { id = '' } = useParams();
-  const { data, error, loading, reload } = useLoad(() => api<{ name: string; hidden?: boolean; photoUrl?: string; city?: string; sixMonthBadge?: boolean; writeUrl?: string; flow?: { title: string } | null; goals?: { title: string; category: string }[]; stats?: { percent: number; successfulDays: number; currentStreak: number } | null; flowsCount?: number }>(`/api/participants/${id}`), [id]);
+  const { data, error, loading, reload } = useLoad(() => api<{ name: string; hidden?: boolean; photoUrl?: string; city?: string; sixMonthBadge?: boolean; writeUrl?: string; flow?: { title: string } | null; goals?: { title: string; category: string }[]; stats?: { percent: number; successfulDays: number; currentStreak: number } | null; flowsCount?: number; buddy?: { state: string; proposalId?: string } }>(`/api/participants/${id}`), [id]);
+  const [busy, setBusy] = useState(false);
+  const propose = async () => {
+    setBusy(true);
+    try {
+      const r = await api<{ matched: boolean }>(`/api/buddy/propose/${id}`, { body: {} });
+      toast(r.matched ? 'Теперь вы пара! 💜' : 'Предложение отправлено — ждём ответа 💜');
+      reload();
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const answer = async (accept: boolean) => {
+    if (!data?.buddy?.proposalId) return;
+    setBusy(true);
+    try {
+      await api(`/api/buddy/proposals/${data.buddy.proposalId}`, { body: { accept } });
+      toast(accept ? 'Теперь вы пара! 💜' : 'Предложение отклонено');
+      reload();
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   if (loading) return <Screen id="S25"><Loading /></Screen>;
   if (error || !data) return <Screen id="S25"><ErrorState error={error} retry={reload} /></Screen>;
   return (
@@ -287,7 +314,20 @@ export function ParticipantScreen() {
           {data.goals && data.goals.length > 0 && (
             <div className="card"><div className="h3">Цели</div>{data.goals.map((g) => <div className="list-item" key={g.title}><span className="pill">{catTitle(g.category).split(' ')[0]}</span><div className="grow">{g.title}</div></div>)}</div>
           )}
-          {data.writeUrl && <button className="btn btn-primary" onClick={() => openTelegram(data.writeUrl!)}><Send size={18} /> Написать в Telegram</button>}
+          {data.buddy?.state === 'can_propose' && <button className="btn btn-primary" disabled={busy} onClick={propose}><HeartHandshake size={18} />Пригласить стать парой</button>}
+          {data.buddy?.state === 'sent' && <div className="banner warn center">Предложение стать парой отправлено — ждём ответа</div>}
+          {data.buddy?.state === 'incoming' && (
+            <div className="card" style={{ gap: 10, borderColor: 'var(--accent)' }}>
+              <div className="h3 center">{data.name} предлагает тебе стать парой 💜</div>
+              <div className="row" style={{ gap: 8 }}>
+                <button className="btn btn-light" disabled={busy} onClick={() => answer(false)}>Отклонить</button>
+                <button className="btn btn-primary" disabled={busy} onClick={() => answer(true)}>Подтвердить</button>
+              </div>
+            </div>
+          )}
+          {data.buddy?.state === 'paired' && <div className="banner ok center">Вы пара 💜</div>}
+          {data.buddy?.state === 'taken' && <div className="muted small center">У этого участника уже есть бадди</div>}
+          {data.writeUrl && <button className={`btn ${data.buddy?.state === 'can_propose' ? 'btn-secondary' : 'btn-primary'}`} onClick={() => openTelegram(data.writeUrl!)}><Send size={18} /> Написать в Telegram</button>}
         </>
       )}
     </Screen>

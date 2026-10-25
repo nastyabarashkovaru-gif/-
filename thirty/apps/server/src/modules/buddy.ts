@@ -7,6 +7,7 @@ import { memberStats } from './rating';
 import { displayName } from './users';
 import { track } from './analytics';
 import { notify } from './notify';
+import { pushNotification } from './notifications';
 
 const ELIGIBLE = ['reserved', 'registered', 'active'] as const;
 
@@ -47,6 +48,53 @@ export async function acceptInvite(userId: bigint, token: string) {
   });
   await onMatched(pair.flowId, [pair.userA, pair.userB]);
   return { pairId: pair.id };
+}
+
+/** Предложение стать парой конкретному участнику: пуш в боте и запрос в приложении */
+export async function proposeBuddy(userId: bigint, flowId: string, targetId: bigint) {
+  if (userId === targetId) throw badRequest('self_invite', 'Нельзя пригласить самого себя');
+  const [mine, theirs] = await Promise.all([membershipIn(userId, flowId), membershipIn(targetId, flowId)]);
+  if (!mine) throw forbidden('no_membership', 'Предложить пару можно участнику своего потока');
+  if (!theirs) throw conflict('other_flow', 'Этот участник в другом потоке — пару можно составить только внутри одного потока');
+  const taken = await prisma.buddyAssignment.findMany({ where: { flowId, userId: { in: [userId, targetId] } } });
+  if (taken.some((t) => t.userId === userId)) throw conflict('already_paired', 'У тебя уже есть бадди');
+  if (taken.length) throw conflict('target_paired', 'У этого участника уже есть бадди');
+  const counter = await prisma.buddyInvite.findFirst({ where: { flowId, fromUserId: targetId, toUserId: userId, status: 'pending' } });
+  if (counter) return { ...(await acceptInvite(userId, counter.token)), matched: true };
+  const existing = await prisma.buddyInvite.findFirst({ where: { flowId, fromUserId: userId, toUserId: targetId, status: 'pending' } });
+  if (existing) return { proposalId: existing.id, matched: false };
+  const inv = await prisma.buddyInvite.create({ data: { flowId, fromUserId: userId, toUserId: targetId, token: randomBytes(9).toString('base64url') } });
+  const me = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  await notify(targetId, 'buddy_proposal', { name: displayName(me) }, `buddy_proposal:${inv.id}`);
+  await pushNotification(targetId, 'buddy_proposal', { title: 'Тебе предложили стать парой 💜', body: `${displayName(me)} хочет стать твоим бадди`, link: '/buddy' }, `buddy_proposal:${inv.id}`);
+  await track({ userId, eventName: 'buddy_invite_sent', screenId: 'S25', flowId, metadata: { direct: true } });
+  return { proposalId: inv.id, matched: false };
+}
+
+/** Ответ на предложение: подтвердить → пара; отклонить → предложившему уведомление */
+export async function respondProposal(userId: bigint, proposalId: string, accept: boolean) {
+  const inv = await prisma.buddyInvite.findUnique({ where: { id: proposalId } });
+  if (!inv || inv.toUserId !== userId || inv.status !== 'pending') throw notFound('proposal_not_found', 'Предложение уже неактуально');
+  if (accept) return { ...(await acceptInvite(userId, inv.token)), accepted: true };
+  await prisma.buddyInvite.update({ where: { id: inv.id }, data: { status: 'declined' } });
+  const me = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  await pushNotification(inv.fromUserId, 'buddy_proposal', { title: 'Предложение стать парой отклонено', body: `${displayName(me)} пока не готов(а) стать парой. Выбери другого участника или доверь подбор нам.`, link: '/feed?tab=people' }, `buddy_declined:${inv.id}`);
+  return { accepted: false };
+}
+
+/** Входящие и исходящие предложения для экрана «Мой бадди» */
+export async function proposals(userId: bigint, flowId: string) {
+  const [incoming, outgoing] = await Promise.all([
+    prisma.buddyInvite.findMany({ where: { flowId, toUserId: userId, status: 'pending' }, orderBy: { createdAt: 'desc' } }),
+    prisma.buddyInvite.findMany({ where: { flowId, fromUserId: userId, toUserId: { not: null }, status: 'pending' }, orderBy: { createdAt: 'desc' } }),
+  ]);
+  const ids = [...incoming.map((i) => i.fromUserId), ...outgoing.map((i) => i.toUserId!)];
+  const users = await prisma.user.findMany({ where: { id: { in: ids } } });
+  const card = (id: bigint) => {
+    const u = users.find((x) => x.id === id);
+    return { id: id.toString(), name: u ? displayName(u) : 'Участник', city: u?.city ?? null, photoUrl: u?.photoUrl ?? null };
+  };
+  return { incoming: incoming.map((i) => ({ id: i.id, user: card(i.fromUserId) })), outgoing: outgoing.map((i) => ({ id: i.id, user: card(i.toUserId!) })) };
 }
 
 async function onMatched(flowId: string, users: bigint[]) {

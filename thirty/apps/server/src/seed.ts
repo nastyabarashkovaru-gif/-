@@ -17,6 +17,15 @@ export async function seed() {
       update: {},
     });
   }
+  // Решение владельца: после таймера 2 990 / 8 970 / 17 940 ₽. Старые черновые цены (1 490 / 3 490 / 5 490) исправляем
+  const OLD_REGULAR: Record<string, number> = { m1: 1490, m3: 3490, m6: 5490 };
+  for (const t of DEFAULT_TARIFFS) {
+    const row = await prisma.tariff.findUnique({ where: { id: t.id } });
+    if (row && row.regularPrice === OLD_REGULAR[t.id]) {
+      await prisma.tariff.update({ where: { id: t.id }, data: { regularPrice: t.regularPrice } });
+      console.log(`[seed] ${t.id}: цена после таймера ${row.regularPrice} → ${t.regularPrice}`);
+    }
+  }
   // Редизайн 24.10: старые формулировки («эксперты», «Хит продаж») заменяем на утверждённые; правки владельца не трогаем
   for (const t of DEFAULT_TARIFFS) {
     const row = await prisma.tariff.findUnique({ where: { id: t.id } });

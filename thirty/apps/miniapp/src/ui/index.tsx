@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Bell, Home, LayoutList, MessagesSquare, User, WifiOff, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bell, Home, LayoutList, MessagesSquare, User, WifiOff, RefreshCw, X } from 'lucide-react';
 import { ApiError, api } from '../lib/api';
 import { screenView } from '../lib/analytics';
 import { haptic } from '../lib/telegram';
@@ -180,6 +180,19 @@ export function Sheet({ open, onClose, children }: { open: boolean; onClose: () 
   return (
     <div className="sheet-bg" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()} role="dialog">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Всплывающее окно по центру; смена содержимого (stepKey) проигрывает анимацию заново */
+export function Popup({ open, onClose, children, stepKey }: { open: boolean; onClose: () => void; children: ReactNode; stepKey?: string | number }) {
+  if (!open) return null;
+  return (
+    <div className="popup-bg" onClick={onClose}>
+      <div className="popup" key={stepKey} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <button className="popup-x" aria-label="Закрыть" onClick={onClose}><X size={20} /></button>
         {children}
       </div>
     </div>

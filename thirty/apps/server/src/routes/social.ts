@@ -12,7 +12,7 @@ import { computeLeaderboard } from '../modules/rating';
 import { addComment, comments, complain, complaintInput, commentInput, feed, participantProfile, participants, react, reportDetails } from '../modules/social';
 import { clubOverview, joinMeeting, meetingDetails } from '../modules/club';
 import { inviteLinkFor } from '../modules/chats';
-import { acceptInvite, buddyCard, createInvite, requestReplacement } from '../modules/buddy';
+import { acceptInvite, buddyCard, createInvite, proposals, proposeBuddy, requestReplacement, respondProposal } from '../modules/buddy';
 import { archive, finalInput, reviewInput, revokeReviewConsent, submitFinal, submitReview } from '../modules/finale';
 import { availableCards, generateCard, referralLink, renderCardPng } from '../modules/cards';
 import { handleUpdate } from '../modules/bot';
@@ -136,6 +136,16 @@ export async function socialRoutes(app: FastifyInstance) {
       const { appLink } = await import('../lib/telegram');
       return { ...inv, url: appLink(inv.startParam) };
     });
+    r.get('/api/buddy/proposals', async (req) => {
+      const m = await currentMembership(req.user!.id);
+      return m ? proposals(req.user!.id, m.flowId) : { incoming: [], outgoing: [] };
+    });
+    r.post<{ Params: { id: string } }>('/api/buddy/propose/:id', async (req) => {
+      const m = await currentMembership(req.user!.id);
+      if (!m || !/^\d+$/.test(req.params.id)) throw forbidden('no_membership');
+      return proposeBuddy(req.user!.id, m.flowId, BigInt(req.params.id));
+    });
+    r.post<{ Params: { id: string } }>('/api/buddy/proposals/:id', async (req) => respondProposal(req.user!.id, req.params.id, parse(z.object({ accept: z.boolean() }), req.body).accept));
     r.post('/api/buddy/accept', async (req) => acceptInvite(req.user!.id, parse(z.object({ token: z.string().min(4).max(32) }), req.body).token));
     r.post('/api/buddy/replace', async (req) => {
       const body = parse(z.object({ reason: z.enum(['mutual', 'no_contact_5d']), comment: z.string().max(500).optional() }), req.body);

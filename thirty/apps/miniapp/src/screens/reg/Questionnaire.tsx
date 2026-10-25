@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   Target, Sparkles, Lightbulb, CircleX, CircleCheck, Trophy, Plus, Route, ArrowDown, ShieldCheck, ListChecks, ClipboardCheck,
-  CalendarDays, ChevronDown, ChevronUp, Handshake, Hourglass, CheckCheck, BookOpen, ArrowRight, Pencil,
+  CalendarDays, ChevronDown, ChevronUp, Handshake, MapPin, Hourglass, CheckCheck, BookOpen, ArrowRight, Pencil,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { track } from '../../lib/analytics';
@@ -108,18 +108,25 @@ export function GoalsStep() {
 
 function GoalsForm({ m }: { m: MembershipView }) {
   const nav = useNavigate();
+  const { me, refresh } = useMe();
+  const [city, setCity] = useState(me?.user.city ?? '');
   const [drafts, setDrafts] = useState<GoalDraft[]>(() => (m.goals.length ? m.goals.map((g) => ({ id: g.id, title: g.title, category: g.category })) : [{ title: '', category: '' }]));
   const [busy, setBusy] = useState(false);
   const limit = m.goalLimit;
   const single = limit === 1;
   const unlimited = limit === null;
   const canAdd = limit === null || drafts.length < limit;
-  const valid = drafts.every((d) => d.title.trim().length >= 3 && d.category);
+  const valid = city.trim().length >= 2 && drafts.every((d) => d.title.trim().length >= 3 && d.category);
   const set = (i: number, patch: Partial<GoalDraft>) => setDrafts(drafts.map((d, j) => (j === i ? { ...d, ...patch } : d)));
 
   const save = async () => {
     setBusy(true);
     try {
+      // Город нужен для поиска участников и фильтра по городам
+      if (city.trim() !== (me?.user.city ?? '')) {
+        await api('/api/me', { method: 'PATCH', body: { city: city.trim() } });
+        await refresh();
+      }
       const keep = new Set(drafts.map((d) => d.id).filter(Boolean));
       for (const g of m.goals) if (!keep.has(g.id)) await api(`/api/goals/${g.id}`, { method: 'DELETE' });
       for (const d of drafts) {
@@ -162,6 +169,11 @@ function GoalsForm({ m }: { m: MembershipView }) {
           </div>
         ))}
       </div>
+      <label className="field">
+        <span className="row" style={{ gap: 8 }}><MapPin size={17} color="var(--accent)" />Твой город</span>
+        <input className="input" placeholder="Например, Москва" value={city} maxLength={64} autoComplete="address-level2" onChange={(e) => setCity(e.target.value)} />
+        <p className="hint">По городу участники смогут найти тебя и выбрать бадди рядом.</p>
+      </label>
       {drafts.map((d, i) => (
         <div className="field" key={d.id ?? `new${i}`}>
           <div className="row between">

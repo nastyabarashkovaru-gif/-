@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Plus, Trash2, ChevronRight, Camera, Send, UserPlus, Sparkles, MessagesSquare, Lock, CalendarDays } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, Camera, Send, UserPlus, Sparkles, MessagesSquare, Lock, CalendarDays, Users, HeartHandshake } from 'lucide-react';
 import { api, uploadImage } from '../../lib/api';
 import { track } from '../../lib/analytics';
 import { haptic, openTelegram, requestWriteAccess, shareLink } from '../../lib/telegram';
@@ -401,28 +401,70 @@ export function RegBuddy() {
 
   return (
     <Screen id="S16">
-      <Steps at="/reg/buddy" />
-      <Header title="Твой бадди" sub="Партнёр на весь месяц: поддержка и честный взгляд со стороны" />
+      <Header title="Твой бадди" sub="Партнёр на весь месяц: поддержка и честный взгляд со стороны" back="/" />
       {data?.state === 'paired' ? (
         <div className="banner ok">Твой бадди — {data.buddy?.name}. Познакомьтесь в Telegram!</div>
       ) : (
         <>
-          <div className="card card-link" onClick={invite} aria-disabled={busy}>
-            <div className="row"><div className="tile-icon"><UserPlus size={24} color="var(--orange)" /></div><div className="grow"><div className="h3">Пригласить друга</div><div className="muted small">Друг тоже должен оплатить этот поток — пара подтверждается взаимно</div></div><ChevronRight /></div>
-          </div>
-          <div className="card">
-            <div className="row"><div className="tile-icon"><Sparkles size={24} color="var(--orange)" /></div><div className="grow"><div className="h3">Подберите мне бадди</div><div className="muted small">Подберём до старта — по общим интересам и совместимости</div></div></div>
-          </div>
+          <BuddyProposals onChange={reload} />
+          <button className="card card-link" style={{ textAlign: 'left' }} onClick={invite} disabled={busy}>
+            <div className="row"><div className="tile-icon"><UserPlus size={24} /></div><div className="grow"><div className="h3">Пригласить друга</div><div className="muted small">Друг тоже должен оплатить этот поток — пара подтверждается взаимно</div></div><ChevronRight color="var(--muted-2)" /></div>
+          </button>
+          <button className="card card-link" style={{ textAlign: 'left' }} onClick={() => nav('/feed?tab=people')}>
+            <div className="row"><div className="tile-icon"><Users size={24} /></div><div className="grow"><div className="h3">Выбрать из участников</div><div className="muted small">Найди человека по городу и целям и предложи стать парой</div></div><ChevronRight color="var(--muted-2)" /></div>
+          </button>
           {data?.state === 'invited' && <div className="banner warn">Приглашение отправлено — ждём, когда друг примет его.</div>}
+          <p className="hint center">Если не выберешь бадди до старта, мы подберём его сами — по общим целям и совместимости.</p>
         </>
       )}
       <div className="spacer" />
-      <button className="btn btn-primary" onClick={() => nav('/reg/chats')}>Дальше</button>
+      <button className="btn btn-primary" onClick={() => nav('/')}>Готово</button>
     </Screen>
   );
 }
 
-/** S18: чаты потока и тематические клубы */
+/** Входящие предложения стать парой: подтвердить или отклонить; исходящие — «ждём ответа» */
+export function BuddyProposals({ onChange }: { onChange?: () => void }) {
+  const nav = useNavigate();
+  const { data, reload } = useLoad(() => api<{ incoming: { id: string; user: { id: string; name: string; city: string | null } }[]; outgoing: { id: string; user: { id: string; name: string } }[] }>('/api/buddy/proposals'));
+  const [busy, setBusy] = useState<string | null>(null);
+  if (!data || (!data.incoming.length && !data.outgoing.length)) return null;
+  const answer = async (id: string, accept: boolean) => {
+    setBusy(id);
+    try {
+      await api(`/api/buddy/proposals/${id}`, { body: { accept } });
+      haptic(accept ? 'success' : 'light');
+      toast(accept ? 'Теперь вы пара! 💜' : 'Предложение отклонено');
+      reload();
+      onChange?.();
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <>
+      {data.incoming.map((p) => (
+        <div key={p.id} className="card" style={{ gap: 10, borderColor: 'var(--accent)' }}>
+          <span className="row" style={{ gap: 10 }}>
+            <span className="ic"><HeartHandshake size={20} /></span>
+            <span className="grow"><b>{p.user.name}</b>{p.user.city ? ` · ${p.user.city}` : ''}<br /><span className="muted small">предлагает тебе стать парой 💜</span></span>
+          </span>
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn btn-light" style={{ minHeight: 46 }} disabled={busy === p.id} onClick={() => answer(p.id, false)}>Отклонить</button>
+            <button className="btn btn-primary" style={{ minHeight: 46 }} disabled={busy === p.id} onClick={() => answer(p.id, true)}>Подтвердить</button>
+          </div>
+          <button className="link-btn" onClick={() => nav(`/u/${p.user.id}`)}>Посмотреть профиль</button>
+        </div>
+      ))}
+      {data.outgoing.map((p) => (
+        <div key={p.id} className="banner warn">Ты предложила стать парой: {p.user.name}. Ждём ответа.</div>
+      ))}
+    </>
+  );
+}
+
 export function RegChats() {
   const nav = useNavigate();
   const { data, error, loading, reload } = useLoad(() => api<{ flowChat: { id: string; title: string } | null; topicChats: { topic: string; title: string; emoji: string; id: string | null; available: boolean }[] }>('/api/club'));
@@ -450,13 +492,13 @@ export function RegChats() {
             <div className="list-item" key={c.topic}>
               <span style={{ fontSize: 22 }}>{c.emoji}</span>
               <div className="grow">{c.title}</div>
-              {c.id ? <button className="btn btn-secondary btn-sm" onClick={() => join(c.id!)}>Вступить</button> : <span className="muted small">скоро</span>}
+              {c.id ? <button className="btn btn-secondary btn-sm" onClick={() => join(c.id!)}>Вступить</button> : <Lock size={17} color="var(--cell-ink)" aria-label="Закрыто" />}
             </div>
           ))}
         </div>
       )}
       <div className="spacer" />
-      <button className="btn btn-primary" onClick={() => nav('/reg/waiting')}>Готово</button>
+      <button className="btn btn-primary" onClick={() => nav('/')}>Готово</button>
     </Screen>
   );
 }

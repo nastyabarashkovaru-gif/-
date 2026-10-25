@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { HeartHandshake, MessagesSquare, BookOpen, ChevronRight, ChevronDown, ChevronUp, ArrowRight, CircleCheck, TrendingUp, ClipboardCheck, PenLine } from 'lucide-react';
+import { HeartHandshake, MessagesSquare, BookOpen, ChevronRight, ChevronDown, ChevronUp, ArrowRight, CircleCheck, TrendingUp, ClipboardCheck, PenLine, Instagram, Copy, Download, Share2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { formatMetric } from '../../lib/metric';
-import { AppBar, ErrorState, Loading, Screen, humanDate, plural, useLoad } from '../../ui';
+import { AppBar, ErrorState, Loading, Screen, Sheet, humanDate, plural, toast, useLoad } from '../../ui';
+import { canShareStory, downloadImage, shareLink, shareStory } from '../../lib/telegram';
 import { catTitle } from '../reg/Registration';
 import { ReportForm } from './Report';
 
@@ -38,6 +39,7 @@ export function Home() {
   const { data, error, loading, reload } = useLoad(() => api<HomeData>('/api/home'));
   // Переход из уведомления «Пора сдать отчёт!» сразу открывает форму
   const loc = useLocation();
+  const [share, setShare] = useState(false);
   const [reportOpen, setReportOpen] = useState(() => new URLSearchParams(loc.search).get('report') === '1');
 
   if (loading && !data) return <Screen id="S19" nav><Loading /></Screen>;
@@ -65,8 +67,8 @@ export function Home() {
         </div>
         {before ? (
           <>
-            <div className="hero-title">Старт {humanDate(flow.startsOn)}! ✨</div>
-            <div style={{ opacity: 0.9 }}>Твоё обещание себе уже зафиксировано.</div>
+            <StartCountdown startsOn={flow.startsOn} />
+            <div style={{ opacity: 0.9 }}>Старт {humanDate(flow.startsOn)}. Твоё обещание себе уже зафиксировано ✨</div>
           </>
         ) : (
           <>
@@ -81,6 +83,8 @@ export function Home() {
         )}
       </div>
 
+      {before && <button className="link-accent story-link" onClick={() => setShare(true)}><Instagram size={17} />Поделись в сторис, что ты идёшь на наш челлендж</button>}
+      <StorySheet open={share} onClose={() => setShare(false)} />
       {data.state === 'active' && (
         <div className="card" style={{ gap: 10 }}>
           <div className="row between">
@@ -192,5 +196,59 @@ function GoalProgress({ goal }: { goal: HomeGoal }) {
       <div className="row between"><span className="muted">Выполнено действий</span><b style={{ color: 'var(--accent)' }}>{goal.planPercent}%</b></div>
       <div className="bar soft"><i style={{ width: `${goal.planPercent}%` }} /></div>
     </div>
+  );
+}
+
+/** Обратный отсчёт до старта: дни и часы, обновляется раз в минуту */
+function StartCountdown({ startsOn }: { startsOn: string }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const ms = Math.max(0, new Date(`${startsOn}T00:00:00+03:00`).getTime() - now);
+  const d = Math.floor(ms / 86_400_000);
+  const h = Math.floor((ms % 86_400_000) / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return (
+    <div className="hero-title">
+      До старта {d > 0 && <>{d} {plural(d, 'день', 'дня', 'дней')} </>}{h} {plural(h, 'час', 'часа', 'часов')}{d === 0 && <> {m} мин</>} ⏳
+    </div>
+  );
+}
+
+/** Карточка для сторис «Я иду на челлендж»: скопировать ссылку, скачать, поделиться */
+export function StorySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [card, setCard] = useState<{ imageUrl: string; account: string } | null>(null);
+  const [link, setLink] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open || card) return;
+    void api<{ imageUrl: string; account: string }>('/api/story-card').then(setCard).catch(() => undefined);
+    void api<{ url: string }>('/api/referral').then((r) => setLink(r.url)).catch(() => undefined);
+  }, [open, card]);
+  const text = 'Я иду на челлендж «30 дней» 🚀 Присоединяйся!';
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link ? `${text} ${link}` : text);
+      toast('Скопировано 💜');
+    } catch {
+      toast('Не получилось скопировать');
+    }
+  };
+  return (
+    <Sheet open={open} onClose={onClose}>
+      <div className="h3 center" style={{ fontSize: 18 }}>Поделись, что ты идёшь на челлендж 🚀</div>
+      <p className="muted small center" style={{ margin: 0 }}>Впиши свои цели на карточку и выложи в сторис{card?.account ? <> с отметкой <b>@{card.account}</b></> : null}.</p>
+      {card ? <img src={card.imageUrl} alt="Карточка для сторис" className="story-preview" /> : <div className="skeleton" style={{ height: 320, width: '55%', alignSelf: 'center' }} />}
+      <div className="row" style={{ gap: 8 }}>
+        <button className="btn btn-secondary" onClick={copy}><Copy size={17} />Скопировать</button>
+        <button className="btn btn-secondary" disabled={!card} onClick={() => card && downloadImage(card.imageUrl, '30-dney-story.png')}><Download size={17} />Скачать</button>
+      </div>
+      <button className="btn btn-primary" disabled={!card} onClick={() => {
+        if (!card) return;
+        if (canShareStory()) shareStory(card.imageUrl, link ?? 'https://t.me/Dney30_bot');
+        else shareLink(link ?? 'https://t.me/Dney30_bot', text);
+      }}><Share2 size={17} />Поделиться</button>
+    </Sheet>
   );
 }

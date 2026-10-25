@@ -18,6 +18,7 @@ import { offerDoc, privacyDoc } from '../legal/docs';
 import { CloudPaymentsProvider, cpVerify, payPageSig, type CpKind } from '../payments/cloudpayments';
 import { chargeDateFor, coverage, fromDbDate, planRenewal } from '@thirty/domain';
 import { applyPromo } from '../modules/promos';
+import { escAdmin, notifyAdmins } from '../modules/adminBot';
 import { myStoryRequest, storyInput, submitStoryRequest } from '../modules/stories';
 import { renderStoryCardPng } from '../modules/cards';
 
@@ -78,6 +79,19 @@ export async function billingRoutes(app: FastifyInstance) {
     });
     r.post('/api/subscription/resume', async (req) => resumeAutoRenew(req.user!.id));
     r.post('/api/subscription/pay-debt', async (req) => createDebtPayment(req.user!.id));
+
+    /** Обратная связь перед отменой: причина и комментарий — в аналитику и владельцу в служебный бот */
+    r.post('/api/subscription/cancel-feedback', async (req) => {
+      const { reason, comment } = parse(z.object({ reason: z.string().max(100), comment: z.string().trim().max(1000).optional() }), req.body);
+      const user = req.user!;
+      const sub = await prisma.subscription.findFirst({ where: { userId: user.id }, include: { tariff: true }, orderBy: { createdAt: 'desc' } });
+      await track({ userId: user.id, eventName: 'cancel_step_view', screenId: 'S39', tariffId: sub?.tariffId, metadata: { step: 'feedback', reason, comment } });
+      const name = user.displayName || [user.firstName, user.lastName].filter(Boolean).join(' ');
+      await notifyAdmins(
+        [`💬 <b>Хочет отменить подписку</b>`, '', `Участник: ${escAdmin(name)}${user.username ? ` (@${escAdmin(user.username)})` : ''}`, `Тариф: ${escAdmin(sub?.tariff.title ?? '—')}`, `Причина: ${escAdmin(reason)}`, comment ? `Комментарий: ${escAdmin(comment)}` : ''].filter(Boolean).join('\n'),
+      );
+      return { ok: true };
+    });
 
     /** Шаги удержания S36–S38 — только аналитика, отмену они не блокируют */
     r.post('/api/subscription/cancel-step', async (req) => {

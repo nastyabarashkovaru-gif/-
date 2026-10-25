@@ -609,6 +609,8 @@ export async function subscriptionSummary(userId: bigint) {
           months: sub.tariff.months,
           goalLimit: sub.tariff.goalLimit,
           price: sub.renewalPrice,
+          /** Сколько будет стоить вступление заново, без скидки */
+          regularPrice: quote(sub.tariff, false).price,
           autoRenew: sub.autoRenew,
           paidFrom: fromDbDate(sub.paidFromFlow),
           paidUntil: addMonths(fromDbDate(sub.paidThroughFlow), 1),

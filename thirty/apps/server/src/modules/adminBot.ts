@@ -124,3 +124,13 @@ export async function setupAdminBot() {
     console.error('[admin-bot] настройка не удалась:', (e as Error).message);
   }
 }
+
+/** Произвольное уведомление владельцу (например, обратная связь при отмене подписки) */
+export async function notifyAdmins(html: string) {
+  if (!config.ADMIN_BOT_TOKEN) return;
+  for (const chatId of await subscribers()) {
+    await call('sendMessage', { chat_id: chatId, text: html, parse_mode: 'HTML', disable_web_page_preview: true }).catch((e) => console.error('[admin-bot]', (e as Error).message));
+  }
+}
+
+export const escAdmin = esc;

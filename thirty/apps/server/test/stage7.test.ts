@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { api, clock, getApp, prisma, resetDb } from './helpers';
+import { api, clock, getApp, grantMembership, prisma, resetDb } from './helpers';
 import { setTelegramTransport, webhookSecret } from '../src/lib/telegram';
 import { seedTemplates } from '../src/modules/bot';
 import { seedPromos } from '../src/modules/promos';
@@ -176,5 +176,33 @@ describe('дожимная цепочка до оплаты', () => {
     expect(await buy(500)).toBe(999);
     const promo = await prisma.promo.findUniqueOrThrow({ where: { code: code! } });
     expect(promo).toMatchObject({ uses: 1, active: false });
+  });
+
+  it('предложение стать парой: пуш в боте, подтверждение или отказ в приложении', async () => {
+    clock.set('2026-10-21T09:00:00Z');
+    for (const id of [801, 802, 803]) {
+      await start(id);
+      await grantMembership(id, '2026-11-01', 'm1');
+    }
+    calls = [];
+    const p1 = await api('POST', '/api/buddy/propose/802', 801);
+    expect(p1.body).toMatchObject({ matched: false });
+    expect(sent().at(-1)).toContain('предлагает тебе стать парой');
+    expect((await api('GET', '/api/participants/802', 801)).body.buddy.state).toBe('sent');
+    const prof = await api('GET', '/api/participants/801', 802);
+    expect(prof.body.buddy).toMatchObject({ state: 'incoming' });
+    const inc = await api('GET', '/api/buddy/proposals', 802);
+    expect(inc.body.incoming[0].user.id).toBe('801');
+    expect((await api('POST', `/api/buddy/proposals/${inc.body.incoming[0].id}`, 803, { accept: true })).status).toBe(404); // не ему
+    expect((await api('POST', `/api/buddy/proposals/${inc.body.incoming[0].id}`, 802, { accept: true })).body).toMatchObject({ accepted: true });
+    expect((await api('GET', '/api/buddy', 801)).body.state).toBe('paired');
+    expect((await api('GET', '/api/participants/802', 801)).body.buddy.state).toBe('paired');
+    expect((await api('POST', '/api/buddy/propose/801', 803)).body.code).toBe('target_paired');
+    // отказ
+    await grantMembership(804, '2026-11-01', 'm1');
+    const p2 = await api('POST', '/api/buddy/propose/804', 803);
+    expect((await api('POST', `/api/buddy/proposals/${p2.body.proposalId}`, 804, { accept: false })).body).toEqual({ accepted: false });
+    const n = await api('GET', '/api/notifications', 803);
+    expect(n.body.items[0].title).toContain('отклонено');
   });
 });

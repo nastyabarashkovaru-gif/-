@@ -2,6 +2,7 @@ import { fromDbDate, flowBounds, localDate } from '@thirty/domain';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { clock } from '../clock';
+import { currentMembership } from './flows';
 import { prisma } from '../db';
 import { badRequest, forbidden, notFound } from '../http';
 import { getSetting } from '../settings';
@@ -161,5 +162,26 @@ export async function participantProfile(viewerId: bigint, id: string) {
     goals: current?.goals.filter((g) => g.isPublic).sort((a, b) => a.sort - b.sort).map((g) => ({ title: g.title, category: g.category, pointA: g.pointA, pointB: g.pointB })) ?? [],
     stats: stats ? { percent: Math.round(stats.ratio * 100), successfulDays: stats.successfulDays, currentStreak: stats.currentStreak } : null,
     flowsCount: memberships.length,
+    buddy: await buddyState(viewerId, u.id),
   };
+}
+
+/** Можно ли предложить этому участнику стать парой и в каком состоянии предложение */
+async function buddyState(viewerId: bigint, targetId: bigint) {
+  if (viewerId === targetId) return { state: 'self' as const };
+  const m = await currentMembership(viewerId);
+  if (!m) return { state: 'unavailable' as const };
+  const theirs = await prisma.flowMembership.findFirst({ where: { userId: targetId, flowId: m.flowId, status: { in: ['reserved', 'registered', 'active'] } } });
+  if (!theirs) return { state: 'other_flow' as const };
+  const assigned = await prisma.buddyAssignment.findMany({ where: { flowId: m.flowId, userId: { in: [viewerId, targetId] } } });
+  const mine = assigned.find((a) => a.userId === viewerId);
+  const their = assigned.find((a) => a.userId === targetId);
+  if (mine && their && mine.pairId === their.pairId) return { state: 'paired' as const };
+  if (mine) return { state: 'viewer_paired' as const };
+  if (their) return { state: 'taken' as const };
+  const incoming = await prisma.buddyInvite.findFirst({ where: { flowId: m.flowId, fromUserId: targetId, toUserId: viewerId, status: 'pending' } });
+  if (incoming) return { state: 'incoming' as const, proposalId: incoming.id };
+  const sent = await prisma.buddyInvite.findFirst({ where: { flowId: m.flowId, fromUserId: viewerId, toUserId: targetId, status: 'pending' } });
+  if (sent) return { state: 'sent' as const };
+  return { state: 'can_propose' as const };
 }
