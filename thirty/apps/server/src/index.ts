@@ -6,6 +6,7 @@ import { seed } from './seed';
 import { startScheduler } from './jobs/scheduler';
 import { setupBot } from './lib/botSetup';
 import { setupAdminBot } from './modules/adminBot';
+import { ensureDemoPhotos } from './modules/demo';
 import { checkCloudPaymentsKeys } from './payments/cloudpayments';
 
 async function main() {
@@ -16,6 +17,7 @@ async function main() {
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   await setupBot();
   await setupAdminBot();
+  if (config.DEMO_MODE) await ensureDemoPhotos().catch((e) => console.warn('[demo] photos', e));
   if (config.PAYMENT_PROVIDER === 'cloudpayments') await checkCloudPaymentsKeys();
   if (config.SCHEDULER) startScheduler();
   const stop = async () => {

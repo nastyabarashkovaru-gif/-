@@ -7,7 +7,7 @@ import { clock } from '../clock';
 import { config } from '../config';
 import { prisma } from '../db';
 import { forbidden } from '../http';
-import { newKey, storage } from '../lib/storage';
+import { storage } from '../lib/storage';
 import { seed } from '../seed';
 import { clearSettingsCache } from '../settings';
 import { ensureFlow, refreshFlowStatuses } from './flows';
@@ -48,12 +48,20 @@ const PEOPLE = [
 
 const TEXTS = ['Провела три созвона. Один клиент уже согласился!', 'Тренировка сделана, 9 000 шагов пройдено! 💪', 'Сегодня выложила новый Reels! Уже 2 000 просмотров 🔥', 'День закрыт, всё по плану 💜', 'Было тяжело, но сделала!', 'Встала в 7:00 без будильника 😍', 'Урок пройден, новые слова выучены 🇬🇧'];
 
+/** Демо-фото лежат в хранилище под постоянными ключами; после перезапуска сервера (временный диск) кладём их заново */
+export async function ensureDemoPhotos() {
+  if (!PHOTO_DIR) {
+    console.warn('[demo] assets/demo не найдена — фото в отчётах будут пустыми');
+    return;
+  }
+  for (let i = 0; i < 5; i++) {
+    const file = path.join(PHOTO_DIR, `p${i}.jpg`);
+    if (existsSync(file)) await storage.put(`demo/p${i}.jpg`, readFileSync(file), 'image/jpeg');
+  }
+}
+
 async function photo(ownerId: bigint, i: number): Promise<string> {
-  const file = PHOTO_DIR ? path.join(PHOTO_DIR, `p${i % 5}.jpg`) : null;
-  const buf = file && existsSync(file) ? readFileSync(file) : Buffer.from('/9j/4AAQSkZJRgABAQ==', 'base64');
-  const key = newKey('jpg');
-  await storage.put(key, buf, 'image/jpeg');
-  const m = await prisma.mediaFile.create({ data: { ownerId, storageKey: key, mime: 'image/jpeg', size: buf.length } });
+  const m = await prisma.mediaFile.create({ data: { ownerId, storageKey: `demo/p${i % 5}.jpg`, mime: 'image/jpeg', size: 0 } });
   return m.id;
 }
 
@@ -64,6 +72,7 @@ async function wipe() {
   await prisma.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(', ')} RESTART IDENTITY CASCADE`);
   clearSettingsCache();
   await seed();
+  await ensureDemoPhotos();
 }
 
 const ABOUT: Record<string, [number, string, string]> = {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { HeartHandshake, MessagesSquare, Reply, Send, SlidersHorizontal, Trophy, User, X, ChevronRight } from 'lucide-react';
+import { ArrowLeft, HeartHandshake, MessagesSquare, Reply, Send, SlidersHorizontal, Trophy, User, X, ChevronRight } from 'lucide-react';
 import { api } from '../../lib/api';
 import { openTelegram } from '../../lib/telegram';
 import { useMe } from '../../state';
@@ -14,14 +14,19 @@ type Tab = 'chat' | 'board' | 'people';
 export function Feed() {
   const q = new URLSearchParams(useLocation().search);
   const focus = q.get('msg');
+  const nav = useNavigate();
   const [tab, setTab] = useState<Tab>(() => (focus ? 'chat' : q.get('tab') === 'people' ? 'people' : (sessionStorage.getItem('thirty.feedTab') as Tab) || 'chat'));
   const pick = (t: Tab) => { setTab(t); sessionStorage.setItem('thirty.feedTab', t); };
   return (
     <Screen id={tab === 'chat' ? 'S23' : tab === 'board' ? 'S26' : 'S24'} nav>
       <AppBar />
-      <div>
-        <h1 className="h2" style={{ fontSize: 26 }}>Лента 💜</h1>
-        <p className="sub" style={{ fontSize: 15 }}>Отчёты, общение и результаты участников.</p>
+      <div className="row" style={{ alignItems: 'flex-start' }}>
+        {/* Пришли из уведомления — стрелка назад к уведомлениям */}
+        {focus && <button className="icon-btn" aria-label="Назад" onClick={() => (history.length > 1 ? nav(-1) : nav('/notifications'))}><ArrowLeft size={20} /></button>}
+        <div className="grow">
+          <h1 className="h2" style={{ fontSize: 26 }}>Лента 💜</h1>
+          <p className="sub" style={{ fontSize: 15 }}>Отчёты, общение и результаты участников.</p>
+        </div>
       </div>
       <div className="seg seg-plain" role="tablist">
         {([['chat', 'Отчёты'], ['board', 'Лидерборд'], ['people', 'Все участники']] as const).map(([k, l]) => (
