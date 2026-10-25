@@ -7,9 +7,30 @@ export class ApiError extends Error {
 }
 
 const DEV_USER_KEY = 'thirty.devUser';
+const DEMO_KEY = 'thirty.demoKey';
+
+/** Ключ демо-версии: приходит один раз в ссылке ?demo=…, дальше хранится в браузере */
+export function demoKey(): string | null {
+  try {
+    const fromUrl = new URLSearchParams(location.search).get('demo');
+    if (fromUrl) localStorage.setItem(DEMO_KEY, fromUrl);
+    return localStorage.getItem(DEMO_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Демо: войти от имени другого пользователя (новый человек / владелец) */
+export function setDevUser(id: string) {
+  try {
+    localStorage.setItem(DEV_USER_KEY, id);
+  } catch {
+    /* без хранилища демо не переключить */
+  }
+}
 
 function devUser(): string | null {
-  if (!import.meta.env.DEV) return null;
+  if (!import.meta.env.DEV && !demoKey()) return null;
   try {
     let id = localStorage.getItem(DEV_USER_KEY);
     if (!id) {
@@ -29,6 +50,8 @@ function headers(json: boolean): Record<string, string> {
   else {
     const d = devUser();
     if (d) h['X-Dev-User'] = d;
+    const k = demoKey();
+    if (k) h['X-Demo-Key'] = k;
   }
   const sp = startParam();
   if (sp?.startsWith('m_')) h['X-Start-Param'] = sp;

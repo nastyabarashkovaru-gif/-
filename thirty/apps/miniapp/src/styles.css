@@ -264,6 +264,8 @@ img { max-width: 100%; display: block; }
 .hero-card { background: var(--accent); color: #fff; border-radius: 24px; padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 10px; font-size: 15px; }
 .hero-title { font-size: 28px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
 .hero-pill { background: rgba(255, 255, 255, 0.2); border-radius: 999px; padding: 5px 12px; font-size: 14px; white-space: nowrap; }
+.hero-pill.green { background: var(--green-2); color: #fff; font-weight: 600; }
+.demo-fab { position: fixed; left: 50%; transform: translateX(-50%); top: 14px; z-index: 60; background: #1b1530; color: #fff; border: 0; border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 700; opacity: 0.85; box-shadow: 0 4px 14px rgba(0,0,0,.2); }
 .hero-bar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.3); overflow: hidden; margin-top: 6px; }
 .hero-bar i { display: block; height: 100%; background: #fff; border-radius: 4px; }
 .check-radio > i { display: inline-flex; align-items: center; justify-content: center; color: #fff; }

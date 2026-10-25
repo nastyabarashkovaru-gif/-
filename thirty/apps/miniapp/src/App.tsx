@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { DemoPanel } from './ui/DemoPanel';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { api } from './lib/api';
 import { ctx, track } from './lib/analytics';
@@ -150,6 +151,7 @@ export function App() {
         <Route path="/final" element={<FinalScreen />} />
         <Route path="*" element={<Navigate to={start} replace />} />
       </Routes>
+      <DemoPanel />
       <ToastHost />
     </MeContext.Provider>
   );

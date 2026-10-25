@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CalendarDays, CalendarHeart, CircleCheck, CircleX, Clock, RefreshCw } from 'lucide-react';
-import { api, rub } from '../../lib/api';
+import { api, demoKey, rub } from '../../lib/api';
 import { haptic, openExternal } from '../../lib/telegram';
 import { useMe } from '../../state';
 import { BrandBar, Cta, ErrorState, Header, Loading, Screen, errorText, humanDate, toast, useLoad } from '../../ui';
@@ -54,7 +54,8 @@ export function Checkout() {
       await api('/api/consents', { body: { kinds: CONSENTS.map((c) => c.kind) } });
       const r = await api<{ paymentId: string; url: string }>('/api/checkout', { body: { tariffId: tariff, idempotencyKey: key } });
       haptic('success');
-      openExternal(r.url);
+      if (demoKey()) location.href = r.url; // демо: тестовая оплата в этой же вкладке
+      else openExternal(r.url);
       nav(`/checkout/wait/${r.paymentId}`);
     } catch (e) {
       haptic('error');

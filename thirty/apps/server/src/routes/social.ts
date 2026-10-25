@@ -25,6 +25,7 @@ function cardSig(id: string) {
 }
 
 import { adminBotSecret, handleAdminUpdate } from '../modules/adminBot';
+import { advanceDay, assertDemo, demoInfo, runScenario } from '../modules/demo';
 import { chatMessageInput, listChat, postChat } from '../modules/feedChat';
 import { listNotifications, markRead, unreadCount } from '../modules/notifications';
 
@@ -37,6 +38,15 @@ export async function socialRoutes(app: FastifyInstance) {
       if (!req.query.cursor) await track({ userId: req.user!.id, eventName: 'feed_open', screenId: 'S23' });
       return jsonSafe(await feed({ cursor: req.query.cursor, sort: req.query.sort === 'popular' ? 'popular' : 'new', flowId: req.query.flowId }));
     });
+    // Демо-версия для владельца
+    r.get('/api/demo/info', async () => demoInfo());
+    r.post('/api/demo/scenario', async (req) => {
+      assertDemo();
+      const { scenario } = parse(z.object({ scenario: z.enum(['fresh', 'waiting', 'active']) }), req.body);
+      return runScenario(req.user!.id, 'Анастасия', scenario);
+    });
+    r.post('/api/demo/advance', async () => advanceDay());
+
     // Уведомления (колокольчик)
     r.get('/api/notifications', async (req) => listNotifications(req.user!.id));
     r.get('/api/notifications/unread', async (req) => ({ unread: await unreadCount(req.user!.id) }));

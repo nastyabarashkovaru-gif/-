@@ -63,7 +63,7 @@ export function Home() {
       <div className="hero-card">
         <div className="row between">
           <span style={{ opacity: 0.9 }}>{before ? 'До старта' : 'Твой челлендж'}</span>
-          <span className="hero-pill">{before ? 'Ожидание старта' : `День ${Math.min(day, flow.days)} из ${flow.days}`}</span>
+          <span className={`hero-pill${before ? ' green' : ''}`}>{before ? 'Ожидание старта' : `День ${Math.min(day, flow.days)} из ${flow.days}`}</span>
         </div>
         {before ? (
           <>

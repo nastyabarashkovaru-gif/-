@@ -210,9 +210,9 @@ window.addEventListener('load', pay);
       const p = await prisma.payment.findUnique({ where: { id: req.params.id } });
       if (!p) throw notFound();
       const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Тестовая оплата</title><body style="font-family:-apple-system,Roboto,sans-serif;background:#FFF9F2;color:#20211F;padding:24px">
-<h2>Тестовая оплата (sandbox)</h2><p>Сумма: <b>${p.amount} ₽</b>. Деньги не списываются.</p>
-<form method="post" action="/api/payments/mock/${p.id}/success"><button style="background:#FF6B35;color:#fff;border:0;border-radius:14px;padding:14px 20px;font-size:17px;width:100%">Оплатить</button></form><br>
+<title>Тестовая оплата</title><body style="font-family:-apple-system,Roboto,sans-serif;background:#F8F8FD;color:#211C35;padding:24px">
+<h2>Тестовая оплата</h2><p>Сумма: <b>${p.amount} ₽</b>. Деньги не списываются.</p>
+<form method="post" action="/api/payments/mock/${p.id}/success"><button style="background:#6F4FE0;color:#fff;border:0;border-radius:14px;padding:14px 20px;font-size:17px;width:100%">Оплатить</button></form><br>
 <form method="post" action="/api/payments/mock/${p.id}/fail"><button style="background:#eee;border:0;border-radius:14px;padding:14px 20px;font-size:17px;width:100%">Отказ банка</button></form></body>`;
       return reply.type('text/html').send(html);
     });
@@ -232,6 +232,8 @@ window.addEventListener('load', pay);
       };
       const parsed = paymentProvider().parseWebhook({ sign: signMock(data) }, data);
       await handleWebhook(parsed, JSON.stringify(data));
+      // Демо: сразу назад в приложение, на экран ожидания оплаты
+      if (config.DEMO_MODE) return reply.redirect(`/checkout/wait/${p.id}`, 303);
       return reply.type('text/html').send(`<meta charset="utf-8"><body style="font-family:sans-serif;padding:24px;background:#FFF9F2">${req.params.result === 'success' ? '✅ Оплачено (sandbox). Вернитесь в Telegram.' : '❌ Платёж отклонён (sandbox).'}</body>`);
     });
   }

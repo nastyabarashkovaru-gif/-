@@ -43,6 +43,9 @@ const schema = z.object({
   SCHEDULER: bool,
   /** Разрешить sandbox-оплату (mock) при NODE_ENV=production — только для staging */
   ALLOW_SANDBOX_PAYMENTS: bool,
+  /** Демо-версия для владельца: сценарии, перемотка времени, вход без Telegram по ключу */
+  DEMO_MODE: bool,
+  DEMO_KEY: z.string().default(''),
   STATIC_MINIAPP_DIR: z.string().default(''),
   STATIC_ADMIN_DIR: z.string().default(''),
 });
@@ -55,10 +58,11 @@ export const isProd = config.NODE_ENV === 'production';
 
 if (isProd) {
   const problems: string[] = [];
-  if (config.DEV_AUTH) problems.push('DEV_AUTH must be off in production');
+  if (config.DEMO_MODE && config.DEMO_KEY.length < 16) problems.push('DEMO_KEY must be at least 16 chars');
+  if (config.DEV_AUTH && !config.DEMO_MODE) problems.push('DEV_AUTH must be off in production');
   if (config.ADMIN_JWT_SECRET.startsWith('dev-')) problems.push('ADMIN_JWT_SECRET is default');
   if (config.MEDIA_SIGNING_SECRET.startsWith('dev-')) problems.push('MEDIA_SIGNING_SECRET is default');
-  if (!config.BOT_TOKEN) problems.push('BOT_TOKEN is empty');
+  if (!config.BOT_TOKEN && !config.DEMO_MODE) problems.push('BOT_TOKEN is empty');
   if (config.PAYMENT_PROVIDER === 'mock' && !config.ALLOW_SANDBOX_PAYMENTS) problems.push('PAYMENT_PROVIDER=mock in production (set ALLOW_SANDBOX_PAYMENTS=true only on staging)');
   if (config.PAYMENT_PROVIDER === 'prodamus' && (!config.PRODAMUS_SECRET_KEY || !config.PRODAMUS_FORM_URL)) problems.push('PRODAMUS_* not configured');
   if (config.PAYMENT_PROVIDER === 'cloudpayments' && (!config.CP_PUBLIC_ID || !config.CP_API_SECRET)) problems.push('CP_PUBLIC_ID / CP_API_SECRET not configured');

@@ -74,6 +74,8 @@ function readInitData(req: FastifyRequest): InitData | null {
   const header = req.headers.authorization ?? '';
   if (header.startsWith('tma ')) return validateInitData(header.slice(4), config.BOT_TOKEN);
   if (config.DEV_AUTH) {
+    // В демо-версии вход без Telegram только с ключом владельца
+    if (config.DEMO_MODE && req.headers['x-demo-key'] !== config.DEMO_KEY) return null;
     const dev = req.headers['x-dev-user'];
     if (typeof dev === 'string' && /^\d{1,15}$/.test(dev)) {
       return { user: { id: Number(dev), first_name: `Тест ${dev}`, allows_write_to_pm: true }, authDate: Date.now() / 1000 };
