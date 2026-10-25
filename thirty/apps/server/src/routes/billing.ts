@@ -8,7 +8,7 @@ import { forbidden, jsonSafe, notFound } from '../http';
 import { parse } from '../lib/validate';
 import { paymentProvider } from '../payments';
 import { signMock } from '../payments/mock';
-import { VALUE_DESCRIPTIONS, getSetting } from '../settings';
+import { getSetting } from '../settings';
 import { track } from '../modules/analytics';
 import {
   appUrl, cancelAutoRenew, checkoutPreview, createCheckout, createDebtPayment, handleWebhook, offerState, resumeAutoRenew, startOffer, subscriptionSummary,
@@ -37,7 +37,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
     /** Ценность до тарифов (S05) — только включённые админом позиции */
     r.get('/api/public/value', async () => {
-      const items = (await getSetting('value.items')).filter((i) => i.enabled).map((i) => ({ ...i, description: i.description || VALUE_DESCRIPTIONS[i.id] || '' }));
+      const items = (await getSetting('value.items')).filter((i) => i.enabled);
       return { items, total: items.reduce((a, i) => a + i.price, 0) };
     });
 

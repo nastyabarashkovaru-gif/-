@@ -11,15 +11,6 @@ export interface ValueItem {
   enabled: boolean;
 }
 
-/** Пояснения по умолчанию (если в админке не задано своё) */
-export const VALUE_DESCRIPTIONS: Record<string, string> = {
-  psychologist: 'Встречи с психологом: поддержка, работа со страхами, выгоранием и мотивацией',
-  coach: 'Помогает поставить цель, разбить её на шаги и не сбиться с пути',
-  english: 'Разговорная практика английского с репетитором',
-  blog: 'Как вести блог, набирать аудиторию и зарабатывать на нём',
-  planners: 'Готовые шаблоны, чтобы планировать день и отслеживать привычки',
-  products: 'Список продуктов и идеи блюд для правильного питания',
-};
 
 export interface EvidencePolicy {
   [category: string]: { evidence: 'checkbox' | 'photo' | 'screenshot' | 'checkbox_photo' | 'link'; photoRequired: boolean; selfReported: boolean; note: string };
@@ -36,12 +27,12 @@ export const DEFAULT_SETTINGS = {
   'prize.rulesText':
     'Приз получают участники с идеальным результатом: 100% обязательных выполнений по всем целям, ни одного пропущенного ежедневного отчёта и подтверждённое достижение всех выбранных целей. Все претенденты проходят ручную проверку доказательств. Призовых мест не больше трёх; при равенстве места распределяются по публичному тай-брейку: процент выполнения → полностью закрытые дни → самая длинная серия → время подачи итоговой анкеты.',
   'value.items': [
-    { id: 'psychologist', emoji: '🧠', title: 'Сессия с психологом', price: 3000, priceLabel: 'от 3 000 ₽', enabled: true },
-    { id: 'coach', emoji: '🎯', title: 'Сессия с коучем', price: 3000, priceLabel: 'от 3 000 ₽', enabled: true },
-    { id: 'english', emoji: '🇬🇧', title: 'Сессия с репетитором', price: 1500, priceLabel: 'от 1 500 ₽', enabled: true },
-    { id: 'blog', emoji: '📚', title: 'Обучение по блогингу и заработку с блога', price: 19000, enabled: true },
-    { id: 'planners', emoji: '📅', title: 'Планнеры и трекеры', price: 3999, enabled: true },
-    { id: 'products', emoji: '🥑', title: 'Продуктовая корзина для похудения', price: 1500, enabled: true },
+    { id: 'weekly', emoji: '📊', title: 'Еженедельные разборы', description: 'Отслеживаем прогресс за неделю и ставим план на следующую', price: 0, enabled: true },
+    { id: 'reports', emoji: '📸', title: 'Отчётность', description: 'Ежедневно скидываем отчёты в чат', price: 0, enabled: true },
+    { id: 'experts', emoji: '🎓', title: 'Эксперты в тематических чатах', description: 'Сессии с финансовым коучем, психологом, репетитором по английскому в разговорном клубе и продюсером блогеров', price: 0, enabled: true },
+    { id: 'planners', emoji: '📅', title: 'Планнеры и трекеры', description: 'Помогают дисциплинировать и оцифровать жизнь', price: 0, enabled: true },
+    { id: 'products', emoji: '🥑', title: 'Продукты для похудения', description: 'На которых Анастасия похудела на −7 кг', price: 0, enabled: true },
+    { id: 'support', emoji: '💜', title: 'Поддержка и окружение', description: 'Найдёшь новых друзей, с кем будешь расти дальше вместе', price: 0, enabled: true },
   ] as ValueItem[],
   'evidence.policy': {
     money: { evidence: 'checkbox_photo', photoRequired: false, selfReported: false, note: 'Скриншот по желанию. Не показывайте номера карт и суммы на счетах.' },

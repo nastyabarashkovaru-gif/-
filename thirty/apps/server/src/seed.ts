@@ -35,6 +35,11 @@ export async function seed() {
   // Редизайн 25.10: старый состав экрана ценности (без эмодзи) заменяем новым утверждённым
   const value = await prisma.setting.findUnique({ where: { key: 'value.items' } });
   if (value && Array.isArray(value.value) && (value.value as { emoji?: string }[]).every((i) => !i.emoji)) await prisma.setting.delete({ where: { key: 'value.items' } });
+  // 25.10: новый состав «Что входит в клуб» от владельца (без цен, с пояснениями) — один раз заменяет сохранённый
+  if (!(await prisma.setting.findUnique({ where: { key: 'maintenance.valueV3' } }))) {
+    await prisma.setting.deleteMany({ where: { key: 'value.items' } });
+    await prisma.setting.create({ data: { key: 'maintenance.valueV3', value: { at: new Date().toISOString() } } });
+  }
   // Разовый сброс таймеров скидки (OFFER_RESET=<метка>): удаляет неиспользованные окна цены, один раз на метку
   const reset = process.env.OFFER_RESET;
   if (reset) {
