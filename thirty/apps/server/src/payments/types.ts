@@ -27,21 +27,21 @@ export interface ParsedWebhook {
   nextChargeDate: string | null;
   /** Подписка отключена на стороне провайдера */
   subscriptionActive: boolean | null;
-  customer: { phone?: string; email?: string };
+  customer: { phone?: string; email?: string; accountId?: string; token?: string };
   raw: Record<string, unknown>;
 }
 
 export interface SubscriptionRef {
   providerSubscriptionId: string;
-  customer: { phone?: string; email?: string };
+  customer: { phone?: string; email?: string; accountId?: string; token?: string };
 }
 
 export interface PaymentProvider {
-  name: 'prodamus' | 'mock';
+  name: 'prodamus' | 'cloudpayments' | 'mock';
   createPayment(input: CreatePaymentInput): Promise<{ url: string }>;
   parseWebhook(headers: Record<string, string | string[] | undefined>, body: Record<string, unknown>): ParsedWebhook;
-  /** Перенести дату следующего списания (у Prodamus — только вперёд) */
-  setNextChargeDate(ref: SubscriptionRef, date: string): Promise<void>;
+  /** Перенести дату следующего списания (у Prodamus — только вперёд); amount — сумма продления, если провайдер её хранит */
+  setNextChargeDate(ref: SubscriptionRef, date: string, amount?: number): Promise<void>;
   /** Выключить автопродление по инициативе покупателя */
   setActive(ref: SubscriptionRef, active: boolean): Promise<void>;
 }

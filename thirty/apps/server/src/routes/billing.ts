@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireUser } from '../auth/telegram';
+import { clock } from '../clock';
 import { config, isProd } from '../config';
 import { prisma } from '../db';
 import { forbidden, jsonSafe, notFound } from '../http';
@@ -10,10 +11,12 @@ import { signMock } from '../payments/mock';
 import { getSetting } from '../settings';
 import { track } from '../modules/analytics';
 import {
-  cancelAutoRenew, checkoutPreview, createCheckout, createDebtPayment, handleWebhook, offerState, resumeAutoRenew, startOffer, subscriptionSummary,
+  appUrl, cancelAutoRenew, checkoutPreview, createCheckout, createDebtPayment, handleWebhook, offerState, resumeAutoRenew, startOffer, subscriptionSummary,
 } from '../modules/billing';
 
 import { offerDoc, privacyDoc } from '../legal/docs';
+import { CloudPaymentsProvider, cpVerify, payPageSig, type CpKind } from '../payments/cloudpayments';
+import { chargeDateFor, coverage, fromDbDate, planRenewal } from '@thirty/domain';
 import { applyPromo } from '../modules/promos';
 import { myStoryRequest, storyInput, submitStoryRequest } from '../modules/stories';
 import { renderStoryCardPng } from '../modules/cards';
@@ -114,6 +117,79 @@ export async function billingRoutes(app: FastifyInstance) {
     return reply.send('success');
   });
 
+  /**
+   * CloudPayments: уведомления Check / Pay / Fail / Recurrent / Refund. Ответ {"code":0}; на Check отказываем,
+   * если сумма или заказ не совпадают. Тело — application/x-www-form-urlencoded (настройка по умолчанию), подпись Content-HMAC.
+   */
+  app.post<{ Params: { kind: string } }>('/api/payments/cloudpayments/:kind', async (req, reply) => {
+    const kind = req.params.kind as CpKind;
+    if (!['check', 'pay', 'fail', 'recurrent', 'refund'].includes(kind)) throw notFound();
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const raw = typeof body.__raw === 'string' ? body.__raw : JSON.stringify(body);
+    if (!cpVerify(raw, req.headers)) {
+      console.warn(`[cloudpayments] ${kind}: неверная подпись`);
+      return reply.status(401).send({ code: 13 });
+    }
+    if (kind === 'check') return reply.send({ code: await cpCheck(body) });
+    const parsed = paymentProvider().name === 'cloudpayments' ? paymentProvider().parseWebhook(req.headers, { ...body, __kind: kind }) : new CloudPaymentsProvider().parseWebhook(req.headers, { ...body, __kind: kind });
+    console.log(`[cloudpayments] ${kind} kind=${parsed.kind} status=${parsed.status} invoice=${parsed.paymentId ? 'yes' : 'no'} sub=${parsed.providerSubscriptionId ?? '-'} test=${String(body.TestMode ?? '-')}`);
+    await handleWebhook(parsed, `${kind}:${raw}`);
+    return reply.send({ code: 0 });
+  });
+
+  /** Страница оплаты CloudPayments: виджет с суммой и подпиской из нашей базы (не из ссылки) */
+  app.get<{ Params: { id: string }; Querystring: { e?: string; s?: string } }>('/pay/:id', async (req, reply) => {
+    const exp = Number(req.query.e ?? 0);
+    const page = (body: string) => reply.header('content-type', 'text/html; charset=utf-8').send(payPageHtml(body));
+    if (!req.query.s || req.query.s !== payPageSig(req.params.id, exp)) return page('<h2>Ссылка недействительна</h2><p>Вернись в приложение и нажми «Оплатить» ещё раз.</p>');
+    const p = await prisma.payment.findUnique({ where: { id: req.params.id }, include: { subscription: { include: { tariff: true } } } });
+    const tariff = p?.tariffId ? await prisma.tariff.findUnique({ where: { id: p.tariffId } }) : null;
+    if (!p) return page('<h2>Платёж не найден</h2>');
+    const back = appUrl(`pay_${p.id}`);
+    if (p.status === 'paid') return page(`<h2>Оплата уже прошла ✅</h2><a class="btn" href="${back}">Вернуться в приложение</a>`);
+    if (clock.now().getTime() / 1000 > exp) return page('<h2>Ссылка устарела</h2><p>Специальная цена или срок ссылки закончились. Вернись в приложение и открой оплату заново.</p><a class="btn" href="' + back + '">Вернуться в приложение</a>');
+    // Подписка: первое автосписание 28-го числа последнего оплаченного месяца, по цене покупки
+    let recurrent: { interval: string; period: number; amount: number; startDate: string } | null = null;
+    if (p.kind === 'initial' && p.coversFromFlow && p.months) {
+      const flows = coverage(fromDbDate(p.coversFromFlow), p.months);
+      recurrent = { interval: 'Month', period: p.months, amount: p.amount, startDate: `${chargeDateFor(flows[flows.length - 1])}T09:00:00` };
+    } else if (p.kind === 'debt' && p.subscription) {
+      const plan = planRenewal(fromDbDate(p.subscription.paidThroughFlow), p.subscription.tariff.months);
+      recurrent = { interval: 'Month', period: p.subscription.tariff.months, amount: p.subscription.renewalPrice, startDate: `${plan.nextChargeDate}T09:00:00` };
+    }
+    const title = tariff ? `«30 дней» — тариф «${tariff.title}»` : '«30 дней»';
+    const params = {
+      publicId: config.CP_PUBLIC_ID,
+      description: title,
+      amount: p.amount,
+      currency: 'RUB',
+      invoiceId: p.id,
+      accountId: p.userId.toString(),
+      skin: 'mini',
+      data: recurrent ? { CloudPayments: { recurrent } } : {},
+    };
+    return page(`
+<h2>${esc(title)}</h2>
+<p class="sum">${p.amount.toLocaleString('ru-RU')} ₽</p>
+${recurrent ? `<p class="muted">Автопродление: ${recurrent.startDate.slice(8, 10)}.${recurrent.startDate.slice(5, 7)}.${recurrent.startDate.slice(0, 4)} спишем ${Number(recurrent.amount).toLocaleString('ru-RU')} ₽ за следующие ${recurrent.period} мес. Отключить — через поддержку.</p>` : ''}
+<button class="btn" id="pay">Оплатить картой</button>
+<p class="muted" id="msg"></p>
+<a class="link" href="${back}">Вернуться в приложение</a>
+<script src="https://widget.cloudpayments.ru/bundles/cloudpayments.js"></script>
+<script>
+var params = ${JSON.stringify(params).replace(/</g, '\\u003c')};
+function pay() {
+  var w = new cp.CloudPayments({ language: 'ru-RU' });
+  w.pay('charge', params, {
+    onSuccess: function () { document.getElementById('msg').textContent = 'Оплата прошла! Возвращаем в приложение…'; location.href = ${JSON.stringify(back)}; },
+    onFail: function (reason) { document.getElementById('msg').textContent = 'Оплата не прошла' + (reason ? ': ' + reason : '') + '. Можно попробовать ещё раз.'; },
+  });
+}
+document.getElementById('pay').onclick = pay;
+window.addEventListener('load', pay);
+</script>`);
+  });
+
   if (config.PAYMENT_PROVIDER === 'mock' && (!isProd || config.ALLOW_SANDBOX_PAYMENTS)) {
     /** Sandbox-форма оплаты: никаких реальных денег, только имитация уведомлений провайдера */
     app.get<{ Params: { id: string } }>('/api/payments/mock/:id', async (req, reply) => {
@@ -145,4 +221,32 @@ export async function billingRoutes(app: FastifyInstance) {
       return reply.type('text/html').send(`<meta charset="utf-8"><body style="font-family:sans-serif;padding:24px;background:#FFF9F2">${req.params.result === 'success' ? '✅ Оплачено (sandbox). Вернитесь в Telegram.' : '❌ Платёж отклонён (sandbox).'}</body>`);
     });
   }
+}
+
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+
+function payPageHtml(body: string) {
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Оплата — 30 дней</title>
+<style>body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F8F8FD;color:#211C35}
+main{max-width:440px;margin:0 auto;padding:28px 20px;display:flex;flex-direction:column;gap:14px;text-align:center}
+.logo{display:inline-flex;gap:8px;align-items:center;justify-content:center;font-weight:600}.logo b{background:#7150E7;color:#fff;border-radius:9px;padding:4px 8px}
+h2{margin:8px 0 0;font-size:22px}.sum{font-size:34px;font-weight:700;margin:0;color:#6C51DF}.muted{color:#77718C;font-size:14px;margin:0}
+.btn{display:block;background:#6C51DF;color:#fff;border:0;border-radius:16px;padding:16px;font-size:17px;font-weight:600;text-decoration:none;cursor:pointer}
+.link{color:#77718C;font-size:14px}</style></head><body><main><div class="logo"><b>30</b>дней</div>${body}</main></body></html>`;
+}
+
+/** Check: разрешаем оплату только своего заказа, на ту же сумму, пока он не оплачен и цена ещё действует */
+async function cpCheck(body: Record<string, unknown>): Promise<number> {
+  const id = String(body.InvoiceId ?? '');
+  if (!id) return Number(body.SubscriptionId ? 0 : 10);
+  const p = await prisma.payment.findUnique({ where: { id } }).catch(() => null);
+  if (!p) return 10;
+  if (String(body.AccountId ?? '') !== p.userId.toString()) return 11;
+  if (Math.round(Number(body.Amount)) !== p.amount) return 12;
+  if (p.status === 'paid') return 13;
+  if (p.priceVariant === 'promo' && p.kind === 'initial') {
+    const offer = await prisma.priceOffer.findFirst({ where: { userId: p.userId, consumedAt: null, expiresAt: { gt: new Date(clock.now().getTime() - 15 * 60_000) } } });
+    if (!offer) return 13;
+  }
+  return 0;
 }

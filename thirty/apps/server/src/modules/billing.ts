@@ -219,6 +219,7 @@ export async function handleWebhook(parsed: ParsedWebhook, rawBody: string) {
 
 /** Событие относится к «30 дням»: наш номер заказа или подписка одного из наших тарифов / уже известная подписка */
 async function isOurEvent(p: ParsedWebhook): Promise<boolean> {
+  if (p.customer.accountId && /^\d+$/.test(p.customer.accountId) && (await prisma.subscription.findFirst({ where: { userId: BigInt(p.customer.accountId) } }))) return true;
   if (p.paymentId && (await prisma.payment.findUnique({ where: { id: p.paymentId } }).catch(() => null))) return true;
   if (p.providerSubscriptionId) {
     const known = await prisma.subscription.findFirst({ where: { providerSubscriptionId: p.providerSubscriptionId } });
@@ -343,7 +344,7 @@ export async function syncChargeDate(subscriptionId: string) {
   if (!ref || !sub.nextChargeDate || !sub.autoRenew || sub.providerLocked) return;
   const date = fromDbDate(sub.nextChargeDate);
   try {
-    await paymentProvider().setNextChargeDate(ref, date);
+    await paymentProvider().setNextChargeDate(ref, date, sub.renewalPrice);
     await prisma.billingSchedule.updateMany({ where: { subscriptionId, dueDate: sub.nextChargeDate, status: 'scheduled' }, data: { status: 'synced', providerSyncedAt: clock.now(), syncError: null } });
   } catch (e) {
     await prisma.billingSchedule.updateMany({ where: { subscriptionId, dueDate: sub.nextChargeDate }, data: { syncError: (e as Error).message.slice(0, 300) } });
@@ -353,6 +354,15 @@ export async function syncChargeDate(subscriptionId: string) {
 async function findSubscriptionForEvent(p: ParsedWebhook) {
   if (!p.providerSubscriptionId) return null;
   const subs = await prisma.subscription.findMany({ where: { providerSubscriptionId: p.providerSubscriptionId }, include: { tariff: true }, orderBy: { createdAt: 'desc' } });
+  // CloudPayments: у каждого покупателя своя подписка; если её id ещё не известен — привязываем по AccountId (tg id)
+  if (!subs.length && p.customer.accountId && /^\d+$/.test(p.customer.accountId)) {
+    const sub = await prisma.subscription.findFirst({ where: { userId: BigInt(p.customer.accountId), providerSubscriptionId: null, status: { in: [...LIVE_STATUSES] } }, include: { tariff: true }, orderBy: { createdAt: 'desc' } });
+    if (sub) {
+      const linked = await prisma.subscription.update({ where: { id: sub.id }, data: { providerSubscriptionId: p.providerSubscriptionId, providerCustomer: { ...(sub.providerCustomer as object), ...p.customer } }, include: { tariff: true } });
+      await syncChargeDate(linked.id);
+      return linked;
+    }
+  }
   if (subs.length <= 1) return subs[0] ?? null;
   // id подписки в кабинете общий для всех покупателей тарифа — различаем по контактам и tg-id
   const tg = String(p.raw.customer_extra ?? '').replace(/^tg:/, '');
@@ -603,7 +613,7 @@ export async function subscriptionSummary(userId: bigint) {
           paidFrom: fromDbDate(sub.paidFromFlow),
           paidUntil: addMonths(fromDbDate(sub.paidThroughFlow), 1),
           nextCharge: sub.autoRenew && sub.nextChargeDate ? { date: fromDbDate(sub.nextChargeDate), amount: sub.renewalPrice } : null,
-          canResume: sub.status === 'canceled_at_period_end' && !sub.cancelReason?.startsWith('refund'),
+          canResume: sub.status === 'canceled_at_period_end' && !sub.cancelReason?.startsWith('refund') && paymentProvider().name !== 'cloudpayments',
         }
       : null,
     payments: payments.map((p) => ({ id: p.id, kind: p.kind, amount: p.amount, status: p.status, paidAt: p.paidAt, createdAt: p.createdAt })),
