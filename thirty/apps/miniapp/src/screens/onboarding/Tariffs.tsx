@@ -8,6 +8,11 @@ import { useMe } from '../../state';
 import { BrandBar, Cta, ErrorState, Loading, Screen, errorText, toast } from '../../ui';
 import { useTicker } from './Onboarding';
 
+/** «за месяц», «за 3 месяца», «за 6 месяцев» */
+const periodText = (m: number) => (m === 1 ? 'за месяц' : `за ${m} ${m >= 2 && m <= 4 ? 'месяца' : 'месяцев'}`);
+/** Цена в день (месяц — 30 дней, с округлением вниз): 999 ₽ → 33 ₽ */
+const perDay = (t: { price: number; months: number }) => Math.floor(t.price / (t.months * 30));
+
 export interface TariffView {
   id: string;
   title: string;
@@ -139,6 +144,8 @@ export function Tariffs() {
             <span className="grow">
               <span className="t-title">{t.title}{t.badge && <span className="pill solid">{t.badge}</span>}</span>
               <span className="t-sub" style={{ display: 'block' }}>{SUBTITLE[t.id] ?? ''}</span>
+              <span className="t-deal">{t.comparison > t.price ? 'Только сейчас — всего ' : 'Всего '}{rub(t.price)} {periodText(t.months)}</span>
+              <span className="t-day">≈ {perDay(t)} ₽ в день</span>
             </span>
             <span className="r">
               {t.comparison > t.price && <span className="strike">{rub(t.comparison)}</span>}
