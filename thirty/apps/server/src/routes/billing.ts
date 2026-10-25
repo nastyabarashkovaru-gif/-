@@ -14,6 +14,9 @@ import {
 } from '../modules/billing';
 
 import { offerDoc, privacyDoc } from '../legal/docs';
+import { applyPromo } from '../modules/promos';
+import { myStoryRequest, storyInput, submitStoryRequest } from '../modules/stories';
+import { renderStoryCardPng } from '../modules/cards';
 
 export async function billingRoutes(app: FastifyInstance) {
   app.register(async (r) => {
@@ -33,6 +36,17 @@ export async function billingRoutes(app: FastifyInstance) {
       const items = (await getSetting('value.items')).filter((i) => i.enabled);
       return { items, total: items.reduce((a, i) => a + i.price, 0) };
     });
+
+    // Промокоды: проверка и применение только на сервере
+    r.post('/api/promo/apply', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
+      const { code } = parse(z.object({ code: z.string().max(40) }), req.body);
+      return applyPromo(req.user!.id, code);
+    });
+
+    // «Вернуть скидку»: заявка на проверку сторис
+    r.get('/api/story-requests/mine', async (req) => myStoryRequest(req.user!.id));
+    r.post('/api/story-requests', async (req) => submitStoryRequest(req.user!.id, parse(storyInput, req.body)));
+    r.get('/api/story-card', async () => ({ account: await getSetting('instagram.account'), imageUrl: `${config.PUBLIC_URL.replace(/\/$/, '')}/api/public/story-card.png` }));
 
     r.get('/api/public/materials', async () => ({ items: await getSetting('materials') }));
     r.get('/api/public/rules', async () => ({ prizeRules: await getSetting('prize.rulesText'), cases: await getSetting('cases') }));
@@ -70,6 +84,12 @@ export async function billingRoutes(app: FastifyInstance) {
       await track({ userId: req.user!.id, eventName: 'cancel_step_view', screenId: `S3${5 + step}`, tariffId: sub?.tariffId, metadata: { step, ...(reason ? { reason } : {}) } });
       return { ok: true };
     });
+  });
+
+  /** Карточка для сторис (PNG 1080×1920) */
+  app.get('/api/public/story-card.png', async (_req, reply) => {
+    const png = renderStoryCardPng(await getSetting('instagram.account'));
+    return reply.header('content-type', 'image/png').header('cache-control', 'public, max-age=600').header('content-disposition', 'inline; filename="30-dney-story.png"').send(png);
   });
 
   /** Документы: оферта и политика ПДн (открыты без авторизации) */

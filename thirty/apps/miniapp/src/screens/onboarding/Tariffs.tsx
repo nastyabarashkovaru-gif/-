@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronUp, CircleCheck, Clock, HeartHandshake, Lock, Unlock } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleCheck, Clock, Gift, HeartHandshake, Lock, Unlock } from 'lucide-react';
 import { api, rub } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
 import { haptic, openTelegram } from '../../lib/telegram';
 import { useMe } from '../../state';
-import { BrandBar, Cta, ErrorState, Loading, Screen } from '../../ui';
+import { BrandBar, Cta, ErrorState, Loading, Screen, errorText, toast } from '../../ui';
 import { useTicker } from './Onboarding';
 
 export interface TariffView {
@@ -27,7 +27,7 @@ export interface TariffView {
   renewalPrice: number;
 }
 interface OfferState {
-  offer: { started: boolean; active: boolean; expiresAt: string | null; msLeft: number };
+  offer: { started: boolean; active: boolean; expiresAt: string | null; msLeft: number; kind: string | null; promoCode: string | null };
   tariffs: TariffView[];
 }
 
@@ -100,7 +100,13 @@ export function Tariffs() {
         <h1 className="hero">Твоё новое окружение <em>уже ждёт тебя!</em></h1>
         <p className="lead">Выбери, насколько кардинально ты хочешь изменить свою жизнь.</p>
       </div>
-      {promoActive && (
+      {promoActive && state.offer.kind === 'promo' && (
+        <div className="row" style={{ background: 'var(--green-soft)', color: 'var(--green)', borderRadius: 16, padding: '14px', gap: 10, alignItems: 'flex-start' }}>
+          <Gift size={20} style={{ flexShrink: 0 }} />
+          <span><b>Промокод {state.offer.promoCode} применён</b><br /><span style={{ fontSize: 14 }}>Акционные цены действуют до {new Date(state.offer.expiresAt!).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</span></span>
+        </div>
+      )}
+      {promoActive && state.offer.kind !== 'promo' && (
         <div className="offer">
           <div className="row" style={{ alignItems: 'flex-start' }}>
             <div className="grow col" style={{ gap: 6 }}>
@@ -177,7 +183,42 @@ export function Tariffs() {
       >
         Присоединиться за {chosen ? rub(chosen.price) : ''} 😍
       </Cta>
+      <PromoField applied={state.offer.kind === 'promo'} onApplied={load} />
       {me?.support && <button className="link-btn" onClick={() => openTelegram(me.support)}>Задать вопрос в поддержку</button>}
     </Screen>
+  );
+}
+
+/** Промокод (СТАРТ или персональный): проверяется на сервере, возвращает первоначальные акционные цены */
+function PromoField({ applied, onApplied }: { applied: boolean; onApplied: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (applied) return null;
+  if (!open) return <button className="link-accent" style={{ fontWeight: 500 }} onClick={() => setOpen(true)}><Gift size={16} />Есть промокод?</button>;
+  const apply = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api('/api/promo/apply', { body: { code } });
+      haptic('success');
+      toast('Промокод применён 🎁');
+      onApplied();
+    } catch (e) {
+      haptic('error');
+      setErr(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="col" style={{ gap: 6 }}>
+      <div className="row" style={{ gap: 8 }}>
+        <input className="input" placeholder="Промокод" value={code} autoCapitalize="characters" maxLength={40} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && code.trim()) void apply(); }} />
+        <button className="btn btn-secondary" style={{ width: 'auto', minHeight: 48 }} disabled={busy || !code.trim()} onClick={apply}>Применить</button>
+      </div>
+      {err && <span className="small" style={{ color: 'var(--danger)' }}>{err}</span>}
+    </div>
   );
 }

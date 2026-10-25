@@ -3,13 +3,25 @@ import type { BotMessageTemplate } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma, isUniqueViolation } from '../db';
 import { openAppButton, tg, TelegramError } from '../lib/telegram';
-import { DEFAULT_TEMPLATES } from './templates';
+import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, WELCOME_BUTTON, WELCOME_TEXT } from './templates';
+import { config } from '../config';
 import { setNotifier } from './notify';
 import { track } from './analytics';
 
 export async function seedTemplates() {
   for (const t of DEFAULT_TEMPLATES) {
     await prisma.botMessageTemplate.upsert({ where: { key: t.key }, create: { ...t, approved: false }, update: {} });
+  }
+  // Цепочка владельца: тексты утверждены
+  for (const t of CHAIN_TEMPLATES) {
+    await prisma.botMessageTemplate.upsert({ where: { key: t.key }, create: { ...t, approved: true }, update: {} });
+  }
+  // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
+  const marker = 'maintenance.chainV1';
+  if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT, buttons: [{ text: WELCOME_BUTTON, screen: 'welcome' }], title: 'Цепочка 01. /start — приветствие (один раз)', approved: true } });
+    await prisma.botMessageTemplate.updateMany({ where: { key: { in: ['abandoned_purchase', 'nudge_not_reached_tariffs', 'nudge_tariffs_no_select', 'nudge_selected_no_payment', 'offer_ending_60', 'offer_ending_15', 'offer_expired'] } }, data: { enabled: false } });
+    await prisma.setting.create({ data: { key: marker, value: { at: new Date().toISOString() } } });
   }
 }
 
@@ -35,8 +47,9 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
     const recent = await prisma.botMessageLog.findFirst({ where: { userId, templateKey: key, status: 'sent', sentAt: { gt: new Date(now.getTime() - tpl.capHours * 3600_000) } } });
     if (recent) return 'skipped';
   }
-  if (tpl.isMarketing) {
-    const marketingKeys = (await prisma.botMessageTemplate.findMany({ where: { isMarketing: true }, select: { key: true } })).map((t) => t.key);
+  // Цепочка до оплаты сама ограничивает частоту (расписание владельца) — общий суточный лимит к ней не применяется
+  if (tpl.isMarketing && !key.startsWith('chain_')) {
+    const marketingKeys = (await prisma.botMessageTemplate.findMany({ where: { isMarketing: true, key: { not: { startsWith: 'chain_' } } }, select: { key: true } })).map((t) => t.key);
     const sentToday = await prisma.botMessageLog.count({ where: { userId, templateKey: { in: marketingKeys }, status: 'sent', sentAt: { gt: new Date(now.getTime() - 24 * 3600_000) } } });
     if (sentToday >= MARKETING_DAILY_CAP) return 'skipped';
   }
@@ -52,7 +65,13 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
   let text = render(tpl.text, vars);
   if (tpl.isMarketing) text += '\n\nОтписаться от напоминаний: /stop';
   try {
-    await tg('sendMessage', { chat_id: Number(userId), text, reply_markup: buttons.length ? { inline_keyboard: buttons } : undefined });
+    const markup = buttons.length ? { inline_keyboard: buttons } : undefined;
+    const image = tpl.imageUrl ? tpl.imageUrl.replace('{public_url}', config.PUBLIC_URL.replace(/\/$/, '')) : null;
+    if (image && text.length <= 1024) await tg('sendPhoto', { chat_id: Number(userId), photo: image, caption: text, reply_markup: markup });
+    else {
+      if (image) await tg('sendPhoto', { chat_id: Number(userId), photo: image });
+      await tg('sendMessage', { chat_id: Number(userId), text, reply_markup: markup });
+    }
     await prisma.botMessageLog.update({ where: { id }, data: { status: 'sent' } });
     await track({ userId, eventName: 'bot_message_sent', metadata: { template: key, logId: id } });
     return 'sent';
@@ -137,17 +156,30 @@ export async function handleUpdate(update: TgUpdate) {
   const userId = BigInt(msg.from.id);
   const [cmd, payload] = msg.text.trim().split(/\s+/, 2);
   if (cmd === '/start') {
+    const existed = await prisma.user.findUnique({ where: { id: userId } });
     await prisma.user.upsert({
       where: { id: userId },
-      create: { id: userId, firstName: msg.from.first_name ?? 'Участник', username: msg.from.username, allowsWrite: true },
+      create: { id: userId, firstName: msg.from.first_name ?? 'Участник', username: msg.from.username, allowsWrite: true, marketingOptIn: true, createdAt: clock.now() },
       update: { allowsWrite: true, botBlocked: false },
     });
+    // Напоминания включены по умолчанию, пока человек сам не отписался командой /stop
+    const unsubscribed = await prisma.consent.findFirst({ where: { userId, kind: 'marketing_messages', revokedAt: { not: null } } });
+    if (existed && !existed.marketingOptIn && !unsubscribed) await prisma.user.update({ where: { id: userId }, data: { marketingOptIn: true } });
     const safe = payload && /^[A-Za-z0-9_-]{1,64}$/.test(payload) ? payload : undefined;
     const tpl = await prisma.botMessageTemplate.findUnique({ where: { key: 'welcome' } });
+    const button = (tpl?.buttons as { text: string }[] | undefined)?.[0]?.text ?? WELCOME_BUTTON;
+    // Сообщение 1 — один раз; при повторном /start только кнопка входа
+    let first = true;
+    try {
+      await prisma.botMessageLog.create({ data: { userId, templateKey: 'welcome', dedupeKey: `welcome:${userId}`, status: 'sent', sentAt: clock.now() } });
+    } catch (e) {
+      if (!isUniqueViolation(e)) throw e;
+      first = false;
+    }
     await tg('sendMessage', {
       chat_id: msg.chat.id,
-      text: tpl?.text ?? 'Привет! Это «30 дней».',
-      reply_markup: { inline_keyboard: [[openAppButton((tpl?.buttons as { text: string }[] | undefined)?.[0]?.text ?? 'Открыть приложение', safe)]] },
+      text: first ? tpl?.text ?? WELCOME_TEXT : 'Жми кнопку ниже, чтобы открыть приложение 👇',
+      reply_markup: { inline_keyboard: [[openAppButton(button, safe)]] },
     });
     return;
   }

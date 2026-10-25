@@ -59,7 +59,13 @@ export const DEFAULT_SETTINGS = {
     prize_random_draw: false,
     offer_referral_restore: false,
     upsells: false,
+    /** Дожимная цепочка бота до оплаты (сообщения 2–11) */
+    chain_prepurchase: true,
   } as Record<string, boolean>,
+  /** Instagram-аккаунт для отметки в сторис (без @) */
+  'instagram.account': 'barashkova_a',
+  /** Сколько дней действует персональный промокод за сторис */
+  'promo.personalDays': 3,
   /** «Полезные материалы»: одна ссылка на канал для всех карточек (можно поменять в админке: Настройки → materials) */
   'materials': [
     { id: 'goal', kind: 'Гайд', title: 'Как выбрать цель', text: 'Определи, чего ты действительно хочешь достичь за 30 дней.', icon: 'target', url: 'https://t.me/+DAqhaepx_0oxZjM6' },
@@ -94,5 +100,5 @@ export function clearSettingsCache() {
 
 export async function feature(name: string): Promise<boolean> {
   const f = await getSetting('features');
-  return Boolean(f[name]);
+  return Boolean(f[name] ?? DEFAULT_SETTINGS.features[name]);
 }

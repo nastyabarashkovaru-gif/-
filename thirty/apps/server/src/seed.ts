@@ -2,6 +2,7 @@ import { DEFAULT_TARIFFS } from '@thirty/domain';
 import { prisma } from './db';
 import { config } from './config';
 import { seedTemplates } from './modules/bot';
+import { seedPromos } from './modules/promos';
 import { hashPassword } from './auth/admin';
 
 /** Начальные данные: тарифы ТЗ 1.1, шаблоны бота, первый администратор (owner). Идемпотентно. */
@@ -37,6 +38,7 @@ export async function seed() {
   }
   await applyProdamusSubscriptionIds();
   await seedTemplates();
+  await seedPromos();
   const upsells = [
     { code: 'blog_vip', title: 'Блог VIP', price: 15000, description: 'Личный разбор ваших роликов экспертом. Объём и сроки разбора уточняются до оплаты.', disclaimer: 'Без гарантий роста подписчиков и дохода.' },
     { code: 'personal', title: 'Персональное ведение', price: 120000, description: 'Индивидуальная работа с куратором в течение месяца.', disclaimer: 'Мы не гарантируем рост подписчиков или дохода.' },

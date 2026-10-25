@@ -52,6 +52,7 @@ export function Bot() {
         {edit && (
           <div style={{ display: 'grid', gap: 8 }}>
             <label className="f">Текст (переменные в {'{скобках}'})<textarea style={{ minHeight: 140 }} value={edit.text} onChange={(e) => setEdit({ ...edit, text: e.target.value })} /></label>
+            <label className="f">Картинка (URL, необязательно; {'{public_url}'} — адрес приложения)<input value={edit.imageUrl ?? ''} onChange={(e) => setEdit({ ...edit, imageUrl: e.target.value })} /></label>
             <label className="f">Кнопки (JSON: [{'{"text":"…","screen":"tariffs"}'}])<input value={edit.buttonsText} onChange={(e) => setEdit({ ...edit, buttonsText: e.target.value })} /></label>
             <div className="row">
               <label className="f">Задержка, мин<input type="number" value={edit.delayMinutes} onChange={(e) => setEdit({ ...edit, delayMinutes: Number(e.target.value) })} /></label>
@@ -67,7 +68,7 @@ export function Bot() {
               <button className="btn" onClick={async () => {
                 let buttons;
                 try { buttons = JSON.parse(edit.buttonsText); } catch { return alert('Кнопки: неверный JSON'); }
-                if (await act(() => api(`/admin-api/bot/templates/${edit.key}`, { method: 'PATCH', body: { text: edit.text, buttons, delayMinutes: edit.delayMinutes, capHours: edit.capHours, priority: edit.priority, enabled: edit.enabled, approved: edit.approved, isMarketing: edit.isMarketing } }))) { setEdit(null); s.reload(); }
+                if (await act(() => api(`/admin-api/bot/templates/${edit.key}`, { method: 'PATCH', body: { text: edit.text, buttons, delayMinutes: edit.delayMinutes, capHours: edit.capHours, priority: edit.priority, enabled: edit.enabled, approved: edit.approved, isMarketing: edit.isMarketing, imageUrl: edit.imageUrl?.trim() || null } }))) { setEdit(null); s.reload(); }
               }}>Сохранить</button>
               <button className="btn light" onClick={async () => { const userId = prompt('Telegram ID получателя теста'); if (userId) { const r = await api(`/admin-api/bot/templates/${edit.key}/test`, { body: { userId } }).catch((e) => ({ result: e.message })); alert(`Результат: ${r.result}`); } }}>Тестовая отправка</button>
             </div>

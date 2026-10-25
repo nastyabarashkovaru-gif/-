@@ -12,6 +12,7 @@ import { getSetting } from '../settings';
 import { paymentProvider } from '../payments';
 import type { ParsedWebhook, SubscriptionRef } from '../payments/types';
 import { ensureFlow } from './flows';
+import { redeemOnPayment } from './promos';
 import { track } from './analytics';
 import { notify } from './notify';
 import { registerBotConversion } from './bot';
@@ -36,7 +37,8 @@ export async function startOffer(userId: bigint) {
 export async function currentOffer(userId: bigint) {
   const offers = await prisma.priceOffer.findMany({ where: { userId } });
   const now = clock.now();
-  const active = offers.find((o) => offerActive(o, now));
+  // Таймер первых 3 часов важнее окна промокода (цены одинаковые, но таймер честнее показывает срок)
+  const active = offers.filter((o) => offerActive(o, now)).sort((a, b) => (a.kind === 'intro' ? -1 : b.kind === 'intro' ? 1 : 0))[0];
   const intro = offers.find((o) => o.kind === 'intro') ?? null;
   return { active: active ?? null, intro, msLeft: offerMsLeft(active, now), started: Boolean(intro) };
 }
@@ -70,7 +72,7 @@ export async function offerState(userId: bigint) {
   const o = await currentOffer(userId);
   const promo = Boolean(o.active);
   return {
-    offer: { started: o.started, active: promo, expiresAt: o.active?.expiresAt ?? o.intro?.expiresAt ?? null, msLeft: o.msLeft, kind: o.active?.kind ?? null },
+    offer: { started: o.started, active: promo, expiresAt: o.active?.expiresAt ?? o.intro?.expiresAt ?? null, msLeft: o.msLeft, kind: o.active?.kind ?? null, promoCode: o.active?.promoId ? (await prisma.promo.findUnique({ where: { id: o.active.promoId } }))?.code ?? null : null },
     tariffs: tariffs.map((t) => tariffView(t, promo)),
   };
 }
@@ -305,6 +307,7 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
     await tx.billingSchedule.create({
       data: { subscriptionId: sub.id, dueDate: toDbDate(chargeDate), coversFromFlow: toDbDate(addMonths(lastFlow, 1)), months: tariff.months, amount: payment.amount },
     });
+    await redeemOnPayment(tx, payment.userId, payment.id, now);
     await tx.priceOffer.updateMany({ where: { userId: payment.userId, consumedAt: null, expiresAt: { gt: now } }, data: { consumedAt: now } });
     await tx.user.update({ where: { id: payment.userId }, data: { onboardingStage: 'paid', ...(tariff.months >= 6 ? { sixMonthBadge: true } : {}) } });
     return { subscription: sub };

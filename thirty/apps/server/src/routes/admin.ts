@@ -8,6 +8,8 @@ import { badRequest, forbidden, HttpError, jsonSafe, notFound } from '../http';
 import { parse } from '../lib/validate';
 import { signedMediaUrl } from '../lib/storage';
 import { setHidden } from '../modules/feedChat';
+import { normalizeCode } from '../modules/promos';
+import { decideStoryRequest } from '../modules/stories';
 import { DEFAULT_SETTINGS, getSetting, setSetting, type SettingKey } from '../settings';
 import { dashboard, funnel, retention, screens, toCsv } from '../modules/adminAnalytics';
 import { cancelAutoRenew, markRefunded } from '../modules/billing';
@@ -231,7 +233,46 @@ export async function adminRoutes(app: FastifyInstance) {
         consents,
         moderation: { complaintsAbout, complaintsBy, audit: auditRows },
         botLogs,
+        offers: await prisma.priceOffer.findMany({ where: { userId: id }, orderBy: { startedAt: 'desc' } }),
+        promos: await prisma.promoRedemption.findMany({ where: { userId: id }, include: { promo: true }, orderBy: { appliedAt: 'desc' } }),
+        stories: await prisma.storyRequest.findMany({ where: { userId: id }, orderBy: { createdAt: 'desc' } }),
       });
+    });
+
+    // ───────── Промокоды и заявки «сторис» ─────────
+    r.get('/admin-api/promos', perm('tariffs'), async () => {
+      const promos = await prisma.promo.findMany({ orderBy: [{ kind: 'asc' }, { createdAt: 'desc' }], take: 300, include: { _count: { select: { redemptions: true } } } });
+      return jsonSafe(promos.map((p) => ({ ...p, applied: p._count.redemptions })));
+    });
+    const promoBody = z.object({
+      code: z.string().trim().min(2).max(40), window: z.enum(['dates', 'flow_start']), validFrom: z.string().datetime().nullable(), validTo: z.string().datetime().nullable(),
+      daysBefore: z.number().int().min(0).max(30), daysAfter: z.number().int().min(0).max(30), maxUses: z.number().int().min(1).nullable(), active: z.boolean(), note: z.string().max(200).nullable(),
+    });
+    r.post('/admin-api/promos', perm('tariffs'), async (req) => {
+      const b = parse(promoBody, req.body);
+      const p = await prisma.promo.create({ data: { ...b, code: normalizeCode(b.code), kind: 'public', validFrom: b.validFrom ? new Date(b.validFrom) : null, validTo: b.validTo ? new Date(b.validTo) : null } });
+      await audit(req, 'promo.create', 'promo', p.id, { after: p });
+      return jsonSafe(p);
+    });
+    r.patch<{ Params: { id: string } }>('/admin-api/promos/:id', perm('tariffs'), async (req) => {
+      const b = parse(promoBody.omit({ code: true }).partial(), req.body);
+      const before = await prisma.promo.findUnique({ where: { id: req.params.id } });
+      if (!before) throw notFound();
+      const data = { ...b, ...(b.validFrom !== undefined ? { validFrom: b.validFrom ? new Date(b.validFrom) : null } : {}), ...(b.validTo !== undefined ? { validTo: b.validTo ? new Date(b.validTo) : null } : {}) };
+      const after = await prisma.promo.update({ where: { id: req.params.id }, data });
+      await audit(req, 'promo.update', 'promo', after.id, { before, after });
+      return jsonSafe(after);
+    });
+    r.get<{ Querystring: { status?: string } }>('/admin-api/story-requests', perm('moderation'), async (req) => {
+      const rows = await prisma.storyRequest.findMany({ where: { status: req.query.status || 'pending' }, orderBy: { createdAt: 'desc' }, take: 200 });
+      const users = await prisma.user.findMany({ where: { id: { in: rows.map((r) => r.userId) } } });
+      return jsonSafe(rows.map((r) => ({ ...r, name: displayName(users.find((u) => u.id === r.userId)!) })));
+    });
+    r.post<{ Params: { id: string } }>('/admin-api/story-requests/:id', perm('moderation'), async (req) => {
+      const { decision, reason } = parse(z.object({ decision: z.enum(['approve', 'reject']), reason: z.string().trim().min(3).max(300).optional() }), req.body);
+      const res = await decideStoryRequest(req.params.id, decision, req.admin!.login, reason);
+      await audit(req, `story.${decision}`, 'story_request', req.params.id, { reason });
+      return res;
     });
 
     /** Ручное исправление спорной отметки — только с причиной и записью в журнал */
@@ -528,7 +569,7 @@ export async function adminRoutes(app: FastifyInstance) {
       const body = parse(
         z.object({
           title: z.string().max(120), text: z.string().min(1).max(4000), buttons: z.array(z.object({ text: z.string().min(1).max(64), screen: z.string().regex(/^[a-z_]{1,24}$/) })).max(3),
-          enabled: z.boolean(), isMarketing: z.boolean(), delayMinutes: z.number().int().min(0).max(10080), capHours: z.number().int().min(0).max(720), priority: z.number().int().min(0).max(100), approved: z.boolean(),
+          enabled: z.boolean(), isMarketing: z.boolean(), delayMinutes: z.number().int().min(0).max(10080), capHours: z.number().int().min(0).max(720), priority: z.number().int().min(0).max(100), approved: z.boolean(), imageUrl: z.string().max(500).nullable(),
         }).partial(),
         req.body,
       );
@@ -541,7 +582,8 @@ export async function adminRoutes(app: FastifyInstance) {
     r.post<{ Params: { key: string } }>('/admin-api/bot/templates/:key/test', perm('bot'), async (req) => {
       const { userId } = parse(z.object({ userId: z.string().regex(/^\d+$/) }), req.body);
       const { sendTemplate } = await import('../modules/bot');
-      return { result: await sendTemplate(BigInt(userId), req.params.key, {}, `test:${req.params.key}:${Date.now()}`) };
+      const { priceVars } = await import('../jobs/chains');
+      return { result: await sendTemplate(BigInt(userId), req.params.key, await priceVars(), `test:${req.params.key}:${Date.now()}`) };
     });
     r.get('/admin-api/bot/logs', perm('bot'), async () => jsonSafe(await prisma.botMessageLog.findMany({ orderBy: { sentAt: 'desc' }, take: 300 })));
 

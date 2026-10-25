@@ -119,6 +119,8 @@ model PriceOffer {
   startedAt  DateTime  @default(now())
   expiresAt  DateTime
   consumedAt DateTime? // покупка по этой цене
+  /// Окно цены, открытое промокодом (kind = promo)
+  promoId    String?
 
   @@unique([userId, kind])
 }
@@ -830,6 +832,8 @@ model BotMessageTemplate {
   delayMinutes Int      @default(0)
   capHours     Int      @default(24) // не чаще одного сообщения этого шаблона за N часов
   priority     Int      @default(50)
+  /// Картинка к сообщению (URL), отправляется как фото с подписью
+  imageUrl     String?
   approved     Boolean  @default(false)
   updatedAt    DateTime @updatedAt
 }
@@ -951,4 +955,52 @@ model Notification {
   createdAt DateTime  @default(now())
 
   @@index([userId, createdAt])
+}
+
+/// Промокоды: возвращают первоначальные акционные цены (без дополнительной скидки, не суммируются)
+model Promo {
+  id         String    @id @default(uuid())
+  code       String    @unique // хранится в верхнем регистре
+  kind       String    @default("public") // public | personal
+  /// dates — по validFrom/validTo; flow_start — с 00:00 за daysBefore дней до старта потока до конца дня старта (+ daysAfter)
+  window     String    @default("dates")
+  validFrom  DateTime?
+  validTo    DateTime?
+  daysBefore Int       @default(1)
+  daysAfter  Int       @default(0)
+  userId     BigInt? // для персонального промокода
+  maxUses    Int? // null — без ограничения
+  uses       Int       @default(0)
+  active     Boolean   @default(true)
+  note       String?
+  createdAt  DateTime  @default(now())
+
+  redemptions PromoRedemption[]
+}
+
+model PromoRedemption {
+  id        String    @id @default(uuid())
+  promoId   String
+  promo     Promo     @relation(fields: [promoId], references: [id], onDelete: Cascade)
+  userId    BigInt
+  appliedAt DateTime  @default(now())
+  paymentId String?   @unique
+  paidAt    DateTime?
+
+  @@unique([promoId, userId])
+}
+
+/// Заявка «Вернуть скидку» за сторис в Instagram: проверка вручную, затем персональный промокод
+model StoryRequest {
+  id        String    @id @default(uuid())
+  userId    BigInt
+  instagram String
+  status    String    @default("pending") // pending | approved | rejected
+  reason    String?
+  promoId   String?
+  decidedBy String?
+  decidedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([status, createdAt])
 }

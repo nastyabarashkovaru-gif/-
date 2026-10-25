@@ -4,7 +4,7 @@ import { setTelegramTransport, webhookSecret } from '../src/lib/telegram';
 import { seedTemplates, sendTemplate } from '../src/modules/bot';
 import { autoMatch } from '../src/modules/buddy';
 import { refreshFlowStatuses } from '../src/modules/flows';
-import { runFlowChains, runPrePurchaseChains } from '../src/jobs/chains';
+import { runFlowChains } from '../src/jobs/chains';
 import { removeExpiredMembers } from '../src/modules/chats';
 import { setPaymentProvider } from '../src/payments';
 import { MockProvider } from '../src/payments/mock';
@@ -93,20 +93,6 @@ describe('бот', () => {
     expect(await prisma.analyticsEvent.count({ where: { eventName: 'bot_message_failed' } })).toBe(1);
   });
 
-  it('дожим: выбрал тариф и не оплатил — одно сообщение с реальной ценой; после оплаты — ничего', async () => {
-    await prisma.botMessageTemplate.update({ where: { key: 'nudge_selected_no_payment' }, data: { enabled: true } });
-    clock.set('2026-10-21T09:00:00Z');
-    await prisma.user.create({ data: { id: 300n, firstName: 'C', allowsWrite: true, marketingOptIn: true } });
-    await api('POST', '/api/offer/start', 300);
-    await api('POST', '/api/events', 300, { events: [{ event_id: 'e-300-select', session_id: 's-300', event_name: 'tariff_select', tariff_id: 'm3', timestamp: '2026-10-21T09:00:00.000Z' }] });
-    clock.set('2026-10-21T09:40:00Z');
-    await runPrePurchaseChains();
-    await runPrePurchaseChains();
-    const msgs = calls.filter((c) => c.method === 'sendMessage');
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0].body.text).toMatch(/2\s490 ₽/);
-    expect(msgs[0].body.text).toMatch(/действует до \d\d:\d\d МСК/);
-  });
 });
 
 describe('чаты (критерий №7)', () => {

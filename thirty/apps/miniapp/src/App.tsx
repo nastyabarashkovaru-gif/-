@@ -8,6 +8,7 @@ import { ErrorState, Loading, ToastHost } from './ui';
 import { Welcome, OnboardingStep, AboutScreen } from './screens/onboarding/Onboarding';
 import { Materials } from './screens/onboarding/Materials';
 import { DocScreen } from './screens/onboarding/Docs';
+import { RestoreDiscount } from './screens/onboarding/Restore';
 import { Tariffs } from './screens/onboarding/Tariffs';
 import { Checkout, PaymentWait } from './screens/onboarding/Checkout';
 import { RegProfile, RegFlow, RegTasks, RegBefore, RegBuddy, RegChats, RegWaiting } from './screens/reg/Registration';
@@ -24,7 +25,7 @@ import { CardScreen, ReviewScreen, FinalScreen } from './screens/app/Finale';
 
 /** Экран по параметру кнопки бота: m_<log>_<screen> */
 const SCREEN_ROUTES: Record<string, string> = {
-  welcome: '/welcome', resume: '/', tariffs: '/tariffs', checkout: '/tariffs', reg_profile: '/reg/goals', reg_goals: '/reg/goals', reg_buddy: '/reg/buddy',
+  welcome: '/welcome', resume: '/', tariffs: '/tariffs', restore: '/restore', checkout: '/tariffs', reg_profile: '/reg/goals', reg_goals: '/reg/goals', reg_buddy: '/reg/buddy',
   home: '/', report: '/report', card: '/cards', review: '/review', buddy: '/buddy', meeting: '/club', final: '/final', profile: '/profile', support: '/profile',
 };
 
@@ -42,7 +43,7 @@ function initialRoute(me: Me): string {
     if (fromBot && fromBot !== '/') return fromBot;
     return '/';
   }
-  if (fromBot === '/tariffs') return '/tariffs';
+  if (fromBot === '/tariffs' || fromBot === '/restore') return fromBot;
   if (me.user.onboardingStage === 'checkout' || me.user.onboardingStage === 'tariffs') return '/tariffs';
   if (me.user.onboardingStage === 'onboarding' && me.user.lastScreen?.startsWith('/onboarding')) return me.user.lastScreen;
   return '/welcome';
@@ -110,6 +111,7 @@ export function App() {
         <Route path="/about/:topic/:i" element={<AboutScreen />} />
         <Route path="/materials" element={<Materials />} />
         <Route path="/docs/:kind" element={<DocScreen />} />
+        <Route path="/restore" element={<RestoreDiscount />} />
         <Route path="/tariffs" element={<Tariffs />} />
         <Route path="/checkout/:tariff" element={<Checkout />} />
         <Route path="/checkout/wait/:paymentId" element={<PaymentWait />} />

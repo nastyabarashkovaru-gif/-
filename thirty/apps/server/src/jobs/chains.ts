@@ -1,4 +1,4 @@
-import { addDays, flowBounds, fromDbDate, localDate, humanDate, quote, cardForFlowDay, flowDayNumber, startOfLocalDay, dayDeadline, formatRub } from '@thirty/domain';
+import { addMonths, addDays, flowBounds, fromDbDate, localDate, humanDate, quote, cardForFlowDay, flowDayNumber, startOfLocalDay, dayDeadline, formatRub } from '@thirty/domain';
 import { DateTime } from 'luxon';
 import { clock } from '../clock';
 import { prisma } from '../db';
@@ -7,6 +7,7 @@ import { getSetting, feature } from '../settings';
 import { sendTemplate } from '../modules/bot';
 import { LIVE_STATUSES } from '../modules/billing';
 import { generateCard } from '../modules/cards';
+import { promoWindow } from '../modules/promos';
 import { memberStats } from '../modules/rating';
 
 type Send = (userId: bigint, key: string, vars: Record<string, string | number>, dedupe: string) => Promise<unknown>;
@@ -18,81 +19,100 @@ async function templates() {
   return new Map(rows.map((t) => [t.key, t]));
 }
 
-/** Пользователи, которые уже купили: им не шлём дожим до оплаты */
-async function payers(): Promise<Set<string>> {
-  const rows = await prisma.payment.findMany({ where: { status: 'paid', kind: 'initial' }, select: { userId: true } });
-  return new Set(rows.map((r) => r.userId.toString()));
+const fmtPrice = (n: number) => n.toLocaleString('ru-RU');
+
+/** Цены для текстов цепочки — из настроек тарифов, чтобы совпадали с фактической оплатой */
+export async function priceVars() {
+  const tariffs = await prisma.tariff.findMany({ where: { active: true } });
+  const v: Record<string, string> = {};
+  for (const t of tariffs) {
+    v[`p${t.months}`] = fmtPrice(quote(t, true).price);
+    v[`r${t.months}`] = fmtPrice(quote(t, false).price);
+  }
+  return v;
 }
 
-async function usersWithEvent(name: string, since: Date) {
-  const rows = await prisma.analyticsEvent.groupBy({ by: ['userId'], where: { eventName: name, ts: { gt: since }, userId: { not: null } }, _max: { ts: true } });
-  return new Map(rows.map((r) => [r.userId!.toString(), r._max.ts!]));
+/** Кто уже купил или имеет действующую подписку — им цепочка не идёт */
+async function payers(): Promise<Set<string>> {
+  const [paid, live] = await Promise.all([
+    prisma.payment.findMany({ where: { status: 'paid', kind: 'initial' }, select: { userId: true } }),
+    prisma.subscription.findMany({ where: { status: { in: [...LIVE_STATUSES] } }, select: { userId: true } }),
+  ]);
+  return new Set([...paid, ...live].map((r) => r.userId.toString()));
 }
+
+const OFFER_STAGES = ['chain_02', 'chain_03', 'chain_04', 'chain_05', 'chain_06', 'chain_07'];
+const AFTER_STAGES = ['chain_08', 'chain_09'];
+/** Сколько можно опоздать с сообщением (если сервер был недоступен): старое не досылаем */
+const LATE_OFFER_MIN = 20;
+const LATE_AFTER_MIN = 12 * 60;
+const FLOW_EVE_HOUR = 12;
 
 /**
- * Дожимные цепочки до оплаты (B04–B09). Каждое сообщение — максимум один раз на пользователя
- * (dedupeKey), с задержкой из шаблона; после оплаты сегмент исключается.
+ * Дожимная цепочка до оплаты (ТЗ владельца 25.10).
+ * 02–07 — от первого показа предложения с таймером (PriceOffer intro, время на сервере), 08–09 — после окончания акции,
+ * 10–11 — за 2 и 1 день до старта ближайшего потока (в 12:00 по времени потока, задним числом не шлём).
+ * Перед каждой отправкой — проверка оплаты; дедупликация по ключу; согласие на рекламу и блокировка бота — в sendTemplate.
  */
 export async function runPrePurchaseChains(now = clock.now(), send: Send = sendTemplate) {
+  if (!(await feature('chain_prepurchase'))) return;
   const tpl = await templates();
+  const on = (k: string) => Boolean(tpl.get(k)?.enabled);
   const paid = await payers();
-  const horizon = minutesAgo(now, 7 * 24 * 60);
-  const opened = await usersWithEvent('app_open', horizon);
-  const tariffView = await usersWithEvent('tariff_view', horizon);
-  const tariffSelect = await usersWithEvent('tariff_select', horizon);
-  const payStart = await usersWithEvent('payment_start', horizon);
-  const sentThisTick = new Set<string>();
-  const once = async (uid: string, key: string, vars: Record<string, string | number> = {}, suffix = '') => {
-    if (paid.has(uid) || sentThisTick.has(uid)) return;
-    const r = await send(BigInt(uid), key, vars, `${key}:${uid}${suffix}`);
-    if (r === 'sent') sentThisTick.add(uid);
-  };
-  const delay = (key: string) => tpl.get(key)?.delayMinutes ?? 60;
+  const vars = await priceVars();
 
-  // Персональная цена: 60 и 15 минут до конца, «истекла» — с наивысшим приоритетом среди рекламных
-  const offers = await prisma.priceOffer.findMany({ where: { consumedAt: null, expiresAt: { gt: minutesAgo(now, 24 * 60) } } });
-  const tariffs = await prisma.tariff.findMany({ where: { active: true }, orderBy: { months: 'asc' } });
+  // 02–09: персональный таймер
+  const offers = await prisma.priceOffer.findMany({ where: { kind: 'intro', consumedAt: null, startedAt: { gt: minutesAgo(now, 10 * 24 * 60) } } });
   for (const o of offers) {
     const uid = o.userId.toString();
-    const left = (o.expiresAt.getTime() - now.getTime()) / 60_000;
-    const selected = await prisma.analyticsEvent.findFirst({ where: { userId: o.userId, eventName: 'tariff_select' }, orderBy: { ts: 'desc' } });
-    const t = tariffs.find((x) => x.id === selected?.tariffId) ?? tariffs.find((x) => x.highlighted) ?? tariffs[0];
-    if (!t) continue;
-    if (left > 45 && left <= 60) await once(uid, 'offer_ending_60', { tariff: t.title, price: quote(t, true).price }, `:${o.id}`);
-    else if (left > 0 && left <= 15) await once(uid, 'offer_ending_15', {}, `:${o.id}`);
-    else if (left <= 0 && left > -24 * 60 && o.kind === 'intro') {
-      const referral = (await feature('offer_referral_restore')) ? '\n\nВернуть специальную цену можно, поделившись карточкой челленджа с друзьями.' : '';
-      await once(uid, 'offer_expired', { price: formatRub(quote(tariffs[0], false).price).replace(' ₽', ''), referral_line: referral }, `:${o.id}`);
+    if (paid.has(uid)) continue;
+    const plan = [
+      ...OFFER_STAGES.filter(on).map((k) => ({ key: k, due: o.startedAt.getTime() + tpl.get(k)!.delayMinutes * 60_000, late: LATE_OFFER_MIN })),
+      ...AFTER_STAGES.filter(on).map((k) => ({ key: k, due: o.expiresAt.getTime() + tpl.get(k)!.delayMinutes * 60_000, late: LATE_AFTER_MIN })),
+    ].sort((a, b) => a.due - b.due);
+    // Только самое свежее наступившее сообщение и только если оно не устарело
+    const idx = plan.findLastIndex((p) => p.due <= now.getTime());
+    if (idx < 0) continue;
+    const stage = plan[idx];
+    const next = plan[idx + 1];
+    if (now.getTime() > stage.due + stage.late * 60_000 || (next && now.getTime() >= next.due)) continue;
+    // 02–06 имеют смысл, только пока акция действует
+    if (OFFER_STAGES.slice(0, 5).includes(stage.key) && now >= o.expiresAt) continue;
+    if (AFTER_STAGES.includes(stage.key)) {
+      const promo = await prisma.priceOffer.findFirst({ where: { userId: o.userId, kind: 'promo', consumedAt: null, expiresAt: { gt: now } } });
+      if (promo) continue;
     }
+    await send(o.userId, stage.key, vars, `${stage.key}:${o.id}`);
   }
 
-  // Начал оплату, но платёж не завершился: ждём окно webhook и проверяем серверный статус
-  const pendingWindow = await getSetting('payment.pendingWindowMinutes');
-  const stuck = await prisma.payment.findMany({ where: { kind: 'initial', status: { in: ['pending', 'failed'] }, createdAt: { lt: minutesAgo(now, Math.max(pendingWindow, delay('nudge_payment_incomplete'))), gt: horizon } } });
-  for (const p of stuck) await once(p.userId.toString(), 'nudge_payment_incomplete', {}, `:${p.id}`);
-
-  // Выбрал тариф, не начал оплату
-  for (const [uid, ts] of tariffSelect) {
-    if (payStart.has(uid) || ts > minutesAgo(now, delay('nudge_selected_no_payment'))) continue;
-    const ev = await prisma.analyticsEvent.findFirst({ where: { userId: BigInt(uid), eventName: 'tariff_select' }, orderBy: { ts: 'desc' } });
-    const t = tariffs.find((x) => x.id === ev?.tariffId);
-    if (!t) continue;
-    const offer = await prisma.priceOffer.findFirst({ where: { userId: BigInt(uid), consumedAt: null, expiresAt: { gt: now } } });
-    const price = quote(t, Boolean(offer)).price;
-    const line = offer ? `, специальная цена действует до ${DateTime.fromJSDate(offer.expiresAt, { zone: 'Europe/Moscow' }).toFormat('HH:mm')} МСК` : '';
-    await once(uid, 'nudge_selected_no_payment', { tariff: t.title, price: price.toLocaleString('ru-RU'), offer_line: line });
-  }
-
-  // Видел тарифы, не выбрал
-  for (const [uid, ts] of tariffView) {
-    if (tariffSelect.has(uid) || ts > minutesAgo(now, delay('nudge_tariffs_no_select'))) continue;
-    await once(uid, 'nudge_tariffs_no_select');
-  }
-
-  // Открыл, но не дошёл до тарифов
-  for (const [uid, ts] of opened) {
-    if (tariffView.has(uid) || ts > minutesAgo(now, delay('nudge_not_reached_tariffs'))) continue;
-    await once(uid, 'nudge_not_reached_tariffs');
+  // 10–11: ближайший поток
+  const tz = await getSetting('flow.timezone');
+  const today = localDate(now, tz);
+  const hour = DateTime.fromJSDate(now, { zone: tz }).hour;
+  if (hour < FLOW_EVE_HOUR) return;
+  const nextStart = addMonths(`${today.slice(0, 7)}-01`, 1);
+  for (const key of ['chain_10', 'chain_11']) {
+    if (!on(key)) continue;
+    const sendDay = addDays(nextStart, -Math.round(tpl.get(key)!.delayMinutes / (24 * 60)));
+    if (sendDay !== today) continue;
+    if (key === 'chain_11') {
+      const start = await prisma.promo.findUnique({ where: { code: 'СТАРТ' } });
+      if (!start || !(await promoWindow(start, now))) {
+        console.warn('[chain] сообщение 11 пропущено: промокод СТАРТ сейчас не действует');
+        continue;
+      }
+    }
+    // Только те, кто пришёл в бот до дня отправки; в разгар личного таймера не мешаем цепочке 02–07
+    const users = await prisma.user.findMany({
+      where: { allowsWrite: true, botBlocked: false, marketingOptIn: true, deletedAt: null, createdAt: { lt: startOfLocalDay(sendDay, tz) } },
+      select: { id: true },
+    });
+    for (const u of users) {
+      if (paid.has(u.id.toString())) continue;
+      const running = await prisma.priceOffer.findFirst({ where: { userId: u.id, kind: 'intro', consumedAt: null, expiresAt: { gt: now } } });
+      if (running) continue;
+      await send(u.id, key, vars, `${key}:${nextStart}:${u.id}`);
+    }
   }
 }
 

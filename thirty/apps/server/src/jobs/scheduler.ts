@@ -22,7 +22,7 @@ export const TASKS: Task[] = [
   { name: 'leaderboard', everyMin: 10, run: leaderboards },
   { name: 'finalize', everyMin: 30, run: finalizeFlows },
   { name: 'chats-cleanup', everyMin: 60, run: removeExpiredMembers },
-  { name: 'chains-pre', everyMin: 5, run: () => runPrePurchaseChains() },
+  { name: 'chains-pre', everyMin: 1, run: () => runPrePurchaseChains() },
   { name: 'chains-post', everyMin: 30, run: () => runPostPurchaseChains() },
   { name: 'chains-flow', everyMin: 15, run: () => runFlowChains() },
   { name: 'chains-meetings', everyMin: 5, run: () => runMeetingChains() },

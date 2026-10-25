@@ -51,6 +51,12 @@ export function UserDetail({ canEdit }: { canEdit: boolean }) {
           </div>
         </div>
         <div className="card">
+          <h2>Акция и промокоды</h2>
+          {u.offers.map((o: any) => <div key={o.id}>{o.kind === 'intro' ? 'Таймер 3 часа' : 'Окно промокода'}: {dt(o.startedAt)} — {dt(o.expiresAt)}{o.consumedAt ? ` · куплено ${dt(o.consumedAt)}` : ''}</div>)}
+          {u.promos.map((p: any) => <div key={p.id}>Промокод <b>{p.promo.code}</b>: применён {dt(p.appliedAt)}{p.paidAt ? `, оплачен ${dt(p.paidAt)}` : ''}</div>)}
+          {u.stories.map((r: any) => <div key={r.id}>Сторис @{r.instagram}: {r.status}</div>)}
+          {!u.offers.length && !u.promos.length && <div className="muted">Предложение не показывалось</div>}
+          <div>Реклама в боте: {u.user.marketingOptIn ? 'разрешена' : 'отключена (/stop)'}</div>
           <h2>Подписки и оплаты</h2>
           {u.subscriptions.map((s: any) => <div key={s.id}>{s.tariffId} <Status v={s.status} /> · {d(s.paidFromFlow)} — {d(s.paidThroughFlow)} · след. списание {d(s.nextChargeDate)} {s.autoRenew ? '' : '(автопродление выключено)'}
             {s.autoRenew && ['prestart', 'active', 'past_due'].includes(s.status) && (

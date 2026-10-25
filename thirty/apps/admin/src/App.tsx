@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { api, ApiError } from './api';
 import { Dashboard, Funnel } from './pages/Analytics';
 import { Tariffs, Payments } from './pages/Billing';
+import { Promos } from './pages/Promos';
 import { Users, UserDetail } from './pages/Users';
 import { Flows, Chats, Buddy, Meetings } from './pages/Community';
 import { Moderation, Rating, Prizes, PrizeDetail } from './pages/Quality';
@@ -26,6 +27,7 @@ const MENU: { path: string; title: string; perm: string }[] = [
   { path: '/meetings', title: 'A12 Созвоны и эксперты', perm: 'meetings' },
   { path: '/reviews', title: 'A13 Отзывы и кейсы', perm: 'reviews' },
   { path: '/bot', title: 'A14 Сообщения бота', perm: 'bot' },
+  { path: '/promos', title: 'Промокоды и сторис', perm: 'tariffs' },
   { path: '/upsells', title: 'A15 Апселлы', perm: 'upsells' },
   { path: '/settings', title: 'A16 Настройки и роли', perm: 'settings' },
   { path: '/experiments', title: 'A17 A/B-тесты', perm: 'experiments' },
@@ -117,6 +119,7 @@ export function App() {
           <Route path="/meetings" element={<Meetings expert={me.role === 'expert'} />} />
           <Route path="/reviews" element={<Reviews />} />
           <Route path="/bot" element={<Bot />} />
+          <Route path="/promos" element={<Promos />} />
           <Route path="/upsells" element={<Upsells />} />
           <Route path="/settings" element={<Settings isOwner={can('roles')} />} />
           <Route path="/experiments" element={<Experiments />} />
