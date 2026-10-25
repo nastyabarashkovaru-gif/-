@@ -17,6 +17,10 @@ async function main() {
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   await setupBot();
   await setupAdminBot();
+  if (process.env.CHAIN_TEST) {
+    const { chainTestUsers } = await import('./modules/chainTest');
+    console.log(`[chain-test] режим проверки цепочки включён для: ${[...(await chainTestUsers())].join(', ') || 'никого'}`);
+  }
   if (config.DEMO_MODE) await ensureDemoPhotos().catch((e) => console.warn('[demo] photos', e));
   if (config.PAYMENT_PROVIDER === 'cloudpayments') await checkCloudPaymentsKeys();
   if (config.SCHEDULER) startScheduler();

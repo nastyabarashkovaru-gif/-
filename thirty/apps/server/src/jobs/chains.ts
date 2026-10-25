@@ -9,6 +9,7 @@ import { LIVE_STATUSES } from '../modules/billing';
 import { generateCard } from '../modules/cards';
 import { promoWindow } from '../modules/promos';
 import { memberStats } from '../modules/rating';
+import { chainTestUsers } from '../modules/chainTest';
 
 type Send = (userId: bigint, key: string, vars: Record<string, string | number>, dedupe: string) => Promise<unknown>;
 
@@ -60,6 +61,8 @@ export async function runPrePurchaseChains(now = clock.now(), send: Send = sendT
   const on = (k: string) => Boolean(tpl.get(k)?.enabled);
   const paid = await payers();
   const vars = await priceVars();
+  // В режиме проверки цепочки владельцу сообщения приходят по /start подряд — расписание их не дублирует
+  for (const id of await chainTestUsers()) paid.add(id);
 
   // 02–09: персональный таймер
   const offers = await prisma.priceOffer.findMany({ where: { kind: 'intro', consumedAt: null, startedAt: { gt: minutesAgo(now, 10 * 24 * 60) } } });

@@ -173,6 +173,10 @@ export async function handleUpdate(update: TgUpdate) {
   const userId = BigInt(msg.from.id);
   const [cmd, payload] = msg.text.trim().split(/\s+/, 2);
   if (cmd === '/start') {
+    // Проверка дожимной цепочки владельцем (CHAIN_TEST): сброс покупки, приветствие, затем 02–11 каждые 3 с
+    const { isChainTestUser, resetAsNonBuyer, runChainTest } = await import('./chainTest');
+    const testing = await isChainTestUser(userId);
+    if (testing && (await prisma.user.findUnique({ where: { id: userId } }))) await resetAsNonBuyer(userId);
     const existed = await prisma.user.findUnique({ where: { id: userId } });
     await prisma.user.upsert({
       where: { id: userId },
@@ -197,6 +201,7 @@ export async function handleUpdate(update: TgUpdate) {
     const image = imageUrlOf(tpl?.imageUrl);
     if (first && image) await tg('sendPhoto', { chat_id: msg.chat.id, photo: image, caption: tpl?.text ?? WELCOME_TEXT, parse_mode: 'HTML', reply_markup: markup });
     else await tg('sendMessage', { chat_id: msg.chat.id, text: first ? tpl?.text ?? WELCOME_TEXT : 'Жми кнопку ниже, чтобы открыть приложение 👇', parse_mode: 'HTML', reply_markup: markup });
+    if (testing) runChainTest(userId);
     return;
   }
   if (cmd === '/stop') {

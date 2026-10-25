@@ -205,4 +205,29 @@ describe('дожимная цепочка до оплаты', () => {
     const n = await api('GET', '/api/notifications', 803);
     expect(n.body.items[0].title).toContain('отклонено');
   });
+
+  it('режим проверки цепочки: /start сбрасывает покупку и присылает 02–11 подряд', async () => {
+    process.env.CHAIN_TEST = '777';
+    process.env.CHAIN_TEST_STEP_SEC = '1';
+    try {
+      await buy(777);
+      expect((await api('GET', '/api/me', 777)).body.subscription).not.toBeNull();
+      calls = [];
+      await start(777);
+      expect((await api('GET', '/api/me', 777)).body.subscription).toBeNull();
+      await new Promise((r) => setTimeout(r, 10_500));
+      const texts = sent();
+      expect(texts.length).toBe(11);
+      expect(texts[1]).toContain('получилось посмотреть');
+      // Обычное расписание владельцу ничего не дублирует
+      calls = [];
+      await api('POST', '/api/offer/start', 777);
+      await runPrePurchaseChains(new Date(clock.now().getTime() + 11 * 60_000));
+      expect(sent().length).toBe(0);
+    } finally {
+      delete process.env.CHAIN_TEST;
+      delete process.env.CHAIN_TEST_STEP_SEC;
+    }
+  }, 20_000);
 });
+
