@@ -30,10 +30,10 @@ export function initTelegram() {
   tg.expand();
   try {
     if (tg.isVersionAtLeast('6.1')) {
-      tg.setHeaderColor?.('#FFF9F2');
-      tg.setBackgroundColor?.('#FFF9F2');
+      tg.setHeaderColor?.('#F8F8FD');
+      tg.setBackgroundColor?.('#F8F8FD');
     }
-    if (tg.isVersionAtLeast('7.10')) tg.setBottomBarColor?.('#FFFFFF');
+    if (tg.isVersionAtLeast('7.10')) tg.setBottomBarColor?.('#F8F8FD');
     if (tg.isVersionAtLeast('7.7')) tg.disableVerticalSwipes?.();
   } catch {
     /* старый клиент */
