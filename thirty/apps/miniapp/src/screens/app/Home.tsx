@@ -62,7 +62,7 @@ export function Home() {
 
       <div className="hero-card">
         <div className="row between">
-          <span style={{ opacity: 0.9 }}>Твой челлендж</span>
+          <span style={{ opacity: 0.9 }}>{before ? 'До старта' : 'Твой челлендж'}</span>
           <span className="hero-pill">{before ? 'Ожидание старта' : `День ${Math.min(day, flow.days)} из ${flow.days}`}</span>
         </div>
         {before ? (
@@ -212,7 +212,7 @@ function StartCountdown({ startsOn }: { startsOn: string }) {
   const m = Math.floor((ms % 3_600_000) / 60_000);
   return (
     <div className="hero-title">
-      До старта {d > 0 && <>{d} {plural(d, 'день', 'дня', 'дней')} </>}{h} {plural(h, 'час', 'часа', 'часов')}{d === 0 && <> {m} мин</>} ⏳
+      {d > 0 && <>{d} {plural(d, 'день', 'дня', 'дней')} </>}{h} {plural(h, 'час', 'часа', 'часов')}{d === 0 && <> {m} мин</>} ✨
     </div>
   );
 }
