@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { addDays, addMonths, localDate } from '@thirty/domain';
+import { TOPIC_CHATS, addDays, addMonths, localDate } from '@thirty/domain';
 import { DateTime } from 'luxon';
 import { clock } from '../clock';
 import { config } from '../config';
@@ -76,6 +76,14 @@ const ABOUT: Record<string, [number, string, string]> = {
   Анастасия: [28, 'Развиваю блог и создаю свой проект «30 дней»', 'Хочу вдохновлять людей и вырасти в блоге'],
 };
 
+/** Чаты-заглушки: в демо замки снимаются так же, как в настоящем приложении, но в Telegram не ведут */
+async function demoChats(flowId: string) {
+  await prisma.telegramChat.create({ data: { kind: 'flow', flowId, telegramChatId: -1009000000000n, title: 'Общий чат потока' } });
+  for (const [i, t] of TOPIC_CHATS.entries()) {
+    await prisma.telegramChat.create({ data: { kind: 'topic', topic: t.id, telegramChatId: -1009000000001n - BigInt(i), title: `Чат «${t.title}»` } });
+  }
+}
+
 async function enroll(userId: bigint, name: string, city: string, tariffId: string, flowId: string, flowStart: string) {
   const [age, occupation, aspiration] = ABOUT[name] ?? [25, null, null];
   const about = { displayName: name, city, age, occupation, aspiration, onboardingStage: 'paid' };
@@ -108,6 +116,7 @@ async function prepareWaiting(ownerId: bigint, ownerName: string) {
   clock.set(at(addDays(flowStart, -7), 12));
   const flow = await ensureFlow(flowStart);
   await prisma.flow.update({ where: { id: flow.id }, data: { status: 'upcoming' } });
+  await demoChats(flow.id);
   for (const p of PEOPLE) {
     const m = await enroll(p.id, p.name, p.city, 'm3', flow.id, flowStart);
     await fillGoals(p.id, m.id, p.goals);
@@ -153,10 +162,10 @@ export async function runScenario(ownerId: bigint, ownerName: string, scenario: 
   if (scenario === 'fresh') {
     await wipe();
     const flowStart = demoFlowStart();
-    await ensureFlow(flowStart);
     // Несколько участников уже в клубе — чтобы после оплаты было с кем знакомиться
     clock.set(at(addDays(flowStart, -7), 12));
     const flow = await ensureFlow(flowStart);
+    await demoChats(flow.id);
     for (const p of PEOPLE) {
       const m = await enroll(p.id, p.name, p.city, 'm3', flow.id, flowStart);
       await fillGoals(p.id, m.id, p.goals);

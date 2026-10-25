@@ -1,6 +1,7 @@
 import { TOPIC_CHATS, fromDbDate, addDays, flowBounds, localDate } from '@thirty/domain';
 import type { TelegramChat } from '@prisma/client';
 import { clock } from '../clock';
+import { config } from '../config';
 import { prisma } from '../db';
 import { forbidden, notFound } from '../http';
 import { getSetting } from '../settings';
@@ -43,6 +44,8 @@ export async function inviteLinkFor(userId: bigint, chatId: string) {
   if (!chat) throw forbidden('no_access', 'Чат доступен только участникам с оплаченным доступом');
   const existing = await prisma.chatMembership.findUnique({ where: { chatId_userId: { chatId, userId } } });
   if (existing?.status === 'joined') return { url: null, joined: true };
+  // Демо: настоящих чатов нет, ссылку не создаём
+  if (config.DEMO_MODE) return { url: null, joined: false, demo: true };
   const ttlHours = await getSetting('chats.inviteTtlHours');
   const fresh = existing?.inviteLink && existing.updatedAt.getTime() > clock.now().getTime() - (ttlHours - 1) * 3600_000;
   let url = fresh ? existing!.inviteLink! : null;

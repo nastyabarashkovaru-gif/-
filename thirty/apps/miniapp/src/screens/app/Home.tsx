@@ -83,7 +83,7 @@ export function Home() {
         )}
       </div>
 
-      {before && <button className="link-accent story-link" onClick={() => setShare(true)}><Instagram size={17} />Поделись в сторис, что ты идёшь на наш челлендж</button>}
+      {before && <button className="link-accent story-link" onClick={() => setShare(true)}><Instagram size={17} />А пока поделись в сторис, что ты идёшь на наш челлендж! 😍</button>}
       <StorySheet open={share} onClose={() => setShare(false)} />
       {data.state === 'active' && (
         <div className="card" style={{ gap: 10 }}>

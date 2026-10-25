@@ -11,8 +11,9 @@ const time = (iso: string) => new Date(iso).toLocaleString('ru-RU', { weekday: '
 
 async function joinChat(id: string) {
   try {
-    const r = await api<{ url: string | null; joined: boolean }>(`/api/chats/${id}/invite`, { body: {} });
-    if (r.joined) toast('Ты уже в этом чате — открой его в Telegram');
+    const r = await api<{ url: string | null; joined: boolean; demo?: boolean }>(`/api/chats/${id}/invite`, { body: {} });
+    if (r.demo) toast('Демо: в настоящем приложении здесь откроется чат в Telegram');
+    else if (r.joined) toast('Ты уже в этом чате — открой его в Telegram');
     else if (r.url) openTelegram(r.url);
   } catch (e) {
     toast(errorText(e));
