@@ -352,8 +352,8 @@ export function Welcome() {
       <div className="col" style={{ gap: 14, margin: '6px 0' }}>
         {([['', 'Выбирай цели, которые давно откладываешь'], ['green', 'Находи единомышленников'], ['peach', 'Общайся, присылай отчёты, забирай призы']] as const).map(([c, t], k) => (
           <div key={t} className="row" style={{ gap: 14, alignItems: k === 0 ? 'flex-start' : 'center' }}>
-            <span className={`num-sq ${c}`}>{k + 1}</span>
-            {/* Пункт с заголовком: верх квадрата с номером на одной линии с верхом текста */}
+            {/* Пункт с заголовком: цифра на одной линии с первой строкой «Новый месяц — новый челлендж!» */}
+            <span className={`num-sq ${c}`} style={k === 0 ? { marginTop: -10 } : undefined}>{k + 1}</span>
             <span style={{ fontSize: 17, lineHeight: '24px' }}>{k === 0 && <b style={{ color: 'var(--accent)' }}>Новый месяц — новый челлендж! </b>}{t}</span>
           </div>
         ))}
