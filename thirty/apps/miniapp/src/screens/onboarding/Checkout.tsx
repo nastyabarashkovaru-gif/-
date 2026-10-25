@@ -157,7 +157,7 @@ export function PaymentWait() {
           </div>
         )}
         <div className="spacer" />
-        <Cta onClick={() => nav('/reg/goals')}>Приступить к заполнению целей</Cta>
+        <Cta onClick={() => nav('/reg/about')}>Приступить к заполнению целей</Cta>
       </Screen>
     );
   }

@@ -6,6 +6,9 @@ import { prisma } from '../db';
 export const profileInput = z.object({
   displayName: z.string().trim().min(1).max(64).optional(),
   city: z.string().trim().max(64).nullable().optional(),
+  age: z.number().int().min(14).max(99).nullable().optional(),
+  occupation: z.string().trim().max(300).nullable().optional(),
+  aspiration: z.string().trim().max(500).nullable().optional(),
   timezone: z
     .string()
     .max(64)

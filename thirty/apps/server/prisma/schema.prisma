@@ -25,6 +25,9 @@ model User {
   photoUrl        String?
   displayName     String?
   city            String?
+  age             Int?
+  occupation      String? // «Чем ты занимаешься?» (анкета, шаг 1)
+  aspiration      String? // «К чему ты хочешь прийти?»
   timezone        String     @default("Europe/Moscow")
   interests       String[]   @default([])
   visibility      Visibility @default(public)

@@ -66,8 +66,20 @@ async function wipe() {
   await seed();
 }
 
+const ABOUT: Record<string, [number, string, string]> = {
+  Алина: [24, 'Веду блог о красоте и работаю SMM-менеджером', 'Хочу, чтобы блог стал основным источником дохода'],
+  Мария: [29, 'Работаю дизайнером интерьеров', 'Хочу вернуть энергию и любить своё отражение'],
+  Даша: [31, 'Фрилансер, делаю сайты', 'Хочу стабильный доход и своих постоянных клиентов'],
+  София: [22, 'Учусь в университете на экономиста', 'Хочу свободно говорить на английском и поехать по обмену'],
+  Полина: [27, 'Работаю в банке', 'Хочу успевать больше и не чувствовать себя уставшей'],
+  Ева: [26, 'Путешествую и снимаю видео', 'Хочу запустить свой блог о путешествиях'],
+  Анастасия: [28, 'Развиваю блог и создаю свой проект «30 дней»', 'Хочу вдохновлять людей и вырасти в блоге'],
+};
+
 async function enroll(userId: bigint, name: string, city: string, tariffId: string, flowId: string, flowStart: string) {
-  await prisma.user.upsert({ where: { id: userId }, create: { id: userId, firstName: name, displayName: name, city, allowsWrite: true, onboardingStage: 'paid' }, update: { displayName: name, city, onboardingStage: 'paid' } });
+  const [age, occupation, aspiration] = ABOUT[name] ?? [25, null, null];
+  const about = { displayName: name, city, age, occupation, aspiration, onboardingStage: 'paid' };
+  await prisma.user.upsert({ where: { id: userId }, create: { id: userId, firstName: name, allowsWrite: true, ...about }, update: about });
   const tariff = await prisma.tariff.findUniqueOrThrow({ where: { id: tariffId } });
   const sub = await prisma.subscription.create({
     data: { userId, tariffId, status: 'prestart', renewalPrice: tariff.promoPrice, paidFromFlow: new Date(`${flowStart}T00:00:00Z`), paidThroughFlow: new Date(`${addMonths(flowStart, tariff.months - 1)}T00:00:00Z`), nextChargeDate: new Date(`${addMonths(flowStart, tariff.months - 1).slice(0, 8)}28T00:00:00Z`) },

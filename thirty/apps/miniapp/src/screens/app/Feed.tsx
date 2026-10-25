@@ -265,7 +265,7 @@ function People() {
 
 export function ParticipantScreen() {
   const { id = '' } = useParams();
-  const { data, error, loading, reload } = useLoad(() => api<{ name: string; hidden?: boolean; photoUrl?: string; city?: string; sixMonthBadge?: boolean; writeUrl?: string; flow?: { title: string } | null; goals?: { title: string; category: string }[]; stats?: { percent: number; successfulDays: number; currentStreak: number } | null; flowsCount?: number; buddy?: { state: string; proposalId?: string } }>(`/api/participants/${id}`), [id]);
+  const { data, error, loading, reload } = useLoad(() => api<{ name: string; hidden?: boolean; photoUrl?: string; city?: string; age?: number | null; occupation?: string | null; aspiration?: string | null; sixMonthBadge?: boolean; writeUrl?: string; flow?: { title: string } | null; goals?: { title: string; category: string }[]; stats?: { percent: number; successfulDays: number; currentStreak: number } | null; flowsCount?: number; buddy?: { state: string; proposalId?: string } }>(`/api/participants/${id}`), [id]);
   const [busy, setBusy] = useState(false);
   const propose = async () => {
     setBusy(true);
@@ -300,8 +300,15 @@ export function ParticipantScreen() {
       <div className="card center" style={{ alignItems: 'center' }}>
         <Avatar name={data.name} url={data.photoUrl} size="lg" />
         <div className="h2">{data.name} {data.sixMonthBadge && '🏅'}</div>
-        {data.hidden ? <div className="muted">Участник скрыл профиль</div> : <div className="muted">{[data.city, data.flow?.title].filter(Boolean).join(' · ')}</div>}
+        {data.hidden ? <div className="muted">Участник скрыл профиль</div> : <div className="muted">{[data.city, data.age ? ageText(data.age) : null, data.flow?.title].filter(Boolean).join(' · ')}</div>}
       </div>
+      {!data.hidden && (data.occupation || data.aspiration) && (
+        <div className="card" style={{ gap: 10 }}>
+          <div className="h3">О себе</div>
+          {data.occupation && <div><div className="label" style={{ color: 'var(--muted)' }}>Чем занимается</div><div style={{ marginTop: 2 }}>{data.occupation}</div></div>}
+          {data.aspiration && <div><div className="label" style={{ color: 'var(--muted)' }}>К чему хочет прийти</div><div style={{ marginTop: 2 }}>{data.aspiration}</div></div>}
+        </div>
+      )}
       {!data.hidden && (
         <>
           {data.stats && (
@@ -332,4 +339,10 @@ export function ParticipantScreen() {
       )}
     </Screen>
   );
+}
+
+/** 21 год, 23 года, 25 лет */
+function ageText(n: number) {
+  const d = n % 10, h = n % 100;
+  return `${n} ${d === 1 && h !== 11 ? 'год' : d >= 2 && d <= 4 && (h < 12 || h > 14) ? 'года' : 'лет'}`;
 }

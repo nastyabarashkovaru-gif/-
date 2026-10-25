@@ -44,7 +44,7 @@ export function Home() {
 
   if (loading && !data) return <Screen id="S19" nav><Loading /></Screen>;
   if (error || !data) return <Screen id="S19" nav><ErrorState error={error} retry={reload} /></Screen>;
-  if (data.state === 'registration') return <Navigate to="/reg/goals" replace />;
+  if (data.state === 'registration') return <Navigate to="/reg/about" replace />;
   if (data.state === 'no_membership') return <Navigate to="/welcome" replace />;
   const { flow, stats } = data;
   const before = data.state === 'waiting';

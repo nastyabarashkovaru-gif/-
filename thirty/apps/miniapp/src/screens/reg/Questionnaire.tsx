@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   Target, Sparkles, Lightbulb, CircleX, CircleCheck, Trophy, Plus, Route, ArrowDown, ShieldCheck, ListChecks, ClipboardCheck,
-  CalendarDays, ChevronDown, ChevronUp, Handshake, MapPin, Hourglass, CheckCheck, BookOpen, ArrowRight, Pencil,
+  CalendarDays, ChevronDown, ChevronUp, Handshake, HeartHandshake, MapPin, Users, Hourglass, CheckCheck, BookOpen, ArrowRight, Pencil,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { track } from '../../lib/analytics';
@@ -90,43 +90,105 @@ function Gate({ q, id, children }: { q: ReturnType<typeof useMembership>; id: st
   return <>{children(q.data)}</>;
 }
 
+/* ───────────── Шаг 1: знакомство ───────────── */
+
+export function AboutStep() {
+  const q = useQuestionnaire('/reg/about');
+  const { me } = useMe();
+  useEffect(() => {
+    track('registration_started', { screen: 'S12' });
+    // Часовой пояс берём с устройства: от него зависят дедлайны ежедневных отчётов
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz && me && me.user.timezone !== tz) void api('/api/me', { method: 'PATCH', body: { timezone: tz } }).catch(() => undefined);
+  }, []);
+  return <Gate q={q} id="S12">{() => <AboutForm />}</Gate>;
+}
+
+function AboutForm() {
+  const nav = useNavigate();
+  const { me, refresh } = useMe();
+  const u = me!.user;
+  const [name, setName] = useState(u.displayName ?? '');
+  const [city, setCity] = useState(u.city ?? '');
+  const [age, setAge] = useState(u.age ? String(u.age) : '');
+  const [occupation, setOccupation] = useState(u.occupation ?? '');
+  const [aspiration, setAspiration] = useState(u.aspiration ?? '');
+  const [busy, setBusy] = useState(false);
+  const ageNum = Number(age);
+  const valid = name.trim().length >= 1 && city.trim().length >= 2 && Number.isInteger(ageNum) && ageNum >= 14 && ageNum <= 99 && occupation.trim().length >= 2 && aspiration.trim().length >= 2;
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api('/api/me', { method: 'PATCH', body: { displayName: name.trim(), city: city.trim(), age: ageNum, occupation: occupation.trim(), aspiration: aspiration.trim() } });
+      await refresh();
+      haptic('success');
+      nav('/reg/goals');
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Screen id="S12">
+      <StepBar step={1} />
+      <Head icon={<Users size={28} strokeWidth={1.8} />} lead="Расскажи немного о себе, чтобы твой бадди и другие участники узнали, кто идёт с ними к цели.">
+        Давай <em>знакомиться!</em> 😍
+      </Head>
+      <label className="field">
+        <span className="h3" style={{ fontSize: 15 }}>Как тебя зовут?</span>
+        <input className="input" placeholder="Например, Настя" value={name} maxLength={64} autoComplete="given-name" onChange={(e) => setName(e.target.value)} />
+      </label>
+      <label className="field">
+        <span className="h3" style={{ fontSize: 15 }}>Из какого ты города?</span>
+        <input className="input" placeholder="Например, Москва" value={city} maxLength={64} autoComplete="address-level2" onChange={(e) => setCity(e.target.value)} />
+      </label>
+      <label className="field">
+        <span className="h3" style={{ fontSize: 15 }}>Сколько тебе лет?</span>
+        <input className="input" placeholder="Например, 25" inputMode="numeric" value={age} maxLength={2} onChange={(e) => setAge(e.target.value.replace(/\D/g, ''))} />
+      </label>
+      <label className="field">
+        <span className="h3" style={{ fontSize: 15 }}>Чем ты занимаешься?</span>
+        <textarea className="textarea" rows={2} placeholder="Учусь, работаю, развиваю блог, создаю бизнес..." value={occupation} maxLength={300} onChange={(e) => setOccupation(e.target.value)} />
+      </label>
+      <label className="field">
+        <span className="h3" style={{ fontSize: 15 }}>К чему ты хочешь прийти?</span>
+        <textarea className="textarea" rows={2} placeholder="Например, хочу начать вести блог и стать увереннее в себе..." value={aspiration} maxLength={500} onChange={(e) => setAspiration(e.target.value)} />
+        <p className="hint">Необязательно формулировать идеальную цель — дальше мы поможем сделать её конкретной.</p>
+      </label>
+      <Note icon={<HeartHandshake size={17} />} title="Это увидит твой бадди">
+        Твои ответы помогут начать общение без неловкого «Привет, расскажи о себе».
+      </Note>
+      <Cta disabled={!valid || busy} onClick={save}>Продолжить</Cta>
+    </Screen>
+  );
+}
+
 /* ───────────── Шаг 2: цели ───────────── */
 
 interface GoalDraft { id?: string; title: string; category: string }
 
 export function GoalsStep() {
   const q = useQuestionnaire('/reg/goals');
-  const { me } = useMe();
-  useEffect(() => {
-    track('registration_started', { screen: 'S13' });
-    // Часовой пояс берём с устройства: от него зависят дедлайны ежедневных отчётов
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (tz && me && me.user.timezone !== tz) void api('/api/me', { method: 'PATCH', body: { timezone: tz } }).catch(() => undefined);
-  }, []);
   return <Gate q={q} id="S13">{(m) => <GoalsForm m={m} />}</Gate>;
 }
 
 function GoalsForm({ m }: { m: MembershipView }) {
   const nav = useNavigate();
-  const { me, refresh } = useMe();
-  const [city, setCity] = useState(me?.user.city ?? '');
   const [drafts, setDrafts] = useState<GoalDraft[]>(() => (m.goals.length ? m.goals.map((g) => ({ id: g.id, title: g.title, category: g.category })) : [{ title: '', category: '' }]));
   const [busy, setBusy] = useState(false);
   const limit = m.goalLimit;
   const single = limit === 1;
   const unlimited = limit === null;
   const canAdd = limit === null || drafts.length < limit;
-  const valid = city.trim().length >= 2 && drafts.every((d) => d.title.trim().length >= 3 && d.category);
+  const valid = drafts.every((d) => d.title.trim().length >= 3 && d.category);
   const set = (i: number, patch: Partial<GoalDraft>) => setDrafts(drafts.map((d, j) => (j === i ? { ...d, ...patch } : d)));
 
   const save = async () => {
     setBusy(true);
     try {
-      // Город нужен для поиска участников и фильтра по городам
-      if (city.trim() !== (me?.user.city ?? '')) {
-        await api('/api/me', { method: 'PATCH', body: { city: city.trim() } });
-        await refresh();
-      }
       const keep = new Set(drafts.map((d) => d.id).filter(Boolean));
       for (const g of m.goals) if (!keep.has(g.id)) await api(`/api/goals/${g.id}`, { method: 'DELETE' });
       for (const d of drafts) {
@@ -169,11 +231,6 @@ function GoalsForm({ m }: { m: MembershipView }) {
           </div>
         ))}
       </div>
-      <label className="field">
-        <span className="row" style={{ gap: 8 }}><MapPin size={17} color="var(--accent)" />Твой город</span>
-        <input className="input" placeholder="Например, Москва" value={city} maxLength={64} autoComplete="address-level2" onChange={(e) => setCity(e.target.value)} />
-        <p className="hint">По городу участники смогут найти тебя и выбрать бадди рядом.</p>
-      </label>
       {drafts.map((d, i) => (
         <div className="field" key={d.id ?? `new${i}`}>
           <div className="row between">

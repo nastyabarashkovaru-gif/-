@@ -106,6 +106,20 @@ export function MySubscription() {
 }
 
 /** Моя анкета: только просмотр — после отправки изменить нельзя */
+/** Ответы шага 1 анкеты «Давай знакомиться» */
+function AboutMe() {
+  const { me } = useMe();
+  const u = me?.user;
+  if (!u || !(u.occupation || u.aspiration || u.age)) return null;
+  const rows: [string, string | null][] = [['Имя', u.displayName], ['Город', u.city], ['Возраст', u.age ? String(u.age) : null], ['Чем я занимаюсь', u.occupation], ['К чему хочу прийти', u.aspiration]];
+  return (
+    <div className="card flat" style={{ gap: 10 }}>
+      <span className="h3">О себе</span>
+      {rows.filter(([, v]) => v).map(([k, v]) => <div key={k}><div className="label" style={{ color: 'var(--muted)' }}>{k}</div><div style={{ marginTop: 2 }}>{v}</div></div>)}
+    </div>
+  );
+}
+
 export function MyQuestionnaire() {
   const nav = useNavigate();
   const { data: m, error, loading, reload } = useMembership();
@@ -121,7 +135,7 @@ export function MyQuestionnaire() {
           {m.canEdit ? (
             <div className="panel" style={{ gap: 6, padding: 14 }}>
               <span style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>Анкета ещё не отправлена</span>
-              <button className="link-accent" style={{ alignSelf: 'flex-start', padding: 0 }} onClick={() => nav('/reg/goals')}>Продолжить заполнение →</button>
+              <button className="link-accent" style={{ alignSelf: 'flex-start', padding: 0 }} onClick={() => nav('/reg/about')}>Продолжить заполнение →</button>
             </div>
           ) : (
             <div className="panel" style={{ gap: 6, padding: 14 }}>
@@ -129,6 +143,7 @@ export function MyQuestionnaire() {
               <span className="muted small">Анкета зафиксирована и доступна только для просмотра.</span>
             </div>
           )}
+          <AboutMe />
           {m.goals.map((g, i) => (
             <div key={g.id} className="card flat" style={{ gap: 12 }}>
               <span className="row h3" style={{ gap: 8 }}><Target size={18} color="var(--accent)" />Цель {i + 1}</span>
