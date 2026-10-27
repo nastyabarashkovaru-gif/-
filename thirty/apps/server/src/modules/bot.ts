@@ -50,6 +50,13 @@ export async function seedTemplates() {
     if (t) await prisma.botMessageTemplate.update({ where: { key: t.key }, data: { text: t.text.replace(/\nСледующее списание: \{next_date\}, \{next_amount\} ₽ \(отключить можно в профиле\)\./, '') } });
     await prisma.setting.create({ data: { key: v5, value: { at: new Date().toISOString() } } });
   }
+  // Разово (27.10): трекеры одной таблицей — сообщение о выдаче с блоком ссылок
+  const v6 = 'maintenance.trackersV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v6 } }))) {
+    const d = DEFAULT_TEMPLATES.find((x) => x.key === 'trackers_granted');
+    if (d) await prisma.botMessageTemplate.update({ where: { key: 'trackers_granted' }, data: { text: d.text } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v6, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {

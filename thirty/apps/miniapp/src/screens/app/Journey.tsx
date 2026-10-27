@@ -155,7 +155,7 @@ function Stat({ icon, value, label }: { icon: ReactNode; value: ReactNode; label
 
 const OUTCOMES = [['full', 'Да, полностью'], ['partial', 'Частично'], ['none', 'Пока нет']] as const;
 
-/** Финал: экран 1 — «Ты прошёл 30 дней!» с конфетти и статистикой; экран 2 — результаты по целям */
+/** Финал: экран 1 — «Ты прошла 30 дней!» с конфетти и статистикой; экран 2 — результаты по целям */
 export function FinaleScreen() {
   const nav = useNavigate();
   const { data, error, loading, reload } = useLoad(() => api<Finale>('/api/finale'));
@@ -180,7 +180,7 @@ export function FinaleScreen() {
         <Confetti />
         <div className="col center" style={{ gap: 8, alignItems: 'center', marginTop: 18 }}>
           <span className="finale-badge">🎉</span>
-          <h1 className="hero" style={{ fontSize: 30 }}>Ты прошёл 30 дней! 🎉</h1>
+          <h1 className="hero" style={{ fontSize: 30 }}>Ты прошла 30 дней! 🎉</h1>
           <p className="lead" style={{ fontSize: 16 }}>Посмотри, сколько всего тебе удалось сделать за этот месяц!</p>
         </div>
         <div className="fin-grid">
@@ -367,47 +367,6 @@ export function ComebackScreen() {
 
 /* ───────────── Отзыв за трекеры ───────────── */
 
-function TrackerArt({ kind }: { kind: 'tasks' | 'week' | 'finance' }) {
-  if (kind === 'tasks') {
-    return (
-      <svg viewBox="0 0 160 110" className="tr-art" aria-hidden>
-        <rect x="8" y="6" width="144" height="98" rx="14" fill="#fff" />
-        {[0, 1, 2, 3].map((i) => (
-          <g key={i} transform={`translate(20 ${18 + i * 21})`}>
-            <rect width="14" height="14" rx="4" fill={i < 3 ? '#7150E7' : '#E6DFFF'} />
-            {i < 3 && <path d="M3.5 7.2l2.6 2.6 4.6-5" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" />}
-            <rect x="22" y="3" width={i === 3 ? 70 : 90 - i * 12} height="8" rx="4" fill={i < 3 ? '#CFC4FA' : '#ECE8FB'} />
-          </g>
-        ))}
-        <rect x="20" y="100" width="120" height="0" />
-      </svg>
-    );
-  }
-  if (kind === 'week') {
-    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    return (
-      <svg viewBox="0 0 160 110" className="tr-art" aria-hidden>
-        <rect x="8" y="6" width="144" height="98" rx="14" fill="#fff" />
-        {days.map((d, i) => (
-          <g key={d} transform={`translate(${16 + i * 19.5} 16)`}>
-            <text x="8" y="8" fontSize="7" textAnchor="middle" fill="#B04F7A" fontFamily="Inter, sans-serif">{d}</text>
-            {[0, 1, 2].map((k) => (k + i) % 3 !== 2 && <rect key={k} x="0" y={14 + k * 22} width="16" height="18" rx="4" fill={['#F9C6DA', '#F4A3C4', '#FBE3EC'][(k + i) % 3]} />)}
-          </g>
-        ))}
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 160 110" className="tr-art" aria-hidden>
-      <rect x="8" y="6" width="144" height="98" rx="14" fill="#fff" />
-      <text x="20" y="26" fontSize="9" fill="#2F9E68" fontFamily="Inter, sans-serif" fontWeight="700">+ 82 000 ₽</text>
-      <text x="20" y="40" fontSize="9" fill="#C0504D" fontFamily="Inter, sans-serif" fontWeight="700">− 47 500 ₽</text>
-      {[38, 52, 30, 64, 46, 72].map((h, i) => <rect key={i} x={20 + i * 20} y={94 - h * 0.6} width="12" height={h * 0.6} rx="3" fill={i % 2 ? '#2F9E68' : '#9ED9B8'} />)}
-      <polyline points="26,70 46,62 66,74 86,52 106,58 126,44" fill="none" stroke="#1F6E49" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 const TRACKERS = [
   { kind: 'tasks' as const, title: 'Трекер задач', text: 'Чек-листы и прогресс по задачам', cls: 'violet' },
   { kind: 'week' as const, title: 'Трекер недели', text: 'Планер дел по дням недели', cls: 'pink' },
@@ -422,7 +381,7 @@ export function TrackerCarousel() {
       <div className="tr-carousel" ref={ref} onScroll={(e) => setAt(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth * 0.8)))}>
         {TRACKERS.map((t) => (
           <div key={t.kind} className={`tr-card ${t.cls}`}>
-            <TrackerArt kind={t.kind} />
+            <img className="tr-art" src={`/img/tracker-${t.kind}.jpg`} alt={t.title} loading="lazy" />
             <b>{t.title}</b>
             <span>{t.text}</span>
           </div>

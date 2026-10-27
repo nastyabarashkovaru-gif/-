@@ -78,7 +78,7 @@ export const DEFAULT_SETTINGS = {
   ] as { id: string; kind: string; title: string; text: string; icon: string; url: string }[],
   'cases': [] as { name: string; text: string; result: string }[],
   /** Три трекера в Google Таблицах — подарок за отзыв (ссылки задаёт администратор) */
-  'trackers.links': { tasks: '', week: '', finance: '' },
+  'trackers.links': { tasks: 'https://docs.google.com/spreadsheets/d/1qyq0ghlBROxV1NyedXJLQB_tNAkCXVkwNQFl2b21_Tg/edit?usp=sharing', week: 'https://docs.google.com/spreadsheets/d/1qyq0ghlBROxV1NyedXJLQB_tNAkCXVkwNQFl2b21_Tg/edit?usp=sharing', finance: 'https://docs.google.com/spreadsheets/d/1qyq0ghlBROxV1NyedXJLQB_tNAkCXVkwNQFl2b21_Tg/edit?usp=sharing' },
   /** Ссылка в QR-коде карточки результатов: бот с продающей цепочкой (метка stories — для аналитики переходов) */
   'stories.botLink': 'https://t.me/Dney30_bot?start=stories',
 };

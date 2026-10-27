@@ -438,7 +438,7 @@ img { max-width: 100%; display: block; }
 .tr-card.violet { background: linear-gradient(160deg, #efe9ff, #e2d8ff); }
 .tr-card.pink { background: linear-gradient(160deg, #fdebf3, #f9d3e4); }
 .tr-card.green { background: linear-gradient(160deg, #e8f7ee, #cdeedb); }
-.tr-art { width: 100%; height: auto; border-radius: 14px; }
+.tr-art { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; object-position: top center; border-radius: 14px; background: #fff; box-shadow: 0 4px 14px rgba(33, 28, 53, 0.08); }
 .status-pill { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 5px 10px; white-space: nowrap; }
 .status-pill.muted { background: var(--cell); color: var(--muted); }
 .status-pill.warn { background: #fff4d6; color: #7a5a00; }

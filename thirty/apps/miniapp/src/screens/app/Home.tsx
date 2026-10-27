@@ -106,7 +106,7 @@ export function Home() {
       {p?.finale && (
         <button className="home-cta-card finale-cta" onClick={() => nav('/finale')}>
           <span className="em">🎉</span>
-          <span className="grow"><b style={{ display: 'block', fontSize: 17 }}>{p.finaleDone ? 'Твои результаты за 30 дней' : 'Ты прошёл 30 дней!'}</b><span style={{ opacity: 0.9, fontSize: 14 }}>{p.finaleDone ? 'Карточка для Stories и новая цель' : 'Посмотри свои итоги месяца'}</span></span>
+          <span className="grow"><b style={{ display: 'block', fontSize: 17 }}>{p.finaleDone ? 'Твои результаты за 30 дней' : 'Ты прошла 30 дней!'}</b><span style={{ opacity: 0.9, fontSize: 14 }}>{p.finaleDone ? 'Карточка для Stories и новая цель' : 'Посмотри свои итоги месяца'}</span></span>
           <ChevronRight size={20} />
         </button>
       )}

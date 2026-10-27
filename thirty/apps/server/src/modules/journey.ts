@@ -233,6 +233,14 @@ async function trackerPromptDue(userId: bigint) {
   return clock.now().getTime() - u.trackerPromptAt.getTime() >= TRACKER_PROMPT_EVERY_DAYS * 24 * 3600_000;
 }
 
+/** Сообщение бота на 14-й день: подарок ещё не выдан и отзыв не на проверке */
+export async function trackerOfferDue(userId: bigint) {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { trackersGrantedAt: true } });
+  if (!u || u.trackersGrantedAt) return false;
+  const last = await prisma.trackerReview.findFirst({ where: { userId, status: { not: 'replaced' } }, orderBy: { createdAt: 'desc' } });
+  return !last || last.status === 'needs_info';
+}
+
 /** Окно показали — следующий раз через 14 дней */
 export async function trackerPrompted(userId: bigint) {
   await prisma.user.update({ where: { id: userId }, data: { trackerPromptAt: clock.now() } });
@@ -291,7 +299,12 @@ export async function decideTrackerReview(id: string, decision: 'grant' | 'clari
   });
   if (!granted) throw conflict('already_granted', 'Трекеры уже выданы');
   const links = await getSetting('trackers.links');
-  await notify(r.userId, 'trackers_granted', { tasks: links.tasks || '—', week: links.week || '—', finance: links.finance || '—' }, `trackers_granted:${r.userId}`);
+  // Одна таблица на все три трекера — одна ссылка; разные — по ссылке на каждый
+  const same = links.tasks && links.tasks === links.week && links.week === links.finance;
+  const block = same
+    ? `🎁 Трекер задач\n🎁 Трекер недели\n🎁 Трекер финансов\n\nЗабирай здесь: ${links.tasks}`
+    : `🎁 Трекер задач — ${links.tasks || '—'}\n🎁 Трекер недели — ${links.week || '—'}\n🎁 Трекер финансов — ${links.finance || '—'}`;
+  await notify(r.userId, 'trackers_granted', { links: block }, `trackers_granted:${r.userId}`);
   return { ok: true };
 }
 

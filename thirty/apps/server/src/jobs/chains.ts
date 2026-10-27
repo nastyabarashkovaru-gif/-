@@ -10,6 +10,7 @@ import { generateCard } from '../modules/cards';
 import { promoWindow } from '../modules/promos';
 import { memberStats } from '../modules/rating';
 import { chainTestUsers } from '../modules/chainTest';
+import { trackerOfferDue } from '../modules/journey';
 
 type Send = (userId: bigint, key: string, vars: Record<string, string | number>, dedupe: string) => Promise<unknown>;
 
@@ -183,7 +184,8 @@ export async function runFlowChains(now = clock.now(), send: Send = sendTemplate
           const card = await generateCard(m.userId, m.id, week).catch(() => null);
           if (card) await send(m.userId, 'weekly_card', { week, days: card.stats.successfulDays }, `weekly_card:${m.id}:${week}`);
         }
-        if (dayNum === 14 && hour >= 19) await send(m.userId, 'review_request', {}, `review_day14:${m.id}`);
+        // День 14: предложение получить трекеры за отзыв (кому подарок ещё не выдан и отзыв не на проверке)
+        if (dayNum === 14 && hour >= 19 && (await trackerOfferDue(m.userId))) await send(m.userId, 'trackers_offer', {}, `trackers_offer:${m.id}`);
       }
     }
     if (today === addDays(endsOn, 1) && hour >= 10) {
