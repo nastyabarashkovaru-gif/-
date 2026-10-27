@@ -170,9 +170,6 @@ function AboutForm({ m }: { m: MembershipView }) {
         <span className="h3" style={{ fontSize: 15 }}>Чем ты занимаешься?</span>
         <textarea className="textarea" rows={2} placeholder="Учусь, работаю, развиваю блог, создаю бизнес..." value={occupation} maxLength={300} onChange={(e) => setOccupation(e.target.value)} />
       </label>
-      <Note icon={<HeartHandshake size={17} />} title="Это увидит твой бадди">
-        Твои ответы помогут начать общение без неловкого «Привет, расскажи о себе».
-      </Note>
       <label className="field">
         <span className="h3" style={{ fontSize: 15 }}>Что ты хочешь получить от клуба «30 дней»?</span>
         <textarea className="textarea" rows={3} placeholder="Например, поддержку, новые привычки, дисциплину, окружение…" value={expectation} maxLength={1000} onChange={(e) => setExpectation(e.target.value)} />
