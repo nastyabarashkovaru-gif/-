@@ -9,9 +9,9 @@ import { BrandBar, Cta, ErrorState, Loading, Screen, errorText, toast } from '..
 import { useTicker } from './Onboarding';
 
 /** «за месяц», «за 3 месяца», «за 6 месяцев» */
-const periodText = (m: number) => (m === 1 ? 'за месяц' : `за ${m} ${m >= 2 && m <= 4 ? 'месяца' : 'месяцев'}`);
+export const periodText = (m: number) => (m === 1 ? 'за месяц' : `за ${m} ${m >= 2 && m <= 4 ? 'месяца' : 'месяцев'}`);
 /** Цена в день (месяц — 30 дней, с округлением вниз): 999 ₽ → 33 ₽ */
-const perDay = (t: { price: number; months: number }) => Math.floor(t.price / (t.months * 30));
+export const perDay = (t: { price: number; months: number }) => Math.floor(t.price / (t.months * 30));
 
 export interface TariffView {
   id: string;
@@ -42,7 +42,7 @@ export function countdown(ms: number) {
   return `${p(Math.floor(s / 3600))}:${p(Math.floor((s % 3600) / 60))}:${p(s % 60)}`;
 }
 
-const SUBTITLE: Record<string, string> = { m1: 'Попробовать и начать', m3: 'Закрепить новые привычки', m6: 'Дойти до больших результатов' };
+export const SUBTITLE: Record<string, string> = { m1: 'Попробовать и начать', m3: 'Закрепить новые привычки', m6: 'Дойти до больших результатов' };
 
 /** Сравнение тарифов — строки и значения из утверждённого макета */
 const MATRIX: [string, (t: TariffView) => boolean][] = [

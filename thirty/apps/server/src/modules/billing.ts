@@ -15,7 +15,7 @@ import { ensureFlow } from './flows';
 import { redeemOnPayment } from './promos';
 import { track } from './analytics';
 import { notify } from './notify';
-import { activeComeback } from './journey';
+import { activeComeback, comebackPrice } from './journey';
 import { registerBotConversion } from './bot';
 
 export const LIVE_STATUSES = ['prestart', 'active', 'past_due', 'canceled_at_period_end'] as const;
@@ -94,9 +94,10 @@ export async function checkoutPreview(userId: bigint, tariffId: string, comeback
   let view = tariffView(tariff, Boolean(o.active));
   let offer = { active: Boolean(o.active), msLeft: o.msLeft };
   const back = comeback ? await activeComeback(userId) : null;
-  if (back && back.tariffId === tariffId && back.amount) {
-    // Прежняя цена закончившейся подписки — на время таймера 40 минут
-    view = { ...view, price: back.amount, renewalPrice: back.amount, variant: 'comeback' as never };
+  const backPrice = back ? await comebackPrice(back, tariffId) : null;
+  if (back && backPrice) {
+    // Прежние условия закончившейся подписки — на время таймера 40 минут
+    view = { ...view, price: backPrice.price, renewalPrice: backPrice.price, variant: 'comeback' as never };
     offer = { active: true, msLeft: Math.max(0, back.expiresAt.getTime() - clock.now().getTime()) };
   }
   return {
@@ -136,7 +137,8 @@ export async function createCheckout(userId: bigint, tariffId: string, idempoten
   const plan0 = planPurchase({ now: clock.now(), tz: tz0, months: tariff.months, lateJoinUntilDay: await getSetting('flow.lateJoinUntilDay') });
   if (await blockingSubscription(userId, plan0.firstFlow)) throw conflict('already_subscribed', 'У вас уже есть действующая подписка');
   const back = comeback ? await activeComeback(userId) : null;
-  if (comeback && (!back || back.tariffId !== tariffId || !back.amount)) throw conflict('comeback_expired', 'Время предложения по прежней цене закончилось');
+  const backPrice = back ? await comebackPrice(back, tariffId) : null;
+  if (comeback && (!back || !backPrice)) throw conflict('comeback_expired', 'Время предложения по прежней цене закончилось');
 
   const key = `checkout:${userId}:${idempotencyKey}`;
   const existing = await prisma.payment.findUnique({ where: { idempotencyKey: key } });
@@ -149,7 +151,7 @@ export async function createCheckout(userId: bigint, tariffId: string, idempoten
   const promo = Boolean(o.active);
   const q0 = quote(tariff, promo);
   // Возврат по прежней цене: сумма — цена закончившейся подписки, срок — до конца таймера
-  const q = back ? { ...q0, price: back.amount!, variant: (await prisma.subscription.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }))?.priceVariant ?? q0.variant } : q0;
+  const q = back && backPrice ? { ...q0, price: backPrice.price, variant: backPrice.variant ?? (await prisma.subscription.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }))?.priceVariant ?? q0.variant } : q0;
   const plan = plan0;
 
   const payment = await prisma.payment.create({

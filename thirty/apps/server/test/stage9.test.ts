@@ -109,7 +109,9 @@ describe('итоги потока и «Поставить новую цель»'
     expect(preview.body.tariff.price).toBe(999);
     const pay = await api('POST', '/api/checkout', U, { tariffId: 'm1', idempotencyKey: 'comeback-1', comeback: true });
     expect(pay.body.amount).toBe(999);
-    expect((await api('POST', '/api/checkout', U, { tariffId: 'm3', idempotencyKey: 'comeback-2', comeback: true })).body.code).toBe('comeback_expired');
+    // Другие тарифы — по тем же (акционным) условиям, что и закончившаяся подписка
+    expect((await api('GET', '/api/comeback', U)).body.tariffs.map((t: any) => [t.id, t.price])).toEqual([['m1', 999], ['m3', 2490], ['m6', 3990]]);
+    expect((await api('GET', '/api/checkout/preview?tariff=m6&comeback=1', U)).body.tariff.price).toBe(3990);
     clock.set(new Date(clock.now().getTime() + 31 * 60_000).toISOString());
     expect((await api('GET', '/api/comeback?start=1', U)).body).toMatchObject({ active: false, msLeft: 0 });
     expect((await api('POST', '/api/checkout', U, { tariffId: 'm1', idempotencyKey: 'comeback-3', comeback: true })).body.code).toBe('comeback_expired');

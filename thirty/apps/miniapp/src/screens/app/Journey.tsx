@@ -5,6 +5,7 @@ import { api, uploadImage } from '../../lib/api';
 import { canShareStory, downloadImage, haptic, openExternal, openTelegram, shareStory } from '../../lib/telegram';
 import { formatMetric } from '../../lib/metric';
 import { Cta, ErrorState, Header, Loading, Popup, Screen, errorText, plural, toast, useLoad } from '../../ui';
+import { SUBTITLE, perDay, periodText } from '../onboarding/Tariffs';
 
 /* ───────────── Обратная связь на предпоследний день ───────────── */
 
@@ -334,7 +335,8 @@ export function ResultCardScreen() {
 
 /* ───────────── Подписка закончилась: 40 минут по прежней цене ───────────── */
 
-interface Comeback { available: boolean; active?: boolean; msLeft?: number; tariff?: { id: string; title: string; months: number }; price?: number }
+interface ComebackTariff { id: string; title: string; months: number; badge: string | null; price: number; comparison: number; savingsPercent: number; current: boolean }
+interface Comeback { available: boolean; active?: boolean; msLeft?: number; tariff?: { id: string; title: string; months: number }; price?: number; tariffs?: ComebackTariff[] }
 
 const mmss = (ms: number) => {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -345,6 +347,10 @@ export function ComebackScreen() {
   const nav = useNavigate();
   const { data, error, loading, reload } = useLoad(() => api<Comeback>('/api/comeback?start=1'));
   const [left, setLeft] = useState(0);
+  const [chosen, setChosen] = useState<string | null>(null);
+  useEffect(() => {
+    if (data?.tariff && !chosen) setChosen(data.tariff.id);
+  }, [data, chosen]);
   const started = useRef(0);
   useEffect(() => {
     if (!data?.active) return;
@@ -372,12 +378,25 @@ export function ComebackScreen() {
       {data.available && active && (
         <>
           <div className={`comeback-timer ${left < 60_000 ? 'hot' : ''}`}><Clock size={22} />{mmss(left)}</div>
-          <div className="card center" style={{ gap: 4, alignItems: 'center' }}>
-            <span className="muted">{data.tariff!.title}</span>
-            <span className="big-num" style={{ fontSize: 36 }}>{data.price!.toLocaleString('ru-RU')} ₽</span>
-            <span className="muted small">прежняя цена — как в твоей подписке</span>
+          <div className="col" role="radiogroup" style={{ gap: 10 }}>
+            {data.tariffs!.map((t) => (
+              <button key={t.id} type="button" className={`tariff ${chosen === t.id ? 'on' : ''}`} role="radio" aria-checked={chosen === t.id} onClick={() => { haptic(); setChosen(t.id); }}>
+                <span className="radio-dot" />
+                <span className="grow">
+                  <span className="t-title">{t.title}{t.badge && <span className="pill solid">{t.badge}</span>}</span>
+                  <span className="t-sub" style={{ display: 'block' }}>{t.current ? 'Твой прежний тариф' : SUBTITLE[t.id] ?? ''}</span>
+                  <span className="t-deal">Всего {t.price.toLocaleString('ru-RU')} ₽ {periodText(t.months)}</span>
+                  <span className="t-day">≈ {perDay(t)} ₽ в день</span>
+                </span>
+                <span className="r">
+                  {t.comparison > t.price && <span className="strike">{t.comparison.toLocaleString('ru-RU')} ₽</span>}
+                  <span className="price">{t.price.toLocaleString('ru-RU')} ₽</span>
+                  {t.comparison > t.price && <span className="save">Выгода {t.savingsPercent}%</span>}
+                </span>
+              </button>
+            ))}
           </div>
-          <Cta onClick={() => nav(`/checkout/${data.tariff!.id}?comeback=1`)}>Продлить участие по прежней цене</Cta>
+          <Cta onClick={() => nav(`/checkout/${chosen ?? data.tariff!.id}?comeback=1`)}>Продлить участие по прежней цене</Cta>
         </>
       )}
       {!(data.available && active) && <Cta onClick={() => nav('/tariffs')}>Посмотреть тарифы</Cta>}

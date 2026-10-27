@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { addDays, flowBounds, flowDayNumber, fromDbDate } from '@thirty/domain';
+import { addDays, flowBounds, flowDayNumber, fromDbDate, quote } from '@thirty/domain';
 import { z } from 'zod';
 import { clock } from '../clock';
 import { config } from '../config';
@@ -204,6 +204,7 @@ export async function comebackOffer(userId: bigint, start: boolean) {
       .catch(async () => prisma.priceOffer.findUniqueOrThrow({ where: { userId_kind: { userId, kind } } }));
   }
   const msLeft = offer && !offer.consumedAt ? Math.max(0, offer.expiresAt.getTime() - now.getTime()) : 0;
+  const tariffs = await prisma.tariff.findMany({ where: { active: true }, orderBy: { months: 'asc' } });
   return {
     available: true as const,
     started: Boolean(offer),
@@ -212,7 +213,23 @@ export async function comebackOffer(userId: bigint, start: boolean) {
     expiresAt: offer?.expiresAt.toISOString() ?? null,
     tariff: { id: sub.tariffId, title: sub.tariff.title, months: sub.tariff.months },
     price: sub.renewalPrice,
+    // Все три тарифа — по тем же условиям, что и раньше (акционные или обычные цены); у прежнего тарифа — ровно его цена
+    tariffs: tariffs.map((t) => {
+      const q = quote(t, sub.priceVariant === 'promo');
+      const price = t.id === sub.tariffId ? sub.renewalPrice : q.price;
+      return { id: t.id, title: t.title, months: t.months, badge: t.badge, price, comparison: q.comparison, savingsPercent: q.comparison > 0 ? Math.round((1 - price / q.comparison) * 100) : 0, current: t.id === sub.tariffId };
+    }),
   };
+}
+
+/** Цена тарифа по предложению «вернуться по прежней цене» (null — тариф недоступен) */
+export async function comebackPrice(offer: { kind: string; tariffId: string | null; amount: number | null }, tariffId: string) {
+  if (offer.tariffId === tariffId && offer.amount) return { price: offer.amount, variant: undefined as string | undefined };
+  const sub = await prisma.subscription.findUnique({ where: { id: offer.kind.slice('comeback:'.length) } });
+  const t = await prisma.tariff.findUnique({ where: { id: tariffId } });
+  if (!sub || !t || !t.active) return null;
+  const q = quote(t, sub.priceVariant === 'promo');
+  return { price: q.price, variant: q.variant as string | undefined };
 }
 
 /** Для оформления оплаты: действующее предложение «по прежней цене» (проверка на сервере) */
