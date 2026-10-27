@@ -448,7 +448,7 @@ img { max-width: 100%; display: block; }
 .shot-preview { display: flex; flex-direction: column; gap: 8px; }
 .shot-preview img { width: 100%; max-height: 360px; object-fit: contain; border-radius: 14px; background: var(--bg); }
 .home-cta-card { border-radius: 22px; padding: 16px; display: flex; gap: 12px; align-items: center; text-align: left; border: 0; cursor: pointer; font: inherit; width: 100%; }
-.home-cta-card.finale-cta { background: linear-gradient(135deg, #7150e7, #9b7bff); color: #fff; }
+.home-cta-card.finale-cta { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
 .home-cta-card.feedback-cta { background: #fff; border: 1px solid var(--accent); color: var(--ink); }
 .home-cta-card.trackers-cta { background: linear-gradient(135deg, #fdebf3, #efe9ff); color: var(--ink); }
 .home-cta-card .em { font-size: 30px; line-height: 1; }
@@ -460,3 +460,11 @@ img { max-width: 100%; display: block; }
 /* Вкладки ленты остаются наверху при прокрутке чата */
 .feed-tabs { position: sticky; top: var(--safe-top, 0px); z-index: 25; background: var(--bg); box-shadow: 0 -12px 0 var(--bg), 0 6px 12px -8px rgba(33, 28, 53, 0.18); }
 .hero-btn { background: #fff; color: var(--accent-ink); font-weight: 700; min-height: 50px; margin-top: 6px; }
+
+/* ───────── Цвет месяца: каждый новый поток участника — своя тема ───────── */
+:root[data-theme='2'] { --accent: #e0475c; --accent-2: #e85a6e; --accent-press: #c93a4f; --accent-soft: #fdebee; --accent-soft-2: #fcf0f2; --accent-ink: #a8303f; --accent-disabled: #f5c9d0; --dot: #f0d3d8; }
+:root[data-theme='3'] { --accent: #ec7a2b; --accent-2: #f28a3d; --accent-press: #d66a1f; --accent-soft: #fff0e3; --accent-soft-2: #fff3e8; --accent-ink: #a5521a; --accent-disabled: #f8d5bb; --dot: #f2dccb; }
+:root[data-theme='4'] { --accent: #2f9e68; --accent-2: #3aae76; --accent-press: #258656; --accent-soft: #e6f6ee; --accent-soft-2: #ecf8f2; --accent-ink: #1f7048; --accent-disabled: #c4e6d4; --dot: #d1ebdd; }
+:root[data-theme='5'] { --accent: #3e7bd6; --accent-2: #4f8ae0; --accent-press: #2f68bd; --accent-soft: #e7f0fd; --accent-soft-2: #edf4fe; --accent-ink: #2a5799; --accent-disabled: #c8dbf5; --dot: #d3e1f4; }
+:root[data-theme='6'] { --accent: #d9579a; --accent-2: #e26aa8; --accent-press: #c04585; --accent-soft: #fce9f3; --accent-soft-2: #fdeef6; --accent-ink: #a33c73; --accent-disabled: #f2c8dd; --dot: #f1d4e3; }
+.month-pill { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--accent-ink); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; margin-bottom: -4px; }

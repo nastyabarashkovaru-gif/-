@@ -32,7 +32,14 @@ interface HomeData {
   goals: HomeGoal[];
   todayReported: boolean;
   buddy: { state: 'paired'; buddy: { id: string; name: string; photoUrl: string | null; percent: number | null; writeUrl: string } } | { state: 'waiting' | 'invited' };
+  month?: number;
+  serverNow?: string;
   prompts?: { feedback: boolean; feedbackPopup: boolean; feedbackDone: boolean; finale: boolean; finaleDone: boolean; trackers: boolean; trackersClarify?: boolean };
+}
+
+/** Плашка «какой по счёту месяц дисциплины» — всегда наверху главной */
+function monthPill(n: number) {
+  return n <= 1 ? '💜 Твой первый месяц дисциплины — начало пути!' : `🔥 Это уже твой ${n}-й месяц дисциплины. Так держать, продолжай!`;
 }
 
 /** Окно показываем один раз в день на участие; закрыть можно — вернуться к форме помогает карточка на главной */
@@ -78,6 +85,7 @@ export function Home() {
   return (
     <Screen id="S19" nav>
       <AppBar />
+      <span className="month-pill">{monthPill(data.month ?? 1)}</span>
       <div>
         <h1 className="h2" style={{ fontSize: 24 }}>{before ? 'Ты уже в команде! 💜' : data.state === 'finished' ? 'Челлендж завершён! 🎉' : 'Твой путь к результату 🚀'}</h1>
         <p className="sub" style={{ fontSize: 15 }}>{before ? 'Твои цели сохранены. Совсем скоро начинаем!' : 'Каждый день приближает тебя к результату.'}</p>
@@ -90,7 +98,7 @@ export function Home() {
         </div>
         {before ? (
           <>
-            <StartCountdown startsOn={flow.startsOn} />
+            <StartCountdown startsOn={flow.startsOn} serverNow={data.serverNow} />
             <div style={{ opacity: 0.9 }}>Старт {humanDate(flow.startsOn)}. Твоё обещание себе уже зафиксировано ✨</div>
           </>
         ) : p?.finale ? (
@@ -253,12 +261,14 @@ function GoalProgress({ goal }: { goal: HomeGoal }) {
 }
 
 /** Обратный отсчёт до старта: дни и часы, обновляется раз в минуту */
-function StartCountdown({ startsOn }: { startsOn: string }) {
-  const [now, setNow] = useState(Date.now());
+function StartCountdown({ startsOn, serverNow }: { startsOn: string; serverNow?: string }) {
+  // Разница часов телефона и сервера — отсчёт идёт по времени сервера
+  const [skew] = useState(() => (serverNow ? new Date(serverNow).getTime() - Date.now() : 0));
+  const [now, setNow] = useState(Date.now() + skew);
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 60_000);
+    const t = setInterval(() => setNow(Date.now() + skew), 60_000);
     return () => clearInterval(t);
-  }, []);
+  }, [skew]);
   const ms = Math.max(0, new Date(`${startsOn}T00:00:00+03:00`).getTime() - now);
   const d = Math.floor(ms / 86_400_000);
   const h = Math.floor((ms % 86_400_000) / 3_600_000);

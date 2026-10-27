@@ -65,6 +65,27 @@ export async function planningMembership(userId: bigint): Promise<(FlowMembershi
   return next ?? m;
 }
 
+/**
+ * Участие для главной: обычно текущее. Если в последний день потока итоги подведены, а анкета следующего
+ * потока уже заполнена — показываем следующий поток (обратный отсчёт до нового старта).
+ */
+export async function homeMembership(userId: bigint): Promise<(FlowMembership & { flow: Flow }) | null> {
+  const m = await currentMembership(userId);
+  if (!m || !m.finalSubmittedAt || !['active', 'finished'].includes(m.status)) return m;
+  if (flowToday(m.flow) < flowBounds(fromDbDate(m.flow.startsOn)).endsOn) return m;
+  const next = await prisma.flowMembership.findFirst({
+    where: { userId, status: 'registered', goalsLockedAt: { not: null }, flow: { startsOn: { gt: m.flow.startsOn } } },
+    include: { flow: true },
+    orderBy: { flow: { startsOn: 'asc' } },
+  });
+  return next ?? m;
+}
+
+/** Какой по счёту месяц участия (1, 2, 3…): от него зависит цвет темы и плашка «твой N-й месяц дисциплины» */
+export async function monthNumber(userId: bigint, m: Pick<FlowMembership, 'id'> & { flow: Pick<Flow, 'startsOn'> }) {
+  return prisma.flowMembership.count({ where: { userId, status: { not: 'revoked' }, flow: { startsOn: { lte: m.flow.startsOn } } } });
+}
+
 /** Поток, предшествующий данному, у того же пользователя (для сравнения месяцев) */
 export async function previousMembership(userId: bigint, flowStartsOn: Date) {
   return prisma.flowMembership.findFirst({

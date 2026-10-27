@@ -2,11 +2,12 @@ import type { FastifyInstance } from 'fastify';
 import { compareWithPrevious, fromDbDate, tariffPerks, toDbDate } from '@thirty/domain';
 import { z } from 'zod';
 import { requireUser } from '../auth/telegram';
+import { clock } from '../clock';
 import { prisma } from '../db';
 import { forbidden, jsonSafe, notFound } from '../http';
 import { parse } from '../lib/validate';
 import { signedMediaUrl } from '../lib/storage';
-import { currentMembership, flowInfo, planningMembership, previousMembership } from '../modules/flows';
+import { currentMembership, flowInfo, homeMembership, monthNumber, planningMembership, previousMembership } from '../modules/flows';
 import { homePrompts } from '../modules/journey';
 import { canEditGoals, createGoal, createTask, deleteGoal, deleteTask, fixGoals, goalInput, goalLimitFor, goalPatch, scheduleLabel, serializeGoal, taskInput, updateGoal, updateTask } from '../modules/goals';
 import { goalStats, memberStats } from '../modules/rating';
@@ -90,7 +91,7 @@ export async function memberRoutes(app: FastifyInstance) {
   /** Главная S19 */
   app.get('/api/home', async (req) => {
     const user = req.user!;
-    const m = await currentMembership(user.id);
+    const m = await homeMembership(user.id);
     if (!m) return { state: 'no_membership' };
     const info = flowInfo(m.flow);
     const goals = await prisma.goal.findMany({ where: { membershipId: m.id }, include: { tasks: true }, orderBy: { sort: 'asc' } });
@@ -128,6 +129,9 @@ export async function memberRoutes(app: FastifyInstance) {
       buddy: await buddyCard(user.id, m.flowId),
       perks: tariffPerks(tariff?.months ?? 1),
       prompts: await homePrompts(user.id, m),
+      month: await monthNumber(user.id, m),
+      // Время сервера: обратный отсчёт до старта считается от него (в демо время «перемотано»)
+      serverNow: clock.now().toISOString(),
     });
   });
 

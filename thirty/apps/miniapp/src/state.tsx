@@ -1,6 +1,8 @@
 import { createContext, useContext } from 'react';
 
 export interface Me {
+  /** Какой по счёту месяц участия — от него цвет темы */
+  month?: number;
   user: { id: string; name: string; firstName: string; displayName: string | null; city: string | null; age: number | null; occupation: string | null; aspiration: string | null; interests: string[]; timezone: string; visibility: string; isAdult: boolean; marketingOptIn: boolean; allowsWrite: boolean; onboardingStage: string; lastScreen: string | null; photoUrl: string | null; sixMonthBadge: boolean };
   consents: string[];
   startParam: string | null;

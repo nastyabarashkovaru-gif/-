@@ -31,6 +31,12 @@ const SCREEN_ROUTES: Record<string, string> = {
   home: '/', report: '/report', card: '/cards', review: '/review', buddy: '/buddy', meeting: '/club', final: '/finale', finale: '/finale', feedback: '/feedback', trackers: '/trackers', comeback: '/comeback', profile: '/profile', support: '/profile',
 };
 
+/** Каждый новый месяц участия — свой цвет приложения: фиолетовый, красный, оранжевый, зелёный, синий, розовый, дальше по кругу */
+export const THEME_COUNT = 6;
+function applyTheme(month: number) {
+  document.documentElement.dataset.theme = String(((Math.max(1, month) - 1) % THEME_COUNT) + 1);
+}
+
 function initialRoute(me: Me): string {
   const sp = startParam();
   if (sp?.startsWith('pay_')) return `/checkout/wait/${sp.slice(4)}`;
@@ -60,6 +66,7 @@ export function App() {
   const refresh = useCallback(async () => {
     const m = await api<Me>('/api/me');
     setMe(m);
+    applyTheme(m.month ?? 1);
     ctx.flowId = m.membership?.flow.id;
     return m;
   }, []);

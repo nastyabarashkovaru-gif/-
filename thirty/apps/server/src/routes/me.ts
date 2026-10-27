@@ -7,7 +7,7 @@ import { parse } from '../lib/validate';
 import { ALLOWED_MIME, newKey, signedMediaUrl, sniffImage, storage, verifyMediaSig } from '../lib/storage';
 import { clientBatch, ingest } from '../modules/analytics';
 import { activeConsents, consentInput, profileInput, publicUser, recordConsents } from '../modules/users';
-import { currentMembership, flowInfo } from '../modules/flows';
+import { currentMembership, flowInfo, homeMembership, monthNumber } from '../modules/flows';
 import { getSetting } from '../settings';
 
 export async function meRoutes(app: FastifyInstance) {
@@ -41,6 +41,8 @@ export async function meRoutes(app: FastifyInstance) {
         startParam: req.tg?.startParam ?? null,
         support: `https://t.me/${await getSetting('support.username')}`,
         membership: m ? { id: m.id, status: m.status, tariffId: m.tariffId, flow: flowInfo(m.flow), registeredAt: m.registeredAt } : null,
+        // Какой по счёту месяц участия — цвет темы приложения
+        month: m ? await monthNumber(u.id, (await homeMembership(u.id)) ?? m) : 1,
         subscription: sub ? { id: sub.id, status: sub.status, tariffId: sub.tariffId, tariffTitle: sub.tariff.title, autoRenew: sub.autoRenew } : null,
       });
     });
