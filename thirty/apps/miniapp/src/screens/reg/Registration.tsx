@@ -36,6 +36,7 @@ export interface MembershipView {
   tariffId: string;
   goalLimit: number | null;
   canEdit: boolean;
+  expectation?: string | null;
   flow: { id: string; title: string; startsOn: string; endsOn: string; days: number; phase: string; today: string };
   goals: {
     id: string; category: string; title: string; successCriterion: string; isPublic: boolean;

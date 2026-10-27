@@ -306,6 +306,8 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
       await tx.payment.update({ where: { id: payment.id }, data: { status: 'paid', paidAt: now, providerOrderId: p.providerOrderId, needsRefund: true } });
       return { duplicate: true as const };
     }
+    // Возврат после отмены: прежняя подписка (оплачена только до нового периода) закрывается, доступ переходит к новой
+    await tx.subscription.updateMany({ where: { userId: payment.userId, status: 'canceled_at_period_end', autoRenew: false, paidThroughFlow: { lt: toDbDate(firstFlow) } }, data: { status: 'expired' } });
     const sub = await tx.subscription.create({
       data: {
         userId: payment.userId,

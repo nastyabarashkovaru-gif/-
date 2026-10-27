@@ -22,12 +22,13 @@ import { Feed, ParticipantScreen } from './screens/app/Feed';
 import { Club, MeetingScreen } from './screens/app/Club';
 import { BuddyScreen } from './screens/app/Buddy';
 import { Profile, CancelFlow, Archive, Upsells, MySubscription, MyQuestionnaire } from './screens/app/Profile';
-import { CardScreen, ReviewScreen, FinalScreen } from './screens/app/Finale';
+import { CardScreen, ReviewScreen } from './screens/app/Finale';
+import { ComebackScreen, FeedbackScreen, FinaleScreen, ResultCardScreen, TrackersScreen } from './screens/app/Journey';
 
 /** Экран по параметру кнопки бота: m_<log>_<screen> */
 const SCREEN_ROUTES: Record<string, string> = {
   welcome: '/welcome', resume: '/', tariffs: '/tariffs', restore: '/restore', checkout: '/tariffs', reg_profile: '/reg/about', reg_goals: '/reg/goals', reg_buddy: '/reg/buddy',
-  home: '/', report: '/report', card: '/cards', review: '/review', buddy: '/buddy', meeting: '/club', final: '/final', profile: '/profile', support: '/profile',
+  home: '/', report: '/report', card: '/cards', review: '/review', buddy: '/buddy', meeting: '/club', final: '/finale', finale: '/finale', feedback: '/feedback', trackers: '/trackers', comeback: '/comeback', profile: '/profile', support: '/profile',
 };
 
 function initialRoute(me: Me): string {
@@ -85,7 +86,7 @@ export function App() {
     if (start && !redirected.current) {
       redirected.current = true;
       // Прямой адрес (перезагрузка, ссылка) сохраняем; стартовый маршрут — только для корня или параметра запуска
-      const keep = location.pathname !== '/' && !startParam() && (me?.membership || !/^\/(reg|goal|report|feed|rating|club|buddy|profile|cards|final|archive)/.test(location.pathname));
+      const keep = location.pathname !== '/' && !startParam() && (me?.membership || !/^\/(reg|goal|report|feed|rating|club|buddy|profile|cards|final|archive|feedback|trackers|comeback)/.test(location.pathname));
       if (!keep) nav(start, { replace: true });
     }
   }, [start, nav]);
@@ -149,7 +150,12 @@ export function App() {
         <Route path="/upsells" element={<Upsells />} />
         <Route path="/cards" element={<CardScreen />} />
         <Route path="/review" element={<ReviewScreen />} />
-        <Route path="/final" element={<FinalScreen />} />
+        <Route path="/final" element={<FinaleScreen />} />
+        <Route path="/finale" element={<FinaleScreen />} />
+        <Route path="/finale/card" element={<ResultCardScreen />} />
+        <Route path="/feedback" element={<FeedbackScreen />} />
+        <Route path="/comeback" element={<ComebackScreen />} />
+        <Route path="/trackers" element={<TrackersScreen />} />
         <Route path="*" element={<Navigate to={start} replace />} />
       </Routes>
       <DemoPanel />

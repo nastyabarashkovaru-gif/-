@@ -7,6 +7,7 @@ import { AppBar, ErrorState, Loading, Screen, Sheet, humanDate, plural, toast, u
 import { canShareStory, downloadImage, shareLink, shareStory } from '../../lib/telegram';
 import { catTitle } from '../reg/Registration';
 import { ReportForm } from './Report';
+import { FeedbackPopup, TrackersPopup } from './Journey';
 
 interface HomeGoal {
   id: string;
@@ -31,6 +32,24 @@ interface HomeData {
   goals: HomeGoal[];
   todayReported: boolean;
   buddy: { state: 'paired'; buddy: { id: string; name: string; photoUrl: string | null; percent: number | null; writeUrl: string } } | { state: 'waiting' | 'invited' };
+  prompts?: { feedback: boolean; feedbackPopup: boolean; feedbackDone: boolean; finale: boolean; finaleDone: boolean; trackers: boolean; trackersClarify?: boolean };
+}
+
+/** Окно показываем один раз в день на участие; закрыть можно — вернуться к форме помогает карточка на главной */
+function useOncePerDay(key: string | null, want: boolean) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!key || !want) return;
+    const k = `thirty.popup.${key}.${new Date().toISOString().slice(0, 10)}`;
+    try {
+      if (localStorage.getItem(k)) return;
+      localStorage.setItem(k, '1');
+    } catch {
+      /* без хранилища — просто показываем */
+    }
+    setOpen(true);
+  }, [key, want]);
+  return [open, () => setOpen(false)] as const;
 }
 
 /** Главная: до старта — «Ты уже в команде!», после — «Твой путь к результату» с отчётом за сегодня */
@@ -41,6 +60,10 @@ export function Home() {
   const loc = useLocation();
   const [share, setShare] = useState(false);
   const [reportOpen, setReportOpen] = useState(() => new URLSearchParams(loc.search).get('report') === '1');
+  const p = data?.prompts;
+  const [feedbackOpen, closeFeedback] = useOncePerDay(data ? `feedback.${data.membership.id}` : null, Boolean(p?.feedbackPopup));
+  // Окно трекеров не накладывается на окно обратной связи
+  const [trackersOpen, closeTrackers] = useOncePerDay(data ? `trackers.${data.membership.id}` : null, Boolean(p?.trackers && !p.feedbackPopup));
 
   if (loading && !data) return <Screen id="S19" nav><Loading /></Screen>;
   if (error || !data) return <Screen id="S19" nav><ErrorState error={error} retry={reload} /></Screen>;
@@ -80,6 +103,36 @@ export function Home() {
         )}
       </div>
 
+      {p?.finale && (
+        <button className="home-cta-card finale-cta" onClick={() => nav('/finale')}>
+          <span className="em">🎉</span>
+          <span className="grow"><b style={{ display: 'block', fontSize: 17 }}>{p.finaleDone ? 'Твои результаты за 30 дней' : 'Ты прошёл 30 дней!'}</b><span style={{ opacity: 0.9, fontSize: 14 }}>{p.finaleDone ? 'Карточка для Stories и новая цель' : 'Посмотри свои итоги месяца'}</span></span>
+          <ChevronRight size={20} />
+        </button>
+      )}
+      {p?.feedback && (
+        <button className="home-cta-card feedback-cta" onClick={() => nav('/feedback')}>
+          <span className="em">🥹</span>
+          <span className="grow"><b style={{ display: 'block', fontSize: 16 }}>Как прошли твои 30 дней?</b><span className="muted" style={{ fontSize: 14 }}>Поделись обратной связью — это 2 минуты</span></span>
+          <ChevronRight size={20} color="var(--accent)" />
+        </button>
+      )}
+      {p?.trackersClarify && (
+        <button className="home-cta-card trackers-cta" onClick={() => nav('/trackers')}>
+          <span className="em">🔄</span>
+          <span className="grow"><b style={{ display: 'block', fontSize: 16 }}>Загрузи новый скриншот отзыва</b><span className="muted" style={{ fontSize: 14 }}>И мы сразу пришлём трекеры</span></span>
+          <ChevronRight size={20} color="var(--accent)" />
+        </button>
+      )}
+      {p?.trackers && !p.feedback && (
+        <button className="home-cta-card trackers-cta" onClick={() => nav('/trackers')}>
+          <span className="em">🎁</span>
+          <span className="grow"><b style={{ display: 'block', fontSize: 16 }}>Получи трекеры за свой отзыв</b><span className="muted" style={{ fontSize: 14 }}>Три трекера в Google Таблицах</span></span>
+          <ChevronRight size={20} color="var(--accent)" />
+        </button>
+      )}
+      <FeedbackPopup open={feedbackOpen} onClose={closeFeedback} />
+      <TrackersPopup open={trackersOpen} onClose={closeTrackers} />
       {!before && !data.comparison.firstMonth && data.comparison.delta > 0 && (
         <div className="growth-note"><TrendingUp size={15} />На {data.comparison.delta} {plural(data.comparison.delta, 'день', 'дня', 'дней')} больше, чем в предыдущем месяце!</div>
       )}

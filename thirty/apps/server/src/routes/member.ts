@@ -31,6 +31,7 @@ export async function memberRoutes(app: FastifyInstance) {
         goalLimit: await goalLimitFor(m),
         canEdit: await canEditGoals(m),
         registeredAt: m.registeredAt,
+        expectation: m.expectation,
         flow: flowInfo(m.flow),
         goals: goals.map((g) => ({ ...serializeGoal(g), tasks: g.tasks.map((t) => ({ ...serializeGoal({ ...g, tasks: [t] }).tasks[0], schedule: scheduleLabel(t) })) })),
         before: before ? { text: before.text, metrics: before.metrics, media: before.mediaIds.map((id) => ({ id, url: signedMediaUrl(id) })) } : null,

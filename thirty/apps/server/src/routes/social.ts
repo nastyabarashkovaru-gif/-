@@ -25,7 +25,7 @@ function cardSig(id: string) {
 }
 
 import { adminBotSecret, handleAdminUpdate } from '../modules/adminBot';
-import { advanceDay, assertDemo, demoInfo, runScenario } from '../modules/demo';
+import { advanceDay, applyDemoState, assertDemo, demoInfo, demoStateInput, runScenario } from '../modules/demo';
 import { chatMessageInput, listChat, postChat } from '../modules/feedChat';
 import { listNotifications, markRead, unreadCount } from '../modules/notifications';
 
@@ -46,6 +46,10 @@ export async function socialRoutes(app: FastifyInstance) {
       return runScenario(req.user!.id, 'Анастасия', scenario);
     });
     r.post('/api/demo/advance', async () => advanceDay());
+    r.post('/api/demo/state', async (req) => {
+      assertDemo();
+      return applyDemoState(req.user!.id, 'Анастасия', parse(demoStateInput, req.body));
+    });
 
     // Уведомления (колокольчик)
     r.get('/api/notifications', async (req) => listNotifications(req.user!.id));

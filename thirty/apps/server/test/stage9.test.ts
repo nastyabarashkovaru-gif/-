@@ -113,7 +113,7 @@ describe('итоги потока и «Поставить новую цель»'
     clock.set(new Date(clock.now().getTime() + 31 * 60_000).toISOString());
     expect((await api('GET', '/api/comeback?start=1', U)).body).toMatchObject({ active: false, msLeft: 0 });
     expect((await api('POST', '/api/checkout', U, { tariffId: 'm1', idempotencyKey: 'comeback-3', comeback: true })).body.code).toBe('comeback_expired');
-    // Обычная покупка после таймера — по актуальной цене
+    // Обычная покупка после таймера — по актуальной цене (условия старой подписки не трогаем)
     const regular = await api('POST', '/api/checkout', U, { tariffId: 'm1', idempotencyKey: 'regular-1' });
     expect(regular.body.amount).toBeGreaterThan(999);
     expect(sub.id).toBeTruthy();
@@ -184,5 +184,32 @@ describe('карточка результатов', () => {
     expect(png.readUInt32BE(16)).toBe(1080);
     expect(png.readUInt32BE(20)).toBe(1920);
     expect(renderResultCardPng({ link: 'https://t.me/x' }).length).toBeGreaterThan(1000);
+  });
+});
+
+describe('возврат по прежней цене: оплата', () => {
+  it('отменённая подписка закрывается, новая — со следующего потока, без двойной подписки', async () => {
+    const { MockProvider, signMock } = await import('../src/payments/mock');
+    const { setPaymentProvider, paymentProvider } = await import('../src/payments');
+    const { handleWebhook } = await import('../src/modules/billing');
+    setPaymentProvider(new MockProvider());
+    await member();
+    const old = await prisma.subscription.create({
+      data: { userId: BigInt(U), tariffId: 'm1', status: 'canceled_at_period_end', autoRenew: false, renewalPrice: 999, priceVariant: 'promo', paidFromFlow: new Date('2026-11-01'), paidThroughFlow: new Date('2026-11-01') },
+    });
+    await day(30);
+    await api('GET', '/api/comeback?start=1', U);
+    await api('POST', '/api/consents', U, { kinds: ['offer', 'personal_data'] });
+    const pay = await api('POST', '/api/checkout', U, { tariffId: 'm1', idempotencyKey: 'comeback-pay', comeback: true });
+    expect(pay.body.amount).toBe(999);
+    const data = { order_num: pay.body.paymentId, order_id: `mock-${pay.body.paymentId}`, sum: '999.00', payment_status: 'success', customer_extra: `tg:${U}`, subscription_id: `mock-sub-${U}` };
+    await handleWebhook(paymentProvider().parseWebhook({ sign: signMock(data) }, data), JSON.stringify(data));
+    const subs = await prisma.subscription.findMany({ where: { userId: BigInt(U) }, orderBy: { createdAt: 'asc' } });
+    expect(subs.find((x) => x.id === old.id)!.status).toBe('expired');
+    const fresh = subs.find((x) => x.id !== old.id)!;
+    expect(fresh).toMatchObject({ renewalPrice: 999, status: 'prestart' });
+    expect(fresh.paidFromFlow.toISOString().slice(0, 10)).toBe('2026-12-01');
+    expect((await api('GET', '/api/comeback', U)).body.available).toBe(false);
+    expect((await api('GET', '/api/membership', U)).body.membership.flow.startsOn).toBe('2026-12-01');
   });
 });

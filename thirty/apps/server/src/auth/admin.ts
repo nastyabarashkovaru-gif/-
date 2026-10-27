@@ -168,6 +168,8 @@ export function can(role: AdminRole, perm: Permission) {
 
 /** Требуется 2FA для owner/admin (обязательно по ТЗ) и для остальных, если она включена */
 export function mfaRequired(admin: AdminUser) {
+  // Демо-версия: данные ненастоящие, вход в админку без второго фактора
+  if (config.DEMO_MODE) return false;
   return admin.totpEnabled || admin.role === 'owner' || admin.role === 'admin';
 }
 

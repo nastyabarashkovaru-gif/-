@@ -101,10 +101,10 @@ export function AboutStep() {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (tz && me && me.user.timezone !== tz) void api('/api/me', { method: 'PATCH', body: { timezone: tz } }).catch(() => undefined);
   }, []);
-  return <Gate q={q} id="S12">{() => <AboutForm />}</Gate>;
+  return <Gate q={q} id="S12">{(m) => <AboutForm m={m} />}</Gate>;
 }
 
-function AboutForm() {
+function AboutForm({ m }: { m: MembershipView }) {
   const nav = useNavigate();
   const { me, refresh } = useMe();
   const u = me!.user;
@@ -112,14 +112,17 @@ function AboutForm() {
   const [city, setCity] = useState(u.city ?? '');
   const [age, setAge] = useState(u.age ? String(u.age) : '');
   const [occupation, setOccupation] = useState(u.occupation ?? '');
+  const [expectation, setExpectation] = useState(m.expectation ?? '');
   const [busy, setBusy] = useState(false);
   const ageNum = Number(age);
-  const valid = name.trim().length >= 1 && city.trim().length >= 2 && Number.isInteger(ageNum) && ageNum >= 14 && ageNum <= 99 && occupation.trim().length >= 2;
+  const valid = name.trim().length >= 1 && city.trim().length >= 2 && Number.isInteger(ageNum) && ageNum >= 14 && ageNum <= 99 && occupation.trim().length >= 2 && expectation.trim().length >= 2;
 
   const save = async () => {
     setBusy(true);
     try {
       await api('/api/me', { method: 'PATCH', body: { displayName: name.trim(), city: city.trim(), age: ageNum, occupation: occupation.trim() } });
+      // Ответ про ожидания — свой для каждого потока (история хранится по участиям)
+      await api('/api/membership/expectation', { method: 'PUT', body: { expectation: expectation.trim() } });
       await refresh();
       haptic('success');
       nav('/reg/goals');
@@ -155,6 +158,11 @@ function AboutForm() {
       <Note icon={<HeartHandshake size={17} />} title="Это увидит твой бадди">
         Твои ответы помогут начать общение без неловкого «Привет, расскажи о себе».
       </Note>
+      <label className="field">
+        <span className="h3" style={{ fontSize: 15 }}>Что ты хочешь получить от клуба «30 дней»?</span>
+        <textarea className="textarea" rows={3} placeholder="Например, поддержку, новые привычки, дисциплину, окружение…" value={expectation} maxLength={1000} onChange={(e) => setExpectation(e.target.value)} />
+        <p className="hint">Этот ответ видит только команда клуба — он помогает нам сделать «30 дней» полезнее.</p>
+      </label>
       <Cta disabled={!valid || busy} onClick={save}>Продолжить</Cta>
     </Screen>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { CalendarDays, CalendarHeart, CircleCheck, CircleX, Clock } from 'lucide-react';
 import { api, demoKey, rub } from '../../lib/api';
 import { haptic, openExternal } from '../../lib/telegram';
@@ -37,7 +37,8 @@ export function Checkout() {
   const { tariff = '' } = useParams();
   const nav = useNavigate();
   const { me } = useMe();
-  const { data, error, loading, reload } = useLoad(() => api<Preview>(`/api/checkout/preview?tariff=${tariff}`), [tariff]);
+  const comeback = new URLSearchParams(useLocation().search).get('comeback') === '1';
+  const { data, error, loading, reload } = useLoad(() => api<Preview>(`/api/checkout/preview?tariff=${tariff}${comeback ? '&comeback=1' : ''}`), [tariff]);
   const [checked, setChecked] = useState<Set<string>>(new Set(me?.consents ?? []));
   const [busy, setBusy] = useState(false);
   const [key] = useState(() => crypto.randomUUID());
@@ -52,7 +53,7 @@ export function Checkout() {
     setBusy(true);
     try {
       await api('/api/consents', { body: { kinds: CONSENTS.map((c) => c.kind) } });
-      const r = await api<{ paymentId: string; url: string }>('/api/checkout', { body: { tariffId: tariff, idempotencyKey: key } });
+      const r = await api<{ paymentId: string; url: string }>('/api/checkout', { body: { tariffId: tariff, idempotencyKey: key, ...(comeback ? { comeback: true } : {}) } });
       haptic('success');
       if (demoKey()) location.href = r.url; // демо: тестовая оплата в этой же вкладке
       else openExternal(r.url);
@@ -67,7 +68,7 @@ export function Checkout() {
 
   return (
     <Screen id="S07">
-      <Header title="Детали оплаты" back="/tariffs" />
+      <Header title="Детали оплаты" back={comeback ? '/comeback' : '/tariffs'} />
       {loading ? <Loading lines={2} /> : error ? <ErrorState error={error} retry={reload} /> : (
         <>
           <div className="card">

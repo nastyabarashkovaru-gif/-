@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { BadgePercent, ChevronRight, CreditCard, ClipboardList, History, Headphones, User, ArrowLeft, Lock, Target, CircleCheck, X, HeartHandshake, Flame, Users, MessagesSquare, Trophy, ClipboardCheck, MessageCircleHeart } from 'lucide-react';
+import { BadgePercent, ChevronRight, CreditCard, ClipboardList, History, Headphones, User, ArrowLeft, Lock, Target, CircleCheck, X, HeartHandshake, Flame, Users, MessagesSquare, Trophy, ClipboardCheck, MessageCircleHeart, Gift } from 'lucide-react';
 import { api, rub } from '../../lib/api';
 import { formatMetric } from '../../lib/metric';
 import { openTelegram } from '../../lib/telegram';
@@ -24,6 +24,7 @@ export function Profile() {
   const items: [typeof ClipboardList, string, string, () => void][] = [
     [ClipboardList, 'Моя анкета', 'Цели, точки А и Б, действия', () => nav('/profile/questionnaire')],
     [History, 'История участия', 'Мои потоки и результаты', () => nav('/archive')],
+    [Gift, 'Трекеры за отзыв', 'Три трекера в подарок за честный отзыв', () => nav('/trackers')],
     [CreditCard, 'Моя подписка', 'Тариф, оплата и отмена', () => nav('/profile/subscription')],
     [Headphones, 'Поддержка', 'Помощь и вопросы', () => openTelegram(me.support)],
   ];

@@ -59,7 +59,11 @@ export async function homePrompts(userId: bigint, m: MembershipWithFlow) {
   const feedback = running && !feedbackDone && today >= addDays(endsOn, -1) && today <= endsOn;
   const finale = running && today >= endsOn;
   const trackers = m.status === 'active' && day >= TRACKER_FIRST_DAY && (await trackerPromptDue(userId));
-  return { feedback, feedbackDone, finale, finaleDone: Boolean(m.finalSubmittedAt), trackers };
+  // Окно «Уже завтра заканчиваются…» — только в предпоследний день; в последний остаётся карточка на главной
+  const feedbackPopup = feedback && today === addDays(endsOn, -1);
+  const lastReview = await prisma.trackerReview.findFirst({ where: { userId, status: { not: 'replaced' } }, orderBy: { createdAt: 'desc' } });
+  const trackersClarify = lastReview?.status === 'needs_info';
+  return { feedback, feedbackPopup, feedbackDone, finale, finaleDone: Boolean(m.finalSubmittedAt), trackers, trackersClarify };
 }
 
 // ───────────── 2. Обратная связь на предпоследний день ─────────────
@@ -223,7 +227,8 @@ async function trackerPromptDue(userId: bigint) {
   const u = await prisma.user.findUnique({ where: { id: userId }, select: { trackerPromptAt: true, trackersGrantedAt: true } });
   if (!u || u.trackersGrantedAt) return false;
   const last = await prisma.trackerReview.findFirst({ where: { userId, status: { not: 'replaced' } }, orderBy: { createdAt: 'desc' } });
-  if (last && last.status === 'pending') return false;
+  // На проверке или ждём новый скриншот — общие напоминания не показываем
+  if (last && (last.status === 'pending' || last.status === 'needs_info')) return false;
   if (!u.trackerPromptAt) return true;
   return clock.now().getTime() - u.trackerPromptAt.getTime() >= TRACKER_PROMPT_EVERY_DAYS * 24 * 3600_000;
 }
