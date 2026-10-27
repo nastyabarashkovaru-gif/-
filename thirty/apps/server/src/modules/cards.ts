@@ -84,7 +84,7 @@ export { cardForFlowDay };
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FONT_DIRS = [path.resolve(here, '../../assets/fonts'), path.resolve(here, '../assets/fonts'), path.resolve(process.cwd(), 'assets/fonts')];
 const fontDir = FONT_DIRS.find((d) => existsSync(d));
-const fontFiles = fontDir ? ['Inter-Regular.otf', 'Inter-SemiBold.otf', 'Inter-Bold.otf'].map((f) => path.join(fontDir, f)) : [];
+const fontFiles = fontDir ? ['Inter-Regular.otf', 'Inter-SemiBold.otf', 'Inter-Bold.otf', 'Inter-Light.otf', 'InterDisplay-Light.otf', 'InterDisplay-ExtraLight.otf'].map((f) => path.join(fontDir, f)).filter((f) => existsSync(f)) : [];
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
@@ -182,50 +182,51 @@ function qrSvg(link: string, px: number) {
   return rects;
 }
 
-const HEART = (x: number, y: number, s: number, fill: string) =>
-  `<path transform="translate(${x},${y}) scale(${s})" fill="${fill}" d="M12 21s-7.5-4.6-10-9.3C.3 8.4 2 4.5 5.7 4c2.1-.3 4 .8 6.3 3.2C14.3 4.8 16.2 3.7 18.3 4c3.7.5 5.4 4.4 3.7 7.7C19.5 16.4 12 21 12 21z"/>`;
-
-/** Карточка результатов месяца для сторис (1080×1920): результат, отчёты, цели, рейтинг, QR на бота */
+/** Карточка результатов месяца для сторис (1080×1920): тёмная, тонкий шрифт, маленький QR на бота */
 export function renderResultCardPng(card: { name?: string; result?: string; days?: number; goal?: string; percent?: number; rank?: string; link: string }): Buffer {
-  const rows: [string, string][] = [];
-  if (card.days !== undefined) rows.push(['#F28C38', `${card.days} ${plural(card.days, 'день', 'дня', 'дней')} с отчётами`]);
-  if (card.goal) rows.push(['#2F9E68', card.goal]);
-  if (card.percent !== undefined) rows.push(['#6C51DF', `${card.percent}% дисциплины`]);
-  if (card.rank) rows.push(['#E2A33B', card.rank]);
-  const result = card.result ? wrap(card.result, 18, 3) : [];
-  const top = 640;
-  const resultH = result.length ? 150 + result.length * 104 : 0;
-  const rowsTop = top + 70 + resultH;
-  const cardH = 70 + resultH + rows.length * 112 + 40;
+  const rows: string[] = [];
+  if (card.days !== undefined) rows.push(`${card.days} ${plural(card.days, 'день', 'дня', 'дней')} с отчётами`);
+  if (card.goal) rows.push(card.goal);
+  if (card.percent !== undefined) rows.push(`${card.percent}% дисциплины`);
+  if (card.rank) rows.push(card.rank);
+  const result = card.result ? wrap(card.result, 22, 3) : [];
+  const D = 'Inter Display';
+  const check = (x: number, y: number, r: number) =>
+    `<circle cx="${x}" cy="${y}" r="${r}" fill="#2FBF71"/><path d="M${x - r * 0.42} ${y + r * 0.02}l${r * 0.3} ${r * 0.3} ${r * 0.56}-${r * 0.6}" stroke="#0B0A10" stroke-width="${(r * 0.2).toFixed(1)}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+  let y = 690;
   const resultSvg = result.length
-    ? `<text x="150" y="${top + 130}" font-family="Inter" font-weight="600" font-size="44" fill="#77718C">Мой результат:</text>` +
-      result.map((l, i) => `<text x="150" y="${top + 240 + i * 104}" font-family="Inter" font-weight="700" font-size="88" fill="#6C51DF">${esc(l)}</text>`).join('')
+    ? `<text x="120" y="${y}" font-family="Inter" font-weight="300" font-size="26" letter-spacing="6" fill="#8D88A3">МОЙ РЕЗУЛЬТАТ</text>` +
+      result.map((l, i) => `<text x="120" y="${y + 100 + i * 84}" font-family="${D}" font-weight="300" font-size="72" fill="#F6F4FB">${esc(l)}</text>`).join('')
     : '';
+  if (result.length) y += 100 + result.length * 84 + 50;
   const rowsSvg = rows
-    .map(([c, t], i) => {
-      const y = rowsTop + i * 112;
-      return `<circle cx="174" cy="${y + 40}" r="24" fill="${c}"/><path transform="translate(160,${y + 26})" d="M4 14l6 6 14-14" stroke="#FFFFFF" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><text x="226" y="${y + 56}" font-family="Inter" font-weight="600" font-size="50" fill="#211C35">${esc(t)}</text>`;
+    .map((t, i) => {
+      const ry = y + 40 + i * 86;
+      return `${check(138, ry - 12, 17)}<text x="180" y="${ry}" font-family="Inter" font-weight="300" font-size="38" fill="#E4E1EE">${esc(t)}</text>`;
     })
     .join('');
-  const link = card.link.replace(/^https?:\/\//, '');
+  const link = card.link.replace(/^https?:\/\//, '').replace(/\?.*$/, '');
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
-  <rect width="1080" height="1920" fill="#F3F0FF"/>
-  <circle cx="1000" cy="140" r="280" fill="#E6DFFF"/>
-  <circle cx="60" cy="1180" r="220" fill="#ECE6FF"/>
-  <rect x="96" y="130" width="132" height="110" rx="30" fill="#7150E7"/>
-  <text x="162" y="208" text-anchor="middle" font-family="Inter" font-weight="600" font-size="60" fill="#FFFFFF">30</text>
-  <text x="252" y="208" font-family="Inter" font-weight="600" font-size="56" fill="#211C35">дней</text>
-  <text x="96" y="420" font-family="Inter" font-weight="700" font-size="104" fill="#211C35">МОИ 30 ДНЕЙ</text>
-  ${HEART(860, 336, 4.2, '#8B5CF6')}
-  ${card.name ? `<text x="96" y="520" font-family="Inter" font-weight="600" font-size="52" fill="#6C51DF">${esc(card.name)}</text>` : ''}
-  <rect x="96" y="${top}" width="888" height="${cardH}" rx="52" fill="#FFFFFF"/>
+  <defs>
+    <radialGradient id="glow" cx="0.85" cy="0.08" r="0.6"><stop offset="0" stop-color="#7150E7" stop-opacity="0.38"/><stop offset="1" stop-color="#7150E7" stop-opacity="0"/></radialGradient>
+    <radialGradient id="glow2" cx="0.1" cy="0.95" r="0.5"><stop offset="0" stop-color="#2FBF71" stop-opacity="0.10"/><stop offset="1" stop-color="#2FBF71" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1080" height="1920" fill="#0B0A10"/>
+  <rect width="1080" height="1920" fill="url(#glow)"/>
+  <rect width="1080" height="1920" fill="url(#glow2)"/>
+  <rect x="120" y="150" width="76" height="62" rx="18" fill="none" stroke="#B7A6FF" stroke-width="2"/>
+  <text x="158" y="193" text-anchor="middle" font-family="Inter" font-weight="400" font-size="32" fill="#E9E4FF">30</text>
+  <text x="214" y="193" font-family="Inter" font-weight="300" font-size="32" fill="#E9E4FF">дней</text>
+  <text x="120" y="400" font-family="${D}" font-weight="200" font-size="92" letter-spacing="4" fill="#FFFFFF">МОИ 30 ДНЕЙ</text>
+  ${check(860, 368, 26)}
+  ${card.name ? `<text x="120" y="470" font-family="Inter" font-weight="300" font-size="36" fill="#B7A6FF">${esc(card.name)}</text>` : ''}
+  <line x1="120" y1="560" x2="960" y2="560" stroke="#2A2733" stroke-width="2"/>
   ${resultSvg}
   ${rowsSvg}
-  <rect x="96" y="1450" width="888" height="370" rx="52" fill="#6C51DF"/>
-  <g transform="translate(140,1494)"><rect x="-14" y="-14" width="310" height="310" rx="28" fill="#FFFFFF"/><g fill="#211C35">${qrSvg(card.link, 282)}</g></g>
-  <text x="490" y="1590" font-family="Inter" font-weight="700" font-size="50" fill="#FFFFFF">Присоединяйся</text>
-  <text x="490" y="1652" font-family="Inter" font-weight="700" font-size="50" fill="#FFFFFF">и ты к нам!</text>
-  <text x="490" y="1740" font-family="Inter" font-weight="500" font-size="32" fill="#FFFFFF" fill-opacity="0.85">${esc(link.length > 26 ? link.replace(/\?.*$/, '') : link)}</text>
+  <line x1="120" y1="1560" x2="960" y2="1560" stroke="#2A2733" stroke-width="2"/>
+  <g transform="translate(120,1620)"><rect x="-10" y="-10" width="170" height="170" rx="18" fill="#F6F4FB"/><g fill="#0B0A10">${qrSvg(card.link, 150)}</g></g>
+  <text x="330" y="1690" font-family="Inter" font-weight="300" font-size="38" fill="#F6F4FB">Присоединяйся и ты к нам!</text>
+  <text x="330" y="1745" font-family="Inter" font-weight="300" font-size="28" fill="#8D88A3">${esc(link)}</text>
 </svg>`;
   const r = new Resvg(svg, { font: { fontFiles, loadSystemFonts: fontFiles.length === 0, defaultFontFamily: 'Inter' }, fitTo: { mode: 'width', value: 1080 } });
   return Buffer.from(r.render().asPng());

@@ -425,7 +425,7 @@ img { max-width: 100%; display: block; }
 .outcomes button.on.full { background: var(--green-soft); border-color: var(--green-2); color: var(--green); }
 .outcomes button.on.partial { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
 .outcomes button.on.none { background: #fff4e5; border-color: #f0b46a; color: #9a5a12; }
-.story-frame { width: 64%; max-width: 280px; align-self: center; aspect-ratio: 9 / 16; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(33, 28, 53, 0.16); background: #fff; display: flex; align-items: center; justify-content: center; }
+.story-frame { width: 64%; max-width: 280px; align-self: center; aspect-ratio: 9 / 16; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(33, 28, 53, 0.22); background: #0b0a10; display: flex; align-items: center; justify-content: center; }
 .story-frame img { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.2s; }
 .comeback-timer { align-self: center; display: flex; align-items: center; gap: 10px; font-size: 44px; font-weight: 700; color: var(--accent); background: #fff; border: 1px solid var(--line); border-radius: 22px; padding: 14px 26px; font-variant-numeric: tabular-nums; box-shadow: 0 8px 24px rgba(113, 80, 231, 0.12); }
 .comeback-timer.hot { color: #d24b4b; animation: pulse 1s ease-in-out infinite; }
