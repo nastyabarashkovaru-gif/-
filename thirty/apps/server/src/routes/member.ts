@@ -6,7 +6,8 @@ import { prisma } from '../db';
 import { forbidden, jsonSafe, notFound } from '../http';
 import { parse } from '../lib/validate';
 import { signedMediaUrl } from '../lib/storage';
-import { currentMembership, flowInfo, previousMembership } from '../modules/flows';
+import { currentMembership, flowInfo, planningMembership, previousMembership } from '../modules/flows';
+import { homePrompts } from '../modules/journey';
 import { canEditGoals, createGoal, createTask, deleteGoal, deleteTask, fixGoals, goalInput, goalLimitFor, goalPatch, scheduleLabel, serializeGoal, taskInput, updateGoal, updateTask } from '../modules/goals';
 import { goalStats, memberStats } from '../modules/rating';
 import { reportInput, submitReport, todayChecklist } from '../modules/reports';
@@ -18,7 +19,7 @@ export async function memberRoutes(app: FastifyInstance) {
 
   /** Текущее членство с целями и правами на редактирование (S13–S17) */
   app.get('/api/membership', async (req) => {
-    const m = await currentMembership(req.user!.id);
+    const m = await planningMembership(req.user!.id);
     if (!m) return { membership: null };
     const goals = await prisma.goal.findMany({ where: { membershipId: m.id }, include: { tasks: { orderBy: { createdAt: 'asc' } } }, orderBy: { sort: 'asc' } });
     const before = await prisma.beforeAfter.findUnique({ where: { membershipId_phase: { membershipId: m.id, phase: 'before' } } });
@@ -38,7 +39,7 @@ export async function memberRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/goals', async (req) => {
-    const m = await currentMembership(req.user!.id);
+    const m = await planningMembership(req.user!.id);
     if (!m) throw forbidden('no_membership', 'Сначала оплатите участие');
     return createGoal(req.user!.id, m.id, parse(goalInput, req.body));
   });
@@ -55,7 +56,7 @@ export async function memberRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/membership/fix', async (req) => {
-    const m = await currentMembership(req.user!.id);
+    const m = await planningMembership(req.user!.id);
     if (!m) throw forbidden('no_membership');
     return fixGoals(req.user!.id, m.id);
   });
@@ -66,7 +67,7 @@ export async function memberRoutes(app: FastifyInstance) {
       z.object({ text: z.string().max(2000).optional(), metrics: z.record(z.string().max(60)).default({}), mediaIds: z.array(z.string().uuid()).max(6).default([]) }),
       req.body,
     );
-    const m = await currentMembership(req.user!.id);
+    const m = await planningMembership(req.user!.id);
     if (!m) throw forbidden('no_membership');
     if (!(await canEditGoals(m))) throw forbidden('locked', 'Точку «ДО» фиксируют до старта потока');
     if (body.mediaIds.length) {
@@ -124,6 +125,7 @@ export async function memberRoutes(app: FastifyInstance) {
       todayReported: Boolean(today && today.status === 'accepted'),
       buddy: await buddyCard(user.id, m.flowId),
       perks: tariffPerks(tariff?.months ?? 1),
+      prompts: await homePrompts(user.id, m),
     });
   });
 

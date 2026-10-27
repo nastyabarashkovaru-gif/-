@@ -15,6 +15,7 @@ import { ensureFlow } from './flows';
 import { redeemOnPayment } from './promos';
 import { track } from './analytics';
 import { notify } from './notify';
+import { activeComeback } from './journey';
 import { registerBotConversion } from './bot';
 
 export const LIVE_STATUSES = ['prestart', 'active', 'past_due', 'canceled_at_period_end'] as const;
@@ -38,7 +39,8 @@ export async function currentOffer(userId: bigint) {
   const offers = await prisma.priceOffer.findMany({ where: { userId } });
   const now = clock.now();
   // Таймер первых 3 часов важнее окна промокода (цены одинаковые, но таймер честнее показывает срок)
-  const active = offers.filter((o) => offerActive(o, now)).sort((a, b) => (a.kind === 'intro' ? -1 : b.kind === 'intro' ? 1 : 0))[0];
+  // «Вернуться по прежней цене» — отдельная механика (journey.ts), на обычные тарифы не влияет
+  const active = offers.filter((o) => !o.kind.startsWith('comeback:') && offerActive(o, now)).sort((a, b) => (a.kind === 'intro' ? -1 : b.kind === 'intro' ? 1 : 0))[0];
   const intro = offers.find((o) => o.kind === 'intro') ?? null;
   return { active: active ?? null, intro, msLeft: offerMsLeft(active, now), started: Boolean(intro) };
 }
@@ -83,16 +85,23 @@ export async function offerState(userId: bigint) {
 export const REQUIRED_CONSENTS = ['personal_data', 'offer'] as const;
 
 /** Детали платежа для экрана S07: какие потоки, когда следующее списание и на какую сумму */
-export async function checkoutPreview(userId: bigint, tariffId: string) {
+export async function checkoutPreview(userId: bigint, tariffId: string, comeback = false) {
   const tariff = await prisma.tariff.findUnique({ where: { id: tariffId } });
   if (!tariff || !tariff.active) throw notFound('tariff_not_found');
   const tz = await getSetting('flow.timezone');
   const plan = planPurchase({ now: clock.now(), tz, months: tariff.months, lateJoinUntilDay: await getSetting('flow.lateJoinUntilDay') });
   const o = await currentOffer(userId);
-  const view = tariffView(tariff, Boolean(o.active));
+  let view = tariffView(tariff, Boolean(o.active));
+  let offer = { active: Boolean(o.active), msLeft: o.msLeft };
+  const back = comeback ? await activeComeback(userId) : null;
+  if (back && back.tariffId === tariffId && back.amount) {
+    // Прежняя цена закончившейся подписки — на время таймера 40 минут
+    view = { ...view, price: back.amount, renewalPrice: back.amount, variant: 'comeback' as never };
+    offer = { active: true, msLeft: Math.max(0, back.expiresAt.getTime() - clock.now().getTime()) };
+  }
   return {
     tariff: view,
-    offer: { active: Boolean(o.active), msLeft: o.msLeft },
+    offer,
     flows: plan.flows.map((f) => ({ startsOn: f, title: monthName(f) })),
     startsOn: plan.firstFlow,
     paidUntil: fromDbDateEnd(plan.lastFlow),
@@ -116,15 +125,18 @@ function fromDbDateEnd(lastFlow: ISODate) {
  * Создание платежа. Повторное нажатие «Оплатить» с тем же ключом возвращает ту же ссылку.
  * Цена фиксируется в ссылке; ссылка на акционную цену истекает вместе с таймером.
  */
-export async function createCheckout(userId: bigint, tariffId: string, idempotencyKey: string) {
+export async function createCheckout(userId: bigint, tariffId: string, idempotencyKey: string, comeback = false) {
   const tariff = await prisma.tariff.findUnique({ where: { id: tariffId } });
   if (!tariff || !tariff.active) throw notFound('tariff_not_found');
   const consents = await prisma.consent.findMany({ where: { userId, revokedAt: null, granted: true, context: null } });
   const have = new Set(consents.map((c) => c.kind));
   const missing = REQUIRED_CONSENTS.filter((k) => !have.has(k));
   if (missing.length) throw badRequest('consents_required', 'Подтвердите согласия перед оплатой', { missing });
-  const live = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
-  if (live) throw conflict('already_subscribed', 'У вас уже есть действующая подписка');
+  const tz0 = await getSetting('flow.timezone');
+  const plan0 = planPurchase({ now: clock.now(), tz: tz0, months: tariff.months, lateJoinUntilDay: await getSetting('flow.lateJoinUntilDay') });
+  if (await blockingSubscription(userId, plan0.firstFlow)) throw conflict('already_subscribed', 'У вас уже есть действующая подписка');
+  const back = comeback ? await activeComeback(userId) : null;
+  if (comeback && (!back || back.tariffId !== tariffId || !back.amount)) throw conflict('comeback_expired', 'Время предложения по прежней цене закончилось');
 
   const key = `checkout:${userId}:${idempotencyKey}`;
   const existing = await prisma.payment.findUnique({ where: { idempotencyKey: key } });
@@ -135,9 +147,10 @@ export async function createCheckout(userId: bigint, tariffId: string, idempoten
 
   const o = await currentOffer(userId);
   const promo = Boolean(o.active);
-  const q = quote(tariff, promo);
-  const tz = await getSetting('flow.timezone');
-  const plan = planPurchase({ now: clock.now(), tz, months: tariff.months, lateJoinUntilDay: await getSetting('flow.lateJoinUntilDay') });
+  const q0 = quote(tariff, promo);
+  // Возврат по прежней цене: сумма — цена закончившейся подписки, срок — до конца таймера
+  const q = back ? { ...q0, price: back.amount!, variant: (await prisma.subscription.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }))?.priceVariant ?? q0.variant } : q0;
+  const plan = plan0;
 
   const payment = await prisma.payment.create({
     data: {
@@ -159,7 +172,7 @@ export async function createCheckout(userId: bigint, tariffId: string, idempoten
     title: `30 дней — ${tariff.title}`,
     providerSubscriptionId: null,
     userId: userId.toString(),
-    linkExpiresAt: promo && o.active ? new Date(o.active.expiresAt.getTime() + 15 * 60_000) : new Date(clock.now().getTime() + 24 * 3600_000),
+    linkExpiresAt: back ? new Date(back.expiresAt.getTime() + 15 * 60_000) : promo && o.active ? new Date(o.active.expiresAt.getTime() + 15 * 60_000) : new Date(clock.now().getTime() + 24 * 3600_000),
     successUrl: appUrl(`pay_${payment.id}`),
     returnUrl: appUrl(`pay_${payment.id}`),
     notificationUrl: `${config.PUBLIC_URL}/api/payments/${paymentProvider().name}/webhook`,
@@ -168,6 +181,15 @@ export async function createCheckout(userId: bigint, tariffId: string, idempoten
   await prisma.user.update({ where: { id: userId }, data: { onboardingStage: 'checkout' } });
   await track({ userId, eventName: 'payment_start', screenId: 'S07', tariffId, metadata: { amount: q.price, variant: q.variant, paymentId: payment.id } });
   return { paymentId: payment.id, url, amount: q.price };
+}
+
+/**
+ * Подписка, из-за которой новая покупка была бы двойной. Отменённая подписка, оплаченная только до начала
+ * нового периода, не мешает: человек возвращается в клуб со следующего потока.
+ */
+async function blockingSubscription(userId: bigint, firstFlow: ISODate, db: Tx | typeof prisma = prisma) {
+  const live = await db.subscription.findMany({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
+  return live.find((s) => !(s.status === 'canceled_at_period_end' && !s.autoRenew && fromDbDate(s.paidThroughFlow) < firstFlow)) ?? null;
 }
 
 export function appUrl(startParam: string) {
@@ -278,7 +300,7 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
   const outcome = await serializable(async (tx) => {
     const fresh = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } });
     if (fresh.status === 'paid') return { alreadyPaid: true as const };
-    const live = await tx.subscription.findFirst({ where: { userId: payment.userId, status: { in: [...LIVE_STATUSES] } } });
+    const live = await blockingSubscription(payment.userId, firstFlow, tx);
     if (live) {
       // Вторая оплата при живой подписке: деньги приняты, доступ не дублируется, нужен возврат
       await tx.payment.update({ where: { id: payment.id }, data: { status: 'paid', paidAt: now, providerOrderId: p.providerOrderId, needsRefund: true } });

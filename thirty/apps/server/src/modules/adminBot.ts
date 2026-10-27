@@ -3,6 +3,7 @@ import { config } from '../config';
 import { prisma } from '../db';
 import { signedMediaUrl } from '../lib/storage';
 import { decideStoryRequest } from './stories';
+import { decideTrackerReview, trackerReviewCard } from './journey';
 import { displayName } from './users';
 
 /**
@@ -72,6 +73,28 @@ export async function notifyStoryRequest(requestId: string) {
   }
 }
 
+/** Новый отзыв за трекеры → владельцу скриншот с кнопками «Выдать трекеры» / «Запросить уточнение» */
+export async function notifyTrackerReview(reviewId: string) {
+  if (!config.ADMIN_BOT_TOKEN) return;
+  const c = await trackerReviewCard(reviewId);
+  if (!c) return;
+  const date = c.r.createdAt.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  const text = [
+    '💜 <b>Вам оставили отзыв!</b>',
+    '',
+    `Участник: ${esc(c.name)}`,
+    `Telegram: ${c.username ? `@${esc(c.username)}` : `id ${c.r.userId}`}`,
+    `Дата: ${date} МСК`,
+    'Статус: ожидает проверки',
+  ].join('\n');
+  const reply_markup = { inline_keyboard: [[{ text: '🎁 Выдать трекеры', callback_data: `tg:${c.r.id}` }], [{ text: '🔄 Запросить уточнение', callback_data: `tc:${c.r.id}` }]] };
+  const photo = config.PUBLIC_URL ? `${config.PUBLIC_URL}${signedMediaUrl(c.r.mediaId, 24 * 3600)}` : null;
+  for (const chatId of await subscribers()) {
+    const sent = photo ? await call('sendPhoto', { chat_id: chatId, photo, caption: text, parse_mode: 'HTML', reply_markup }).then(() => true, (e) => (console.error('[admin-bot] photo', (e as Error).message), false)) : false;
+    if (!sent) await call('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', reply_markup }).catch((e) => console.error('[admin-bot]', (e as Error).message));
+  }
+}
+
 interface Update {
   message?: { chat: { id: number; type: string }; text?: string };
   callback_query?: { id: string; from: { id: number; username?: string }; data?: string; message?: { chat: { id: number }; message_id: number; text?: string; caption?: string; photo?: unknown[] } };
@@ -94,12 +117,18 @@ export async function handleAdminUpdate(u: Update) {
     await call('answerCallbackQuery', { callback_query_id: q.id, text: 'Нет доступа' });
     return;
   }
-  const m = /^(sa|sr):([0-9a-f-]{36})$/.exec(q.data);
+  const m = /^(sa|sr|tg|tc):([0-9a-f-]{36})$/.exec(q.data);
   if (!m) return;
   const who = q.from.username ? `tg:@${q.from.username}` : `tg:${q.from.id}`;
   let result: string;
   try {
-    if (m[1] === 'sa') {
+    if (m[1] === 'tg') {
+      await decideTrackerReview(m[2], 'grant', who);
+      result = '🎁 Трекеры отправлены участнику';
+    } else if (m[1] === 'tc') {
+      await decideTrackerReview(m[2], 'clarify', who);
+      result = '🔄 Участника попросили прислать новый скриншот';
+    } else if (m[1] === 'sa') {
       const r = await decideStoryRequest(m[2], 'approve', who);
       result = `✅ Промокод ${r.code} отправлен участнику`;
     } else {

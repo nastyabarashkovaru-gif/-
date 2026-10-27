@@ -49,6 +49,22 @@ export async function currentMembership(userId: bigint): Promise<(FlowMembership
   return list[list.length - 1];
 }
 
+/**
+ * Участие, для которого заполняется анкета: обычно текущее. С последнего дня потока, когда анкета текущего
+ * уже зафиксирована, — следующий оплаченный поток («Поставить новую цель»): старые цели и отчёты не трогаем.
+ */
+export async function planningMembership(userId: bigint): Promise<(FlowMembership & { flow: Flow }) | null> {
+  const m = await currentMembership(userId);
+  if (!m || !m.goalsLockedAt || !['active', 'finished'].includes(m.status)) return m;
+  if (flowToday(m.flow) < flowBounds(fromDbDate(m.flow.startsOn)).endsOn) return m;
+  const next = await prisma.flowMembership.findFirst({
+    where: { userId, status: { in: ['reserved', 'registered'] }, flow: { startsOn: { gt: m.flow.startsOn } } },
+    include: { flow: true },
+    orderBy: { flow: { startsOn: 'asc' } },
+  });
+  return next ?? m;
+}
+
 /** Поток, предшествующий данному, у того же пользователя (для сравнения месяцев) */
 export async function previousMembership(userId: bigint, flowStartsOn: Date) {
   return prisma.flowMembership.findFirst({

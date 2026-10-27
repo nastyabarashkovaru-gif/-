@@ -55,11 +55,11 @@ export async function billingRoutes(app: FastifyInstance) {
     r.get('/api/public/materials', async () => ({ items: await getSetting('materials') }));
     r.get('/api/public/rules', async () => ({ prizeRules: await getSetting('prize.rulesText'), cases: await getSetting('cases') }));
 
-    r.get<{ Querystring: { tariff: string } }>('/api/checkout/preview', async (req) => jsonSafe(await checkoutPreview(req.user!.id, String(req.query.tariff ?? ''))));
+    r.get<{ Querystring: { tariff: string; comeback?: string } }>('/api/checkout/preview', async (req) => jsonSafe(await checkoutPreview(req.user!.id, String(req.query.tariff ?? ''), req.query.comeback === '1')));
 
     r.post('/api/checkout', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
-      const body = parse(z.object({ tariffId: z.enum(['m1', 'm3', 'm6']), idempotencyKey: z.string().min(8).max(64) }), req.body);
-      return createCheckout(req.user!.id, body.tariffId, body.idempotencyKey);
+      const body = parse(z.object({ tariffId: z.enum(['m1', 'm3', 'm6']), idempotencyKey: z.string().min(8).max(64), comeback: z.boolean().optional() }), req.body);
+      return createCheckout(req.user!.id, body.tariffId, body.idempotencyKey, body.comeback ?? false);
     });
 
     /** Статус платежа для экрана ожидания S09/S10 (источник истины — webhook) */

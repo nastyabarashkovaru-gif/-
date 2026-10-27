@@ -38,6 +38,10 @@ model User {
   lastScreen      String?
   onboardingStage String     @default("new") // new | onboarding | tariffs | checkout | paid | registered
   sixMonthBadge   Boolean    @default(false)
+  /// Когда последний раз показали окно «Получи трекеры за свой отзыв» (раз в 14 дней)
+  trackerPromptAt   DateTime?
+  /// Трекеры выданы — окно больше не показывается
+  trackersGrantedAt DateTime?
   deletedAt       DateTime?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
@@ -122,6 +126,9 @@ model PriceOffer {
   consumedAt DateTime? // покупка по этой цене
   /// Окно цены, открытое промокодом (kind = promo)
   promoId    String?
+  /// «Вернуться по прежней цене» (kind = comeback:<id подписки>): тариф и цена закончившейся подписки
+  tariffId   String?
+  amount     Int?
 
   @@unique([userId, kind])
 }
@@ -299,9 +306,14 @@ model FlowMembership {
   goalsLockedAt    DateTime?
   registeredAt     DateTime?
   finalSubmittedAt DateTime?
+  /// Анкета, шаг 1: «Что ты хочешь получить от клуба „30 дней“?» (своя для каждого потока — это и есть история)
+  expectation      String?
+  /// Итоги потока: «Какого результата тебе удалось добиться?»
+  finalResult      String?
   createdAt        DateTime         @default(now())
 
   goals       Goal[]
+  feedback    FlowFeedback?
   occurrences TaskOccurrence[]
   reports     DailyReport[]
   beforeAfter BeforeAfter[]
@@ -340,6 +352,8 @@ model Goal {
   isPublic         Boolean        @default(true)
   sort             Int            @default(0)
   finalAchieved    Boolean?
+  /// Итоги: full — да, полностью; partial — частично; none — пока нет
+  finalOutcome     String?
   finalComment     String?
   createdAt        DateTime       @default(now())
 
@@ -1004,5 +1018,40 @@ model StoryRequest {
   decidedAt DateTime?
   createdAt DateTime  @default(now())
 
+  @@index([status, createdAt])
+}
+
+/// Обратная связь на предпоследний день потока (6 вопросов); одна на участие в потоке
+model FlowFeedback {
+  id            String         @id @default(uuid())
+  membershipId  String         @unique
+  membership    FlowMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  userId        BigInt
+  flowId        String
+  month         String
+  helped        String[]
+  helpedOther   String?
+  hindered      String[]
+  hinderedOther String?
+  benefit       String
+  change        String
+  needHelp      String
+  createdAt     DateTime       @default(now())
+
+  @@index([flowId])
+}
+
+/// «Отзыв за трекеры»: скриншот отзыва, отправленного в поддержку; подарок — три трекера
+model TrackerReview {
+  id         String    @id @default(uuid())
+  userId     BigInt
+  mediaId    String
+  /// pending — на проверке; needs_info — нужно уточнение; granted — подарок выдан; replaced — заменена новым скриншотом
+  status     String    @default("pending")
+  decidedBy  String?
+  decidedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, createdAt])
   @@index([status, createdAt])
 }

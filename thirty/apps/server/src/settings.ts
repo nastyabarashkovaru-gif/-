@@ -77,6 +77,10 @@ export const DEFAULT_SETTINGS = {
     { id: 'podcast', kind: 'Подкаст', title: 'Как выбрать свою тему блога', text: 'Найди направление, о котором захочется рассказывать.', icon: 'headphones', url: 'https://t.me/+DAqhaepx_0oxZjM6' },
   ] as { id: string; kind: string; title: string; text: string; icon: string; url: string }[],
   'cases': [] as { name: string; text: string; result: string }[],
+  /** Три трекера в Google Таблицах — подарок за отзыв (ссылки задаёт администратор) */
+  'trackers.links': { tasks: '', week: '', finance: '' },
+  /** Ссылка в QR-коде карточки результатов: бот с продающей цепочкой (метка stories — для аналитики переходов) */
+  'stories.botLink': 'https://t.me/Dney30_bot?start=stories',
 };
 
 export type SettingKey = keyof typeof DEFAULT_SETTINGS;
