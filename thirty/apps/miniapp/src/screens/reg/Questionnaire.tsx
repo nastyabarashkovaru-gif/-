@@ -6,9 +6,9 @@ import {
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { track } from '../../lib/analytics';
-import { haptic, requestWriteAccess } from '../../lib/telegram';
+import { haptic, openTelegram, requestWriteAccess } from '../../lib/telegram';
 import { useMe } from '../../state';
-import { BrandBar, Cta, ErrorState, Loading, Screen, errorText, humanDate, toast } from '../../ui';
+import { BrandBar, Cta, Empty, ErrorState, Loading, Screen, errorText, humanDate, toast } from '../../ui';
 import { useMembership, type MembershipView } from './Registration';
 
 /** Категории целей анкеты (решение владельца 24.10) */
@@ -83,10 +83,25 @@ function useQuestionnaire(screen: string) {
   return q;
 }
 
+function SupportButton() {
+  const { me } = useMe();
+  return <button className="btn btn-primary" onClick={() => me && openTelegram(me.support)}>Написать в поддержку</button>;
+}
+
 function Gate({ q, id, children }: { q: ReturnType<typeof useMembership>; id: string; children: (m: MembershipView) => ReactNode }) {
   if (q.loading && !q.data) return <Screen id={id}><Loading /></Screen>;
   if (q.error || !q.data) return <Screen id={id}><ErrorState error={q.error ?? new Error('Сначала выбери тариф')} retry={q.reload} /></Screen>;
-  if (!q.data.canEdit) return <Navigate to="/" replace />;
+  if (!q.data.canEdit) {
+    // Анкету не заполнили до старта: не отправляем на главную (она вернула бы сюда), а объясняем, что делать
+    if (q.data.status === 'reserved') {
+      return (
+        <Screen id={id}>
+          <Empty title="Анкета на этот поток уже закрыта" text="Поток начался, а цели не были заполнены. Напиши в поддержку — поможем присоединиться." action={<SupportButton />} />
+        </Screen>
+      );
+    }
+    return <Navigate to="/" replace />;
+  }
   return <>{children(q.data)}</>;
 }
 

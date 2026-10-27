@@ -6,7 +6,7 @@ import { seed } from './seed';
 import { startScheduler } from './jobs/scheduler';
 import { setupBot } from './lib/botSetup';
 import { setupAdminBot } from './modules/adminBot';
-import { ensureDemoPhotos } from './modules/demo';
+import { ensureDemoPhotos, restoreDemoClock } from './modules/demo';
 import { checkCloudPaymentsKeys } from './payments/cloudpayments';
 
 async function main() {
@@ -21,7 +21,10 @@ async function main() {
     const { chainTestUsers } = await import('./modules/chainTest');
     console.log(`[chain-test] режим проверки цепочки включён для: ${[...(await chainTestUsers())].join(', ') || 'никого'}`);
   }
-  if (config.DEMO_MODE) await ensureDemoPhotos().catch((e) => console.warn('[demo] photos', e));
+  if (config.DEMO_MODE) {
+    await restoreDemoClock().catch((e) => console.warn('[demo] clock', e));
+    await ensureDemoPhotos().catch((e) => console.warn('[demo] photos', e));
+  }
   if (config.PAYMENT_PROVIDER === 'cloudpayments') await checkCloudPaymentsKeys();
   if (config.SCHEDULER) startScheduler();
   const stop = async () => {

@@ -29,6 +29,25 @@ const TZ = 'Europe/Moscow';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PHOTO_DIR = [path.resolve(here, '../../assets/demo'), path.resolve(here, '../assets/demo'), path.resolve(process.cwd(), 'assets/demo')].find((d) => existsSync(d));
 
+/** «Часы» демо хранятся в базе: после перезапуска сервера демо-данные и время остаются согласованными */
+const CLOCK_KEY = 'demo.clock';
+
+async function saveClock() {
+  const value = { at: clock.now().toISOString() };
+  await prisma.setting.upsert({ where: { key: CLOCK_KEY }, create: { key: CLOCK_KEY, value }, update: { value } });
+}
+
+export async function restoreDemoClock() {
+  const row = await prisma.setting.findUnique({ where: { key: CLOCK_KEY } });
+  // Данные собраны до появления сохранённого времени — берём время последнего сообщения в ленте
+  const last = row ? null : await prisma.feedMessage.findFirst({ orderBy: { createdAt: 'desc' } });
+  const at = (row?.value as { at?: string } | null)?.at ?? (last ? new Date(last.createdAt.getTime() + 60_000).toISOString() : undefined);
+  if (at) {
+    clock.set(at);
+    console.log(`[demo] время демо: ${at}`);
+  }
+}
+
 export function assertDemo() {
   if (!config.DEMO_MODE) throw forbidden('not_demo');
 }
@@ -244,7 +263,11 @@ let queue: Promise<unknown> = Promise.resolve();
 /** Собирает демо-данные под выбранные переключатели и ставит «часы» сервера (запросы выполняются по очереди) */
 export function applyDemoState(ownerId: bigint, ownerName: string, s: DemoState) {
   assertDemo();
-  const run = queue.then(() => buildDemoState(ownerId, ownerName, s));
+  const run = queue.then(async () => {
+    const res = await buildDemoState(ownerId, ownerName, s);
+    await saveClock();
+    return res;
+  });
   queue = run.catch(() => undefined);
   return run;
 }
@@ -358,6 +381,7 @@ export async function advanceDay() {
     clock.set(at(next, 10, 0));
     await computeLeaderboard(flow.id);
   } else clock.set(at(next, 10, 0));
+  await saveClock();
   return { now: clock.now().toISOString() };
 }
 

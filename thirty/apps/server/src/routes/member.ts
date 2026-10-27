@@ -100,7 +100,8 @@ export async function memberRoutes(app: FastifyInstance) {
     const today = await prisma.dailyReport.findUnique({ where: { membershipId_date: { membershipId: m.id, date: toDbDate(info.today) } } });
     const tariff = await prisma.tariff.findUnique({ where: { id: m.tariffId } });
     return jsonSafe({
-      state: m.status === 'reserved' ? 'registration' : info.phase === 'upcoming' ? 'waiting' : info.phase === 'finished' ? 'finished' : m.status === 'active' ? 'active' : 'registration',
+      // Анкету открываем только для незаполненного участия — иначе главная и анкета перекидывали бы друг на друга
+      state: m.status === 'reserved' ? 'registration' : info.phase === 'upcoming' ? 'waiting' : info.phase === 'finished' || m.status === 'finished' ? 'finished' : m.status === 'active' ? 'active' : 'waiting',
       membership: { id: m.id, status: m.status, finalSubmittedAt: m.finalSubmittedAt },
       flow: info,
       stats: {
