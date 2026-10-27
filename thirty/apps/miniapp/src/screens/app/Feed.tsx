@@ -28,7 +28,7 @@ export function Feed() {
           <p className="sub" style={{ fontSize: 15 }}>Отчёты, общение и результаты участников.</p>
         </div>
       </div>
-      <div className="seg seg-plain" role="tablist">
+      <div className="seg seg-plain feed-tabs" role="tablist">
         {([['chat', 'Отчёты'], ['board', 'Лидерборд'], ['people', 'Все участники']] as const).map(([k, l]) => (
           <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => pick(k)}>{l}</button>
         ))}
