@@ -37,10 +37,10 @@ export interface SubscriptionRef {
 }
 
 export interface PaymentProvider {
-  name: 'prodamus' | 'cloudpayments' | 'mock';
+  name: 'cloudpayments' | 'mock';
   createPayment(input: CreatePaymentInput): Promise<{ url: string }>;
   parseWebhook(headers: Record<string, string | string[] | undefined>, body: Record<string, unknown>): ParsedWebhook;
-  /** Перенести дату следующего списания (у Prodamus — только вперёд); amount — сумма продления, если провайдер её хранит */
+  /** Перенести дату следующего списания ; amount — сумма продления, если провайдер её хранит */
   setNextChargeDate(ref: SubscriptionRef, date: string, amount?: number): Promise<void>;
   /** Выключить автопродление по инициативе покупателя */
   setActive(ref: SubscriptionRef, active: boolean): Promise<void>;

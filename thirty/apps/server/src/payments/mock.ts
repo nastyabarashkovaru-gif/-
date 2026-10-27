@@ -1,8 +1,8 @@
 import { config } from '../config';
-import { prodamusSign, prodamusVerify } from './sign';
+import { signPayload, verifyPayload } from './sign';
 import type { CreatePaymentInput, ParsedWebhook, PaymentProvider, SubscriptionRef } from './types';
 
-/** Sandbox без денег: страница-имитатор формы оплаты и подписанные webhook в том же формате, что у Prodamus */
+/** Sandbox без денег: страница-имитатор формы оплаты и подписанные тестовые уведомления */
 export const MOCK_SECRET = 'mock-provider-secret';
 
 export const mockCalls: { method: string; ref: SubscriptionRef; arg: unknown }[] = [];
@@ -17,7 +17,7 @@ export class MockProvider implements PaymentProvider {
   parseWebhook(headers: Record<string, string | string[] | undefined>, body: Record<string, unknown>): ParsedWebhook {
     const { __raw: _r, ...data } = body;
     const sign = headers['sign'];
-    const valid = prodamusVerify(data, MOCK_SECRET, Array.isArray(sign) ? sign[0] : sign);
+    const valid = verifyPayload(data, MOCK_SECRET, Array.isArray(sign) ? sign[0] : sign);
     const status = String(data.payment_status ?? '');
     return {
       valid,
@@ -44,5 +44,5 @@ export class MockProvider implements PaymentProvider {
 }
 
 export function signMock(data: Record<string, unknown>) {
-  return prodamusSign(data, MOCK_SECRET);
+  return signPayload(data, MOCK_SECRET);
 }

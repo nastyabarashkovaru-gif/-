@@ -26,7 +26,7 @@ export async function resetDb() {
       data: {
         id: t.id, title: t.title, months: t.months, goalLimit: t.goalLimit, promoPrice: t.promoPrice, regularPrice: t.regularPrice,
         comparisonMonthPrice: t.comparisonMonthPrice, renewalPrice: t.renewalPrice, highlighted: t.highlighted, badge: t.badge,
-        features: t.features, prodamusSubscriptionPromo: 1000 + t.months, prodamusSubscriptionRegular: 2000 + t.months,
+        features: t.features,
       },
     });
   }

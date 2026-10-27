@@ -104,8 +104,8 @@ export async function adminRoutes(app: FastifyInstance) {
       const body = parse(
         z.object({
           title: z.string().min(1).max(64), promoPrice: z.number().int().min(1), regularPrice: z.number().int().min(1), comparisonMonthPrice: z.number().int().min(1),
-          renewalPrice: z.number().int().min(1), goalLimit: z.number().int().min(1).nullable(), prodamusSubscriptionPromo: z.number().int().nullable(),
-          prodamusSubscriptionRegular: z.number().int().nullable(), highlighted: z.boolean(), badge: z.string().max(40).nullable(), features: z.array(z.string().max(200)).max(15), active: z.boolean(),
+          renewalPrice: z.number().int().min(1), goalLimit: z.number().int().min(1).nullable(),
+          highlighted: z.boolean(), badge: z.string().max(40).nullable(), features: z.array(z.string().max(200)).max(15), active: z.boolean(),
         }).partial(),
         req.body,
       );

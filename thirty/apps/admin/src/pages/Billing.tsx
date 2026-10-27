@@ -3,14 +3,14 @@ import { Link } from 'react-router-dom';
 import { api, dt, rub, d } from '../api';
 import { Status, View, act, useLoad, withReason } from '../ui';
 
-/** A03: тарифы, обычные/акционные цены, сравнительная цена, id подписок Prodamus, ценность S05 */
+/** A03: тарифы, обычные/акционные цены, сравнительная цена, ценность S05 */
 export function Tariffs() {
   const s = useLoad(() => api('/admin-api/tariffs'));
   const [edit, setEdit] = useState<Record<string, any>>({});
   const save = async (id: string) => {
     const e = edit[id];
     const body: any = {};
-    for (const k of ['promoPrice', 'regularPrice', 'comparisonMonthPrice', 'renewalPrice', 'prodamusSubscriptionPromo', 'prodamusSubscriptionRegular']) if (e[k] !== undefined) body[k] = e[k] === '' ? null : Number(e[k]);
+    for (const k of ['promoPrice', 'regularPrice', 'comparisonMonthPrice', 'renewalPrice']) if (e[k] !== undefined) body[k] = e[k] === '' ? null : Number(e[k]);
     if (e.goalLimit !== undefined) body.goalLimit = e.goalLimit === '' ? null : Number(e.goalLimit);
     if (e.features !== undefined) body.features = String(e.features).split('\n').map((x: string) => x.trim()).filter(Boolean);
     for (const k of ['highlighted', 'active']) if (e[k] !== undefined) body[k] = e[k];
@@ -20,7 +20,7 @@ export function Tariffs() {
   return (
     <>
       <h1>Тарифы и ценность</h1>
-      <p className="muted">Продление идёт по цене покупки: акционной или обычной — поэтому суммы подписок в кабинете Prodamus должны совпадать с этими ценами. Перечёркнутая цена = месяцы × базовая цена месяца и подписывается как «стоимость отдельных месяцев».</p>
+      <p className="muted">Продление идёт по цене покупки: акционной или обычной. Перечёркнутая цена = месяцы × базовая цена месяца и подписывается как «стоимость отдельных месяцев».</p>
       <View s={s}>{(data: any) => (
         <>
           {data.tariffs.map((t: any) => {
@@ -31,7 +31,7 @@ export function Tariffs() {
               <div className="card" key={t.id}>
                 <h2>{t.title} <span className="muted">({t.id}, {t.months} мес.)</span></h2>
                 <div className="row">
-                  {[['promoPrice', 'Акционная, ₽'], ['regularPrice', 'После таймера, ₽'], ['comparisonMonthPrice', 'Базовая цена месяца, ₽'], ['goalLimit', 'Лимит целей (пусто — без лимита)'], ['prodamusSubscriptionPromo', 'ID подписки Prodamus (акция)'], ['prodamusSubscriptionRegular', 'ID подписки Prodamus (обычная)'], ['badge', 'Бейдж']].map(([k, l]) => (
+                  {[['promoPrice', 'Акционная, ₽'], ['regularPrice', 'После таймера, ₽'], ['comparisonMonthPrice', 'Базовая цена месяца, ₽'], ['goalLimit', 'Лимит целей (пусто — без лимита)'], ['badge', 'Бейдж']].map(([k, l]) => (
                     <label className="f" key={k}>{l}<input value={val(k)} onChange={(x) => set(k, x.target.value)} style={{ width: 150 }} /></label>
                   ))}
                   <label className="f">Выделить<input type="checkbox" checked={Boolean(val('highlighted'))} onChange={(x) => set('highlighted', x.target.checked)} /></label>
@@ -88,7 +88,7 @@ export function Payments() {
         <h2>Сверка</h2>
         <View s={rec}>{(r: any) => (
           <div className="row" style={{ alignItems: 'flex-start' }}>
-            <div className="kpi"><b>{r.needsRefund.length}</b><span>Повторные оплаты — оформить возврат в кабинете Prodamus</span></div>
+            <div className="kpi"><b>{r.needsRefund.length}</b><span>Повторные оплаты — оформить возврат в кабинете CloudPayments</span></div>
             <div className="kpi"><b>{r.stuckPending.length}</b><span>Зависли в pending</span></div>
             <div className="kpi"><b>{r.webhookErrors.length}</b><span>Ошибки webhook / подписи</span></div>
             <div className="kpi"><b>{r.chargeDateSyncErrors.length}</b><span>Не перенесена дата списания</span></div>
@@ -105,7 +105,7 @@ export function Payments() {
               <tr key={p.id}>
                 <td>{dt(p.createdAt)}</td><td><Link to={`/users/${p.userId}`}>{p.userName}</Link></td><td>{p.kind}</td><td>{p.tariffId}</td><td>{rub(p.amount)}</td>
                 <td><Status v={p.status} /> {p.needsRefund && <span className="pill err">нужен возврат</span>}</td><td>{d(p.coversFromFlow)} {p.months ? `× ${p.months}` : ''}</td>
-                <td>{p.status === 'paid' && <button className="btn light" onClick={async () => { if (await withReason('Отметить возврат (деньги возвращаются в кабинете Prodamus)', (reason) => api(`/admin-api/payments/${p.id}/refund`, { body: { reason } }))) list.reload(); }}>Возврат</button>}</td>
+                <td>{p.status === 'paid' && <button className="btn light" onClick={async () => { if (await withReason('Отметить возврат (деньги возвращаются в кабинете CloudPayments)', (reason) => api(`/admin-api/payments/${p.id}/refund`, { body: { reason } }))) list.reload(); }}>Возврат</button>}</td>
               </tr>
             ))}</tbody></table>
         )}</View>

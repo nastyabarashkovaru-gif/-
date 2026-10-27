@@ -117,19 +117,8 @@ export async function billingRoutes(app: FastifyInstance) {
     return { text };
   });
 
-  /** Webhook Prodamus: подпись в заголовке Sign. Ответ 200 даже на дубликат — иначе провайдер будет повторять. */
-  app.post('/api/payments/prodamus/webhook', async (req, reply) => {
-    if (paymentProvider().name !== 'prodamus') throw forbidden('provider_disabled');
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const raw = typeof body.__raw === 'string' ? body.__raw : JSON.stringify(body);
-    const parsed = paymentProvider().parseWebhook(req.headers, body);
-    // Диагностика без персональных данных: какие поля прислал провайдер
-    const sub = (body as { subscription?: Record<string, unknown> }).subscription;
-    console.log(`[prodamus] kind=${parsed.kind} status=${parsed.status} valid=${parsed.valid} order_num=${parsed.paymentId ? 'yes' : 'no'} sub=${parsed.providerSubscriptionId ?? '-'} keys=${Object.keys(body).filter((k) => k !== '__raw').join(',')}${sub && typeof sub === 'object' ? ` subKeys=${Object.keys(sub).join(',')}` : ''}`);
-    const result = await handleWebhook(parsed, raw);
-    if ((result as { rejected?: string }).rejected) return reply.status(400).send({ ok: false });
-    return reply.send('success');
-  });
+  /** Prodamus больше не используется: старый адрес уведомлений отвечает 200 без обработки, чтобы Prodamus не повторял отправку */
+  app.post('/api/payments/prodamus/webhook', async (_req, reply) => reply.send('success'));
 
   /**
    * CloudPayments: уведомления Check / Pay / Fail / Recurrent / Refund. Ответ {"code":0}; на Check отказываем,

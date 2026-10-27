@@ -1,8 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /**
- * Подпись Prodamus: ключи рекурсивно отсортированы, все значения — строки, JSON без экранирования юникода,
- * но со слешами «\/» (как json_encode в PHP). Совпадает с официальным PHP-классом Hmac и npm/gem клиентами.
+ * Подпись тестовых (sandbox) уведомлений: ключи рекурсивно отсортированы, все значения — строки, HMAC-SHA256 от JSON.
  */
 export function normalize(data: unknown): unknown {
   if (Array.isArray(data)) return data.map(normalize);
@@ -18,14 +17,14 @@ export function normalize(data: unknown): unknown {
   return data === null || data === undefined ? '' : String(data);
 }
 
-export function prodamusSign(data: Record<string, unknown>, secret: string): string {
+export function signPayload(data: Record<string, unknown>, secret: string): string {
   const json = JSON.stringify(normalize(data)).replace(/\//g, '\\/');
   return createHmac('sha256', secret).update(json).digest('hex');
 }
 
-export function prodamusVerify(data: Record<string, unknown>, secret: string, sign: string | undefined): boolean {
+export function verifyPayload(data: Record<string, unknown>, secret: string, sign: string | undefined): boolean {
   if (!sign || !secret) return false;
-  const expected = prodamusSign(data, secret);
+  const expected = signPayload(data, secret);
   const a = Buffer.from(expected);
   const b = Buffer.from(sign.toLowerCase());
   return a.length === b.length && timingSafeEqual(a, b);

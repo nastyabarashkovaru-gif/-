@@ -138,8 +138,6 @@ export async function createCheckout(userId: bigint, tariffId: string, idempoten
   const q = quote(tariff, promo);
   const tz = await getSetting('flow.timezone');
   const plan = planPurchase({ now: clock.now(), tz, months: tariff.months, lateJoinUntilDay: await getSetting('flow.lateJoinUntilDay') });
-  const providerSub = promo ? tariff.prodamusSubscriptionPromo : tariff.prodamusSubscriptionRegular;
-  if (paymentProvider().name === 'prodamus' && !providerSub) throw conflict('tariff_not_configured', 'Тариф не привязан к подписке Prodamus');
 
   const payment = await prisma.payment.create({
     data: {
@@ -159,7 +157,7 @@ export async function createCheckout(userId: bigint, tariffId: string, idempoten
     paymentId: payment.id,
     amount: q.price,
     title: `30 дней — ${tariff.title}`,
-    providerSubscriptionId: providerSub ?? null,
+    providerSubscriptionId: null,
     userId: userId.toString(),
     linkExpiresAt: promo && o.active ? new Date(o.active.expiresAt.getTime() + 15 * 60_000) : new Date(clock.now().getTime() + 24 * 3600_000),
     successUrl: appUrl(`pay_${payment.id}`),
@@ -198,7 +196,7 @@ export async function handleWebhook(parsed: ParsedWebhook, rawBody: string) {
     await prisma.paymentEvent.update({ where: { id: event.id }, data: { error: 'bad_signature', processedAt: clock.now() } });
     return { rejected: 'bad_signature' };
   }
-  // Уведомления по другим продуктам магазина (не «30 дней») — пропускаем с ответом 200, чтобы Prodamus не повторял
+  // Уведомления по другим продуктам магазина (не «30 дней») — пропускаем с ответом 200, чтобы провайдер не повторял
   if (!(await isOurEvent(parsed))) {
     await prisma.paymentEvent.update({ where: { id: event.id }, data: { processedAt: clock.now(), error: 'foreign_event_ignored' } });
     return { ignored: 'foreign' };
@@ -224,8 +222,6 @@ async function isOurEvent(p: ParsedWebhook): Promise<boolean> {
   if (p.providerSubscriptionId) {
     const known = await prisma.subscription.findFirst({ where: { providerSubscriptionId: p.providerSubscriptionId } });
     if (known) return true;
-    const tariffIds = (await prisma.tariff.findMany()).flatMap((t) => [t.prodamusSubscriptionPromo, t.prodamusSubscriptionRegular]).filter(Boolean).map(String);
-    if (tariffIds.includes(p.providerSubscriptionId)) return true;
   }
   return false;
 }
@@ -473,7 +469,6 @@ export async function createDebtPayment(userId: bigint) {
   const key = `debt:${sub.id}:${fromDbDate(sub.paidThroughFlow)}`;
   const existing = await prisma.payment.findUnique({ where: { idempotencyKey: key } });
   if (existing && existing.status !== 'failed') return { paymentId: existing.id, url: existing.paymentUrl!, amount: existing.amount };
-  const providerSub = sub.priceVariant === 'promo' ? sub.tariff.prodamusSubscriptionPromo : sub.tariff.prodamusSubscriptionRegular;
   const payment = existing
     ? await prisma.payment.update({ where: { id: existing.id }, data: { status: 'initiated', failureReason: null } })
     : await prisma.payment.create({ data: { userId, subscriptionId: sub.id, kind: 'debt', tariffId: sub.tariffId, amount: sub.renewalPrice, idempotencyKey: key, priceVariant: sub.priceVariant } });
@@ -481,7 +476,7 @@ export async function createDebtPayment(userId: bigint) {
     paymentId: payment.id,
     amount: sub.renewalPrice,
     title: `30 дней — продление (${sub.tariff.title})`,
-    providerSubscriptionId: providerSub ?? null,
+    providerSubscriptionId: null,
     userId: userId.toString(),
     successUrl: appUrl(`pay_${payment.id}`),
     returnUrl: appUrl('profile'),
@@ -557,7 +552,7 @@ export async function resumeAutoRenew(userId: bigint) {
 }
 
 /**
- * Возврат (из кабинета Prodamus — отмечается админом, либо пришёл webhook): платёж refunded,
+ * Возврат (из кабинета CloudPayments — отмечается админом, либо пришёл webhook): платёж refunded,
  * не начавшиеся и текущие потоки этого платежа отзываются, автопродление выключается.
  */
 export async function markRefunded(paymentId: string, source: 'provider' | 'admin') {

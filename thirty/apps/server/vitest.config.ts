@@ -6,8 +6,6 @@ export default defineConfig({
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? 'postgresql://thirty:thirty@localhost:5432/thirty_test',
       BOT_TOKEN: '123456:TEST_TOKEN',
       BOT_USERNAME: 'thirty_test_bot',
-      PRODAMUS_SECRET_KEY: 'prodamus-test-secret',
-      PRODAMUS_FORM_URL: 'https://demo.payform.ru',
       PAYMENT_PROVIDER: 'mock',
       PUBLIC_URL: 'https://thirty.example',
       UPLOAD_DIR: '/tmp/thirty-test-uploads',

@@ -9,7 +9,7 @@ const schema = z.object({
   NODE_ENV: z.string().default('development'),
   PORT: z.coerce.number().default(4100),
   DATABASE_URL: z.string(),
-  /** Публичный HTTPS-адрес сервиса (webhook бота и Prodamus, ссылки на картинки) */
+  /** Публичный HTTPS-адрес сервиса (webhook бота, уведомления оплаты, ссылки на картинки) */
   PUBLIC_URL: z.string().default(''),
   BOT_TOKEN: z.string().default(''),
   BOT_USERNAME: z.string().default(''),
@@ -24,15 +24,10 @@ const schema = z.object({
   ADMIN_BOOTSTRAP_LOGIN: z.string().default(''),
   ADMIN_BOOTSTRAP_PASSWORD: z.string().default(''),
   ADMIN_ORIGIN: z.string().default(''),
-  PAYMENT_PROVIDER: z.enum(['prodamus', 'cloudpayments', 'mock']).default('mock'),
+  PAYMENT_PROVIDER: z.enum(['cloudpayments', 'mock']).default('mock'),
   /** CloudPayments: Public ID и пароль для API из настроек сайта в кабинете */
   CP_PUBLIC_ID: z.string().default(''),
   CP_API_SECRET: z.string().default(''),
-  PRODAMUS_FORM_URL: z.string().default(''),
-  PRODAMUS_SECRET_KEY: z.string().default(''),
-  /** sys-код магазина, если выдан поддержкой Prodamus */
-  PRODAMUS_SYS: z.string().default(''),
-  PRODAMUS_DEMO: bool,
   S3_ENDPOINT: z.string().default(''),
   S3_REGION: z.string().default('ru-central1'),
   S3_BUCKET: z.string().default(''),
@@ -64,7 +59,6 @@ if (isProd) {
   if (config.MEDIA_SIGNING_SECRET.startsWith('dev-')) problems.push('MEDIA_SIGNING_SECRET is default');
   if (!config.BOT_TOKEN && !config.DEMO_MODE) problems.push('BOT_TOKEN is empty');
   if (config.PAYMENT_PROVIDER === 'mock' && !config.ALLOW_SANDBOX_PAYMENTS) problems.push('PAYMENT_PROVIDER=mock in production (set ALLOW_SANDBOX_PAYMENTS=true only on staging)');
-  if (config.PAYMENT_PROVIDER === 'prodamus' && (!config.PRODAMUS_SECRET_KEY || !config.PRODAMUS_FORM_URL)) problems.push('PRODAMUS_* not configured');
   if (config.PAYMENT_PROVIDER === 'cloudpayments' && (!config.CP_PUBLIC_ID || !config.CP_API_SECRET)) problems.push('CP_PUBLIC_ID / CP_API_SECRET not configured');
   if (problems.length) throw new Error(`Unsafe production config: ${problems.join('; ')}`);
 }

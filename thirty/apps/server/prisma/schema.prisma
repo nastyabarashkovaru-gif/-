@@ -101,9 +101,7 @@ model Tariff {
   promoPrice                  Int // ₽, первые 3 часа
   regularPrice                Int // ₽, после таймера
   comparisonMonthPrice        Int      @default(2990) // «стоимость отдельных месяцев» = months × это
-  renewalPrice                Int // ₽, сумма повторного списания (должна совпадать с кабинетом Prodamus)
-  prodamusSubscriptionPromo   Int?
-  prodamusSubscriptionRegular Int?
+  renewalPrice                Int // ₽, сумма повторного списания (по цене покупки: акционной или обычной)
   highlighted                 Boolean  @default(false)
   badge                       String?
   features                    Json     @default("[]")
@@ -152,7 +150,7 @@ model Subscription {
   providerSubscriptionId String?
   providerLocked         Boolean            @default(false)
   /**
-   * Телефон/e-mail покупателя из webhook — нужен для REST-методов Prodamus
+   * Данные покупателя из уведомления оплаты (AccountId, токен карты) — для API платёжного провайдера
    */
   providerCustomer       Json               @default("{}")
   /**
@@ -201,7 +199,7 @@ model Payment {
   priceVariant    String? // promo | regular
   amount          Int
   status          PaymentStatus @default(initiated)
-  provider        String        @default("prodamus")
+  provider        String        @default("cloudpayments")
   providerOrderId String?       @unique
   paymentUrl      String?
   coversFromFlow  DateTime?     @db.Date

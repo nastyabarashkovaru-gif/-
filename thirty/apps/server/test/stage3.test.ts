@@ -3,9 +3,8 @@ import qs from 'qs';
 import { api, clock, getApp, prisma, resetDb } from './helpers';
 import { mockCalls, signMock } from '../src/payments/mock';
 import { paymentProvider, setPaymentProvider } from '../src/payments';
-import { ProdamusProvider } from '../src/payments/prodamus';
 import { MockProvider } from '../src/payments/mock';
-import { prodamusSign, prodamusVerify, normalize } from '../src/payments/sign';
+import { signPayload, verifyPayload, normalize } from '../src/payments/sign';
 import { handleWebhook, markRefunded, refreshSubscriptionStatuses } from '../src/modules/billing';
 
 const U = 500;
@@ -216,36 +215,23 @@ describe('чужие уведомления магазина', () => {
   });
 });
 
-describe('Prodamus', () => {
-  it('подпись: сортировка ключей, строки, экранирование слешей, вложенность', () => {
+describe('подпись тестовых уведомлений; Prodamus отключён', () => {
+  it('подпись: сортировка ключей, строки, вложенность', () => {
     expect(normalize({ b: 1, a: { d: null, c: 2 } })).toEqual({ a: { c: '2' }, b: '1' });
     const data = { order_id: '1', urlSuccess: 'https://x.ru/a', products: [{ price: 10, name: 'Тест' }] };
-    const sig = prodamusSign(data, 'k');
+    const sig = signPayload(data, 'k');
     expect(sig).toMatch(/^[0-9a-f]{64}$/);
-    expect(prodamusVerify({ products: [{ name: 'Тест', price: '10' }], urlSuccess: 'https://x.ru/a', order_id: 1 }, 'k', sig)).toBe(true);
-    expect(prodamusVerify({ ...data, order_id: '2' }, 'k', sig)).toBe(false);
+    expect(verifyPayload({ products: [{ name: 'Тест', price: '10' }], urlSuccess: 'https://x.ru/a', order_id: 1 }, 'k', sig)).toBe(true);
+    expect(verifyPayload({ ...data, order_id: '2' }, 'k', sig)).toBe(false);
   });
 
-  it('ссылка на оплату подписки подписана и содержит id подписки', async () => {
-    const p = new ProdamusProvider();
-    const { url } = await p.createPayment({ paymentId: 'pay-1', amount: 2490, title: '3 месяца', providerSubscriptionId: 1003, userId: '7', successUrl: 'https://t.me/b/app?startapp=pay_1', returnUrl: 'https://t.me/b/app', notificationUrl: 'https://x/api/payments/prodamus/webhook' });
-    const u = new URL(url);
-    expect(u.host).toBe('demo.payform.ru');
-    const q = qs.parse(u.search.slice(1)) as Record<string, unknown>;
-    expect(q).toMatchObject({ do: 'pay', order_id: 'pay-1', subscription: '1003' });
-    const { signature, ...rest } = q;
-    expect(prodamusVerify(rest, 'prodamus-test-secret', signature as string)).toBe(true);
-  });
-
-  it('webhook в формате формы с заголовком Sign выдаёт доступ', async () => {
+  it('старый адрес уведомлений Prodamus отвечает 200 и ничего не делает', async () => {
     const co = await buy(U, 'm1');
-    setPaymentProvider(new ProdamusProvider());
-    const data = { date: '2026-10-21T12:00:00+03:00', order_id: '777', order_num: co.paymentId, domain: 'demo.payform.ru', sum: '999.00', customer_phone: '+79990001122', customer_extra: `tg:${U}`, payment_status: 'success', products: [{ name: '30 дней', price: '999.00', quantity: '1', sum: '999.00' }] };
+    const data = { order_num: co.paymentId, sum: '999.00', customer_extra: `tg:${U}`, payment_status: 'success' };
     const app = await getApp();
-    const res = await app.inject({ method: 'POST', url: '/api/payments/prodamus/webhook', headers: { 'content-type': 'application/x-www-form-urlencoded', sign: prodamusSign(data, 'prodamus-test-secret') }, payload: qs.stringify(data) });
+    const res = await app.inject({ method: 'POST', url: '/api/payments/prodamus/webhook', headers: { 'content-type': 'application/x-www-form-urlencoded', sign: 'x'.repeat(64) }, payload: qs.stringify(data) });
     expect(res.statusCode).toBe(200);
-    expect(await prisma.subscription.count()).toBe(1);
-    const bad = await app.inject({ method: 'POST', url: '/api/payments/prodamus/webhook', headers: { 'content-type': 'application/x-www-form-urlencoded', sign: 'x'.repeat(64) }, payload: qs.stringify({ ...data, order_id: '778' }) });
-    expect(bad.statusCode).toBe(400);
+    expect(await prisma.subscription.count()).toBe(0);
+    expect(await prisma.paymentEvent.count()).toBe(0);
   });
 });

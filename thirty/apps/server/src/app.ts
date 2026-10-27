@@ -20,7 +20,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     trustProxy: true,
   });
 
-  // Prodamus присылает application/x-www-form-urlencoded с вложенными ключами products[0][name]
+  // Уведомления оплаты приходят как application/x-www-form-urlencoded (в т.ч. с вложенными ключами a[0][b])
   app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_req, body, done) => {
     try {
       done(null, { __raw: body, ...qs.parse(body as string, { depth: 5, arrayLimit: 100 }) });

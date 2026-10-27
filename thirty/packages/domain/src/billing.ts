@@ -26,7 +26,7 @@ export function coverage(firstFlow: ISODate, months: number): ISODate[] {
 
 /**
  * Естественная дата следующего списания подписки провайдера: дата оплаты + период.
- * ⚠ Поведение Prodamus на 29–31 числах нужно подтвердить в sandbox; фактическая дата из webhook имеет приоритет.
+ * Фактическая дата из уведомления провайдера имеет приоритет.
  */
 export function naturalProviderDate(paidOn: ISODate, months: number): ISODate {
   return addMonths(paidOn, months);
@@ -43,7 +43,7 @@ export function planPurchase(params: { now: Date; tz: string; months: number; la
   const lastFlow = flows[flows.length - 1];
   const targetChargeDate = chargeDateFor(lastFlow);
   const natural = naturalProviderDate(localDate(now, tz), months);
-  // Prodamus позволяет только отодвинуть дату. Если естественная дата уже позже 28-го — оставляем её.
+  // Дату списания только отодвигаем: если естественная дата уже позже 28-го — оставляем её.
   const chargeDate = natural <= targetChargeDate ? targetChargeDate : natural;
   return {
     flows,
