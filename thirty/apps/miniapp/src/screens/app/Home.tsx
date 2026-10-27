@@ -86,12 +86,19 @@ export function Home() {
       <div className="hero-card">
         <div className="row between">
           <span style={{ opacity: 0.9 }}>{before ? 'До старта' : 'Твой челлендж'}</span>
-          <span className={`hero-pill${before ? ' green' : ''}`}>{before ? 'Ожидание старта' : `День ${Math.min(day, flow.days)} из ${flow.days}`}</span>
+          <span className={`hero-pill${before ? ' green' : ''}`}>{before ? 'Ожидание старта' : p?.finale ? 'Финиш 🏁' : `День ${Math.min(day, flow.days)} из ${flow.days}`}</span>
         </div>
         {before ? (
           <>
             <StartCountdown startsOn={flow.startsOn} />
             <div style={{ opacity: 0.9 }}>Старт {humanDate(flow.startsOn)}. Твоё обещание себе уже зафиксировано ✨</div>
+          </>
+        ) : p?.finale ? (
+          <>
+            {/* Последний день и после: вместо «осталось 0 дней» — итоги и новый челлендж */}
+            <div className="hero-title">Ты прошла 30 дней! 🎉</div>
+            <div style={{ opacity: 0.9 }}>{p.finaleDone ? 'Итоги подведены — самое время поставить новую цель 💜' : 'Подведи итоги месяца и начни новый челлендж 💜'}</div>
+            <button className="btn hero-btn" onClick={() => nav('/finale')}>Начать новый челлендж<ArrowRight size={17} /></button>
           </>
         ) : (
           <>
@@ -103,13 +110,6 @@ export function Home() {
         )}
       </div>
 
-      {p?.finale && (
-        <button className="home-cta-card finale-cta" onClick={() => nav('/finale')}>
-          <span className="em">🎉</span>
-          <span className="grow"><b style={{ display: 'block', fontSize: 17 }}>{p.finaleDone ? 'Твои результаты за 30 дней' : 'Ты прошла 30 дней!'}</b><span style={{ opacity: 0.9, fontSize: 14 }}>{p.finaleDone ? 'Карточка для Stories и новая цель' : 'Посмотри свои итоги месяца'}</span></span>
-          <ChevronRight size={20} />
-        </button>
-      )}
       {p?.feedback && (
         <button className="home-cta-card feedback-cta" onClick={() => nav('/feedback')}>
           <span className="em">🥹</span>
