@@ -108,7 +108,7 @@ export function DemoPanel() {
       <Sheet open={open} onClose={() => setOpen(false)}>
         <div className="col" style={{ gap: 10 }}>
           <div className="row between"><div className="h3">Панель демо-версии</div><span className="muted small">{now} МСК</span></div>
-          <div className="muted small">Данные ненастоящие, оплата тестовая, сообщения в Telegram не отправляются. Переключатели применяются сразу.</div>
+          <div className="muted small">Данные ненастоящие, оплата тестовая, сообщения в Telegram не отправляются. Переключатели применяются сразу; кнопка «Применить» пересобирает выбранное состояние заново.</div>
           <Select label="Статус пользователя" value={state.status} options={STATUS} onChange={(v) => set('status', v)} />
           {state.status === 'active' && (
             <Select label="День челленджа" value={state.day} options={Array.from({ length: 30 }, (_, i) => [i + 1, `День ${i + 1}${DAYS_HINT[i + 1] ? ` — ${DAYS_HINT[i + 1]}` : ''}`] as [number, string])} onChange={(v) => set('day', v)} />
@@ -132,6 +132,8 @@ export function DemoPanel() {
           {state.status === 'done_nosub' && state.subscription !== 'renewed' && (
             <Select label="Таймер продления" value={state.timer} options={[[2400, '40:00'], [600, '10:00'], [30, '00:30'], [0, '00:00 — время вышло']]} onChange={(v) => set('timer', v)} />
           )}
+          {/* Повторный выбор того же пункта телефон не считает изменением — поэтому есть явная кнопка */}
+          <button className="btn btn-primary" disabled={busy} onClick={() => { window.clearTimeout(timer.current); void apply(state); }}>{busy ? 'Готовлю данные…' : 'Применить'}</button>
           <div className="row" style={{ gap: 8 }}>
             {state.status === 'active' && <button className="btn btn-secondary grow" disabled={busy} onClick={advance}>+1 день ⏩</button>}
             <button className="btn btn-light grow" disabled={busy} onClick={() => { window.clearTimeout(timer.current); setState(DEFAULT); try { localStorage.setItem(KEY, JSON.stringify(DEFAULT)); } catch { /* */ } void apply(DEFAULT); }}>Сбросить демоданные</button>
