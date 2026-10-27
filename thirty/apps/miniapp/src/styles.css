@@ -456,3 +456,4 @@ img { max-width: 100%; display: block; }
 .demo-field .select { padding: 10px 12px; font-size: 15px; }
 .demo-links { display: flex; flex-wrap: wrap; gap: 6px; }
 .demo-links button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 11px; font: inherit; font-size: 13px; color: var(--accent-ink); cursor: pointer; }
+.story-loading { color: #b7b2c8; font-size: 14px; }

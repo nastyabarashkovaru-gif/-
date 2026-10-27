@@ -171,6 +171,7 @@ export function FinaleScreen() {
   }, [data]);
 
   if (loading && !data) return <Screen id="FINALE"><Loading /></Screen>;
+  if (notOpen(error)) return <NotYet />;
   if (error || !data) return <Screen id="FINALE"><Header title="Итоги" back="/" /><ErrorState error={error} retry={reload} /></Screen>;
   const s = data.stats;
 
@@ -253,8 +254,27 @@ export function FinaleScreen() {
 
 interface CardResp { card: { name?: string; result?: string; days?: number; goal?: string; percent?: number; rank?: string }; imageUrl: string }
 
+/** Итоги и карточка открываются в последний день потока — до этого объясняем, а не показываем пустой экран */
+const notOpen = (e: unknown) => (e as { code?: string } | null)?.code === 'finale_not_open';
+
+function NotYet() {
+  const nav = useNavigate();
+  return (
+    <Screen id="FINALE_SOON">
+      <Header title="Итоги месяца" back="/" />
+      <div className="col center" style={{ gap: 12, alignItems: 'center', marginTop: '10vh' }}>
+        <span className="finale-badge">⏳</span>
+        <h1 className="hero" style={{ fontSize: 24 }}>Итоги откроются в последний день потока</h1>
+        <p className="lead" style={{ fontSize: 15 }}>В этот день ты увидишь свою статистику за месяц, оценишь цели и соберёшь карточку для Stories 💜</p>
+      </div>
+      <div className="spacer" />
+      <Cta onClick={() => nav('/')}>На главную</Cta>
+    </Screen>
+  );
+}
+
 export function ResultCardScreen() {
-  const { data: f } = useLoad(() => api<Finale>('/api/finale'));
+  const { data: f, error: fError } = useLoad(() => api<Finale>('/api/finale'));
   const [name, setName] = useState('');
   const [showName, setShowName] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -284,11 +304,12 @@ export function ResultCardScreen() {
         <span>{label}</span>
       </label>
     );
+  if (notOpen(fError)) return <NotYet />;
   return (
     <Screen id="RESULT_CARD">
       <Header title="Карточка для Stories" back="/finale" />
       <div className="story-frame">
-        {card ? <img src={card.imageUrl} alt="Карточка результатов" style={{ opacity: busy ? 0.6 : 1 }} /> : <Loading lines={2} />}
+        {card ? <img src={card.imageUrl} alt="Карточка результатов" style={{ opacity: busy ? 0.6 : 1 }} /> : <span className="story-loading">Собираем карточку…</span>}
       </div>
       <div className="card" style={{ gap: 10 }}>
         <span className="h3" style={{ fontSize: 16 }}>Мой результат</span>
