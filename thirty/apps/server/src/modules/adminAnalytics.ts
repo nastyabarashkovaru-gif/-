@@ -15,7 +15,8 @@ export interface FunnelFilters extends Range {
 }
 
 /**
- * Сквозная воронка по когорте: пользователи, впервые открывшие приложение в периоде.
+ * Сквозная воронка по когорте: пользователи, впервые пришедшие в периоде — нажали /start в боте
+ * (первое приветствие в журнале бота) или сразу открыли приложение по прямой ссылке.
  * Шаг засчитывается, если пользователь совершил событие (и все предыдущие шаги) — абсолютные числа,
  * % от предыдущего шага, % от входа, медианное время до следующего шага.
  */
@@ -25,7 +26,11 @@ export async function funnel(f: FunnelFilters) {
   if (f.device) extra.push(Prisma.sql`AND EXISTS (SELECT 1 FROM "AnalyticsEvent" d WHERE d."userId" = c."userId" AND d.device = ${f.device})`);
   const cohort = await prisma.$queryRaw<{ userId: bigint; first: Date }[]>`
     SELECT c."userId", c.first FROM (
-      SELECT "userId", MIN(ts) AS first FROM "AnalyticsEvent" WHERE "eventName" = 'app_open' AND "userId" IS NOT NULL GROUP BY "userId"
+      SELECT "userId", MIN(ts) AS first FROM (
+        SELECT "userId", ts FROM "AnalyticsEvent" WHERE "eventName" = 'app_open' AND "userId" IS NOT NULL
+        UNION ALL
+        SELECT "userId", "sentAt" AS ts FROM "BotMessageLog" WHERE "templateKey" = 'welcome' AND "sentAt" IS NOT NULL
+      ) x GROUP BY "userId"
     ) c WHERE c.first >= ${f.from} AND c.first < ${f.to} ${extra.length ? Prisma.join(extra, ' ') : Prisma.empty}`;
   const ids = cohort.map((c) => c.userId);
   const firstTs = new Map<string, Date>(cohort.map((c) => [c.userId.toString(), c.first]));

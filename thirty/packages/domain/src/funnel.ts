@@ -51,6 +51,7 @@ export type EventName = (typeof EVENT_NAMES)[number];
 
 /** Основная воронка ТЗ §10 */
 export const MAIN_FUNNEL: { key: string; title: string; event: EventName; screen?: string }[] = [
+  { key: 'bot', title: 'Открыли бота (/start)', event: 'app_open' },
   { key: 'open', title: 'Открыли приложение', event: 'app_open' },
   { key: 'o01', title: 'O01 Вступай в сообщество', event: 'onboarding_step_view', screen: 'O01' },
   { key: 'o02', title: 'O02 Механика (бадди, чаты, созвоны, отчёты)', event: 'onboarding_step_view', screen: 'O02' },

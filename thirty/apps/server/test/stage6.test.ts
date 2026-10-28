@@ -70,14 +70,18 @@ describe('аналитика (критерии №1, №14)', () => {
       await api('POST', '/api/events', uid, { events });
     }
     expect(await prisma.analyticsEvent.count({ where: { eventName: 'app_open' } })).toBe(4);
+    // нажал /start, но приложение не открыл — виден только на шаге «Открыли бота»
+    await prisma.user.upsert({ where: { id: 77n }, create: { id: 77n, firstName: 'Бот' }, update: {} });
+    await prisma.botMessageLog.create({ data: { userId: 77n, templateKey: 'welcome', dedupeKey: 'welcome:77', status: 'sent', sentAt: clock.now() } });
     const owner = await adminSession('owner');
     const f = await owner('GET', '/admin-api/analytics/funnel?from=2026-10-20&to=2026-10-22');
     const step = (k: string) => f.body.steps.find((s: { key: string }) => s.key === k);
-    expect(step('open')).toMatchObject({ count: 4, pctStart: 100 });
+    expect(step('bot')).toMatchObject({ count: 5, pctStart: 100 });
+    expect(step('open')).toMatchObject({ count: 4, pctPrev: 80, dropOff: 1 });
     expect(step('o01').count).toBe(4);
-    expect(step('o02')).toMatchObject({ count: 3, pctPrev: 75, pctStart: 75 });
+    expect(step('o02')).toMatchObject({ count: 3, pctPrev: 75, pctStart: 60 });
     expect(step('tariffs').count).toBe(3);
-    expect(step('select')).toMatchObject({ count: 2, pctPrev: 66.7, pctStart: 50 });
+    expect(step('select')).toMatchObject({ count: 2, pctPrev: 66.7, pctStart: 40 });
     expect(f.body.tariffClicks).toEqual({ m1: 1, m3: 1 });
     const scr = await owner('GET', '/admin-api/analytics/screens?from=2026-10-20&to=2026-10-22');
     expect(scr.body.find((s: { screen: string }) => s.screen === 'O01')).toMatchObject({ views: 4, users: 4, exits: 1 });
