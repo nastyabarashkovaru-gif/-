@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { api, rub } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
-import { BrandBar, Cta, Dots, ErrorState, Loading, Popup, Screen, useLoad } from '../../ui';
+import { BrandBar, Cta, Dots, ErrorState, Loading, Popup, Screen, plural, useLoad } from '../../ui';
 
 /** Онбординг: 3 экрана + тарифы (4-й). Подробные объяснения механик — по кнопкам «Подробнее» */
 const TOTAL = 4;
@@ -345,7 +345,7 @@ function Step({ n, children, cta, ctaClass = 'btn-dark' }: { n: number; children
 }
 
 /** Каркас шагов: логотип и «n / 4», полоски прогресса, контент, закреплённая внизу кнопка и «Назад» */
-function Stage({ n, children, cta, aboveCta }: { n: number; children: ReactNode; cta: ReactNode; aboveCta?: ReactNode }) {
+function Stage({ n, children, cta, aboveCta, arrow = true, ctaClass = '' }: { n: number; children: ReactNode; cta: ReactNode; aboveCta?: ReactNode; arrow?: boolean; ctaClass?: string }) {
   const next = useStep(n);
   const nav = useNavigate();
   return (
@@ -355,7 +355,7 @@ function Stage({ n, children, cta, aboveCta }: { n: number; children: ReactNode;
       <div className="onb2-body">{children}</div>
       <div className="onb2-foot">
         {aboveCta}
-        <button className="btn btn-primary btn-shine onb2-cta" onClick={() => { track(`onboarding_screen_${n}_continue`, { screen: screenId(n) }); next(); }}><span>{cta}</span><ArrowRight size={19} /></button>
+        <button className={`btn btn-primary btn-shine onb2-cta ${ctaClass}`} onClick={() => { track(`onboarding_screen_${n}_continue`, { screen: screenId(n) }); next(); }}><span>{cta}</span>{arrow && <ArrowRight size={19} />}</button>
         {n > 1 && <button className="link-accent onb2-back" onClick={() => nav(onbPath(n - 1))}><ArrowLeft size={16} />Назад</button>}
       </div>
     </Screen>
@@ -458,20 +458,44 @@ function ReviewsCarousel({ reviews }: { reviews: ReviewCard[] }) {
   );
 }
 
-const FACES = [['#efe9ff', '#6c51df'], ['#fde9ef', '#d87c9a'], ['#e8f7ee', '#2f9e68'], ['#fff0df', '#d79240']] as const;
+/** Число участников с плавным «набегающим» счётом при открытии экрана */
+function useCountUp(target: number, ms = 1400) {
+  const [v, setV] = useState(Math.round(target * 0.9));
+  useEffect(() => {
+    if (!target) return;
+    const from = Math.round(target * 0.9);
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - t0) / ms);
+      setV(Math.round(from + (target - from) * (1 - (1 - k) ** 3)));
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return v;
+}
+
+function LiveCount({ count }: { count: number }) {
+  const v = useCountUp(count);
+  return (
+    <div className="crowd">
+      <span className="live-dot" aria-hidden />
+      <span className="crowd-text">Сейчас с нами уже <b>{v}</b> {plural(v, 'участник', 'участника', 'участников')}</span>
+    </div>
+  );
+}
 
 export function Welcome() {
   const { data } = useLoad(() => api<{ reviews: ReviewCard[]; count: string }>('/api/public/onboarding'));
   return (
-    <Stage n={1} cta="Хочу вступить">
+    <Stage n={1} cta="Хочу вступить! 😍" arrow={false} ctaClass="cta-glow">
       <div className="col onb2-head">
         <h1 className="hero onb2-title">Вступай в наше сообщество «30 дней» 💜</h1>
         <p className="lead">Новые привычки, новые люди, новая версия тебя.</p>
       </div>
-      <div className="crowd">
-        <span className="crowd-faces">{FACES.map(([bg, fg], i) => <span key={i} style={{ background: bg, color: fg }}><User size={14} /></span>)}</span>
-        <span className="crowd-text">С нами уже больше <b>{(data?.count ?? '300').replace(/\+$/, '')}</b> участников!</span>
-      </div>
+      {data && <LiveCount count={Number.parseInt(data.count, 10) || 0} />}
       {data ? <ReviewsCarousel reviews={data.reviews} /> : <div className="rv-skeleton" />}
     </Stage>
   );
