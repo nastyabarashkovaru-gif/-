@@ -327,7 +327,7 @@ export function AboutScreen() {
 /* ───────────── Шаги 1–3: результаты → система → что входит (ТЗ 28.10) ───────────── */
 
 /** Каркас шагов: логотип и «n / 4», полоски прогресса, контент, закреплённая внизу кнопка и «Назад» */
-function Stage({ n, children, cta }: { n: number; children: ReactNode; cta: ReactNode }) {
+function Stage({ n, children, cta, aboveCta }: { n: number; children: ReactNode; cta: ReactNode; aboveCta?: ReactNode }) {
   const next = useStep(n);
   const nav = useNavigate();
   return (
@@ -336,6 +336,7 @@ function Stage({ n, children, cta }: { n: number; children: ReactNode; cta: Reac
       <div className="steps">{Array.from({ length: TOTAL }, (_, i) => <i key={i} className={i < n ? 'on' : ''} />)}</div>
       <div className="onb2-body">{children}</div>
       <div className="onb2-foot">
+        {aboveCta}
         <button className="btn btn-primary btn-shine onb2-cta" onClick={() => { track(`onboarding_screen_${n}_continue`, { screen: screenId(n) }); next(); }}><span>{cta}</span><ArrowRight size={19} /></button>
         {n > 1 && <button className="link-accent onb2-back" onClick={() => nav(onbPath(n - 1))}><ArrowLeft size={16} />Назад</button>}
       </div>
@@ -371,10 +372,8 @@ function ReviewsCarousel({ reviews }: { reviews: ReviewCard[] }) {
       <div className="rv-track" ref={ref} onScroll={onScroll}>
         {reviews.map((r, i) => (
           <button key={r.id} className={`rv-card t${i % 6}`} onClick={() => { if (!r.image) return; track('review_original_open', { screen: 'O01', metadata: { review: r.id } }); setOpen(r); }}>
-            <span className="rv-emoji">{r.emoji}</span>
-            <span className="rv-title">{r.title}</span>
-            {r.text && <span className="rv-text">{r.text}</span>}
-            {r.image && <span className="rv-more">Смотреть отзыв <ChevronRight size={16} /></span>}
+            <span className="rv-cap"><span className="rv-emoji">{r.emoji}</span><span className="rv-title">{r.title}</span></span>
+            {r.image && <ReviewImage src={r.image} />}
           </button>
         ))}
       </div>
@@ -392,22 +391,33 @@ function ReviewsCarousel({ reviews }: { reviews: ReviewCard[] }) {
   );
 }
 
+/** Скриншот прямо в карточке: высокие показываются с начала, широкие — целиком */
+function ReviewImage({ src }: { src: string }) {
+  const [wide, setWide] = useState(false);
+  return (
+    <span className="rv-img">
+      <img src={src} alt="Отзыв участницы" loading="lazy" className={wide ? 'wide' : ''} onLoad={(e) => setWide(e.currentTarget.naturalWidth / e.currentTarget.naturalHeight > 1.15)} />
+    </span>
+  );
+}
+
 const FACES = [['#efe9ff', '#6c51df'], ['#fde9ef', '#d87c9a'], ['#e8f7ee', '#2f9e68'], ['#fff0df', '#d79240']] as const;
 
 export function Welcome() {
   const { data } = useLoad(() => api<{ reviews: ReviewCard[]; count: string }>('/api/public/onboarding'));
   return (
-    <Stage n={1} cta="Хочу вступить">
+    <Stage n={1} cta="Хочу вступить" aboveCta={
+      <div className="crowd">
+        <span className="crowd-faces">{FACES.map(([bg, fg], i) => <span key={i} style={{ background: bg, color: fg }}><User size={14} /></span>)}</span>
+        <span className="crowd-text">С нами уже <b>{data?.count ?? '300+'}</b> участников!</span>
+      </div>
+    }>
       <div className="col onb2-head">
         <h1 className="hero onb2-title">Вступай в наше сообщество «30 дней» 💜</h1>
         <p className="lead">Новые привычки, новые люди, новая версия тебя.</p>
       </div>
       <div className="onb2-label">Посмотри, чего уже добились наши участники 👇</div>
       {data ? <ReviewsCarousel reviews={data.reviews} /> : <div className="rv-skeleton" />}
-      <div className="crowd">
-        <span className="crowd-faces">{FACES.map(([bg, fg], i) => <span key={i} style={{ background: bg, color: fg }}><User size={16} /></span>)}</span>
-        <span className="crowd-text">👥 Нас уже <b>{data?.count ?? '300+'}</b> человек!</span>
-      </div>
     </Stage>
   );
 }

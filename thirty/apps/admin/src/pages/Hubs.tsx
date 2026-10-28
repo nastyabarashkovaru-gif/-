@@ -31,7 +31,7 @@ function Hub({ title, items, can }: { title: string; items: HubItem[]; can: (p: 
 
 export const MANAGE: HubItem[] = [
   { to: '/flows', title: 'Потоки', text: 'Старт каждого месяца, участники, итоги', icon: CalendarRange, perm: 'flows' },
-  { to: '/onboarding-reviews', title: 'Первый экран: отзывы', text: 'Карусель результатов участниц и «Нас уже 300+»', icon: Star, perm: 'tariffs' },
+  { to: '/onboarding-reviews', title: 'Первый экран: отзывы', text: 'Карусель результатов участниц и «С нами уже 300+»', icon: Star, perm: 'tariffs' },
   { to: '/tariffs', title: 'Тарифы и ценность', text: 'Цены, акция, что входит в клуб', icon: Layers, perm: 'tariffs' },
   { to: '/promos', title: 'Промокоды и сторис', text: 'СТАРТ, персональные коды, проверка сторис', icon: BadgePercent, perm: 'tariffs' },
   { to: '/bot', title: 'Сообщения бота', text: 'Приветствие, дожимы, напоминания', icon: Bot, perm: 'bot' },

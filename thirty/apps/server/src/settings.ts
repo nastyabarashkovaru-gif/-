@@ -48,13 +48,10 @@ export const DEFAULT_REVIEWS: ReviewCard[] = [
   { id: 'reels', emoji: '📈🚀', title: '309 000 просмотров на одном Reels!', image: '/img/reviews/reels.jpg', enabled: true },
   { id: 'veneers', emoji: '🦷😍', title: 'Начала лечение зубов и готовится поставить виниры!', text: '«Месяц назад даже не могла мечтать об этом».', image: '/img/reviews/veneers.jpg', enabled: true },
   { id: 'income', emoji: '💰🔥', title: '100 000 ₽ за один день!', text: 'Впервые пробила свой потолок по заработку.', image: '/img/reviews/income.jpg', enabled: true },
-  { id: 'english', emoji: '🇬🇧💜', title: 'Английский стал ежедневной привычкой!', text: 'Участница занимается уже 51 день.', image: '/img/reviews/english.jpg', enabled: true },
-  { id: 'blog', emoji: '📱✨', title: '51 день без пропусков в ведении блога!', image: '/img/reviews/english.jpg', enabled: true },
-  { id: 'learning', emoji: '📚🔥', title: 'Перестала откладывать обучение!', text: 'Занимается почти каждый день.', image: '/img/reviews/learning.jpg', enabled: true },
+  { id: 'english', emoji: '🇬🇧📱', title: '51 день английского и блога без пропусков!', text: '«Моя бадди меня поддерживает… Очень…»', image: '/img/reviews/english.jpg', enabled: true },
+  { id: 'learning', emoji: '📚🌟', title: 'Перестала откладывать и решилась на перемены!', text: 'Обучается почти каждый день.', image: '/img/reviews/learning.jpg', enabled: true },
   { id: 'discipline', emoji: '💪😍', title: 'Появилась дисциплина, которой раньше не хватало!', text: '«Очень дисциплинирует отчётность».', image: '/img/reviews/discipline.jpg', enabled: true },
   { id: 'voice', emoji: '🎙️💜', title: 'Результат уже за полмесяца!', text: '«Даже муж заметил».', image: '/img/reviews/voice.jpg', enabled: true },
-  { id: 'buddy', emoji: '🤝❤️', title: 'Нашла поддержку!', text: '«Моя бадди меня поддерживает… Очень…»', image: '/img/reviews/english.jpg', enabled: true },
-  { id: 'decided', emoji: '🌟💜', title: 'Решилась изменить свою жизнь!', text: 'Начала действовать вместо постоянного откладывания.', image: '/img/reviews/learning.jpg', enabled: true },
   { id: 'weight2', emoji: '🥗💪', title: '−1,5 кг на пути к цели!', text: 'Держит калораж и двигается каждый день.', image: '/img/reviews/weight2.jpg', enabled: true },
 ];
 
@@ -70,7 +67,7 @@ export const DEFAULT_SETTINGS = {
     'Приз получают участники с идеальным результатом: 100% обязательных выполнений по всем целям, ни одного пропущенного ежедневного отчёта и подтверждённое достижение всех выбранных целей. Все претенденты проходят ручную проверку доказательств. Призовых мест не больше трёх; при равенстве места распределяются по публичному тай-брейку: процент выполнения → полностью закрытые дни → самая длинная серия → время подачи итоговой анкеты.',
   'value.items': VALUE_ITEMS_V2,
   'onboarding.reviews': DEFAULT_REVIEWS,
-  /** «Нас уже … человек!» на первом экране */
+  /** «С нами уже … участников!» на первом экране */
   'community.count': '300+',
   'evidence.policy': {
     money: { evidence: 'checkbox_photo', photoRequired: false, selfReported: false, note: 'Скриншот по желанию. Не показывайте номера карт и суммы на счетах.' },
