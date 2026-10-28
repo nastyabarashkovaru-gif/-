@@ -22,7 +22,7 @@ async function uploadImage(file: File): Promise<string> {
 
 /** Первый экран онбординга: карточки результатов участниц (порядок, текст, оригинальный скриншот) и «Нас уже 300+» */
 export function OnboardingReviews() {
-  const s = useLoad(() => api<{ reviews: Review[]; count: string }>('/admin-api/onboarding'));
+  const s = useLoad(() => api<{ reviews: Review[]; count: string; since: string; live: number }>('/admin-api/onboarding'));
   const [list, setList] = useState<Review[]>([]);
   const [count, setCount] = useState('');
   const [dirty, setDirty] = useState(false);
@@ -46,7 +46,12 @@ export function OnboardingReviews() {
       <View s={s}>{() => (
         <>
           <div className="block">
-            <label className="f">«С нами уже больше … участников!» — число<input value={count} onChange={(e) => { setCount(e.target.value); setDirty(true); }} placeholder="300" /></label>
+            <div className="money-hero" style={{ margin: '0 0 10px' }}>
+              <span>Сейчас в приложении</span>
+              <b>{s.data!.live}</b>
+              <em>«Сейчас с нами уже … участников!» — стартовое число {s.data!.count}{s.data!.since ? ` + новые оплатившие с ${new Date(s.data!.since).toLocaleDateString('ru-RU')}` : ''}</em>
+            </div>
+            <label className="f">Стартовое число (после сохранения отсчёт новых оплат начнётся заново)<input value={count} inputMode="numeric" onChange={(e) => { setCount(e.target.value.replace(/\D/g, '')); setDirty(true); }} placeholder="274" /></label>
           </div>
           <div className="list">
             {list.map((r, k) => (

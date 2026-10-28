@@ -62,7 +62,9 @@ export const DEFAULT_SETTINGS = {
   ] as ValueItem[],
   'onboarding.reviews': DEFAULT_REVIEWS,
   /** «С нами уже больше … участников!» на первом экране (число) */
-  'community.count': '300',
+  'community.count': '274',
+  /** С какого момента к стартовому числу прибавляются новые оплатившие (ISO); пусто — только стартовое число */
+  'community.countSince': '',
   'evidence.policy': {
     money: { evidence: 'checkbox_photo', photoRequired: false, selfReported: false, note: 'Скриншот по желанию. Не показывайте номера карт и суммы на счетах.' },
     weightloss: { evidence: 'photo', photoRequired: true, selfReported: false, note: 'Фото тарелки, весов или тренировки.' },

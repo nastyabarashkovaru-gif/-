@@ -135,7 +135,10 @@ export async function adminRoutes(app: FastifyInstance) {
     });
 
     // ───────── Онбординг: карусель результатов и «Нас уже 300+» ─────────
-    r.get('/admin-api/onboarding', perm('tariffs'), async () => ({ reviews: await getSetting('onboarding.reviews'), count: await getSetting('community.count') }));
+    r.get('/admin-api/onboarding', perm('tariffs'), async () => {
+      const { communityCount } = await import('../modules/community');
+      return { reviews: await getSetting('onboarding.reviews'), count: await getSetting('community.count'), since: await getSetting('community.countSince'), live: await communityCount() };
+    });
     r.put('/admin-api/onboarding', perm('tariffs'), async (req) => {
       const body = parse(z.object({
         count: z.string().trim().min(1).max(20),
@@ -146,7 +149,11 @@ export async function adminRoutes(app: FastifyInstance) {
       }), req.body);
       await audit(req, 'onboarding.update', 'setting', 'onboarding.reviews', { before: { reviews: await getSetting('onboarding.reviews'), count: await getSetting('community.count') }, after: body });
       await setSetting('onboarding.reviews', body.reviews);
-      await setSetting('community.count', body.count);
+      // Новое стартовое число — отсчёт новых оплат начинается заново с этого момента
+      if (body.count !== (await getSetting('community.count'))) {
+        await setSetting('community.count', body.count);
+        await setSetting('community.countSince', clock.now().toISOString());
+      }
       return body;
     });
     /** Скриншот отзыва (публичный файл: отзывы и так показываются всем на первом экране) */

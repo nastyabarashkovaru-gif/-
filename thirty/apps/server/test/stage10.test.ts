@@ -135,7 +135,7 @@ describe('онбординг: отзывы и «Нас уже 300+»', () => {
     const { setSetting, getSetting } = await import('../src/settings');
     const r = await api('GET', '/api/public/onboarding', 801);
     expect(r.status).toBe(200);
-    expect(r.body.count).toBe('300');
+    expect(r.body.count).toBe('274');
     expect(r.body.reviews.slice(0, 3).map((x: { id: string }) => x.id)).toEqual(['weight', 'reels', 'veneers']);
     expect(r.body.reviews[0].image).toBe('/img/reviews/weight.jpg');
     expect(new Set(r.body.reviews.map((x: { image: string }) => x.image)).size).toBe(r.body.reviews.length);
@@ -145,7 +145,14 @@ describe('онбординг: отзывы и «Нас уже 300+»', () => {
     const r2 = await api('GET', '/api/public/onboarding', 801);
     expect(r2.body.reviews.map((x: { id: string }) => x.id)).toEqual(['reels', 'up']);
     expect(r2.body.reviews[1].image).toBe('/api/public/review-image/0b0b0b0b-1111-2222-3333-444444444444.jpg');
-    expect(r2.body.count).toBe('350+');
+    expect(r2.body.count).toBe('350');
+    // каждая новая первая оплата после старта отсчёта (+1 на человека; тестовые не считаются)
+    await setSetting('community.countSince', '2026-10-01T00:00:00Z');
+    for (const [id, test] of [[811, false], [812, true]] as const) {
+      await prisma.user.create({ data: { id: BigInt(id), firstName: 'П' } });
+      await prisma.payment.create({ data: { userId: BigInt(id), kind: 'initial', status: 'paid', amount: 999, test, paidAt: new Date('2026-10-20T10:00:00Z'), idempotencyKey: `cnt-${id}` } });
+    }
+    expect((await api('GET', '/api/public/onboarding', 801)).body.count).toBe('351');
     const v = await api('GET', '/api/public/value', 801);
     expect(v.body.items.map((x: { title: string }) => x.title)).toContain('Еженедельные разборы');
   });

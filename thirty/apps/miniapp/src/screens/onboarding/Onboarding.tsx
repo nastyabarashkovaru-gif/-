@@ -458,17 +458,20 @@ function ReviewsCarousel({ reviews }: { reviews: ReviewCard[] }) {
   );
 }
 
-/** Число участников с плавным «набегающим» счётом при открытии экрана */
+/** Число плавно «набегает»: при открытии — с чуть меньшего, при росте — от прежнего значения к новому */
 function useCountUp(target: number, ms = 1400) {
   const [v, setV] = useState(Math.round(target * 0.9));
+  const cur = useRef(v);
   useEffect(() => {
     if (!target) return;
-    const from = Math.round(target * 0.9);
+    const from = cur.current;
     const t0 = performance.now();
     let raf = 0;
     const tick = (t: number) => {
       const k = Math.min(1, (t - t0) / ms);
-      setV(Math.round(from + (target - from) * (1 - (1 - k) ** 3)));
+      const x = Math.round(from + (target - from) * (1 - (1 - k) ** 3));
+      cur.current = x;
+      setV(x);
       if (k < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -477,12 +480,21 @@ function useCountUp(target: number, ms = 1400) {
   return v;
 }
 
-function LiveCount({ count }: { count: number }) {
+/** «Сейчас с нами уже N участников!» — растёт с каждой новой оплатой, обновляется, пока экран открыт */
+function LiveCount({ initial }: { initial: number }) {
+  const [count, setCount] = useState(initial);
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      if (document.hidden) return;
+      api<{ count: string }>('/api/public/onboarding').then((r) => setCount(Number.parseInt(r.count, 10) || 0)).catch(() => undefined);
+    }, 20_000);
+    return () => window.clearInterval(t);
+  }, []);
   const v = useCountUp(count);
   return (
     <div className="crowd">
       <span className="live-dot" aria-hidden />
-      <span className="crowd-text">Сейчас с нами уже <b>{v}</b> {plural(v, 'участник', 'участника', 'участников')}</span>
+      <span className="crowd-text">Сейчас с нами уже <b>{v}</b> {plural(v, 'участник', 'участника', 'участников')}!</span>
     </div>
   );
 }
@@ -495,7 +507,7 @@ export function Welcome() {
         <h1 className="hero onb2-title">Вступай в наше сообщество «30 дней» 💜</h1>
         <p className="lead">Новые привычки, новые люди, новая версия тебя.</p>
       </div>
-      {data && <LiveCount count={Number.parseInt(data.count, 10) || 0} />}
+      {data && <LiveCount initial={Number.parseInt(data.count, 10) || 0} />}
       {data ? <ReviewsCarousel reviews={data.reviews} /> : <div className="rv-skeleton" />}
     </Stage>
   );

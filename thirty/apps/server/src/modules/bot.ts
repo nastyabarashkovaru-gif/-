@@ -57,6 +57,14 @@ export async function seedTemplates() {
     if (d) await prisma.botMessageTemplate.update({ where: { key: 'trackers_granted' }, data: { text: d.text } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v6, value: { at: new Date().toISOString() } } });
   }
+  // Разово (29.10): «Сейчас с нами уже 274 участника» — дальше +1 за каждую новую оплату
+  const v8 = 'maintenance.communityV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v8 } }))) {
+    const { setSetting } = await import('../settings');
+    await setSetting('community.count', '274');
+    await setSetting('community.countSince', new Date().toISOString());
+    await prisma.setting.create({ data: { key: v8, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {

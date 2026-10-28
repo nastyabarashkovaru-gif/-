@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { storage } from '../lib/storage';
+import { communityCount } from '../modules/community';
 import { requireUser } from '../auth/telegram';
 import { clock } from '../clock';
 import { config, isProd } from '../config';
@@ -45,7 +46,7 @@ export async function billingRoutes(app: FastifyInstance) {
     /** Первый экран онбординга: карусель результатов участниц и «Нас уже 300+» */
     r.get('/api/public/onboarding', async () => ({
       reviews: (await getSetting('onboarding.reviews')).filter((x) => x.enabled).map((x) => ({ ...x, image: x.image ? reviewImageUrl(x.image) : null })),
-      count: await getSetting('community.count'),
+      count: String(await communityCount()),
     }));
 
     // Промокоды: проверка и применение только на сервере
