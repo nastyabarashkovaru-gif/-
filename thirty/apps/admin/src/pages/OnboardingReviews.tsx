@@ -46,7 +46,7 @@ export function OnboardingReviews() {
       <View s={s}>{() => (
         <>
           <div className="block">
-            <label className="f">Плашка «С нами уже … участников!»<input value={count} onChange={(e) => { setCount(e.target.value); setDirty(true); }} placeholder="300+" /></label>
+            <label className="f">«С нами уже больше … участников!» — число<input value={count} onChange={(e) => { setCount(e.target.value); setDirty(true); }} placeholder="300" /></label>
           </div>
           <div className="list">
             {list.map((r, k) => (

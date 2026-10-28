@@ -463,17 +463,15 @@ const FACES = [['#efe9ff', '#6c51df'], ['#fde9ef', '#d87c9a'], ['#e8f7ee', '#2f9
 export function Welcome() {
   const { data } = useLoad(() => api<{ reviews: ReviewCard[]; count: string }>('/api/public/onboarding'));
   return (
-    <Stage n={1} cta="Хочу вступить" aboveCta={
-      <div className="crowd">
-        <span className="crowd-faces">{FACES.map(([bg, fg], i) => <span key={i} style={{ background: bg, color: fg }}><User size={14} /></span>)}</span>
-        <span className="crowd-text">С нами уже <b>{data?.count ?? '300+'}</b> участников!</span>
-      </div>
-    }>
+    <Stage n={1} cta="Хочу вступить">
       <div className="col onb2-head">
         <h1 className="hero onb2-title">Вступай в наше сообщество «30 дней» 💜</h1>
         <p className="lead">Новые привычки, новые люди, новая версия тебя.</p>
       </div>
-      <div className="onb2-label">Посмотри, чего уже добились наши участники 👇</div>
+      <div className="crowd">
+        <span className="crowd-faces">{FACES.map(([bg, fg], i) => <span key={i} style={{ background: bg, color: fg }}><User size={14} /></span>)}</span>
+        <span className="crowd-text">С нами уже больше <b>{(data?.count ?? '300').replace(/\+$/, '')}</b> участников!</span>
+      </div>
       {data ? <ReviewsCarousel reviews={data.reviews} /> : <div className="rv-skeleton" />}
     </Stage>
   );

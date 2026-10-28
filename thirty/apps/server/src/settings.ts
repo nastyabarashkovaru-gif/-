@@ -61,8 +61,8 @@ export const DEFAULT_SETTINGS = {
     { id: 'support', emoji: '💜', title: 'Поддержка и окружение', description: 'Найдёшь новых друзей, с кем будешь расти дальше вместе', price: 0, enabled: true },
   ] as ValueItem[],
   'onboarding.reviews': DEFAULT_REVIEWS,
-  /** «С нами уже … участников!» на первом экране */
-  'community.count': '300+',
+  /** «С нами уже больше … участников!» на первом экране (число) */
+  'community.count': '300',
   'evidence.policy': {
     money: { evidence: 'checkbox_photo', photoRequired: false, selfReported: false, note: 'Скриншот по желанию. Не показывайте номера карт и суммы на счетах.' },
     weightloss: { evidence: 'photo', photoRequired: true, selfReported: false, note: 'Фото тарелки, весов или тренировки.' },

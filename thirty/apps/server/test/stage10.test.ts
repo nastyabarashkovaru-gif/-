@@ -135,7 +135,7 @@ describe('онбординг: отзывы и «Нас уже 300+»', () => {
     const { setSetting, getSetting } = await import('../src/settings');
     const r = await api('GET', '/api/public/onboarding', 801);
     expect(r.status).toBe(200);
-    expect(r.body.count).toBe('300+');
+    expect(r.body.count).toBe('300');
     expect(r.body.reviews.slice(0, 3).map((x: { id: string }) => x.id)).toEqual(['weight', 'reels', 'veneers']);
     expect(r.body.reviews[0].image).toBe('/img/reviews/weight.jpg');
     expect(new Set(r.body.reviews.map((x: { image: string }) => x.image)).size).toBe(r.body.reviews.length);
