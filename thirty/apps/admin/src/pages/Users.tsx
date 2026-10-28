@@ -46,7 +46,7 @@ const STAGE_RU: Record<string, string> = { new: 'Новый', onboarding: 'Он�
 const SUB_RU: Record<string, string> = { prestart: 'ждёт старта', active: 'активна', past_due: 'долг', canceled_at_period_end: 'отменена', expired: 'закончилась' };
 
 /** A06: карточка пользователя — воронка, экраны, тарифные клики, оплаты, подписка, потоки, отчёты, согласия, модерация */
-export function UserDetail({ canEdit }: { canEdit: boolean }) {
+export function UserDetail({ canEdit, canStartOver = false }: { canEdit: boolean; canStartOver?: boolean }) {
   const { id = '' } = useParams();
   const s = useLoad(() => api(`/admin-api/users/${id}`), [id]);
   return (
@@ -61,6 +61,15 @@ export function UserDetail({ canEdit }: { canEdit: boolean }) {
             <div>Бот: {u.user.allowsWrite ? 'может писать' : 'не может писать'}{u.user.botBlocked ? ' · заблокировал бота' : ''} · реклама: {u.user.marketingOptIn ? 'да' : 'нет'}</div>
             <div>Этап: {u.user.onboardingStage} · последний экран: {u.user.lastScreen ?? '—'}</div>
             {canEdit && <button className="btn light" style={{ marginTop: 8 }} onClick={async () => { if (confirm('Сбросить таймер скидки? При следующем открытии тарифов он начнётся заново (3 часа).')) { await api(`/admin-api/users/${u.user.id}/reset-offer`, { body: {} }); alert('Таймер сброшен'); } }}>Сбросить таймер скидки</button>}
+            {canStartOver && (
+              <button className="btn light" style={{ marginTop: 8 }} onClick={async () => {
+                if (!confirm('Начать путь заново?\n\nАвтосписание отключится в CloudPayments, подписка закроется, анкета и цели удалятся, таймер скидки начнётся заново. Прежние оплаты станут тестовыми (в выручку не входят).\n\nДеньги этим не возвращаются — возврат делается в кабинете CloudPayments.')) return;
+                const r = await api(`/admin-api/users/${u.user.id}/start-over`, { body: {} });
+                const off = r.subscriptions.every((s: any) => s.autopayOff);
+                alert(off ? 'Готово: можно пройти путь с начала — открой бота и нажми /start.' : 'Анкета и подписка сброшены, но CloudPayments не подтвердил отключение автосписания — проверь подписку в кабинете CloudPayments.');
+                location.reload();
+              }}>Начать путь заново</button>
+            )}
           </div>
           <div className="card">
             <h2>Воронка</h2>

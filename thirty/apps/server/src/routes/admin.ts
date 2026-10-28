@@ -219,6 +219,13 @@ export async function adminRoutes(app: FastifyInstance) {
       await audit(req, 'offer.reset', 'user', req.params.id);
       return { ok: true, removed: r.count };
     });
+    /** Владелец проверяет путь на себе: подписка закрыта, автосписание отключено, анкета удалена */
+    r.post<{ Params: { id: string } }>('/admin-api/users/:id/start-over', perm('roles'), async (req) => {
+      const { startOver } = await import('../modules/startOver');
+      const res = await startOver(BigInt(req.params.id));
+      await audit(req, 'user.start_over', 'user', req.params.id, { after: res });
+      return jsonSafe(res);
+    });
     r.post<{ Params: { id: string } }>('/admin-api/users/:id/cancel-subscription', perm('payments'), async (req) => {
       const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(500) }), req.body);
       const r = await cancelAutoRenew(BigInt(req.params.id), `support: ${reason}`);

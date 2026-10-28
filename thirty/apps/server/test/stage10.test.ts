@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clock, prisma, resetDb } from './helpers';
+import { api, clock, prisma, resetDb } from './helpers';
+import { handleWebhook } from '../src/modules/billing';
+import { startOver } from '../src/modules/startOver';
+import { paymentProvider, setPaymentProvider } from '../src/payments';
+import { MockProvider, signMock } from '../src/payments/mock';
 import { homeFunnel, homeMoney, homeRetention, resolveRange } from '../src/modules/adminHome';
 
 beforeEach(resetDb);
@@ -63,5 +67,40 @@ describe('главный экран админки', () => {
     const ret = await homeRetention(await resolveRange({ period: '30d' }));
     expect(ret).toMatchObject({ due: 2, renewed: 1, notRenewed: 1, renewedPct: 50, churnPct: 50 });
     expect(ret.cohorts.find((c) => c.month === '2026-09-01')).toMatchObject({ size: 2, cells: [100, 50, null, null, null, null] });
+  });
+});
+
+async function buy(userId: number, key: string) {
+  await api('POST', '/api/consents', userId, { kinds: ['offer', 'personal_data'] });
+  const co = await api('POST', '/api/checkout', userId, { tariffId: 'm1', idempotencyKey: key });
+  expect(co.status).toBe(200);
+  const data = { order_num: co.body.paymentId, order_id: `pd-${co.body.paymentId}`, sum: `${co.body.amount}.00`, payment_status: 'success', customer_extra: `tg:${userId}`, subscription_id: 'pd-sub' };
+  await handleWebhook(paymentProvider().parseWebhook({ sign: signMock(data) }, data), JSON.stringify(data));
+}
+
+describe('начать путь заново', () => {
+  it('подписка закрыта, оплаты тестовые, анкета удалена — и можно снова купить', async () => {
+    setPaymentProvider(new MockProvider());
+    clock.set('2026-10-21T09:00:00Z');
+    await api('POST', '/api/offer/start', 501);
+    await buy(501, 'start-over-1');
+    const m = await prisma.flowMembership.findFirstOrThrow({ where: { userId: 501n } });
+    await prisma.flowMembership.update({ where: { id: m.id }, data: { expectation: 'Хочу дисциплину' } });
+    await prisma.goal.create({ data: { membershipId: m.id, category: 'blog', title: 'Блог', successCriterion: '1000' } });
+    await prisma.user.update({ where: { id: 501n }, data: { interests: ['blog'], city: 'Москва' } });
+
+    const res = await startOver(501n);
+    expect(res.subscriptions[0].autopayOff).toBe(true);
+    expect(await prisma.subscription.findFirstOrThrow({ where: { userId: 501n } })).toMatchObject({ status: 'expired', autoRenew: false, test: true });
+    expect(await prisma.payment.count({ where: { userId: 501n, status: 'paid', test: false } })).toBe(0);
+    expect(await prisma.goal.count({ where: { membershipId: m.id } })).toBe(0);
+    expect(await prisma.priceOffer.count({ where: { userId: 501n } })).toBe(0);
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: 501n } })).toMatchObject({ interests: [], city: null, onboardingStage: 'new' });
+
+    // снова как новичок: новый таймер, оплата, анкета с чистого листа
+    expect((await api('POST', '/api/offer/start', 501)).status).toBe(200);
+    await buy(501, 'start-over-2');
+    expect(await prisma.subscription.count({ where: { userId: 501n, status: { in: ['prestart', 'active'] }, test: false } })).toBe(1);
+    expect(await prisma.flowMembership.findUniqueOrThrow({ where: { id: m.id } })).toMatchObject({ status: 'reserved', expectation: null });
   });
 });

@@ -122,7 +122,7 @@ function Shell({ me, can, logout }: { me: MeAdmin; can: (p: string) => boolean; 
           <Route path="/payments" element={<Payments />} />
           <Route path="/flows" element={<Flows />} />
           <Route path="/users" element={<Users />} />
-          <Route path="/users/:id" element={<UserDetail canEdit={can('usersEdit')} />} />
+          <Route path="/users/:id" element={<UserDetail canEdit={can('usersEdit')} canStartOver={can('roles')} />} />
           <Route path="/moderation" element={<Moderation />} />
           <Route path="/rating" element={<Rating canEdit={can('settings')} />} />
           <Route path="/prizes" element={<Prizes />} />
