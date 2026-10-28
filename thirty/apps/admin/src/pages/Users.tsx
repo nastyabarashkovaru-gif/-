@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, d, dt, rub } from '../api';
-import { Status, SubNav, View, useLoad, withReason } from '../ui';
+import { Sheet, Status, SubNav, View, useLoad, withReason } from '../ui';
 
 /** A06: поиск пользователей */
 export function Users() {
@@ -45,6 +45,42 @@ export function Users() {
 const STAGE_RU: Record<string, string> = { new: 'Новый', onboarding: 'Онбординг', tariffs: 'Смотрит тарифы', checkout: 'Оплачивает', paid: 'Оплатил', registered: 'Заполнил анкету' };
 const SUB_RU: Record<string, string> = { prestart: 'ждёт старта', active: 'активна', past_due: 'долг', canceled_at_period_end: 'отменена', expired: 'закончилась' };
 
+/** Удалить из текущего и будущих потоков: не попадёт в подбор бадди, выйдет из пары и закрытых чатов */
+function RemoveMember({ userId, revoked, onDone }: { userId: string; revoked: boolean; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [closeSub, setCloseSub] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const remove = async () => {
+    setBusy(true);
+    try {
+      const r = await api(`/admin-api/users/${userId}/remove`, { body: { reason, closeSubscription: closeSub } });
+      alert(r.flows.length ? `Удалена из потоков: ${r.flows.join(', ')}.${r.pairsDissolved ? ' Пара с бадди распущена — партнёр получит нового.' : ''}${r.subscriptionsClosed ? ' Подписка закрыта, автосписание отключено.' : ''}` : 'Участница не состоит в текущем или будущем потоке.');
+      setOpen(false);
+      onDone();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <button className="btn danger" style={{ marginTop: 8 }} onClick={() => setOpen(true)}>Удалить участника</button>
+      {revoked && <button className="btn light" style={{ marginTop: 8 }} onClick={async () => { if (!confirm('Вернуть участника в потоки, из которых его удалили?')) return; const r = await api(`/admin-api/users/${userId}/restore`, { body: {} }); alert(r.flows.length ? `Вернули в: ${r.flows.join(', ')}` : 'Нет потоков, куда можно вернуть'); onDone(); }}>Вернуть в поток</button>}
+      <Sheet open={open} onClose={() => setOpen(false)} title="Удалить участника">
+        <div className="form">
+          <p className="sub" style={{ margin: 0 }}>Из текущего и будущих потоков: не попадёт в подбор бадди, выйдет из пары (партнёр получит нового) и из закрытых чатов. Анкета и отчёты сохранятся — участника можно вернуть.</p>
+          <label className="f">Причина (для журнала)<input value={reason} placeholder="Например: не будет участвовать" onChange={(e) => setReason(e.target.value)} /></label>
+          <label className="switch"><input type="checkbox" checked={closeSub} onChange={(e) => setCloseSub(e.target.checked)} /><span>Закрыть подписку и отключить автосписание</span></label>
+          <p className="sub small" style={{ margin: 0 }}>Деньги не возвращаются автоматически — возврат делается в кабинете CloudPayments.</p>
+          <button className="btn big danger" disabled={busy || reason.trim().length < 3} onClick={remove}>{busy ? 'Удаляю…' : 'Удалить'}</button>
+        </div>
+      </Sheet>
+    </>
+  );
+}
+
 /** A06: карточка пользователя — воронка, экраны, тарифные клики, оплаты, подписка, потоки, отчёты, согласия, модерация */
 export function UserDetail({ canEdit, canStartOver = false }: { canEdit: boolean; canStartOver?: boolean }) {
   const { id = '' } = useParams();
@@ -70,6 +106,7 @@ export function UserDetail({ canEdit, canStartOver = false }: { canEdit: boolean
                 location.reload();
               }}>Начать путь заново</button>
             )}
+            {canEdit && <RemoveMember userId={u.user.id} revoked={(u.memberships ?? []).some((m: any) => m.status === 'revoked')} onDone={s.reload} />}
           </div>
           <div className="card">
             <h2>Воронка</h2>

@@ -219,6 +219,20 @@ export async function adminRoutes(app: FastifyInstance) {
       await audit(req, 'offer.reset', 'user', req.params.id);
       return { ok: true, removed: r.count };
     });
+    /** Удалить участника из текущего и будущих потоков (не попадёт в подбор бадди); анкета сохраняется, можно вернуть */
+    r.post<{ Params: { id: string } }>('/admin-api/users/:id/remove', perm('usersEdit'), async (req) => {
+      const { reason, closeSubscription } = parse(z.object({ reason: z.string().trim().min(3).max(500), closeSubscription: z.boolean().default(true) }), req.body);
+      const { removeMember } = await import('../modules/removeMember');
+      const res = await removeMember(BigInt(req.params.id), { closeSubscription });
+      await audit(req, 'user.remove', 'user', req.params.id, { reason, after: res });
+      return res;
+    });
+    r.post<{ Params: { id: string } }>('/admin-api/users/:id/restore', perm('usersEdit'), async (req) => {
+      const { restoreMember } = await import('../modules/removeMember');
+      const res = await restoreMember(BigInt(req.params.id));
+      await audit(req, 'user.restore', 'user', req.params.id, { after: res });
+      return res;
+    });
     /** Владелец проверяет путь на себе: подписка закрыта, автосписание отключено, анкета удалена */
     r.post<{ Params: { id: string } }>('/admin-api/users/:id/start-over', perm('roles'), async (req) => {
       const { startOver } = await import('../modules/startOver');

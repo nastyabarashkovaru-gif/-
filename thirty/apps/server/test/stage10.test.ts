@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { api, clock, prisma, resetDb } from './helpers';
+import { api, clock, grantMembership, prisma, resetDb } from './helpers';
+import { removeMember, restoreMember } from '../src/modules/removeMember';
 import { handleWebhook } from '../src/modules/billing';
 import { startOver } from '../src/modules/startOver';
 import { paymentProvider, setPaymentProvider } from '../src/payments';
@@ -102,5 +103,29 @@ describe('начать путь заново', () => {
     await buy(501, 'start-over-2');
     expect(await prisma.subscription.count({ where: { userId: 501n, status: { in: ['prestart', 'active'] }, test: false } })).toBe(1);
     expect(await prisma.flowMembership.findUniqueOrThrow({ where: { id: m.id } })).toMatchObject({ status: 'reserved', expectation: null });
+  });
+});
+
+describe('удалить участника', () => {
+  it('выходит из подбора и пары, партнёр получает нового бадди; можно вернуть', async () => {
+    clock.set('2026-10-31T09:00:00Z');
+    for (const id of [701, 702, 703]) await grantMembership(id, '2026-11-01');
+    const flow = await prisma.flow.findFirstOrThrow({ where: { startsOn: new Date('2026-11-01T00:00:00Z') } });
+    const { autoMatch } = await import('../src/modules/buddy');
+    await autoMatch(flow.id);
+    const pair = await prisma.buddyPair.findFirstOrThrow({ where: { flowId: flow.id, status: 'active' } });
+    const waiting = [701n, 702n, 703n].find((u) => u !== pair.userA && u !== pair.userB)!;
+
+    const res = await removeMember(pair.userA, { closeSubscription: true });
+    expect(res).toMatchObject({ pairsDissolved: 1 });
+    expect(await prisma.flowMembership.findFirstOrThrow({ where: { userId: pair.userA, flowId: flow.id } })).toMatchObject({ status: 'revoked' });
+    // бывший партнёр сразу в паре с тем, кто ждал
+    const fresh = await prisma.buddyPair.findFirstOrThrow({ where: { flowId: flow.id, status: 'active' } });
+    expect([fresh.userA, fresh.userB].sort()).toEqual([pair.userB, waiting].sort());
+    await autoMatch(flow.id);
+    expect(await prisma.buddyAssignment.count({ where: { flowId: flow.id, userId: pair.userA } })).toBe(0);
+
+    await restoreMember(pair.userA);
+    expect((await prisma.flowMembership.findFirstOrThrow({ where: { userId: pair.userA, flowId: flow.id } })).status).not.toBe('revoked');
   });
 });
