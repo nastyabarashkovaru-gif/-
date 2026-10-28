@@ -24,6 +24,7 @@ async function main() {
   if (config.DEMO_MODE) {
     await restoreDemoClock().catch((e) => console.warn('[demo] clock', e));
     await ensureDemoPhotos().catch((e) => console.warn('[demo] photos', e));
+    void import('./modules/demoAnalytics').then((m) => m.ensureDemoAnalytics()).catch((e) => console.warn('[demo] analytics', e));
   }
   if (config.PAYMENT_PROVIDER === 'cloudpayments') await checkCloudPaymentsKeys();
   if (config.SCHEDULER) startScheduler();

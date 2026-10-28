@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { NavLink } from 'react-router-dom';
 
 export function useLoad<T>(fn: () => Promise<T>, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null);
@@ -20,6 +21,26 @@ export function View<T>({ s, children }: { s: { data: T | null; error: string | 
   if (s.loading && !s.data) return <div className="muted">Загрузка…</div>;
   if (s.error) return <div className="err">{s.error}</div>;
   return <>{s.data && children(s.data)}</>;
+}
+
+/** Нижняя шторка (на телефоне удобнее модального окна) */
+export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title?: ReactNode; children: ReactNode }) {
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+  if (!open) return null;
+  return (
+    <div className="sheet-bg" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-grip" />
+        {title && <div className="sheet-title">{title}</div>}
+        {children}
+      </div>
+    </div>
+  );
 }
 
 export function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
@@ -57,10 +78,17 @@ export async function act(fn: () => Promise<unknown>) {
   }
 }
 
+const STATUS_TEXT: Record<string, string> = {
+  paid: 'оплачен', active: 'активна', approved: 'одобрено', accepted: 'принят', sent: 'отправлено', resolved: 'решено', synced: 'синхронизировано', charged: 'списано', joined: 'в чате',
+  failed: 'ошибка', rejected: 'отклонено', refunded: 'возврат', disputed: 'расхождение', expired: 'закончилась', revoked: 'отозвано', past_due: 'долг',
+  pending: 'ожидает', initiated: 'создан', upcoming: 'скоро', finished: 'завершён', prestart: 'ждёт старта', canceled_at_period_end: 'отменена', reserved: 'анкета не заполнена',
+  registered: 'анкета заполнена', scheduled: 'запланировано', awaiting_review: 'на проверке', open: 'открыта', needs_info: 'нужно уточнение', granted: 'выдано', skipped: 'пропущено',
+};
+
 export function Status({ v }: { v: string }) {
   const ok = ['paid', 'active', 'approved', 'accepted', 'sent', 'resolved', 'synced', 'charged', 'joined'];
   const err = ['failed', 'rejected', 'refunded', 'disputed', 'expired', 'revoked', 'past_due'];
-  return <span className={`pill ${ok.includes(v) ? 'ok' : err.includes(v) ? 'err' : 'warn'}`}>{v}</span>;
+  return <span className={`pill ${ok.includes(v) ? 'ok' : err.includes(v) ? 'err' : 'warn'}`} title={v}>{STATUS_TEXT[v] ?? v}</span>;
 }
 
 export function DateRange({ from, to, onChange }: { from: string; to: string; onChange: (f: string, t: string) => void }) {
@@ -76,4 +104,9 @@ export function defaultRange() {
   const to = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
   const from = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
   return { from, to };
+}
+
+/** Горизонтальные вкладки раздела (переносятся, без прокрутки страницы) */
+export function SubNav({ items }: { items: [string, string][] }) {
+  return <div className="subnav">{items.map(([to, t]) => <NavLink key={to} to={to}>{t}</NavLink>)}</div>;
 }

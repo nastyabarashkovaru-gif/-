@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { ChevronLeft, House, Menu, SlidersHorizontal, Users2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { api, ApiError } from './api';
 import { Dashboard, Funnel } from './pages/Analytics';
+import { Home } from './pages/Home';
+import { Exports, Insights, MANAGE, MORE, ManageHub, MoreHub } from './pages/Hubs';
 import { Tariffs, Payments } from './pages/Billing';
 import { Promos } from './pages/Promos';
 import { Journey } from './pages/Journey';
@@ -11,29 +14,21 @@ import { Flows, Chats, Buddy, Meetings } from './pages/Community';
 import { Moderation, Rating, Prizes, PrizeDetail } from './pages/Quality';
 import { Reviews, Bot, Upsells, Settings, Experiments } from './pages/Content';
 
-export interface MeAdmin { id: string; login: string; role: string; permissions: string[] }
+export interface MeAdmin { id: string; login: string; role: string; permissions: string[]; demo?: boolean }
 
-const MENU: { path: string; title: string; perm: string }[] = [
-  { path: '/', title: 'A01 Дашборд', perm: 'dashboard' },
-  { path: '/funnel', title: 'A02 Воронка и экраны', perm: 'analytics' },
-  { path: '/tariffs', title: 'A03 Тарифы и ценность', perm: 'tariffs' },
-  { path: '/payments', title: 'A04 Платежи', perm: 'payments' },
-  { path: '/flows', title: 'A05 Потоки', perm: 'flows' },
-  { path: '/users', title: 'A06 Пользователи', perm: 'users' },
-  { path: '/moderation', title: 'A07 Модерация', perm: 'moderation' },
-  { path: '/rating', title: 'A08 Рейтинг и правила', perm: 'rating' },
-  { path: '/prizes', title: 'A09 Претенденты на приз', perm: 'prizes' },
-  { path: '/buddy', title: 'A10 Бадди', perm: 'buddy' },
-  { path: '/chats', title: 'A11 Чаты', perm: 'chats' },
-  { path: '/meetings', title: 'A12 Созвоны и эксперты', perm: 'meetings' },
-  { path: '/reviews', title: 'A13 Отзывы и кейсы', perm: 'reviews' },
-  { path: '/bot', title: 'A14 Сообщения бота', perm: 'bot' },
-  { path: '/promos', title: 'Промокоды и сторис', perm: 'tariffs' },
-  { path: '/journey', title: 'Итоги и отзывы', perm: 'reviews' },
-  { path: '/upsells', title: 'A15 Апселлы', perm: 'upsells' },
-  { path: '/settings', title: 'A16 Настройки и роли', perm: 'settings' },
-  { path: '/experiments', title: 'A17 A/B-тесты', perm: 'experiments' },
+/** Нижнее меню: какие адреса относятся к какой вкладке */
+const TABS: { to: string; title: string; icon: typeof House; match: string[] }[] = [
+  { to: '/', title: 'Главная', icon: House, match: ['/'] },
+  { to: '/users', title: 'Участники', icon: Users2, match: ['/users', '/moderation', '/rating', '/prizes', '/buddy'] },
+  { to: '/manage', title: 'Управление', icon: SlidersHorizontal, match: ['/manage', ...MANAGE.map((m) => m.to).filter((x) => x !== '/journey')] },
+  { to: '/more', title: 'Ещё', icon: Menu, match: ['/more', ...MORE.map((m) => m.to)] },
 ];
+const ROOTS = ['/', '/users', '/manage', '/more'];
+
+function tabOf(path: string) {
+  if (path === '/') return '/';
+  return TABS.find((t) => t.to !== '/' && t.match.some((m) => path === m || path.startsWith(`${m}/`)))?.to ?? null;
+}
 
 function Login({ onDone }: { onDone: () => void }) {
   const [login, setLogin] = useState('');
@@ -96,16 +91,32 @@ export function App() {
   if (me === undefined) return <div className="login muted">Загрузка…</div>;
   if (!me) return <Login onDone={load} />;
   const can = (p: string) => me.permissions.includes(p);
+  const logout = async () => { await api('/admin-api/auth/logout', { body: {} }); setMe(null); };
+  return <Shell me={me} can={can} logout={logout} />;
+}
+
+function Shell({ me, can, logout }: { me: MeAdmin; can: (p: string) => boolean; logout: () => void }) {
+  const loc = useLocation();
+  const nav = useNavigate();
+  const tab = tabOf(loc.pathname);
+  const isRoot = ROOTS.includes(loc.pathname);
+  useEffect(() => window.scrollTo(0, 0), [loc.pathname]);
   return (
-    <div className="layout">
-      <aside className="side">
-        <div className="brand">30 дней</div>
-        {MENU.filter((m) => can(m.perm)).map((m) => <NavLink key={m.path} to={m.path} end={m.path === '/'}>{m.title}</NavLink>)}
-        <div className="who">{me.login} · {me.role}<br /><a href="#" onClick={async (e) => { e.preventDefault(); await api('/admin-api/auth/logout', { body: {} }); setMe(null); }}>Выйти</a></div>
-      </aside>
-      <main>
+    <div className="app">
+      {me.demo && <div className="demo-banner">Демоверсия · цифры демонстрационные</div>}
+      {!isRoot && (
+        <div className="topbar">
+          <button className="back" onClick={() => (window.history.length > 1 ? nav(-1) : nav(tab ?? '/'))}><ChevronLeft size={22} />Назад</button>
+        </div>
+      )}
+      <main className="content">
         <Routes>
-          <Route path="/" element={can('dashboard') ? <Dashboard /> : <Navigate to="/meetings" />} />
+          <Route path="/" element={can('dashboard') ? <Home /> : <Navigate to="/meetings" />} />
+          <Route path="/manage" element={<ManageHub can={can} />} />
+          <Route path="/more" element={<MoreHub can={can} onLogout={logout} who={`${me.login} · ${me.role}`} />} />
+          <Route path="/more/insights" element={<Insights />} />
+          <Route path="/more/exports" element={<Exports />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/funnel" element={<Funnel />} />
           <Route path="/tariffs" element={<Tariffs />} />
           <Route path="/payments" element={<Payments />} />
@@ -129,6 +140,14 @@ export function App() {
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>
+      <nav className="tabbar">
+        {TABS.map((t) => (
+          <Link key={t.to} to={t.to} className={tab === t.to ? 'on' : ''}>
+            <t.icon size={24} strokeWidth={tab === t.to ? 2.3 : 1.8} />
+            <span>{t.title}</span>
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }

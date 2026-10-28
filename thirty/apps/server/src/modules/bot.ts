@@ -217,6 +217,8 @@ export async function handleUpdate(update: TgUpdate) {
     const unsubscribed = await prisma.consent.findFirst({ where: { userId, kind: 'marketing_messages', revokedAt: { not: null } } });
     if (existed && !existed.marketingOptIn && !unsubscribed) await prisma.user.update({ where: { id: userId }, data: { marketingOptIn: true } });
     const safe = payload && payload !== 'hello' && /^[A-Za-z0-9_-]{1,64}$/.test(payload) ? payload : undefined;
+    // Первый вход в воронку через бота (повторные /start не считаются); источник — параметр ссылки t.me/…?start=
+    if (!existed) await track({ userId, eventName: 'bot_start', metadata: { source: safe ?? (payload === 'hello' ? 'hello' : null) }, dedupeKey: `bot_start:${userId}` });
     const tpl = await prisma.botMessageTemplate.findUnique({ where: { key: 'welcome' } });
     const button = (tpl?.buttons as { text: string }[] | undefined)?.[0]?.text ?? WELCOME_BUTTON;
     // Сообщение 1 — один раз; при повторном /start только кнопка входа. Ссылка ?start=hello всегда показывает приветствие

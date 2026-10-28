@@ -13,6 +13,7 @@ import { notify } from './notify';
 import { notifyTrackerReview } from './adminBot';
 import { signedMediaUrl } from '../lib/storage';
 import { displayName } from './users';
+import { track } from './analytics';
 
 /**
  * Путь участника вокруг финала потока (ТЗ владельца 27.10):
@@ -91,6 +92,7 @@ export async function submitFeedback(userId: bigint, input: z.infer<typeof feedb
   if (today < addDays(endsOn, -1)) throw forbidden('feedback_not_open', 'Форма откроется на предпоследний день потока');
   if (await prisma.flowFeedback.findUnique({ where: { membershipId: m.id } })) throw conflict('feedback_done', 'Ты уже поделилась обратной связью — спасибо!');
   await prisma.flowFeedback.create({ data: { ...input, helpedOther: input.helpedOther || null, hinderedOther: input.hinderedOther || null, membershipId: m.id, userId, flowId: m.flowId, createdAt: clock.now() } });
+  await track({ userId, eventName: 'feedback_submitted', flowId: m.flowId, dedupeKey: `feedback_submitted:${m.id}` });
   return { ok: true };
 }
 
@@ -164,6 +166,7 @@ export async function saveFinale(userId: bigint, input: z.infer<typeof finaleInp
     ...input.outcomes.map((o) => prisma.goal.update({ where: { id: o.goalId }, data: { finalOutcome: o.outcome, finalAchieved: o.outcome === 'full' } })),
     prisma.flowMembership.update({ where: { id: m.id }, data: { finalResult: input.result, finalSubmittedAt: m.finalSubmittedAt ?? clock.now() } }),
   ]);
+  for (const o of input.outcomes.filter((x) => x.outcome === 'full')) await track({ userId, eventName: 'goal_completed', flowId: m.flowId, metadata: { goalId: o.goalId }, dedupeKey: `goal_completed:${o.goalId}` });
   return { ok: true, next: await nextStep(userId, m) };
 }
 
@@ -261,6 +264,7 @@ export async function trackerOfferDue(userId: bigint) {
 /** Окно показали — следующий раз через 14 дней */
 export async function trackerPrompted(userId: bigint) {
   await prisma.user.update({ where: { id: userId }, data: { trackerPromptAt: clock.now() } });
+  await track({ userId, eventName: 'trackers_offer_view', metadata: { place: 'popup' } });
   return { ok: true };
 }
 
@@ -292,6 +296,7 @@ export async function submitTrackerReview(userId: bigint, input: z.infer<typeof 
     return tx.trackerReview.create({ data: { userId, mediaId: media.id, createdAt: clock.now() } });
   });
   await notifyTrackerReview(r.id).catch((e) => console.error('[admin-bot]', (e as Error).message));
+  await track({ userId, eventName: 'trackers_review_sent' });
   return trackerState(userId);
 }
 
@@ -315,6 +320,7 @@ export async function decideTrackerReview(id: string, decision: 'grant' | 'clari
     return u.count > 0;
   });
   if (!granted) throw conflict('already_granted', 'Трекеры уже выданы');
+  await track({ userId: r.userId, eventName: 'trackers_issued', dedupeKey: `trackers_issued:${r.userId}` });
   const links = await getSetting('trackers.links');
   // Одна таблица на все три трекера — одна ссылка; разные — по ссылке на каждый
   const same = links.tasks && links.tasks === links.week && links.week === links.finance;

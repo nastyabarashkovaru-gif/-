@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, dt, rub, d } from '../api';
-import { Status, View, act, useLoad, withReason } from '../ui';
+import { Sheet, Status, View, act, useLoad, withReason } from '../ui';
+import { PaymentRow, STATUS_RU } from './Home';
 
 /** A03: тарифы, обычные/акционные цены, сравнительная цена, ценность S05 */
 export function Tariffs() {
@@ -78,42 +79,62 @@ function ValueItems({ items, reload }: { items: any[]; reload: () => void }) {
 
 /** A04: платежи, возвраты, сверка */
 export function Payments() {
-  const [status, setStatus] = useState('');
-  const list = useLoad(() => api(`/admin-api/payments?status=${status}`), [status]);
+  const [f, setF] = useState({ from: '', to: '', tariff: '', kind: '', status: '', test: '0' });
+  const [sel, setSel] = useState<any>(null);
+  const [showRec, setShowRec] = useState(false);
+  const q = new URLSearchParams(f).toString();
+  const list = useLoad(() => api(`/admin-api/payments?${q}`), [q]);
   const rec = useLoad(() => api('/admin-api/payments/reconcile'));
+  const set = (k: keyof typeof f, v: string) => setF({ ...f, [k]: v });
+  const KIND: Record<string, string> = { initial: 'Первая покупка', renewal: 'Продление', debt: 'Продление (долг)', upsell: 'Доп. покупка' };
+  const rows = (list.data ?? []).map((p: any) => ({ ...p, at: p.paidAt ?? p.createdAt, name: p.userName, userId: p.userId, tariff: p.tariffId ? `${p.tariffId.replace('m', '')} мес` : '—', kindTitle: KIND[p.kind] ?? p.kind }));
+  const paidSum = rows.filter((p: any) => p.status === 'paid' && !p.test).reduce((a: number, p: any) => a + p.amount, 0);
+  const issues = rec.data ? rec.data.needsRefund.length + rec.data.stuckPending.length + rec.data.webhookErrors.length + rec.data.chargeDateSyncErrors.length + rec.data.disputed.length : 0;
   return (
     <>
-      <h1>Платежи</h1>
-      <div className="card">
-        <h2>Сверка</h2>
+      <h1 className="page-title">Все оплаты</h1>
+      <div className="filters">
+        <label className="f">С<input type="date" value={f.from} onChange={(e) => set('from', e.target.value)} /></label>
+        <label className="f">По<input type="date" value={f.to} onChange={(e) => set('to', e.target.value)} /></label>
+        <label className="f">Тариф<select value={f.tariff} onChange={(e) => set('tariff', e.target.value)}><option value="">Все</option><option value="m1">1 месяц</option><option value="m3">3 месяца</option><option value="m6">6 месяцев</option></select></label>
+        <label className="f">Тип<select value={f.kind} onChange={(e) => set('kind', e.target.value)}><option value="">Все</option><option value="initial">Первая покупка</option><option value="renewal">Продление</option><option value="upsell">Доп. покупка</option></select></label>
+        <label className="f">Статус<select value={f.status} onChange={(e) => set('status', e.target.value)}><option value="">Все</option>{Object.entries(STATUS_RU).map(([k, [t]]) => <option key={k} value={k}>{t}</option>)}</select></label>
+        <label className="f">Тестовые<select value={f.test} onChange={(e) => set('test', e.target.value)}><option value="0">Скрыть</option><option value="">Показать</option><option value="1">Только тестовые</option></select></label>
+      </div>
+      <div className="money-hero small"><span>Оплачено по фильтру</span><b>{rub(paidSum)}</b><em>{rows.length} платежей в списке (до 100 последних)</em></div>
+      <View s={list}>{() => (rows.length ? <div className="list">{rows.map((p: any) => <PaymentRow key={p.id} p={p} onClick={() => setSel(p)} />)}</div> : <div className="empty">Платежей нет</div>)}</View>
+      {sel && (
+        <Sheet open onClose={() => setSel(null)} title={rub(sel.amount)}>
+          <div className="detail-list">
+            <div><span>Участник</span><b><Link to={`/users/${sel.userId}`}>{sel.name}</Link></b></div>
+            <div><span>Создан</span><b>{dt(sel.createdAt)}</b></div>
+            <div><span>Оплачен</span><b>{dt(sel.paidAt)}</b></div>
+            <div><span>Тариф</span><b>{sel.tariff}</b></div>
+            <div><span>Тип</span><b>{sel.kindTitle}</b></div>
+            <div><span>Статус</span><b>{(STATUS_RU[sel.status] ?? [sel.status])[0]}{sel.needsRefund ? ' · нужен возврат' : ''}</b></div>
+            <div><span>Покрывает</span><b>{d(sel.coversFromFlow)}{sel.months ? ` × ${sel.months} мес` : ''}</b></div>
+            {sel.failureReason && <div><span>Причина</span><b>{sel.failureReason}</b></div>}
+            <div><span>Тестовая</span><b>{sel.test ? 'да — не входит в выручку' : 'нет'}</b></div>
+          </div>
+          <div className="col">
+            {sel.status === 'paid' && <button className="btn big light" onClick={async () => { if (await withReason('Отметить возврат (деньги возвращаются в кабинете CloudPayments)', (reason) => api(`/admin-api/payments/${sel.id}/refund`, { body: { reason } }))) { setSel(null); list.reload(); } }}>Отметить возврат</button>}
+            {(sel.status === 'paid' || sel.status === 'refunded') && <button className="btn big light" onClick={async () => { await api(`/admin-api/payments/${sel.id}/test`, { body: { test: !sel.test } }); setSel(null); list.reload(); }}>{sel.test ? 'Это настоящая оплата' : 'Пометить как тестовую'}</button>}
+          </div>
+        </Sheet>
+      )}
+      <button className={`rec-toggle${issues ? ' alert' : ''}`} onClick={() => setShowRec(!showRec)}>Сверка с платёжной системой{issues ? ` · требует внимания: ${issues}` : ' · всё в порядке'}</button>
+      {showRec && (
         <View s={rec}>{(r: any) => (
-          <div className="row" style={{ alignItems: 'flex-start' }}>
-            <div className="kpi"><b>{r.needsRefund.length}</b><span>Повторные оплаты — оформить возврат в кабинете CloudPayments</span></div>
-            <div className="kpi"><b>{r.stuckPending.length}</b><span>Зависли в pending</span></div>
-            <div className="kpi"><b>{r.webhookErrors.length}</b><span>Ошибки webhook / подписи</span></div>
-            <div className="kpi"><b>{r.chargeDateSyncErrors.length}</b><span>Не перенесена дата списания</span></div>
-            <div className="kpi"><b>{r.disputed.length}</b><span>Расхождение суммы</span></div>
+          <div className="mini-grid">
+            <div><span>Повторные оплаты — вернуть в кабинете CloudPayments</span><b>{r.needsRefund.length}</b></div>
+            <div><span>Зависли в ожидании</span><b>{r.stuckPending.length}</b></div>
+            <div><span>Ошибки уведомлений</span><b>{r.webhookErrors.length}</b></div>
+            <div><span>Не перенесена дата списания</span><b>{r.chargeDateSyncErrors.length}</b></div>
+            <div><span>Расхождение суммы</span><b>{r.disputed.length}</b></div>
           </div>
         )}</View>
-      </div>
-      <div className="card">
-        <div className="row"><label className="f">Статус<select value={status} onChange={(e) => setStatus(e.target.value)}><option value="">Все</option>{['initiated', 'pending', 'paid', 'failed', 'refunded', 'disputed'].map((x) => <option key={x}>{x}</option>)}</select></label>
-          <a className="btn light" href="/admin-api/export/payments">CSV</a></div>
-        <View s={list}>{(rows: any[]) => (
-          <table><thead><tr><th>Дата</th><th>Пользователь</th><th>Вид</th><th>Тариф</th><th>Сумма</th><th>Статус</th><th>Покрывает</th><th /></tr></thead>
-            <tbody>{rows.map((p) => (
-              <tr key={p.id}>
-                <td>{dt(p.createdAt)}</td><td><Link to={`/users/${p.userId}`}>{p.userName}</Link></td><td>{p.kind}</td><td>{p.tariffId}</td><td>{rub(p.amount)}</td>
-                <td><Status v={p.status} /> {p.needsRefund && <span className="pill err">нужен возврат</span>} {p.test && <span className="pill">тест</span>}</td><td>{d(p.coversFromFlow)} {p.months ? `× ${p.months}` : ''}</td>
-                <td className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
-                  {p.status === 'paid' && <button className="btn light" onClick={async () => { if (await withReason('Отметить возврат (деньги возвращаются в кабинете CloudPayments)', (reason) => api(`/admin-api/payments/${p.id}/refund`, { body: { reason } }))) list.reload(); }}>Возврат</button>}
-                  {/* Тестовые оплаты не попадают в выручку, MRR и счётчики подписок на дашборде */}
-                  {(p.status === 'paid' || p.status === 'refunded') && <button className="btn light" onClick={async () => { await api(`/admin-api/payments/${p.id}/test`, { body: { test: !p.test } }); list.reload(); }}>{p.test ? 'Не тест' : 'Тест'}</button>}
-                </td>
-              </tr>
-            ))}</tbody></table>
-        )}</View>
-      </div>
+      )}
+      <a className="btn big light" href="/admin-api/export/payments">Выгрузить платежи в CSV</a>
     </>
   );
 }

@@ -46,6 +46,9 @@ export const EVENT_NAMES = [
   'subscription_renewal_success', 'subscription_renewal_failed', 'cancel_started', 'cancel_step_view',
   'cancel_completed', 'upsell_view', 'upsell_purchase', 'bot_message_sent', 'bot_message_click',
   'bot_message_failed', 'bot_conversion_after_click',
+  // Сквозная аналитика админки
+  'bot_start', 'subscription_expired', 'challenge_started', 'challenge_completed', 'goal_completed', 'feedback_submitted',
+  'trackers_offer_view', 'trackers_review_click', 'trackers_review_sent', 'trackers_issued',
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 

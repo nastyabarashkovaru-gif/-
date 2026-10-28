@@ -1,8 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { addDays, assignPlaces, flowBounds, fromDbDate, prizePool, rank, TOPIC_CHATS } from '@thirty/domain';
+import { addDays, assignPlaces, flowBounds, fromDbDate, prizePool, rank, startOfLocalDay, TOPIC_CHATS, type ISODate } from '@thirty/domain';
 import { audit, clearSession, can, hashPassword, issueSession, mfaRequired, newTotpSecret, readSession, requireAdmin, requirePerm, verifyPassword, verifyTotp, PERMISSIONS, type Permission } from '../auth/admin';
 import { clock } from '../clock';
+import { config } from '../config';
 import { prisma } from '../db';
 import { badRequest, forbidden, HttpError, jsonSafe, notFound } from '../http';
 import { parse } from '../lib/validate';
@@ -12,6 +13,7 @@ import { normalizeCode } from '../modules/promos';
 import { decideStoryRequest } from '../modules/stories';
 import { DEFAULT_SETTINGS, getSetting, setSetting, type SettingKey } from '../settings';
 import { dashboard, funnel, retention, screens, toCsv } from '../modules/adminAnalytics';
+import { homeFunnel, homeInsights, homeMembers, homeMoney, homeRetention, resolveRange } from '../modules/adminHome';
 import { cancelAutoRenew, markRefunded } from '../modules/billing';
 import { bindChat } from '../modules/chats';
 import { ensureFlow, flowInfo } from '../modules/flows';
@@ -79,10 +81,18 @@ export async function adminRoutes(app: FastifyInstance) {
       role: req.admin!.role,
       csrf: req.adminSession!.csrf,
       permissions: (Object.keys(PERMISSIONS) as Permission[]).filter((p) => can(req.admin!.role, p)),
+      demo: config.DEMO_MODE,
     }));
 
     // ───────── A01 дашборд, A02 аналитика ─────────
     r.get<{ Querystring: { from?: string; to?: string } }>('/admin-api/dashboard', perm('dashboard'), async (req) => dashboard(range(req.query)));
+    // Главный экран: блоки грузятся отдельно, чтобы первый экран появлялся быстро
+    type HomeQ = { Querystring: { from?: string; to?: string; period?: string; flowId?: string } };
+    r.get<HomeQ>('/admin-api/home/funnel', perm('dashboard'), async (req) => jsonSafe(await homeFunnel(await resolveRange(req.query))));
+    r.get<HomeQ>('/admin-api/home/money', perm('dashboard'), async (req) => jsonSafe(await homeMoney(await resolveRange(req.query))));
+    r.get<HomeQ>('/admin-api/home/retention', perm('dashboard'), async (req) => jsonSafe(await homeRetention(await resolveRange(req.query))));
+    r.get<HomeQ>('/admin-api/home/members', perm('dashboard'), async (req) => jsonSafe(await homeMembers(req.query.flowId)));
+    r.get('/admin-api/home/insights', perm('dashboard'), async () => jsonSafe(await homeInsights()));
     r.get<{ Querystring: Record<string, string> }>('/admin-api/analytics/funnel', perm('analytics'), async (req) =>
       jsonSafe(await funnel({ ...range(req.query), tariffId: req.query.tariff || undefined, variant: req.query.variant || undefined, device: req.query.device || undefined })),
     );
@@ -123,11 +133,17 @@ export async function adminRoutes(app: FastifyInstance) {
     });
 
     // ───────── A04 платежи ─────────
-    r.get<{ Querystring: { status?: string; userId?: string; cursor?: string; needsRefund?: string } }>('/admin-api/payments', perm('payments'), async (req) => {
+    r.get<{ Querystring: { status?: string; userId?: string; cursor?: string; needsRefund?: string; from?: string; to?: string; tariff?: string; kind?: string; test?: string } }>('/admin-api/payments', perm('payments'), async (req) => {
       const q = req.query;
+      const zone = await getSetting('flow.timezone');
+      const day = (s?: string) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? (s as ISODate) : null);
       const rows = await prisma.payment.findMany({
         where: {
           ...(q.status ? { status: q.status as never } : {}),
+          ...(q.tariff ? { tariffId: q.tariff } : {}),
+          ...(q.kind === 'renewal' ? { kind: { in: ['renewal', 'debt'] } } : q.kind ? { kind: q.kind as never } : {}),
+          ...(q.test === '0' ? { test: false } : q.test === '1' ? { test: true } : {}),
+          ...(day(q.from) || day(q.to) ? { createdAt: { ...(day(q.from) ? { gte: startOfLocalDay(day(q.from)!, zone) } : {}), ...(day(q.to) ? { lt: startOfLocalDay(addDays(day(q.to)!, 1), zone) } : {}) } } : {}),
           ...(q.userId && /^\d+$/.test(q.userId) ? { userId: BigInt(q.userId) } : {}),
           ...(q.needsRefund === '1' ? { needsRefund: true } : {}),
         },

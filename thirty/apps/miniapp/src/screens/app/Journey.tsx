@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarCheck, CircleCheck, Clock, Download, Flame, Gift, ImagePlus, MessageCircle, RefreshCw, Share2, Sparkles, Target, Trophy, X } from 'lucide-react';
 import { api, uploadImage } from '../../lib/api';
+import { track } from '../../lib/analytics';
 import { canShareStory, downloadImage, haptic, openExternal, openTelegram, shareStory } from '../../lib/telegram';
 import { formatMetric } from '../../lib/metric';
 import { Cta, ErrorState, Header, Loading, Popup, Screen, errorText, plural, toast, useLoad } from '../../ui';
@@ -443,7 +444,7 @@ export function TrackersPopup({ open, onClose }: { open: boolean; onClose: () =>
       <h2 className="h2 center" style={{ fontSize: 22, marginTop: 6 }}>Получи трекеры за свой отзыв 🎁</h2>
       <p className="muted center" style={{ margin: 0, lineHeight: 1.45 }}>Расскажи честно, как проходит твой челлендж, и получи сразу три моих любимых трекера в Google Таблицах!</p>
       <TrackerCarousel />
-      <Cta onClick={() => { onClose(); nav('/trackers'); }}>Оставить отзыв и забрать трекеры</Cta>
+      <Cta onClick={() => { track('trackers_review_click', { metadata: { place: 'popup' } }); onClose(); nav('/trackers'); }}>Оставить отзыв и забрать трекеры</Cta>
     </Popup>
   );
 }

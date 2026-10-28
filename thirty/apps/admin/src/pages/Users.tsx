@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, d, dt, rub } from '../api';
-import { Status, View, useLoad, withReason } from '../ui';
+import { Status, SubNav, View, useLoad, withReason } from '../ui';
 
 /** A06: поиск пользователей */
 export function Users() {
@@ -11,21 +11,39 @@ export function Users() {
   const s = useLoad(() => api(`/admin-api/users?q=${encodeURIComponent(q)}&stage=${stage}`), [q, stage]);
   return (
     <>
-      <h1>Пользователи</h1>
-      <div className="card row">
-        <label className="f">Имя, @username или Telegram ID<input value={q} onChange={(e) => setQ(e.target.value)} /></label>
-        <label className="f">Этап<select value={stage} onChange={(e) => setStage(e.target.value)}><option value="">Все</option>{['new', 'onboarding', 'tariffs', 'checkout', 'paid', 'registered'].map((x) => <option key={x}>{x}</option>)}</select></label>
-        <a className="btn light" href="/admin-api/export/users">CSV</a>
+      <h1 className="page-title">Участники</h1>
+      <SubNav items={[['/moderation', 'Модерация'], ['/rating', 'Рейтинг'], ['/prizes', 'Претенденты'], ['/buddy', 'Бадди']]} />
+      <div className="search">
+        <input value={q} placeholder="Имя, @username или Telegram ID" onChange={(e) => setQ(e.target.value)} />
+        <select value={stage} onChange={(e) => setStage(e.target.value)}>
+          <option value="">Все этапы</option>
+          {Object.entries(STAGE_RU).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+        </select>
       </div>
-      <div className="card">
-        <View s={s}>{(rows: any[]) => (
-          <table><thead><tr><th>ID</th><th>Имя</th><th>Город</th><th>Этап</th><th>Подписка</th><th>Создан</th></tr></thead>
-            <tbody>{rows.map((u) => <tr key={u.id} className="click" onClick={() => nav(`/users/${u.id}`)}><td>{u.id}</td><td>{u.name} {u.username && <span className="muted">@{u.username}</span>}</td><td>{u.city ?? '—'}</td><td>{u.stage}</td><td>{u.subscription ? <>{u.subscription.tariffId} <Status v={u.subscription.status} /></> : '—'}</td><td>{dt(u.createdAt)}</td></tr>)}</tbody></table>
-        )}</View>
-      </div>
+      <View s={s}>{(rows: any[]) => (
+        rows.length ? (
+          <div className="list">
+            {rows.map((u) => (
+              <button key={u.id} className="user-row" onClick={() => nav(`/users/${u.id}`)}>
+                <div className="avatar">{(u.name ?? '?').slice(0, 1)}</div>
+                <div className="grow">
+                  <b>{u.name}</b>
+                  <span>{u.username ? `@${u.username} · ` : ''}{u.city ?? 'город не указан'}</span>
+                  <span className="muted">{STAGE_RU[u.stage] ?? u.stage} · с {d(u.createdAt)}</span>
+                </div>
+                {u.subscription ? <span className={`pill ${['active', 'prestart'].includes(u.subscription.status) ? 'ok' : u.subscription.status === 'past_due' ? 'err' : 'warn'}`}>{u.subscription.tariffId.replace('m', '')} мес · {SUB_RU[u.subscription.status] ?? u.subscription.status}</span> : null}
+              </button>
+            ))}
+          </div>
+        ) : <div className="empty">Никого не нашли</div>
+      )}</View>
+      <a className="btn big light" href="/admin-api/export/users">Выгрузить всех в CSV</a>
     </>
   );
 }
+
+const STAGE_RU: Record<string, string> = { new: 'Новый', onboarding: 'Онбординг', tariffs: 'Смотрит тарифы', checkout: 'Оплачивает', paid: 'Оплатил', registered: 'Заполнил анкету' };
+const SUB_RU: Record<string, string> = { prestart: 'ждёт старта', active: 'активна', past_due: 'долг', canceled_at_period_end: 'отменена', expired: 'закончилась' };
 
 /** A06: карточка пользователя — воронка, экраны, тарифные клики, оплаты, подписка, потоки, отчёты, согласия, модерация */
 export function UserDetail({ canEdit }: { canEdit: boolean }) {

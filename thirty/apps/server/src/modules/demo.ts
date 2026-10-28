@@ -12,6 +12,7 @@ import { forbidden } from '../http';
 import { storage } from '../lib/storage';
 import { seed } from '../seed';
 import { clearSettingsCache } from '../settings';
+import { ensureDemoAnalytics } from './demoAnalytics';
 import { ensureFlow, refreshFlowStatuses } from './flows';
 import { createGoal, createTask, fixGoals } from './goals';
 import { submitReport } from './reports';
@@ -268,7 +269,8 @@ export function applyDemoState(ownerId: bigint, ownerName: string, s: DemoState)
     await saveClock();
     return res;
   });
-  queue = run.catch(() => undefined);
+  // История для админки собирается после ответа панели — следующий запрос дождётся её в очереди
+  queue = run.catch(() => undefined).then(() => ensureDemoAnalytics()).catch((e) => console.warn('[demo] analytics', e));
   return run;
 }
 

@@ -616,6 +616,7 @@ export async function refreshSubscriptionStatuses() {
     const next = subscriptionStatusOn({ today, paidFromFlow: fromDbDate(s.paidFromFlow), paidThroughFlow: fromDbDate(s.paidThroughFlow), autoRenew: s.autoRenew, nextChargeDate: s.nextChargeDate ? fromDbDate(s.nextChargeDate) : null });
     if (next !== s.status) {
       await prisma.subscription.update({ where: { id: s.id }, data: { status: next } });
+      if (next === 'expired') await track({ userId: s.userId, eventName: 'subscription_expired', tariffId: s.tariffId, dedupeKey: `subscription_expired:${s.id}` });
       changed.push({ id: s.id, from: s.status, to: next });
     }
     if (!s.autoRenew && !s.providerDeactivatedAt) await deactivateAtProvider(s.id);

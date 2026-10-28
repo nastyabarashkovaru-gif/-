@@ -17,6 +17,7 @@
     "vite": "^5.4.21"
   },
   "dependencies": {
+    "lucide-react": "^0.460.0",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

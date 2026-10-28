@@ -3,6 +3,7 @@ import type { Flow, FlowMembership } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma, type Tx } from '../db';
 import { getSetting } from '../settings';
+import { track } from './analytics';
 
 export async function ensureFlow(startsOn: ISODate, db: Tx | typeof prisma = prisma): Promise<Flow> {
   const b = flowBounds(startsOn);
@@ -108,9 +109,14 @@ export async function refreshFlowStatuses(now = clock.now()) {
         where: { flowId: flow.id, status: 'registered' },
         data: { status: 'active', goalsLockedAt: now },
       });
+      for (const m of await prisma.flowMembership.findMany({ where: { flowId: flow.id, status: 'active' }, select: { id: true, userId: true } })) {
+        await track({ userId: m.userId, eventName: 'challenge_started', flowId: flow.id, dedupeKey: `challenge_started:${m.id}` });
+      }
     }
     if (info.phase === 'finished') {
+      const finishing = await prisma.flowMembership.findMany({ where: { flowId: flow.id, status: 'active' }, select: { id: true, userId: true } });
       await prisma.flowMembership.updateMany({ where: { flowId: flow.id, status: 'active' }, data: { status: 'finished' } });
+      for (const m of finishing) await track({ userId: m.userId, eventName: 'challenge_completed', flowId: flow.id, dedupeKey: `challenge_completed:${m.id}` });
     }
   }
 }
