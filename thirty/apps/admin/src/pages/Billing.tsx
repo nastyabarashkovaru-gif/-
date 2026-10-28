@@ -104,8 +104,12 @@ export function Payments() {
             <tbody>{rows.map((p) => (
               <tr key={p.id}>
                 <td>{dt(p.createdAt)}</td><td><Link to={`/users/${p.userId}`}>{p.userName}</Link></td><td>{p.kind}</td><td>{p.tariffId}</td><td>{rub(p.amount)}</td>
-                <td><Status v={p.status} /> {p.needsRefund && <span className="pill err">нужен возврат</span>}</td><td>{d(p.coversFromFlow)} {p.months ? `× ${p.months}` : ''}</td>
-                <td>{p.status === 'paid' && <button className="btn light" onClick={async () => { if (await withReason('Отметить возврат (деньги возвращаются в кабинете CloudPayments)', (reason) => api(`/admin-api/payments/${p.id}/refund`, { body: { reason } }))) list.reload(); }}>Возврат</button>}</td>
+                <td><Status v={p.status} /> {p.needsRefund && <span className="pill err">нужен возврат</span>} {p.test && <span className="pill">тест</span>}</td><td>{d(p.coversFromFlow)} {p.months ? `× ${p.months}` : ''}</td>
+                <td className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                  {p.status === 'paid' && <button className="btn light" onClick={async () => { if (await withReason('Отметить возврат (деньги возвращаются в кабинете CloudPayments)', (reason) => api(`/admin-api/payments/${p.id}/refund`, { body: { reason } }))) list.reload(); }}>Возврат</button>}
+                  {/* Тестовые оплаты не попадают в выручку, MRR и счётчики подписок на дашборде */}
+                  {(p.status === 'paid' || p.status === 'refunded') && <button className="btn light" onClick={async () => { await api(`/admin-api/payments/${p.id}/test`, { body: { test: !p.test } }); list.reload(); }}>{p.test ? 'Не тест' : 'Тест'}</button>}
+                </td>
               </tr>
             ))}</tbody></table>
         )}</View>

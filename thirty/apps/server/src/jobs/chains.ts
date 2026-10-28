@@ -5,7 +5,7 @@ import { prisma } from '../db';
 import { pushNotification } from '../modules/notifications';
 import { getSetting, feature } from '../settings';
 import { sendTemplate } from '../modules/bot';
-import { LIVE_STATUSES } from '../modules/billing';
+import { LIVE_STATUSES, startOffer } from '../modules/billing';
 import { generateCard } from '../modules/cards';
 import { promoWindow } from '../modules/promos';
 import { memberStats } from '../modules/rating';
@@ -49,10 +49,15 @@ const AFTER_STAGES = ['chain_08', 'chain_09'];
 const LATE_OFFER_MIN = 20;
 const LATE_AFTER_MIN = 12 * 60;
 const FLOW_EVE_HOUR = 12;
+/** Кто нажал /start, но за это время не дошёл до тарифов — таймер скидки запускается сам, чтобы пошла цепочка 02–09 */
+const AUTO_OFFER_AFTER_MIN = 10;
+/** Давние /start (до появления правила) таймер не получают: им остаются сообщения 10–11 перед стартом потока */
+const AUTO_OFFER_WINDOW_MIN = 24 * 60;
 
 /**
  * Дожимная цепочка до оплаты (ТЗ владельца 25.10).
- * 02–07 — от первого показа предложения с таймером (PriceOffer intro, время на сервере), 08–09 — после окончания акции,
+ * 02–07 — от первого показа предложения с таймером (PriceOffer intro, время на сервере), 08–09 — после окончания акции.
+ * Если человек нажал /start и за 10 минут не открыл тарифы, таймер запускается сам — цепочка идёт и ему.
  * 10–11 — за 2 и 1 день до старта ближайшего потока (в 12:00 по времени потока, задним числом не шлём).
  * Перед каждой отправкой — проверка оплаты; дедупликация по ключу; согласие на рекламу и блокировка бота — в sendTemplate.
  */
@@ -64,6 +69,13 @@ export async function runPrePurchaseChains(now = clock.now(), send: Send = sendT
   const vars = await priceVars();
   // В режиме проверки цепочки владельцу сообщения приходят по /start подряд — расписание их не дублирует
   for (const id of await chainTestUsers()) paid.add(id);
+
+  // Таймер для тех, кто не дошёл до тарифов: от первого /start (приветствие в журнале бота)
+  const starters = await prisma.botMessageLog.findMany({
+    where: { templateKey: 'welcome', sentAt: { gt: minutesAgo(now, AUTO_OFFER_WINDOW_MIN), lte: minutesAgo(now, AUTO_OFFER_AFTER_MIN) }, user: { offers: { none: { kind: 'intro' } } } },
+    select: { userId: true },
+  });
+  for (const s of starters) if (!paid.has(s.userId.toString())) await startOffer(s.userId, now);
 
   // 02–09: персональный таймер
   const offers = await prisma.priceOffer.findMany({ where: { kind: 'intro', consumedAt: null, startedAt: { gt: minutesAgo(now, 10 * 24 * 60) } } });

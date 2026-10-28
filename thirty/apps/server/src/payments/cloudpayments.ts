@@ -67,6 +67,7 @@ export class CloudPaymentsProvider implements PaymentProvider {
       nextChargeDate: null as string | null,
       subscriptionActive: null as boolean | null,
       customer: { email: str(data.Email), accountId: str(data.AccountId), token: str(data.Token) } as ParsedWebhook['customer'],
+      test: ['1', 'true'].includes((str(data.TestMode) ?? '').toLowerCase()),
       raw: { ...data, customer_extra: str(data.AccountId) ? `tg:${str(data.AccountId)}` : undefined },
     };
     if (kind === 'recurrent') {

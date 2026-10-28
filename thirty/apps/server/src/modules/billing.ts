@@ -23,9 +23,8 @@ export const LIVE_STATUSES = ['prestart', 'active', 'past_due', 'canceled_at_per
 // ───────────── Персональное предложение (таймер 3 часа) ─────────────
 
 /** Таймер стартует один раз при первом показе тарифов и хранится на сервере; повторное открытие его не сбрасывает */
-export async function startOffer(userId: bigint) {
+export async function startOffer(userId: bigint, now = clock.now()) {
   const minutes = await getSetting('offer.durationMinutes');
-  const now = clock.now();
   try {
     return await prisma.priceOffer.create({ data: { userId, kind: 'intro', startedAt: now, expiresAt: new Date(now.getTime() + minutes * 60_000) } });
   } catch (e) {
@@ -261,7 +260,7 @@ async function handlePaymentEvent(p: ParsedWebhook, eventId: string) {
     }
     if (payment.kind === 'debt') return markDebtPaid(payment, p);
     if (payment.kind === 'upsell') {
-      await prisma.payment.update({ where: { id: payment.id }, data: { status: 'paid', paidAt: clock.now(), providerOrderId: p.providerOrderId } });
+      await prisma.payment.update({ where: { id: payment.id }, data: { status: 'paid', paidAt: clock.now(), providerOrderId: p.providerOrderId, test: Boolean(p.test) } });
       await track({ userId: payment.userId, eventName: 'upsell_purchase', metadata: { code: payment.upsellCode } });
       return { upsell: true };
     }
@@ -305,7 +304,7 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
     const live = await blockingSubscription(payment.userId, firstFlow, tx);
     if (live) {
       // Вторая оплата при живой подписке: деньги приняты, доступ не дублируется, нужен возврат
-      await tx.payment.update({ where: { id: payment.id }, data: { status: 'paid', paidAt: now, providerOrderId: p.providerOrderId, needsRefund: true } });
+      await tx.payment.update({ where: { id: payment.id }, data: { status: 'paid', paidAt: now, providerOrderId: p.providerOrderId, needsRefund: true, test: Boolean(p.test) } });
       return { duplicate: true as const };
     }
     // Возврат после отмены: прежняя подписка (оплачена только до нового периода) закрывается, доступ переходит к новой
@@ -322,9 +321,10 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
         nextChargeDate: toDbDate(chargeDate),
         providerSubscriptionId: p.providerSubscriptionId,
         providerCustomer: p.customer,
+        test: Boolean(p.test),
       },
     });
-    await tx.payment.update({ where: { id: payment.id }, data: { status: 'paid', paidAt: now, providerOrderId: p.providerOrderId, subscriptionId: sub.id } });
+    await tx.payment.update({ where: { id: payment.id }, data: { status: 'paid', paidAt: now, providerOrderId: p.providerOrderId, subscriptionId: sub.id, test: Boolean(p.test) } });
     for (const f of flows) {
       const flow = await ensureFlow(f, tx);
       const existing = await tx.flowMembership.findUnique({ where: { userId_flowId: { userId: payment.userId, flowId: flow.id } } });
@@ -411,7 +411,7 @@ async function handleRenewalEvent(p: ParsedWebhook) {
   if (p.status !== 'paid') {
     try {
       await prisma.payment.create({
-        data: { userId: sub.userId, subscriptionId: sub.id, kind: 'renewal', tariffId: sub.tariffId, amount: p.amount ?? sub.renewalPrice, status: 'failed', failureReason: p.status, idempotencyKey: `renewal-failed:${orderKey}`, providerOrderId: p.providerOrderId ? `failed:${p.providerOrderId}` : undefined },
+        data: { userId: sub.userId, subscriptionId: sub.id, kind: 'renewal', tariffId: sub.tariffId, amount: p.amount ?? sub.renewalPrice, status: 'failed', failureReason: p.status, test: sub.test || Boolean(p.test), idempotencyKey: `renewal-failed:${orderKey}`, providerOrderId: p.providerOrderId ? `failed:${p.providerOrderId}` : undefined },
       });
     } catch (e) {
       if (isUniqueViolation(e)) return { duplicate: true };
@@ -422,13 +422,14 @@ async function handleRenewalEvent(p: ParsedWebhook) {
     await notify(sub.userId, 'renewal_failed', { amount: sub.renewalPrice }, `renewal_failed:${orderKey}`);
     return { renewalFailed: true };
   }
-  return extendSubscription(sub, { amount: p.amount ?? sub.renewalPrice, providerOrderId: p.providerOrderId, idempotencyKey: `renewal:${orderKey}`, kind: 'renewal', nextChargeFromProvider: p.nextChargeDate });
+  return extendSubscription(sub, { amount: p.amount ?? sub.renewalPrice, providerOrderId: p.providerOrderId, idempotencyKey: `renewal:${orderKey}`, kind: 'renewal', nextChargeFromProvider: p.nextChargeDate, test: p.test });
 }
 
 async function extendSubscription(
   sub: Subscription & { tariff: Tariff },
-  pay: { amount: number; providerOrderId: string | null; idempotencyKey: string; kind: 'renewal' | 'debt'; paymentId?: string; nextChargeFromProvider?: string | null },
+  pay: { amount: number; providerOrderId: string | null; idempotencyKey: string; kind: 'renewal' | 'debt'; paymentId?: string; nextChargeFromProvider?: string | null; test?: boolean },
 ) {
+  const test = sub.test || Boolean(pay.test);
   const plan = planRenewal(fromDbDate(sub.paidThroughFlow), sub.tariff.months);
   const now = clock.now();
   const res = await serializable(async (tx) => {
@@ -436,12 +437,12 @@ async function extendSubscription(
     if (paymentId) {
       const p = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
       if (p.status === 'paid') return { duplicate: true as const };
-      await tx.payment.update({ where: { id: paymentId }, data: { status: 'paid', paidAt: now, providerOrderId: pay.providerOrderId, coversFromFlow: toDbDate(plan.flows[0]), months: plan.flows.length } });
+      await tx.payment.update({ where: { id: paymentId }, data: { status: 'paid', paidAt: now, providerOrderId: pay.providerOrderId, coversFromFlow: toDbDate(plan.flows[0]), months: plan.flows.length, test } });
     } else {
       const existing = await tx.payment.findUnique({ where: { idempotencyKey: pay.idempotencyKey } });
       if (existing) return { duplicate: true as const };
       const created = await tx.payment.create({
-        data: { userId: sub.userId, subscriptionId: sub.id, kind: pay.kind, tariffId: sub.tariffId, amount: pay.amount, status: 'paid', paidAt: now, providerOrderId: pay.providerOrderId, idempotencyKey: pay.idempotencyKey, coversFromFlow: toDbDate(plan.flows[0]), months: plan.flows.length },
+        data: { userId: sub.userId, subscriptionId: sub.id, kind: pay.kind, tariffId: sub.tariffId, amount: pay.amount, status: 'paid', paidAt: now, providerOrderId: pay.providerOrderId, idempotencyKey: pay.idempotencyKey, coversFromFlow: toDbDate(plan.flows[0]), months: plan.flows.length, test },
       });
       paymentId = created.id;
     }
@@ -515,7 +516,7 @@ export async function createDebtPayment(userId: bigint) {
 async function markDebtPaid(payment: Payment, p: ParsedWebhook) {
   const sub = await prisma.subscription.findUniqueOrThrow({ where: { id: payment.subscriptionId! }, include: { tariff: true } });
   const oldRef = refOf(sub);
-  const res = await extendSubscription(sub, { amount: payment.amount, providerOrderId: p.providerOrderId, idempotencyKey: payment.idempotencyKey, kind: 'debt', paymentId: payment.id });
+  const res = await extendSubscription(sub, { amount: payment.amount, providerOrderId: p.providerOrderId, idempotencyKey: payment.idempotencyKey, kind: 'debt', paymentId: payment.id, test: p.test });
   if (!('duplicate' in res) && p.providerSubscriptionId) {
     if (oldRef && oldRef.providerSubscriptionId !== p.providerSubscriptionId) await paymentProvider().setActive(oldRef, false).catch(() => undefined);
     await prisma.subscription.update({ where: { id: sub.id }, data: { providerSubscriptionId: p.providerSubscriptionId, providerCustomer: p.customer } });

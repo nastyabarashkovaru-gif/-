@@ -28,6 +28,8 @@ export interface ParsedWebhook {
   /** Подписка отключена на стороне провайдера */
   subscriptionActive: boolean | null;
   customer: { phone?: string; email?: string; accountId?: string; token?: string };
+  /** Тестовый режим провайдера (TestMode у CloudPayments) — оплата не учитывается в выручке */
+  test?: boolean;
   raw: Record<string, unknown>;
 }
 

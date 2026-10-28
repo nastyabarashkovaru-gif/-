@@ -158,6 +158,17 @@ export async function adminRoutes(app: FastifyInstance) {
       return res;
     });
 
+    /** Пометка тестовой оплаты вручную (например, проверочная боевая оплата владельца) — вместе с её подпиской */
+    r.post<{ Params: { id: string } }>('/admin-api/payments/:id/test', perm('payments'), async (req) => {
+      const { test } = parse(z.object({ test: z.boolean() }), req.body);
+      const p = await prisma.payment.findUnique({ where: { id: req.params.id } });
+      if (!p) throw notFound();
+      await prisma.payment.update({ where: { id: p.id }, data: { test } });
+      if (p.subscriptionId && p.kind === 'initial') await prisma.subscription.update({ where: { id: p.subscriptionId }, data: { test } });
+      await audit(req, 'payment.test', 'payment', p.id, { before: { test: p.test }, after: { test } });
+      return { ok: true, test };
+    });
+
     // ───────── A05 потоки ─────────
     r.get('/admin-api/flows', perm('flows'), async () => {
       const flows = await prisma.flow.findMany({ orderBy: { startsOn: 'desc' }, include: { chats: true, _count: { select: { memberships: true } } } });
@@ -343,7 +354,7 @@ export async function adminRoutes(app: FastifyInstance) {
     // ───────── A08 рейтинг и правила ─────────
     r.get<{ Params: { flowId: string } }>('/admin-api/leaderboard/:flowId', perm('rating'), async (req) => {
       const rows = await computeLeaderboard(req.params.flowId);
-      const revenue = await prisma.payment.aggregate({ where: { status: 'paid', coversFromFlow: (await prisma.flow.findUniqueOrThrow({ where: { id: req.params.flowId } })).startsOn }, _sum: { amount: true } });
+      const revenue = await prisma.payment.aggregate({ where: { status: 'paid', test: false, coversFromFlow: (await prisma.flow.findUniqueOrThrow({ where: { id: req.params.flowId } })).startsOn }, _sum: { amount: true } });
       const formula = await getSetting('prize.formula');
       return { rows, prizePool: prizePool(revenue._sum.amount ?? 0, formula), confirmedRevenue: revenue._sum.amount ?? 0, formula };
     });

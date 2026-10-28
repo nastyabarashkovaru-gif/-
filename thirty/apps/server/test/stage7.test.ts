@@ -8,6 +8,8 @@ import { decideStoryRequest } from '../src/modules/stories';
 import { paymentProvider, setPaymentProvider } from '../src/payments';
 import { MockProvider, signMock } from '../src/payments/mock';
 import { handleWebhook } from '../src/modules/billing';
+import { dashboard } from '../src/modules/adminAnalytics';
+import { CloudPaymentsProvider } from '../src/payments/cloudpayments';
 import { adminBotLinkCode, adminBotSecret, setAdminBotTransport } from '../src/modules/adminBot';
 import { config } from '../src/config';
 
@@ -101,6 +103,40 @@ describe('дожимная цепочка до оплаты', () => {
     await runPrePurchaseChains(at(61));
     await runPrePurchaseChains(at(181));
     expect(sent()).toHaveLength(0);
+
+    // тестовая оплата (TestMode у CloudPayments или пометка в админке) не входит в выручку и подписки
+    const range = { from: new Date('2026-10-01T00:00:00Z'), to: new Date('2026-11-01T00:00:00Z') };
+    expect((await dashboard(range)).revenue).toBeGreaterThan(0);
+    await prisma.payment.updateMany({ where: { userId: 301n }, data: { test: true } });
+    await prisma.subscription.updateMany({ where: { userId: 301n }, data: { test: true } });
+    const d = await dashboard(range);
+    expect(d).toMatchObject({ revenue: 0, payments: 0, liveSubscriptions: 0, mrr: 0 });
+    const cp = new CloudPaymentsProvider();
+    expect(cp.parseWebhook({}, { __kind: 'pay', TestMode: '1', InvoiceId: 'x' }).test).toBe(true);
+    expect(cp.parseWebhook({}, { __kind: 'pay', TestMode: '0', InvoiceId: 'x' }).test).toBe(false);
+  });
+
+  it('не дошла до тарифов за 10 минут после /start — таймер запускается сам и цепочка идёт; давним /start — нет', async () => {
+    clock.set('2026-10-21T09:00:00Z');
+    await start(310);
+    clock.set('2026-10-19T09:00:00Z');
+    await start(311); // нажала /start двое суток назад — таймер задним числом не включаем
+    calls = [];
+    const at = (m: number) => new Date(Date.parse('2026-10-21T09:00:00Z') + m * 60_000);
+    await runPrePurchaseChains(at(5));
+    expect(await prisma.priceOffer.count({ where: { userId: 310n } })).toBe(0);
+    await runPrePurchaseChains(at(10));
+    const offer = await prisma.priceOffer.findFirstOrThrow({ where: { userId: 310n, kind: 'intro' } });
+    expect(offer.startedAt).toEqual(at(10));
+    expect(sent()).toHaveLength(0);
+    await runPrePurchaseChains(at(21));
+    expect(sent()).toHaveLength(1);
+    expect(sent()[0]).toContain('получилось посмотреть');
+    expect(await prisma.priceOffer.count({ where: { userId: 311n } })).toBe(0);
+    // открыла тарифы позже — таймер тот же, не сбрасывается
+    clock.set(at(40));
+    expect((await api('POST', '/api/offer/start', 310)).status).toBe(200);
+    expect((await prisma.priceOffer.findFirstOrThrow({ where: { userId: 310n, kind: 'intro' } })).startedAt).toEqual(at(10));
   });
 
   it('/stop прекращает цепочку; 10–11 — за 2 и 1 день до старта, не задним числом; СТАРТ возвращает акционные цены', async () => {

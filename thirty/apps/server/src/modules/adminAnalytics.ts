@@ -120,10 +120,10 @@ const distinctUsers = async (event: string, from: Date, to: Date) =>
 export async function dashboard(r: Range) {
   const now = clock.now();
   const day = 24 * 3600_000;
-  const live = await prisma.subscription.findMany({ where: { status: { in: ['prestart', 'active', 'past_due', 'canceled_at_period_end'] } }, include: { tariff: true } });
+  const live = await prisma.subscription.findMany({ where: { status: { in: ['prestart', 'active', 'past_due', 'canceled_at_period_end'] }, test: false }, include: { tariff: true } });
   const mrr = Math.round(live.filter((s) => s.autoRenew).reduce((a, s) => a + s.renewalPrice / s.tariff.months, 0));
-  const paid = await prisma.payment.aggregate({ where: { status: { in: ['paid', 'refunded'] }, paidAt: { gte: r.from, lt: r.to } }, _sum: { amount: true }, _count: true });
-  const refunds = await prisma.payment.aggregate({ where: { status: 'refunded', refundedAt: { gte: r.from, lt: r.to } }, _sum: { amount: true }, _count: true });
+  const paid = await prisma.payment.aggregate({ where: { status: { in: ['paid', 'refunded'] }, test: false, paidAt: { gte: r.from, lt: r.to } }, _sum: { amount: true }, _count: true });
+  const refunds = await prisma.payment.aggregate({ where: { status: 'refunded', test: false, refundedAt: { gte: r.from, lt: r.to } }, _sum: { amount: true }, _count: true });
   const activeFlows = await prisma.flow.findMany({ where: { status: 'active' } });
   const activeMembers = await prisma.flowMembership.count({ where: { flowId: { in: activeFlows.map((f) => f.id) }, status: 'active' } });
   const reports = await prisma.dailyReport.count({ where: { createdAt: { gte: r.from, lt: r.to }, status: 'accepted' } });
@@ -143,10 +143,10 @@ export async function dashboard(r: Range) {
     payments: paid._count,
     refunds: { amount: refunds._sum.amount ?? 0, count: refunds._count },
     renewals: {
-      success: await prisma.payment.count({ where: { kind: { in: ['renewal', 'debt'] }, status: 'paid', paidAt: { gte: r.from, lt: r.to } } }),
-      failed: await prisma.payment.count({ where: { kind: 'renewal', status: 'failed', createdAt: { gte: r.from, lt: r.to } } }),
+      success: await prisma.payment.count({ where: { kind: { in: ['renewal', 'debt'] }, status: 'paid', test: false, paidAt: { gte: r.from, lt: r.to } } }),
+      failed: await prisma.payment.count({ where: { kind: 'renewal', status: 'failed', test: false, createdAt: { gte: r.from, lt: r.to } } }),
     },
-    churn: await prisma.subscription.count({ where: { canceledAt: { gte: r.from, lt: r.to } } }),
+    churn: await prisma.subscription.count({ where: { test: false, canceledAt: { gte: r.from, lt: r.to } } }),
     activeMembers,
     reports,
     reportsPerActive: activeMembers ? Math.round((reports / activeMembers) * 10) / 10 : 0,
