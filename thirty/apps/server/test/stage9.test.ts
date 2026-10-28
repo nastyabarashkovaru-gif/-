@@ -215,3 +215,18 @@ describe('возврат по прежней цене: оплата', () => {
     expect((await api('GET', '/api/membership', U)).body.membership.flow.startsOn).toBe('2026-12-01');
   });
 });
+
+describe('таймер скидки', () => {
+  it('стартует только на экране тарифов, а не при открытии приложения и онбординга', async () => {
+    clock.set('2026-10-25T10:00:00Z');
+    await api('GET', '/api/me', U);
+    await api('POST', '/api/me/screen', U, { screen: '/onboarding/2', stage: 'onboarding' });
+    await api('GET', '/api/public/value', U);
+    await api('GET', '/api/offer', U);
+    expect(await prisma.priceOffer.count({ where: { userId: BigInt(U) } })).toBe(0);
+    // На следующий день человек возвращается и впервые доходит до тарифов — у него полные 3 часа
+    clock.set('2026-10-26T12:00:00Z');
+    const s = await api('POST', '/api/offer/start', U, {});
+    expect(s.body.offer).toMatchObject({ active: true, msLeft: 3 * 3600_000 });
+  });
+});
