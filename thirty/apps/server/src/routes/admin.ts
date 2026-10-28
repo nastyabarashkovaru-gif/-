@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { addDays, assignPlaces, flowBounds, fromDbDate, prizePool, rank, startOfLocalDay, TOPIC_CHATS, type ISODate } from '@thirty/domain';
@@ -7,7 +8,8 @@ import { config } from '../config';
 import { prisma } from '../db';
 import { badRequest, forbidden, HttpError, jsonSafe, notFound } from '../http';
 import { parse } from '../lib/validate';
-import { signedMediaUrl } from '../lib/storage';
+import { signedMediaUrl, sniffImage, storage } from '../lib/storage';
+import { reviewImageUrl } from './billing';
 import { setHidden } from '../modules/feedChat';
 import { normalizeCode } from '../modules/promos';
 import { decideStoryRequest } from '../modules/stories';
@@ -126,10 +128,39 @@ export async function adminRoutes(app: FastifyInstance) {
       return after;
     });
     r.put('/admin-api/value-items', perm('tariffs'), async (req) => {
-      const items = parse(z.array(z.object({ id: z.string().max(32), title: z.string().max(120), price: z.number().int().min(0), priceLabel: z.string().max(60).optional(), emoji: z.string().max(16).optional(), description: z.string().max(200).optional(), enabled: z.boolean() })).max(20), req.body);
+      const items = parse(z.array(z.object({ id: z.string().max(32), title: z.string().max(120), price: z.number().int().min(0), priceLabel: z.string().max(60).optional(), emoji: z.string().max(16).optional(), description: z.string().max(200).optional(), details: z.string().max(600).optional(), enabled: z.boolean() })).max(20), req.body);
       await audit(req, 'value.update', 'setting', 'value.items', { before: await getSetting('value.items'), after: items });
       await setSetting('value.items', items);
       return { items };
+    });
+
+    // ───────── Онбординг: карусель результатов и «Нас уже 300+» ─────────
+    r.get('/admin-api/onboarding', perm('tariffs'), async () => ({ reviews: await getSetting('onboarding.reviews'), count: await getSetting('community.count') }));
+    r.put('/admin-api/onboarding', perm('tariffs'), async (req) => {
+      const body = parse(z.object({
+        count: z.string().trim().min(1).max(20),
+        reviews: z.array(z.object({
+          id: z.string().regex(/^[a-z0-9_-]{1,40}$/i), emoji: z.string().max(16), title: z.string().trim().min(1).max(120), text: z.string().max(240).optional(),
+          image: z.string().regex(/^(\/img\/reviews\/[a-z0-9_-]+\.(jpg|png|webp)|reviews\/[0-9a-f-]{36}\.(jpg|png|webp))$/).optional(), enabled: z.boolean(),
+        })).max(30),
+      }), req.body);
+      await audit(req, 'onboarding.update', 'setting', 'onboarding.reviews', { before: { reviews: await getSetting('onboarding.reviews'), count: await getSetting('community.count') }, after: body });
+      await setSetting('onboarding.reviews', body.reviews);
+      await setSetting('community.count', body.count);
+      return body;
+    });
+    /** Скриншот отзыва (публичный файл: отзывы и так показываются всем на первом экране) */
+    r.post('/admin-api/onboarding/image', perm('tariffs'), async (req) => {
+      const file = await req.file({ limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+      if (!file) throw badRequest('no_file');
+      const buf = await file.toBuffer();
+      if (file.file.truncated) throw badRequest('too_large', 'Файл больше 10 МБ');
+      const mime = sniffImage(buf);
+      const ext = mime === 'image/jpeg' ? 'jpg' : mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : null;
+      if (!ext) throw badRequest('bad_type', 'Нужна картинка JPG, PNG или WEBP');
+      const key = `reviews/${randomUUID()}.${ext}`;
+      await storage.put(key, buf, mime!);
+      return { image: key, url: reviewImageUrl(key) };
     });
 
     // ───────── A04 платежи ─────────

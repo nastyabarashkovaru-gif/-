@@ -129,3 +129,23 @@ describe('удалить участника', () => {
     expect((await prisma.flowMembership.findFirstOrThrow({ where: { userId: pair.userA, flowId: flow.id } })).status).not.toBe('revoked');
   });
 });
+
+describe('онбординг: отзывы и «Нас уже 300+»', () => {
+  it('порядок и состав карусели — из настроек; выключенные не показываются', async () => {
+    const { setSetting, getSetting } = await import('../src/settings');
+    const r = await api('GET', '/api/public/onboarding', 801);
+    expect(r.status).toBe(200);
+    expect(r.body.count).toBe('300+');
+    expect(r.body.reviews.slice(0, 3).map((x: { id: string }) => x.id)).toEqual(['weight', 'reels', 'veneers']);
+    expect(r.body.reviews[0].image).toBe('/img/reviews/weight.jpg');
+    const list = await getSetting('onboarding.reviews');
+    await setSetting('onboarding.reviews', [{ ...list[1] }, { ...list[0], enabled: false }, { id: 'up', emoji: '💜', title: 'Загружено', image: 'reviews/0b0b0b0b-1111-2222-3333-444444444444.jpg', enabled: true }]);
+    await setSetting('community.count', '350+');
+    const r2 = await api('GET', '/api/public/onboarding', 801);
+    expect(r2.body.reviews.map((x: { id: string }) => x.id)).toEqual(['reels', 'up']);
+    expect(r2.body.reviews[1].image).toBe('/api/public/review-image/0b0b0b0b-1111-2222-3333-444444444444.jpg');
+    expect(r2.body.count).toBe('350+');
+    const v = await api('GET', '/api/public/value', 801);
+    expect(v.body.items.map((x: { title: string }) => x.title)).toContain('Лидеры и специалисты');
+  });
+});

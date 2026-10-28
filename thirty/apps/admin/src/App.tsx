@@ -6,6 +6,7 @@ import { api, ApiError } from './api';
 import { Dashboard, Funnel } from './pages/Analytics';
 import { Home } from './pages/Home';
 import { Exports, Insights, MANAGE, MORE, ManageHub, MoreHub } from './pages/Hubs';
+import { OnboardingReviews } from './pages/OnboardingReviews';
 import { Tariffs, Payments } from './pages/Billing';
 import { Promos } from './pages/Promos';
 import { Journey } from './pages/Journey';
@@ -119,6 +120,7 @@ function Shell({ me, can, logout }: { me: MeAdmin; can: (p: string) => boolean; 
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/funnel" element={<Funnel />} />
           <Route path="/tariffs" element={<Tariffs />} />
+          <Route path="/onboarding-reviews" element={<OnboardingReviews />} />
           <Route path="/payments" element={<Payments />} />
           <Route path="/flows" element={<Flows />} />
           <Route path="/users" element={<Users />} />

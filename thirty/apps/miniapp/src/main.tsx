@@ -8,7 +8,8 @@ import { startTypography } from './lib/typo';
 
 initTelegram();
 
-startTypography(document.getElementById('root')!);
+// Весь body: всплывающие окна рисуются порталом вне #root
+startTypography(document.body);
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>

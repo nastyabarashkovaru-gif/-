@@ -82,6 +82,7 @@ export function Tariffs() {
   useEffect(() => {
     load();
     track('tariff_view', { screen: 'S06' });
+    track('tariffs_screen_view', { screen: 'S06' });
     void api('/api/me/screen', { body: { screen: '/tariffs', stage: 'tariffs' } }).catch(() => undefined);
   }, []);
 

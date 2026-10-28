@@ -1,12 +1,12 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   HeartHandshake, MessagesSquare, Video, ChartNoAxesColumnIncreasing, Users, Smile, Heart, Wallet, HeartPulse, Smartphone, Languages, Flame,
-  Mic, MessageCircle, PhoneOff, User, CalendarCheck, TrendingUp, Brain, CircleCheck, Target, Pencil, LayoutGrid, Camera, Trophy, Sparkles, Check, ArrowLeft, ArrowRight, ChevronDown, X,
+  Mic, MessageCircle, PhoneOff, User, CalendarCheck, TrendingUp, Brain, CircleCheck, Target, Pencil, LayoutGrid, Camera, Trophy, Sparkles, Check, ArrowLeft, ArrowRight, ChevronDown, ChevronRight, X,
 } from 'lucide-react';
 import { api, rub } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
-import { BrandBar, Cta, Dots, ErrorState, Loading, Screen, useLoad } from '../../ui';
+import { BrandBar, Cta, Dots, ErrorState, Loading, Popup, Screen, useLoad } from '../../ui';
 
 /** Онбординг: 3 экрана + тарифы (4-й). Подробные объяснения механик — по кнопкам «Подробнее» */
 const TOTAL = 4;
@@ -21,29 +21,12 @@ function useStep(n: number) {
       track('onboarding_started', { screen: screenId(1) });
     }
     track('onboarding_step_view', { screen: screenId(n), metadata: { step: n } });
+    track(`onboarding_screen_${n}_view`, { screen: screenId(n) });
     if (n === 3) track('value_screen_view', { screen: screenId(n) });
     void api('/api/me/screen', { body: { screen: onbPath(n), stage: 'onboarding' } }).catch(() => undefined);
   }, [n]);
   // A/B «onboarding_flow»: вариант short — с первого экрана сразу к тарифам
   return () => nav(n === 1 && ctx.variants.onboarding_flow === 'short' ? '/tariffs' : onbPath(n + 1));
-}
-
-/** Каркас шагов 1–3: логотип и «n / 4», полоски прогресса, белая карточка, чёрная кнопка, «Назад», точки */
-function Step({ n, children, cta, ctaClass = 'btn-dark' }: { n: number; children: ReactNode; cta: ReactNode; ctaClass?: string }) {
-  const next = useStep(n);
-  const nav = useNavigate();
-  return (
-    <Screen id={screenId(n)} className="onb">
-      <BrandBar right={<span className="counter">{n} / {TOTAL}</span>} />
-      <div className="steps">{Array.from({ length: TOTAL }, (_, i) => <i key={i} className={i < n ? 'on' : ''} />)}</div>
-      <div className="card onb-card">
-        {children}
-        <button className={`btn ${ctaClass}`} onClick={next}><span>{cta}</span><ArrowRight size={17} /></button>
-      </div>
-      {n > 1 && <button className="link-accent" style={{ color: 'var(--muted)', fontWeight: 500 }} onClick={() => nav(onbPath(n - 1))}><ArrowLeft size={16} />Назад</button>}
-      <Dots count={TOTAL} at={n - 1} />
-    </Screen>
-  );
 }
 
 /** Экран-объяснение механики («Подробнее»): прежние иллюстрированные экраны */
@@ -341,81 +324,172 @@ export function AboutScreen() {
   );
 }
 
-/* ───────────── Шаги 1–3 ───────────── */
+/* ───────────── Шаги 1–3: результаты → система → что входит (ТЗ 28.10) ───────────── */
 
-export function Welcome() {
+/** Каркас шагов: логотип и «n / 4», полоски прогресса, контент, закреплённая внизу кнопка и «Назад» */
+function Stage({ n, children, cta }: { n: number; children: ReactNode; cta: ReactNode }) {
+  const next = useStep(n);
+  const nav = useNavigate();
   return (
-    <Step n={1} cta="ХОЧУ ВСТУПИТЬ! 😍" ctaClass="btn-dark btn-shine">
-      <span className="onb-emoji">🚀</span>
-      <h1 className="hero" style={{ fontSize: 27 }}>Вступай в сообщество<br /><span className="nowrap">«30 дней»! 😍</span></h1>
-      <p className="lead-accent" style={{ color: 'var(--accent)', fontSize: 16 }}>Следующие 30 дней МОГУТ ИЗМЕНИТЬ ВСЁ!</p>
-      <div className="col" style={{ gap: 14, margin: '6px 0' }}>
-        {([['', 'Выбирай цели, которые давно откладываешь'], ['green', 'Находи единомышленников'], ['peach', 'Общайся, присылай отчёты, забирай призы']] as const).map(([c, t], k) => (
-          <div key={t} className="row" style={{ gap: 14, alignItems: k === 0 ? 'flex-start' : 'center' }}>
-            {/* Пункт с заголовком: цифра на одной линии с первой строкой «Новый месяц — новый челлендж!» */}
-            <span className={`num-sq ${c}`} style={k === 0 ? { marginTop: -10 } : undefined}>{k + 1}</span>
-            <span style={{ fontSize: 17, lineHeight: '24px' }}>{k === 0 && <b style={{ color: 'var(--accent)' }}>Новый месяц — новый челлендж! </b>}{t}</span>
-          </div>
-        ))}
+    <Screen id={screenId(n)} className="onb onb2">
+      <BrandBar right={<span className="counter">{n} / {TOTAL}</span>} />
+      <div className="steps">{Array.from({ length: TOTAL }, (_, i) => <i key={i} className={i < n ? 'on' : ''} />)}</div>
+      <div className="onb2-body">{children}</div>
+      <div className="onb2-foot">
+        <button className="btn btn-primary btn-shine onb2-cta" onClick={() => { track(`onboarding_screen_${n}_continue`, { screen: screenId(n) }); next(); }}><span>{cta}</span><ArrowRight size={19} /></button>
+        {n > 1 && <button className="link-accent onb2-back" onClick={() => nav(onbPath(n - 1))}><ArrowLeft size={16} />Назад</button>}
       </div>
-      <div className="panel center" style={{ color: 'var(--accent-ink)', fontWeight: 600, fontSize: 16 }}>Новые привычки, новые люди, новая версия тебя — «30 дней» 💜</div>
-    </Step>
+    </Screen>
   );
 }
 
-const MECHANICS = [
-  { topic: 'buddy', icon: <span>🤝</span>, c: '', title: 'Бадди', text: 'Мы все делимся на пары' },
-  { topic: 'chats', icon: <span>💬</span>, c: 'green', title: 'Чаты', text: 'Окружение единомышленников' },
-  { topic: 'calls', icon: <Video size={30} strokeWidth={1.8} />, c: 'orange', title: 'Созвоны', text: 'Разбор твоих шагов каждую неделю' },
-  { topic: 'reports', icon: <span>📸</span>, c: 'blue', title: 'Отчёты', text: 'Каждый день делишься результатом' },
+interface ReviewCard { id: string; emoji: string; title: string; text?: string; image: string | null }
+
+/** Карусель результатов: одна карточка и край следующей, свайп, точки; по нажатию — оригинальный отзыв */
+function ReviewsCarousel({ reviews }: { reviews: ReviewCard[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [at, setAt] = useState(0);
+  const [open, setOpen] = useState<ReviewCard | null>(null);
+  const seen = useRef(new Set<string>());
+  const view = (i: number) => {
+    const r = reviews[i];
+    if (!r || seen.current.has(r.id)) return;
+    seen.current.add(r.id);
+    track('review_card_view', { screen: 'O01', metadata: { review: r.id, position: i + 1 } });
+  };
+  useEffect(() => view(0), [reviews.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onScroll = () => {
+    const el = ref.current;
+    const card = el?.firstElementChild as HTMLElement | null;
+    if (!el || !card) return;
+    const i = Math.round(el.scrollLeft / (card.offsetWidth + 12));
+    if (i !== at) setAt(i);
+    view(i);
+  };
+  return (
+    <>
+      <div className="rv-track" ref={ref} onScroll={onScroll}>
+        {reviews.map((r, i) => (
+          <button key={r.id} className={`rv-card t${i % 6}`} onClick={() => { if (!r.image) return; track('review_original_open', { screen: 'O01', metadata: { review: r.id } }); setOpen(r); }}>
+            <span className="rv-emoji">{r.emoji}</span>
+            <span className="rv-title">{r.title}</span>
+            {r.text && <span className="rv-text">{r.text}</span>}
+            {r.image && <span className="rv-more">Смотреть отзыв <ChevronRight size={16} /></span>}
+          </button>
+        ))}
+      </div>
+      <div className="rv-dots">{reviews.map((r, i) => <i key={r.id} className={i === at ? 'on' : ''} />)}</div>
+      <Popup open={!!open} onClose={() => setOpen(null)}>
+        {open && (
+          <>
+            <div className="rv-pop-head"><span>{open.emoji}</span><b>{open.title}</b></div>
+            <img className="rv-pop-img" src={open.image!} alt="Оригинальный отзыв участницы" />
+            <button className="btn btn-light" onClick={() => setOpen(null)}>Закрыть</button>
+          </>
+        )}
+      </Popup>
+    </>
+  );
+}
+
+const FACES = [['#efe9ff', '#6c51df'], ['#fde9ef', '#d87c9a'], ['#e8f7ee', '#2f9e68'], ['#fff0df', '#d79240']] as const;
+
+export function Welcome() {
+  const { data } = useLoad(() => api<{ reviews: ReviewCard[]; count: string }>('/api/public/onboarding'));
+  return (
+    <Stage n={1} cta="Хочу вступить">
+      <div className="col onb2-head">
+        <h1 className="hero onb2-title">Вступай в наше сообщество «30 дней» 💜</h1>
+        <p className="lead">Новые привычки, новые люди, новая версия тебя.</p>
+      </div>
+      <div className="onb2-label">Посмотри, чего уже добились наши участники 👇</div>
+      {data ? <ReviewsCarousel reviews={data.reviews} /> : <div className="rv-skeleton" />}
+      <div className="crowd">
+        <span className="crowd-faces">{FACES.map(([bg, fg], i) => <span key={i} style={{ background: bg, color: fg }}><User size={16} /></span>)}</span>
+        <span className="crowd-text">👥 Нас уже <b>{data?.count ?? '300+'}</b> человек!</span>
+      </div>
+    </Stage>
+  );
+}
+
+const FEATURES = [
+  { topic: 'buddy', emoji: '🤝', c: '', title: 'Бадди', result: 'Не даёт сдаться на полпути', text: 'У каждого участника есть напарник, с которым можно поддерживать друг друга и двигаться к целям.' },
+  { topic: 'reports', emoji: '📸', c: 'blue', title: 'Ежедневные отчёты', result: 'Помогают не откладывать на завтра', text: 'Каждый день участники отчитываются о выполненных действиях, благодаря чему сохраняют дисциплину.' },
+  { topic: 'chats', emoji: '💬', c: 'green', title: 'Окружение', result: 'Вдохновляет двигаться вперёд', text: 'Рядом люди, которые тоже ставят цели, развиваются и делятся результатами.' },
+  { topic: 'calls', emoji: '🎥', c: 'orange', title: 'Еженедельные разборы', result: 'Помогают не сбиваться с пути', text: 'Каждую неделю участники отслеживают прогресс, разбирают сложности и составляют план на следующую неделю.' },
 ];
 
 function Mechanics() {
   const nav = useNavigate();
+  const [open, setOpen] = useState<(typeof FEATURES)[number] | null>(null);
   return (
-    <Step n={2} cta="Что ещё входит в клуб?">
-      <h1 className="hero" style={{ fontSize: 30 }}>Сдаться сложнее, когда вас двое 🤝</h1>
-      <div className="grid2" style={{ marginTop: 4 }}>
-        {MECHANICS.map((m) => (
-          <button key={m.topic} className="mech" onClick={() => nav(`/about/${m.topic}/0`)}>
-            <span className={`mech-ic ${m.c}`}>{m.icon}</span>
-            <span className="h3" style={{ fontSize: 18 }}>{m.title}</span>
-            <span className="muted" style={{ fontSize: 14 }}>{m.text}</span>
-            <span className="row" style={{ gap: 4, color: 'var(--accent)', fontWeight: 500, marginTop: 'auto' }}>Подробнее <ChevronDown size={16} /></span>
+    <Stage n={2} cta="Что ещё входит в клуб?">
+      <div className="col onb2-head">
+        <h1 className="hero onb2-title">Почему у нас добиваются результатов? 🚀</h1>
+        <p className="lead">Потому что здесь ты не остаёшься один на один со своими целями.</p>
+      </div>
+      <div className="grid2 onb2-grid">
+        {FEATURES.map((f) => (
+          <button key={f.topic} className="feat" onClick={() => { track('onboarding_feature_open', { screen: 'O02', metadata: { feature: f.topic } }); setOpen(f); }}>
+            <span className={`mech-ic ${f.c}`}>{f.emoji}</span>
+            <span className="feat-title">{f.title}</span>
+            <span className="feat-text">{f.result}</span>
+            <span className="feat-more">Подробнее <ChevronDown size={15} /></span>
           </button>
         ))}
       </div>
-    </Step>
+      <div className="willpower">Тебе больше не придётся полагаться только на силу воли 💜</div>
+      <Popup open={!!open} onClose={() => setOpen(null)}>
+        {open && (
+          <>
+            <span className={`mech-ic ${open.c}`} style={{ alignSelf: 'center' }}>{open.emoji}</span>
+            <h2 className="h2 center" style={{ margin: 0 }}>{open.title}</h2>
+            <div className="center feat-result">{open.result}</div>
+            <p className="center" style={{ margin: 0, color: 'var(--ink-2)', lineHeight: 1.45 }}>{open.text}</p>
+            <button className="btn btn-light" onClick={() => { setOpen(null); nav(`/about/${open.topic}/0`); }}>Как это выглядит в клубе</button>
+          </>
+        )}
+      </Popup>
+    </Stage>
   );
 }
 
+interface ValueCard { id: string; title: string; emoji?: string; description?: string; details?: string }
+
 function Value() {
-  const { data, error, loading, reload } = useLoad(() => api<{ items: { id: string; title: string; emoji?: string; description?: string }[] }>('/api/public/value'));
+  const { data, error, loading, reload } = useLoad(() => api<{ items: ValueCard[] }>('/api/public/value'));
+  const [open, setOpen] = useState<ValueCard | null>(null);
   return (
-    <Step n={3} cta="Узнать стоимость клуба 🔥" ctaClass="btn-fire btn-shine">
-      <div>
-        <h1 className="h2" style={{ fontSize: 26 }}>Что входит в клуб</h1>
-        <p className="sub" style={{ fontSize: 15 }}>Всё это ты получаешь вместе с участием</p>
+    <Stage n={3} cta="Узнать стоимость вступления">
+      <div className="col onb2-head">
+        <h1 className="hero onb2-title">Что ты получишь внутри клуба? 💜</h1>
+        <p className="lead">Всё, что нужно, чтобы двигаться к своим целям не в одиночку.</p>
       </div>
-      {loading && !data ? <Loading lines={2} /> : error || !data ? <ErrorState error={error} retry={reload} /> : (
+      {loading && !data ? <Loading lines={3} /> : error || !data ? <ErrorState error={error} retry={reload} /> : (
         <>
-          <div>
-            {data.items.map((i) => (
-              <div key={i.id} className="value-row" style={{ alignItems: 'flex-start' }}>
-                <span className="value-ic">{i.emoji ?? '✨'}</span>
-                <span className="grow">
-                  <span style={{ display: 'block', fontSize: 16, fontWeight: 600 }}>{i.title}</span>
-                  {i.description && <span className="muted" style={{ display: 'block', fontSize: 13, marginTop: 2, lineHeight: 1.35 }}>{i.description}</span>}
-                </span>
-              </div>
+          <div className="grid2 onb2-grid">
+            {data.items.map((i, k) => (
+              <button key={i.id} className="benefit" style={k === data.items.length - 1 && data.items.length % 2 ? { gridColumn: '1 / -1' } : undefined} onClick={() => { track('onboarding_benefit_open', { screen: 'O03', metadata: { benefit: i.id } }); setOpen(i); }}>
+                <span className="benefit-ic">{i.emoji ?? '✨'}</span>
+                <span className="feat-title">{i.title}</span>
+                {i.description && <span className="feat-text">{i.description}</span>}
+              </button>
             ))}
           </div>
-          <div className="row" style={{ background: 'var(--green-soft)', color: 'var(--green)', borderRadius: 16, padding: '14px 16px', gap: 10, alignItems: 'flex-start', fontWeight: 600 }}>
-            <CircleCheck size={20} style={{ flexShrink: 0, marginTop: 1 }} /><span>Всё это <b>УЖЕ ВКЛЮЧЕНО</b> в стоимость клуба</span>
-          </div>
+          <div className="included">💚 Всё это уже включено в стоимость клуба для наших участников!</div>
         </>
       )}
-    </Step>
+      <Popup open={!!open} onClose={() => setOpen(null)}>
+        {open && (
+          <>
+            <span className="benefit-ic big" style={{ alignSelf: 'center' }}>{open.emoji ?? '✨'}</span>
+            <h2 className="h2 center" style={{ margin: 0 }}>{open.title}</h2>
+            <p className="center" style={{ margin: 0, color: 'var(--ink-2)', lineHeight: 1.45 }}>{open.details ?? open.description}</p>
+            <button className="btn btn-light" onClick={() => setOpen(null)}>Понятно</button>
+          </>
+        )}
+      </Popup>
+    </Stage>
   );
 }
 

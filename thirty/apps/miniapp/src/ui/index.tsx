@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Bell, Home, LayoutList, MessagesSquare, User, WifiOff, RefreshCw, X } from 'lucide-react';
@@ -189,13 +190,15 @@ export function Sheet({ open, onClose, children }: { open: boolean; onClose: () 
 /** Всплывающее окно по центру; смена содержимого (stepKey) проигрывает анимацию заново */
 export function Popup({ open, onClose, children, stepKey }: { open: boolean; onClose: () => void; children: ReactNode; stepKey?: string | number }) {
   if (!open) return null;
-  return (
+  // В body: у экранов есть анимация (transform), внутри неё position: fixed перестаёт работать относительно окна
+  return createPortal(
     <div className="popup-bg" onClick={onClose}>
       <div className="popup" key={stepKey} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <button className="popup-x" aria-label="Закрыть" onClick={onClose}><X size={20} /></button>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

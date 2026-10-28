@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { storage } from '../lib/storage';
 import { requireUser } from '../auth/telegram';
 import { clock } from '../clock';
 import { config, isProd } from '../config';
@@ -40,6 +41,12 @@ export async function billingRoutes(app: FastifyInstance) {
       const items = (await getSetting('value.items')).filter((i) => i.enabled);
       return { items, total: items.reduce((a, i) => a + i.price, 0) };
     });
+
+    /** Первый экран онбординга: карусель результатов участниц и «Нас уже 300+» */
+    r.get('/api/public/onboarding', async () => ({
+      reviews: (await getSetting('onboarding.reviews')).filter((x) => x.enabled).map((x) => ({ ...x, image: x.image ? reviewImageUrl(x.image) : null })),
+      count: await getSetting('community.count'),
+    }));
 
     // Промокоды: проверка и применение только на сервере
     r.post('/api/promo/apply', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
@@ -104,6 +111,15 @@ export async function billingRoutes(app: FastifyInstance) {
   });
 
   /** Карточка для сторис (PNG 1080×1920) */
+  /** Скриншот отзыва, загруженный в админке (только из папки reviews/) */
+  app.get<{ Params: { file: string } }>('/api/public/review-image/:file', async (req, reply) => {
+    const m = /^([0-9a-f-]{36})\.(jpg|png|webp)$/.exec(req.params.file);
+    if (!m) throw notFound();
+    const buf = await storage.get(`reviews/${req.params.file}`).catch(() => null);
+    if (!buf) throw notFound();
+    return reply.header('Cache-Control', 'public, max-age=604800, immutable').type(m[2] === 'jpg' ? 'image/jpeg' : `image/${m[2]}`).send(buf);
+  });
+
   app.get('/api/public/story-card.png', async (_req, reply) => {
     const png = renderStoryCardPng(await getSetting('instagram.account'));
     return reply.header('content-type', 'image/png').header('cache-control', 'public, max-age=600').header('content-disposition', 'inline; filename="30-dney-story.png"').send(png);
@@ -255,3 +271,6 @@ async function cpCheck(body: Record<string, unknown>): Promise<number> {
   }
   return 0;
 }
+
+/** Скриншоты отзывов: встроенные лежат в приложении (/img/reviews), загруженные в админке — в хранилище */
+export const reviewImageUrl = (image: string) => (image.startsWith('/') ? image : `/api/public/review-image/${image.replace(/^reviews\//, '')}`);
