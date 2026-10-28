@@ -57,14 +57,6 @@ export async function seedTemplates() {
     if (d) await prisma.botMessageTemplate.update({ where: { key: 'trackers_granted' }, data: { text: d.text } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v6, value: { at: new Date().toISOString() } } });
   }
-  // Разово (28.10): новый список «Что ты получишь внутри клуба?» — прежняя правка из админки заменяется
-  const v7 = 'maintenance.valueV2';
-  if (!(await prisma.setting.findUnique({ where: { key: v7 } }))) {
-    await prisma.setting.deleteMany({ where: { key: 'value.items' } });
-    const { clearSettingsCache } = await import('../settings');
-    clearSettingsCache();
-    await prisma.setting.create({ data: { key: v7, value: { at: new Date().toISOString() } } });
-  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {

@@ -147,6 +147,6 @@ describe('онбординг: отзывы и «Нас уже 300+»', () => {
     expect(r2.body.reviews[1].image).toBe('/api/public/review-image/0b0b0b0b-1111-2222-3333-444444444444.jpg');
     expect(r2.body.count).toBe('350+');
     const v = await api('GET', '/api/public/value', 801);
-    expect(v.body.items.map((x: { title: string }) => x.title)).toContain('Лидеры и специалисты');
+    expect(v.body.items.map((x: { title: string }) => x.title)).toContain('Еженедельные разборы');
   });
 });

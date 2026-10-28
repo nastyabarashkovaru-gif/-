@@ -54,7 +54,7 @@ function ValueItems({ items, reload }: { items: any[]; reload: () => void }) {
   const [list, setList] = useState(items);
   return (
     <div className="card">
-      <h2>Экран «Что ты получишь внутри клуба?» (онбординг, шаг 3)</h2>
+      <h2>Экран «Что входит в клуб» (онбординг, шаг 3)</h2>
       <p className="muted">Цены в приложении сейчас не показываются — только название и пояснение.</p>
       <table><thead><tr><th>Вкл.</th><th>Эмодзи</th><th>Название</th><th>Пояснение (мелким текстом)</th><th>Подробнее (по нажатию)</th><th>Цена, ₽</th><th>Подпись цены</th><th /></tr></thead>
         <tbody>{list.map((i, k) => (

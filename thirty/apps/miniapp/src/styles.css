@@ -493,9 +493,9 @@ img { max-width: 100%; display: block; }
 .rv-cap { display: flex; align-items: center; gap: 10px; min-height: 48px; }
 .rv-emoji { font-size: 26px; line-height: 1; flex: none; }
 .rv-title { font-size: 17px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
-.rv-img { flex: 1; min-height: 0; border-radius: 16px 16px 0 0; overflow: hidden; background: rgba(255, 255, 255, 0.7); display: flex; align-items: flex-start; justify-content: center; }
-.rv-img img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
-.rv-img img.wide { object-fit: contain; object-position: center; }
+.rv-img { flex: 1; min-height: 0; margin-bottom: 14px; border-radius: 14px; overflow: hidden; background: rgba(255, 255, 255, 0.75); display: flex; align-items: center; justify-content: center; }
+/* Скриншот целиком, без обрезки */
+.rv-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .rv-text { font-size: 16px; color: var(--ink-2); line-height: 1.4; }
 .rv-more { margin-top: auto; display: inline-flex; align-items: center; gap: 2px; color: var(--accent); font-weight: 600; font-size: 15px; }
 .rv-dots { display: flex; justify-content: center; gap: 6px; margin-top: -4px; }

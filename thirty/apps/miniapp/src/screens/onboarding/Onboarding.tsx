@@ -326,6 +326,24 @@ export function AboutScreen() {
 
 /* ───────────── Шаги 1–3: результаты → система → что входит (ТЗ 28.10) ───────────── */
 
+/** Каркас шагов 1–3: логотип и «n / 4», полоски прогресса, белая карточка, чёрная кнопка, «Назад», точки */
+function Step({ n, children, cta, ctaClass = 'btn-dark' }: { n: number; children: ReactNode; cta: ReactNode; ctaClass?: string }) {
+  const next = useStep(n);
+  const nav = useNavigate();
+  return (
+    <Screen id={screenId(n)} className="onb">
+      <BrandBar right={<span className="counter">{n} / {TOTAL}</span>} />
+      <div className="steps">{Array.from({ length: TOTAL }, (_, i) => <i key={i} className={i < n ? 'on' : ''} />)}</div>
+      <div className="card onb-card">
+        {children}
+        <button className={`btn ${ctaClass}`} onClick={() => { track(`onboarding_screen_${n}_continue`, { screen: screenId(n) }); next(); }}><span>{cta}</span><ArrowRight size={17} /></button>
+      </div>
+      {n > 1 && <button className="link-accent" style={{ color: 'var(--muted)', fontWeight: 500 }} onClick={() => nav(onbPath(n - 1))}><ArrowLeft size={16} />Назад</button>}
+      <Dots count={TOTAL} at={n - 1} />
+    </Screen>
+  );
+}
+
 /** Каркас шагов: логотип и «n / 4», полоски прогресса, контент, закреплённая внизу кнопка и «Назад» */
 function Stage({ n, children, cta, aboveCta }: { n: number; children: ReactNode; cta: ReactNode; aboveCta?: ReactNode }) {
   const next = useStep(n);
@@ -346,34 +364,83 @@ function Stage({ n, children, cta, aboveCta }: { n: number; children: ReactNode;
 
 interface ReviewCard { id: string; emoji: string; title: string; text?: string; image: string | null }
 
-/** Карусель результатов: одна карточка и край следующей, свайп, точки; по нажатию — оригинальный отзыв */
+/**
+ * Карусель результатов: одна карточка и край следующей, бесконечная (после последней снова первая),
+ * листается сама; касание ставит автопрокрутку на паузу. По нажатию — отзыв на весь экран.
+ */
 function ReviewsCarousel({ reviews }: { reviews: ReviewCard[] }) {
   const ref = useRef<HTMLDivElement>(null);
+  const len = reviews.length;
+  const loop = len > 1;
+  const items = loop ? [...reviews, ...reviews, ...reviews] : reviews;
   const [at, setAt] = useState(0);
   const [open, setOpen] = useState<ReviewCard | null>(null);
   const seen = useRef(new Set<string>());
+  const pausedUntil = useRef(0);
+  const settle = useRef<number>();
   const view = (i: number) => {
     const r = reviews[i];
     if (!r || seen.current.has(r.id)) return;
     seen.current.add(r.id);
     track('review_card_view', { screen: 'O01', metadata: { review: r.id, position: i + 1 } });
   };
-  useEffect(() => view(0), [reviews.length]); // eslint-disable-line react-hooks/exhaustive-deps
-  const onScroll = () => {
-    const el = ref.current;
-    const card = el?.firstElementChild as HTMLElement | null;
-    if (!el || !card) return;
-    const i = Math.round(el.scrollLeft / (card.offsetWidth + 12));
-    if (i !== at) setAt(i);
-    view(i);
+  /** Позиция прокрутки, при которой карточка k стоит по центру */
+  const pos = (k: number) => {
+    const el = ref.current!;
+    const c = el.children[k] as HTMLElement | undefined;
+    return c ? c.offsetLeft - (el.clientWidth - c.offsetWidth) / 2 : 0;
   };
+  const nearest = () => {
+    const el = ref.current!;
+    const center = el.scrollLeft + el.clientWidth / 2;
+    let best = 0;
+    let dist = Infinity;
+    Array.from(el.children).forEach((c, k) => {
+      const d = Math.abs((c as HTMLElement).offsetLeft + (c as HTMLElement).offsetWidth / 2 - center);
+      if (d < dist) { dist = d; best = k; }
+    });
+    return best;
+  };
+  /** Мгновенный переход на такую же карточку в средней копии — шов не виден */
+  const jump = (k: number) => {
+    const el = ref.current!;
+    el.style.scrollSnapType = 'none';
+    el.scrollLeft = pos(k);
+    requestAnimationFrame(() => { el.style.scrollSnapType = ''; });
+  };
+  useEffect(() => {
+    if (!ref.current || !len) return;
+    if (loop) jump(len);
+    view(0);
+  }, [len]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!loop) return;
+    const t = window.setInterval(() => {
+      const el = ref.current;
+      if (!el || open || Date.now() < pausedUntil.current || document.hidden) return;
+      el.scrollTo({ left: pos(nearest() + 1), behavior: 'smooth' });
+    }, 3500);
+    return () => window.clearInterval(t);
+  }, [loop, open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onScroll = () => {
+    const k = nearest();
+    const real = ((k % len) + len) % len;
+    if (real !== at) setAt(real);
+    view(real);
+    window.clearTimeout(settle.current);
+    settle.current = window.setTimeout(() => {
+      const kk = nearest();
+      if (loop && (kk < len || kk >= 2 * len)) jump((kk % len) + len);
+    }, 140);
+  };
+  const pause = () => { pausedUntil.current = Date.now() + 6000; };
   return (
     <>
-      <div className="rv-track" ref={ref} onScroll={onScroll}>
-        {reviews.map((r, i) => (
-          <button key={r.id} className={`rv-card t${i % 6}`} onClick={() => { if (!r.image) return; track('review_original_open', { screen: 'O01', metadata: { review: r.id } }); setOpen(r); }}>
+      <div className="rv-track" ref={ref} onScroll={onScroll} onPointerDown={pause} onTouchStart={pause}>
+        {items.map((r, k) => (
+          <button key={`${r.id}-${k}`} className={`rv-card t${(k % len) % 6}`} onClick={() => { if (!r.image) return; pause(); track('review_original_open', { screen: 'O01', metadata: { review: r.id } }); setOpen(r); }}>
             <span className="rv-cap"><span className="rv-emoji">{r.emoji}</span><span className="rv-title">{r.title}</span></span>
-            {r.image && <ReviewImage src={r.image} />}
+            {r.image && <span className="rv-img"><img src={r.image} alt="Отзыв участницы" loading={k < len * 2 ? 'eager' : 'lazy'} /></span>}
           </button>
         ))}
       </div>
@@ -388,16 +455,6 @@ function ReviewsCarousel({ reviews }: { reviews: ReviewCard[] }) {
         )}
       </Popup>
     </>
-  );
-}
-
-/** Скриншот прямо в карточке: высокие показываются с начала, широкие — целиком */
-function ReviewImage({ src }: { src: string }) {
-  const [wide, setWide] = useState(false);
-  return (
-    <span className="rv-img">
-      <img src={src} alt="Отзыв участницы" loading="lazy" className={wide ? 'wide' : ''} onLoad={(e) => setWide(e.currentTarget.naturalWidth / e.currentTarget.naturalHeight > 1.15)} />
-    </span>
   );
 }
 
@@ -464,42 +521,33 @@ function Mechanics() {
   );
 }
 
-interface ValueCard { id: string; title: string; emoji?: string; description?: string; details?: string }
-
 function Value() {
-  const { data, error, loading, reload } = useLoad(() => api<{ items: ValueCard[] }>('/api/public/value'));
-  const [open, setOpen] = useState<ValueCard | null>(null);
+  const { data, error, loading, reload } = useLoad(() => api<{ items: { id: string; title: string; emoji?: string; description?: string }[] }>('/api/public/value'));
   return (
-    <Stage n={3} cta="Узнать стоимость вступления">
-      <div className="col onb2-head">
-        <h1 className="hero onb2-title">Что ты получишь внутри клуба? 💜</h1>
-        <p className="lead">Всё, что нужно, чтобы двигаться к своим целям не в одиночку.</p>
+    <Step n={3} cta="Узнать стоимость клуба 🔥" ctaClass="btn-fire btn-shine">
+      <div>
+        <h1 className="h2" style={{ fontSize: 26 }}>Что входит в клуб</h1>
+        <p className="sub" style={{ fontSize: 15 }}>Всё это ты получаешь вместе с участием</p>
       </div>
-      {loading && !data ? <Loading lines={3} /> : error || !data ? <ErrorState error={error} retry={reload} /> : (
+      {loading && !data ? <Loading lines={2} /> : error || !data ? <ErrorState error={error} retry={reload} /> : (
         <>
-          <div className="grid2 onb2-grid">
-            {data.items.map((i, k) => (
-              <button key={i.id} className="benefit" style={k === data.items.length - 1 && data.items.length % 2 ? { gridColumn: '1 / -1' } : undefined} onClick={() => { track('onboarding_benefit_open', { screen: 'O03', metadata: { benefit: i.id } }); setOpen(i); }}>
-                <span className="benefit-ic">{i.emoji ?? '✨'}</span>
-                <span className="feat-title">{i.title}</span>
-                {i.description && <span className="feat-text">{i.description}</span>}
-              </button>
+          <div>
+            {data.items.map((i) => (
+              <div key={i.id} className="value-row" style={{ alignItems: 'flex-start' }}>
+                <span className="value-ic">{i.emoji ?? '✨'}</span>
+                <span className="grow">
+                  <span style={{ display: 'block', fontSize: 16, fontWeight: 600 }}>{i.title}</span>
+                  {i.description && <span className="muted" style={{ display: 'block', fontSize: 13, marginTop: 2, lineHeight: 1.35 }}>{i.description}</span>}
+                </span>
+              </div>
             ))}
           </div>
-          <div className="included">💚 Всё это уже включено в стоимость клуба для наших участников!</div>
+          <div className="row" style={{ background: 'var(--green-soft)', color: 'var(--green)', borderRadius: 16, padding: '14px 16px', gap: 10, alignItems: 'flex-start', fontWeight: 600 }}>
+            <CircleCheck size={20} style={{ flexShrink: 0, marginTop: 1 }} /><span>Всё это <b>УЖЕ ВКЛЮЧЕНО</b> в стоимость клуба</span>
+          </div>
         </>
       )}
-      <Popup open={!!open} onClose={() => setOpen(null)}>
-        {open && (
-          <>
-            <span className="benefit-ic big" style={{ alignSelf: 'center' }}>{open.emoji ?? '✨'}</span>
-            <h2 className="h2 center" style={{ margin: 0 }}>{open.title}</h2>
-            <p className="center" style={{ margin: 0, color: 'var(--ink-2)', lineHeight: 1.45 }}>{open.details ?? open.description}</p>
-            <button className="btn btn-light" onClick={() => setOpen(null)}>Понятно</button>
-          </>
-        )}
-      </Popup>
-    </Stage>
+    </Step>
   );
 }
 
