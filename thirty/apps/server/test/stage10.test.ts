@@ -150,8 +150,12 @@ describe('онбординг: отзывы и «Нас уже 300+»', () => {
     await setSetting('community.countSince', '2026-10-01T00:00:00Z');
     for (const [id, test] of [[811, false], [812, true]] as const) {
       await prisma.user.create({ data: { id: BigInt(id), firstName: 'П' } });
-      await prisma.payment.create({ data: { userId: BigInt(id), kind: 'initial', status: 'paid', amount: 999, test, paidAt: new Date('2026-10-20T10:00:00Z'), idempotencyKey: `cnt-${id}` } });
+      await prisma.payment.create({ data: { userId: BigInt(id), kind: 'initial', status: 'paid', amount: 999, test, provider: 'cloudpayments', paidAt: new Date('2026-10-20T10:00:00Z'), idempotencyKey: `cnt-${id}` } });
     }
+    expect((await api('GET', '/api/public/onboarding', 801)).body.count).toBe('351');
+    // демо-оплаты (mock) счётчик не увеличивают
+    await prisma.user.create({ data: { id: 813n, firstName: 'Д' } });
+    await prisma.payment.create({ data: { userId: 813n, kind: 'initial', status: 'paid', amount: 999, provider: 'mock', paidAt: new Date('2026-10-20T10:00:00Z'), idempotencyKey: 'cnt-813' } });
     expect((await api('GET', '/api/public/onboarding', 801)).body.count).toBe('351');
     const v = await api('GET', '/api/public/value', 801);
     expect(v.body.items.map((x: { title: string }) => x.title)).toContain('Еженедельные разборы');
