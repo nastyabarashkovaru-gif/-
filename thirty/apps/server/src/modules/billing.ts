@@ -14,6 +14,7 @@ import type { ParsedWebhook, SubscriptionRef } from '../payments/types';
 import { ensureFlow } from './flows';
 import { redeemOnPayment } from './promos';
 import { track } from './analytics';
+import { paymentAlert } from './paymentAlerts';
 import { notify } from './notify';
 import { activeComeback, comebackPrice } from './journey';
 import { registerBotConversion } from './bot';
@@ -343,12 +344,14 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
 
   if ('duplicate' in outcome) {
     await notify(payment.userId, 'payment_duplicate', {}, `dup:${payment.id}`);
+    paymentAlert('duplicate', { userId: payment.userId, amount: payment.amount, tariffId: payment.tariffId, test: p.test, note: 'Подписка уже действует — оформи возврат в кабинете CloudPayments' });
     return outcome;
   }
   if ('alreadyPaid' in outcome) return outcome;
   const sub = outcome.subscription;
   if (needsShift && sub.providerSubscriptionId) await syncChargeDate(sub.id);
   await registerBotConversion(payment.userId);
+  paymentAlert('initial', { userId: payment.userId, amount: payment.amount, tariffId: tariff.id, test: p.test });
   await track({ userId: payment.userId, eventName: 'payment_success', screenId: 'S09', tariffId: tariff.id, metadata: { amount: payment.amount, paymentId: payment.id }, dedupeKey: `payment_success:${payment.id}` });
   await notify(
     payment.userId,
@@ -419,6 +422,7 @@ async function handleRenewalEvent(p: ParsedWebhook) {
     }
     await prisma.subscription.update({ where: { id: sub.id }, data: { status: 'past_due' } });
     await track({ userId: sub.userId, eventName: 'subscription_renewal_failed', tariffId: sub.tariffId });
+    paymentAlert('renewal_failed', { userId: sub.userId, amount: p.amount ?? sub.renewalPrice, tariffId: sub.tariffId, test: sub.test || Boolean(p.test), note: 'Участнице отправлено напоминание оплатить вручную' });
     await notify(sub.userId, 'renewal_failed', { amount: sub.renewalPrice }, `renewal_failed:${orderKey}`);
     return { renewalFailed: true };
   }
@@ -470,6 +474,7 @@ async function extendSubscription(
   // Продление происходит 28-го, следующая дата тоже 28-е — переносить нужно, только если провайдер прислал другую
   if (pay.nextChargeFromProvider && pay.nextChargeFromProvider !== plan.nextChargeDate) await syncChargeDate(sub.id);
   await track({ userId: sub.userId, eventName: 'subscription_renewal_success', tariffId: sub.tariffId, metadata: { kind: pay.kind } });
+  paymentAlert('renewal', { userId: sub.userId, amount: pay.amount, tariffId: sub.tariffId, test: sub.test || Boolean(pay.test) });
   await notify(sub.userId, 'renewal_success', { flows: plan.flows.map(monthName).join(', '), next_date: humanDate(plan.nextChargeDate, true) }, `renewal_success:${pay.idempotencyKey}`);
   return { extended: plan.flows };
 }
@@ -603,6 +608,7 @@ export async function markRefunded(paymentId: string, source: 'provider' | 'admi
     await tx.billingSchedule.updateMany({ where: { subscriptionId: payment.subscriptionId, status: { in: ['scheduled', 'synced'] } }, data: { status: 'canceled' } });
   });
   if (payment.subscriptionId) await deactivateAtProvider(payment.subscriptionId);
+  paymentAlert('refund', { userId: payment.userId, amount: payment.amount, tariffId: payment.tariffId, test: payment.test, note: source === 'admin' ? 'Отмечен в админке' : 'Возврат пришёл из CloudPayments' });
   return { refunded: true };
 }
 

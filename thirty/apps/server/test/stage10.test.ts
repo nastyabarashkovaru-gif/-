@@ -3,6 +3,8 @@ import { api, clock, grantMembership, prisma, resetDb } from './helpers';
 import { removeMember, restoreMember } from '../src/modules/removeMember';
 import { handleWebhook } from '../src/modules/billing';
 import { startOver } from '../src/modules/startOver';
+import { setAdminBotTransport } from '../src/modules/adminBot';
+import { config } from '../src/config';
 import { paymentProvider, setPaymentProvider } from '../src/payments';
 import { MockProvider, signMock } from '../src/payments/mock';
 import { homeFunnel, homeMoney, homeRetention, resolveRange } from '../src/modules/adminHome';
@@ -82,6 +84,10 @@ async function buy(userId: number, key: string) {
 describe('начать путь заново', () => {
   it('подписка закрыта, оплаты тестовые, анкета удалена — и можно снова купить', async () => {
     setPaymentProvider(new MockProvider());
+    const adminMsgs: string[] = [];
+    config.ADMIN_BOT_TOKEN = '1:ADMIN_TEST';
+    setAdminBotTransport((async (method: string, body: Record<string, unknown>) => { if (method === 'sendMessage') adminMsgs.push(String(body.text)); return { message_id: 1 }; }) as never);
+    await prisma.setting.upsert({ where: { key: 'adminBot.chats' }, create: { key: 'adminBot.chats', value: [42] }, update: { value: [42] } });
     clock.set('2026-10-21T09:00:00Z');
     await api('POST', '/api/offer/start', 501);
     await buy(501, 'start-over-1');
@@ -89,6 +95,10 @@ describe('начать путь заново', () => {
     await prisma.flowMembership.update({ where: { id: m.id }, data: { expectation: 'Хочу дисциплину' } });
     await prisma.goal.create({ data: { membershipId: m.id, category: 'blog', title: 'Блог', successCriterion: '1000' } });
     await prisma.user.update({ where: { id: 501n }, data: { interests: ['blog'], city: 'Москва' } });
+
+    // владельцу в админ-бот пришло уведомление об оплате
+    await new Promise((r) => setTimeout(r, 200));
+    expect(adminMsgs.some((t) => t.includes('Новая оплата') && t.includes('Сегодня: 1 оплата'))).toBe(true);
 
     const res = await startOver(501n);
     expect(res.subscriptions[0].autopayOff).toBe(true);

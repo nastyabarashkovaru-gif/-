@@ -25,18 +25,15 @@ async function adminSession(role: 'owner' | 'moderator' | 'analyst' | 'expert' =
 }
 
 describe('админка: доступ', () => {
-  it('owner обязан пройти 2FA; без неё API закрыт; неверный пароль — 401', async () => {
+  it('вход по логину и паролю без кода 2FA; без входа API закрыт; неверный пароль — 401', async () => {
     const app = await getApp();
     await prisma.adminUser.create({ data: { login: 'boss', role: 'owner', passwordHash: await hashPassword('correct horse battery') } });
     expect((await app.inject({ method: 'POST', url: '/admin-api/auth/login', payload: { login: 'boss', password: 'wrong' } })).statusCode).toBe(401);
-    const l = await app.inject({ method: 'POST', url: '/admin-api/auth/login', payload: { login: 'boss', password: 'correct horse battery' } });
-    expect(l.json().mfa).toBe('setup');
-    expect(l.json().otpauthUrl).toMatch(/^otpauth:\/\/totp\//);
-    const cookie = l.cookies.map((c) => `${c.name}=${c.value}`).join('; ');
-    const blocked = await app.inject({ method: 'GET', url: '/admin-api/dashboard', headers: { cookie } });
-    expect(blocked.statusCode).toBe(401);
-    expect((await app.inject({ method: 'POST', url: '/admin-api/auth/mfa', headers: { cookie }, payload: { code: '000000' } })).statusCode).toBe(401);
     expect((await app.inject({ method: 'GET', url: '/admin-api/dashboard' })).statusCode).toBe(401);
+    const l = await app.inject({ method: 'POST', url: '/admin-api/auth/login', payload: { login: 'boss', password: 'correct horse battery' } });
+    expect(l.json().mfa).toBe('ok');
+    const cookie = l.cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+    expect((await app.inject({ method: 'GET', url: '/admin-api/dashboard', headers: { cookie } })).statusCode).toBe(200);
   });
 
   it('CSRF обязателен для изменений; роли ограничивают разделы', async () => {
