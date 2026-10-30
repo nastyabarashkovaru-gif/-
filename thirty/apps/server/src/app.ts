@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify';
 import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
@@ -79,15 +79,20 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // Статика: Mini App на «/», админка на «/admin/»
   const miniDir = config.STATIC_MINIAPP_DIR || path.resolve(process.cwd(), '../miniapp/dist');
   const adminDir = config.STATIC_ADMIN_DIR || path.resolve(process.cwd(), '../admin/dist');
+  // index.html не кэшируем, чтобы после выкладки телефон сразу брал новую версию; файлы из assets/ с хэшем в имени — навсегда
+  const setHeaders = (res: { setHeader: (k: string, v: string) => void }, file: string) => {
+    res.setHeader('Cache-Control', file.includes(`${path.sep}assets${path.sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache, no-store, must-revalidate');
+  };
+  const sendIndex = (reply: FastifyReply, dir: string) => reply.header('Cache-Control', 'no-cache, no-store, must-revalidate').sendFile('index.html', dir);
   if (existsSync(adminDir)) {
-    await app.register(fstatic, { root: adminDir, prefix: '/admin/', decorateReply: false, wildcard: false });
-    app.get('/admin/*', (_req, reply) => reply.sendFile('index.html', adminDir));
+    await app.register(fstatic, { root: adminDir, prefix: '/admin/', decorateReply: false, wildcard: false, cacheControl: false, setHeaders });
+    app.get('/admin/*', (_req, reply) => sendIndex(reply, adminDir));
   }
   if (existsSync(miniDir)) {
-    await app.register(fstatic, { root: miniDir, prefix: '/', wildcard: false });
+    await app.register(fstatic, { root: miniDir, prefix: '/', wildcard: false, cacheControl: false, setHeaders });
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith('/api/')) return reply.status(404).send({ code: 'not_found' });
-      return reply.sendFile('index.html', miniDir);
+      return sendIndex(reply, miniDir);
     });
   }
   return app;
