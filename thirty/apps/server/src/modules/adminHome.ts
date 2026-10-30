@@ -27,8 +27,9 @@ export const HOME_STEPS: Step[] = [
   { key: 'o02', title: 'Онбординг 2 · Как всё устроено', short: 'Экран 2', event: 'onboarding_step_view', screen: 'O02' },
   { key: 'o03', title: 'Онбординг 3 · Что входит в клуб', short: 'Экран 3', event: 'onboarding_step_view', screen: 'O03' },
   { key: 'tariffs', title: 'Экран тарифов', short: 'Тарифы', event: 'tariff_view' },
-  { key: 'select', title: 'Выбрали тариф', short: 'Выбор тарифа', event: 'tariff_select' },
-  { key: 'pay_click', title: 'Нажали «Оплатить»', short: 'Оплатить', event: 'payment_start' },
+  // «Присоединиться» под тарифами → экран оформления; «Оплатить» там → страница оплаты CloudPayments
+  { key: 'select', title: 'Нажали «Присоединиться» (под тарифами)', short: 'Присоединиться', event: 'tariff_join_click' },
+  { key: 'pay_click', title: 'Нажали «Оплатить» (экран оформления)', short: 'Оплатить', event: 'payment_start' },
   { key: 'paid', title: 'Оплатили', short: 'Оплата' },
 ];
 const STEP_EVENTS = [...new Set(HOME_STEPS.flatMap((s) => (s.event ? [s.event] : [])))];

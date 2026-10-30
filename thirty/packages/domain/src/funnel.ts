@@ -48,7 +48,7 @@ export const EVENT_NAMES = [
   'bot_message_failed', 'bot_conversion_after_click',
   // Сквозная аналитика админки
   'bot_start', 'subscription_expired', 'challenge_started', 'challenge_completed', 'goal_completed', 'feedback_submitted',
-  'trackers_offer_view', 'trackers_review_click', 'trackers_review_sent', 'trackers_issued', 'restore_offer_open',
+  'trackers_offer_view', 'trackers_review_click', 'trackers_review_sent', 'trackers_issued', 'restore_offer_open', 'tariff_join_click',
   // Онбординг v2 (ТЗ 28.10): результаты → система → что входит
   'onboarding_screen_1_view', 'review_card_view', 'review_original_open', 'onboarding_screen_1_continue',
   'onboarding_screen_2_view', 'onboarding_feature_open', 'onboarding_screen_2_continue',

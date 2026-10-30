@@ -206,13 +206,15 @@ export function Tariffs() {
           if (!chosen) return;
           // Клик по тарифу засчитывается один раз: если карточку не трогали, выбор по умолчанию фиксируется кнопкой
           if (!clicked.current) track('tariff_select', { screen: 'S06', tariff: chosen.id, metadata: { price: chosen.price, cta: true } });
+          // Шаг воронки «Нажали „Присоединиться“» — переход к оформлению
+          track('tariff_join_click', { screen: 'S06', tariff: chosen.id, metadata: { price: chosen.price } });
           nav(`/checkout/${chosen.id}`);
         }}
       >
         Присоединиться за {chosen ? rub(chosen.price) : ''} 😍
       </Cta>
-      <PromoField applied={state.offer.kind === 'promo'} onApplied={load} />
       {me?.support && <button className="btn btn-secondary ask-btn" onClick={() => openTelegram(me.support)}><MessageCircle size={20} />Задать вопрос</button>}
+      <PromoField applied={state.offer.kind === 'promo'} onApplied={load} />
     </Screen>
   );
 }

@@ -49,7 +49,7 @@ describe('главный экран админки', () => {
     expect(step('o01').count).toBe(4); // 5 пропустила онбординг, но дошла до тарифов
     expect(step('o03')).toMatchObject({ count: 3, lost: 0 });
     expect(step('select')).toMatchObject({ count: 1, lost: 2, lostPct: 66.7 });
-    expect(f.worst).toMatchObject({ from: 'Тарифы', to: 'Выбор тарифа', lostPct: 66.7 });
+    expect(f.worst).toMatchObject({ from: 'Тарифы', to: 'Присоединиться', lostPct: 66.7 });
     expect(f.daily.current.app[5]).toBe(4); // повторные открытия в тот же день — один человек
     expect(f.note).toBeTruthy();
 

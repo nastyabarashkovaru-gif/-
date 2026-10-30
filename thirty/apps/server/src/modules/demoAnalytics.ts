@@ -87,6 +87,7 @@ export async function seedDemoAnalytics() {
       const tid = r() < 0.46 ? 'm1' : r() < 0.63 ? 'm3' : 'm6';
       if (!step(0.56 + better * 0.06, 4)) continue;
       push(id, 'tariff_select', t, { tariffId: tid });
+      push(id, 'tariff_join_click', t, { tariffId: tid });
       if (!step(0.86, 2)) continue;
       push(id, 'payment_start', t, { tariffId: tid, screenId: 'S07' });
       if (!chance(0.5 + better * 0.06)) continue;
