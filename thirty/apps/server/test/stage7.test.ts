@@ -72,6 +72,22 @@ describe('после оплаты', () => {
   });
 });
 
+describe('проверка на себе', () => {
+  it('купила → «Начать путь заново» → снова тарифы → дожим приходит', async () => {
+    const { startOver } = await import('../src/modules/startOver');
+    clock.set('2026-10-21T09:00:00Z');
+    await start(960);
+    await api('POST', '/api/offer/start', 960);
+    await buy(960);
+    await startOver(960n);
+    calls = [];
+    clock.set('2026-10-21T12:00:00Z');
+    await api('POST', '/api/offer/start', 960);
+    await runPrePurchaseChains(new Date('2026-10-21T12:11:00Z'));
+    expect(sent().some((t) => t.includes('получилось посмотреть'))).toBe(true);
+  });
+});
+
 describe('дожимная цепочка до оплаты', () => {
   it('сообщение 1 — один раз; 2–7 по таймеру из реальных цен; пропущенные не досылаются; после оплаты — тишина', async () => {
     clock.set('2026-10-21T09:00:00Z');

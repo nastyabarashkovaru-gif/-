@@ -106,6 +106,12 @@ export function UserDetail({ canEdit, canStartOver = false }: { canEdit: boolean
                 location.reload();
               }}>Начать путь заново</button>
             )}
+            {canStartOver && (
+              <button className="btn light" style={{ marginTop: 8 }} onClick={async () => {
+                if (!confirm('Прислать в бот все дожимные сообщения 02–11 подряд (каждые 3 секунды)? Это проверка — на настоящую цепочку не влияет.')) return;
+                try { await api(`/admin-api/users/${u.user.id}/chain-test`, { body: {} }); alert('Отправляем — открой бота, сообщения придут в течение минуты'); } catch (e) { alert((e as Error).message); }
+              }}>Прислать мне всю цепочку дожима (проверка)</button>
+            )}
             {canEdit && <RemoveMember userId={u.user.id} revoked={(u.memberships ?? []).some((m: any) => m.status === 'revoked')} onDone={s.reload} />}
           </div>
           <div className="card">

@@ -70,12 +70,15 @@ export function Tariffs() {
   }, [restoreOpen, account]);
   const [compare, setCompare] = useState(false);
   const clicked = useRef(false);
+  // Момент ответа сервера: остаток таймера считаем от него (часы телефона могут расходиться с сервером)
+  const loadedAt = useRef(Date.now());
   useTicker(1000);
 
   const load = () => {
     setError(null);
     api<OfferState>('/api/offer/start', { body: {} })
       .then((s) => {
+        loadedAt.current = Date.now();
         setState(s);
         // A/B «tariff_default»: какой тариф выбран по умолчанию (m1 / m3 / m6), иначе — выделенный
         const ab = ctx.variants.tariff_default;
@@ -91,7 +94,7 @@ export function Tariffs() {
     void api('/api/me/screen', { body: { screen: '/tariffs', stage: 'tariffs' } }).catch(() => undefined);
   }, []);
 
-  const msLeft = state?.offer.expiresAt ? new Date(state.offer.expiresAt).getTime() - Date.now() : 0;
+  const msLeft = state?.offer.active ? state.offer.msLeft - (Date.now() - loadedAt.current) : 0;
   const promoActive = Boolean(state?.offer.active && msLeft > 0);
   // Таймер истёк, пока экран открыт — перезапрашиваем реальные цены у сервера
   useEffect(() => {
@@ -162,8 +165,9 @@ export function Tariffs() {
         ))}
       </div>
       {/* Таймер скидки закончился — можно вернуть акционные цены через сторис (как сообщение 09 в боте) */}
-      {state.offer.started && !promoActive && (
-        <button className="btn discount-btn btn-shine" onClick={() => { track('restore_offer_open', { screen: 'S06' }); setRestoreOpen(true); }}><span>Хочу получить скидку 🔥</span></button>
+      {/* Только когда сервер подтвердил: скидки сейчас нет (таймер закончился, промокод не применён) */}
+      {state.offer.started && !state.offer.active && (
+        <button className="btn discount-btn btn-shine" onClick={() => { track('restore_offer_open', { screen: 'S06' }); setRestoreOpen(true); }}><span>Хочу вернуть скидку 🔥</span></button>
       )}
       <Popup open={restoreOpen} onClose={() => setRestoreOpen(false)}>
         <div className="center" style={{ fontSize: 44, lineHeight: 1 }}>🎁</div>

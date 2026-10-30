@@ -287,6 +287,17 @@ export async function adminRoutes(app: FastifyInstance) {
       await audit(req, 'user.restore', 'user', req.params.id, { after: res });
       return res;
     });
+    /** Проверка дожима: все сообщения цепочки 02–11 этому человеку подряд с паузой 3 с (только владелец) */
+    r.post<{ Params: { id: string } }>('/admin-api/users/:id/chain-test', perm('roles'), async (req) => {
+      const { runChainTest } = await import('../modules/chainTest');
+      const u = await prisma.user.findUnique({ where: { id: BigInt(req.params.id) } });
+      if (!u) throw notFound();
+      if (!u.allowsWrite || u.botBlocked) throw badRequest('bot_blocked', 'Бот не может писать этому человеку: нужно нажать /start в боте');
+      if (!u.marketingOptIn) await prisma.user.update({ where: { id: u.id }, data: { marketingOptIn: true } });
+      runChainTest(u.id);
+      await audit(req, 'chain.test', 'user', req.params.id);
+      return { ok: true };
+    });
     /** Владелец проверяет путь на себе: подписка закрыта, автосписание отключено, анкета удалена */
     r.post<{ Params: { id: string } }>('/admin-api/users/:id/start-over', perm('roles'), async (req) => {
       const { startOver } = await import('../modules/startOver');
