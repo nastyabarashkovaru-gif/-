@@ -7,7 +7,8 @@ export interface TemplateSeed {
   key: string;
   title: string;
   text: string;
-  buttons: { text: string; screen: string }[];
+  /** screen — экран мини-приложения; url — внешняя ссылка (можно с переменной, например {chat_url}) */
+  buttons: { text: string; screen?: string; url?: string }[];
   enabled: boolean;
   isMarketing: boolean;
   delayMinutes: number;
@@ -47,7 +48,7 @@ export const DEFAULT_TEMPLATES: TemplateSeed[] = [
   // B01–B03
   { key: 'welcome', title: 'Цепочка 01. /start — приветствие (один раз)', text: WELCOME_TEXT, imageUrl: WELCOME_IMAGE, buttons: [{ text: WELCOME_BUTTON, screen: 'welcome' }], enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },
   { key: 'abandoned_purchase', title: 'B02 Незавершённая покупка', text: 'Ты остановился в шаге от старта. Твой выбор сохранён — можно продолжить с того же места.', buttons: [{ text: 'Продолжить', screen: 'resume' }], enabled: false, isMarketing: true, delayMinutes: 60, capHours: 24, priority: 60 },
-  { key: 'payment_success', title: 'B03 Оплата прошла', text: 'Оплата прошла, ты в клубе! 🎉\n\nТариф: {tariff}\nТвои потоки: {flows}\n\nЗаполни анкету и выбери цели — это займёт 5 минут.', buttons: [{ text: 'Заполнить анкету', screen: 'reg_profile' }], enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },
+  { key: 'payment_success', title: 'B03 Оплата прошла', text: 'Оплата прошла, ты в клубе! 🎉\n\nСкорее заполняй анкету, чтобы участвовать в нашем челлендже (если не успеешь заполнить до старта — ты не будешь определена в пару), и заходи в наш чат!\n\n{chat_url}\n\nДобро пожаловать! 💜', buttons: [{ text: 'Заполнить анкету 📝', screen: 'reg_profile' }, { text: 'Зайти в чат 💬', url: '{chat_url}' }], enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },
   // B04–B09 дожим до оплаты
   { key: 'nudge_not_reached_tariffs', title: 'B04 Открыл, не дошёл до тарифов', text: 'Ты начал знакомиться с «30 днями». Осталось пару экранов — посмотри, что внутри клуба.', buttons: [{ text: 'Продолжить', screen: 'resume' }], enabled: false, isMarketing: true, delayMinutes: 120, capHours: 72, priority: 40 },
   { key: 'nudge_tariffs_no_select', title: 'B05 Видел тарифы, не выбрал', text: 'В одиночку бросить легко. В «30 днях» у тебя будет бадди, чат потока и созвон с экспертом каждую неделю — так дойти до конца проще.', buttons: [{ text: 'Посмотреть тарифы', screen: 'tariffs' }], enabled: false, isMarketing: true, delayMinutes: 60, capHours: 72, priority: 45 },

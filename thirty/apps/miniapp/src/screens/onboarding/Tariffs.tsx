@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronUp, CircleCheck, Clock, Gift, HeartHandshake, Lock, Unlock, ArrowLeft } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleCheck, Clock, Gift, HeartHandshake, Lock, Unlock, ArrowLeft, MessageCircle } from 'lucide-react';
 import { api, rub } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
 import { haptic, openTelegram } from '../../lib/telegram';
@@ -195,7 +195,7 @@ export function Tariffs() {
         Присоединиться за {chosen ? rub(chosen.price) : ''} 😍
       </Cta>
       <PromoField applied={state.offer.kind === 'promo'} onApplied={load} />
-      {me?.support && <button className="link-btn" onClick={() => openTelegram(me.support)}>Задать вопрос в поддержку</button>}
+      {me?.support && <button className="btn btn-secondary ask-btn" onClick={() => openTelegram(me.support)}><MessageCircle size={20} />Задать вопрос</button>}
     </Screen>
   );
 }

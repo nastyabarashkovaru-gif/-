@@ -28,13 +28,19 @@ export async function accessibleChats(userId: bigint, now = clock.now()): Promis
   const topics = live
     ? [...new Set((await prisma.goal.findMany({ where: { membership: { userId, flowId: { in: flowIds } } }, select: { category: true } })).map((g) => g.category as string))]
     : [];
-  return prisma.telegramChat.findMany({
+  const chats = await prisma.telegramChat.findMany({
     where: {
       active: true,
       telegramChatId: { not: null },
       OR: [{ kind: 'flow', flowId: { in: flowIds } }, ...(topics.length ? [{ kind: 'topic' as const, topic: { in: topics } }] : [])],
     },
   });
+  // Общий чат открыт сразу после оплаты: если к потоку участника группа ещё не привязана — последний привязанный чат потока
+  if (flowIds.length && !chats.some((c) => c.kind === 'flow')) {
+    const latest = await prisma.telegramChat.findFirst({ where: { kind: 'flow', active: true, telegramChatId: { not: null } }, orderBy: { createdAt: 'desc' } });
+    if (latest) chats.push(latest);
+  }
+  return chats;
 }
 
 /** Персональная ссылка-заявка: вступление только через проверку оплаты ботом (chat_join_request) */

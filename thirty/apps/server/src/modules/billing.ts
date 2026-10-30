@@ -356,10 +356,23 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
   await notify(
     payment.userId,
     'payment_success',
-    { tariff: tariff.title, flows: flows.map(monthName).join(', '), next_date: humanDate(chargeDate, true), next_amount: payment.amount },
+    { tariff: tariff.title, flows: flows.map(monthName).join(', '), next_date: humanDate(chargeDate, true), next_amount: payment.amount, chat_url: await flowChatLink(payment.userId) },
     `payment_success:${payment.id}`,
   );
   return { subscriptionId: sub.id };
+}
+
+/** Личная ссылка-приглашение в общий чат потока — сразу после оплаты (без чата или при ошибке Telegram — пусто) */
+async function flowChatLink(userId: bigint) {
+  try {
+    const { accessibleChats, inviteLinkFor } = await import('./chats');
+    const chat = (await accessibleChats(userId)).find((c) => c.kind === 'flow');
+    if (!chat) return '';
+    return (await inviteLinkFor(userId, chat.id)).url ?? '';
+  } catch (e) {
+    console.warn('[billing] chat link', (e as Error).message);
+    return '';
+  }
 }
 
 function refOf(sub: Subscription): SubscriptionRef | null {

@@ -53,7 +53,7 @@ export function Bot() {
           <div style={{ display: 'grid', gap: 8 }}>
             <label className="f">Текст (жирный: {'<b>текст</b>'}; переменные в {'{скобках}'})<textarea style={{ minHeight: 140 }} value={edit.text} onChange={(e) => setEdit({ ...edit, text: e.target.value })} /></label>
             <label className="f">Картинка (URL, необязательно; {'{public_url}'} — адрес приложения)<input value={edit.imageUrl ?? ''} onChange={(e) => setEdit({ ...edit, imageUrl: e.target.value })} /></label>
-            <label className="f">Кнопки (JSON: [{'{"text":"…","screen":"tariffs"}'}])<input value={edit.buttonsText} onChange={(e) => setEdit({ ...edit, buttonsText: e.target.value })} /></label>
+            <label className="f">Кнопки (JSON: [{'{"text":"…","screen":"tariffs"}'}] — экран приложения, или [{'{"text":"…","url":"https://…"}'}] — ссылка)<input value={edit.buttonsText} onChange={(e) => setEdit({ ...edit, buttonsText: e.target.value })} /></label>
             <div className="row">
               <label className="f">Задержка, мин<input type="number" value={edit.delayMinutes} onChange={(e) => setEdit({ ...edit, delayMinutes: Number(e.target.value) })} /></label>
               <label className="f">Не чаще раза в, ч<input type="number" value={edit.capHours} onChange={(e) => setEdit({ ...edit, capHours: Number(e.target.value) })} /></label>

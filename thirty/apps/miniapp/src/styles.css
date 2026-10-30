@@ -540,3 +540,4 @@ img { max-width: 100%; display: block; }
 .cta-glow { background: linear-gradient(110deg, #6c51df 0%, #9a6bff 25%, #d77ad8 50%, #9a6bff 75%, #6c51df 100%); background-size: 250% 100%; animation: glow-shift 4s linear infinite; font-size: 19px; }
 .cta-glow:active { background: linear-gradient(110deg, #5c42cf, #8a5bef); }
 @keyframes glow-shift { from { background-position: 0% 0; } to { background-position: 250% 0; } }
+.ask-btn { min-height: 52px; font-size: 17px; margin-top: 2px; }

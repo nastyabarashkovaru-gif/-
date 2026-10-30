@@ -49,6 +49,29 @@ async function buy(userId: number) {
   return co.body.amount as number;
 }
 
+describe('после оплаты', () => {
+  it('сообщение: анкета до старта + личная ссылка в общий чат (чат открыт сразу, даже если привязан к другому потоку)', async () => {
+    clock.set('2026-10-21T09:00:00Z');
+    const other = await prisma.flow.create({ data: { startsOn: new Date('2026-10-01T00:00:00Z'), endsOn: new Date('2026-10-31T00:00:00Z'), title: 'Октябрь 2026' } });
+    await prisma.telegramChat.create({ data: { kind: 'flow', flowId: other.id, telegramChatId: -100777n, title: 'Чат «Ноябрь»' } });
+    setTelegramTransport(async (method, body) => {
+      calls.push({ method, body });
+      return (method === 'createChatInviteLink' ? { invite_link: 'https://t.me/+invite777' } : { message_id: 1 }) as never;
+    });
+    await prisma.user.create({ data: { id: 950n, firstName: 'Аня', allowsWrite: true } });
+    await buy(950);
+    const msg = calls.find((c) => c.method === 'sendMessage' && Number(c.body.chat_id) === 950 && String(c.body.text).includes('определена в пару'))!;
+    expect(msg).toBeTruthy();
+    expect(String(msg.body.text)).toContain('https://t.me/+invite777');
+    expect(String(msg.body.text)).toContain('Добро пожаловать');
+    const kb = (msg.body.reply_markup as { inline_keyboard: { text: string; url?: string; web_app?: unknown }[][] }).inline_keyboard.flat();
+    expect(kb.find((b) => b.text.startsWith('Зайти в чат'))?.url).toBe('https://t.me/+invite777');
+    expect(kb.find((b) => b.text.startsWith('Заполнить анкету'))?.web_app).toBeTruthy();
+    // в разделе «Сообщество» чат потока открыт
+    expect((await api('GET', '/api/club', 950)).body.flowChat).toMatchObject({ title: 'Чат «Ноябрь»' });
+  });
+});
+
 describe('дожимная цепочка до оплаты', () => {
   it('сообщение 1 — один раз; 2–7 по таймеру из реальных цен; пропущенные не досылаются; после оплаты — тишина', async () => {
     clock.set('2026-10-21T09:00:00Z');

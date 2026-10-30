@@ -33,7 +33,7 @@ export function Club() {
       {loading && !data ? <Loading /> : error || !data ? <ErrorState error={error} retry={reload} /> : (
         <>
           <button className="hero-card card-link" style={{ flexDirection: 'row', alignItems: 'center', gap: 16, border: 0, textAlign: 'left', cursor: data.flowChat ? 'pointer' : 'default', opacity: data.flowChat ? 1 : 0.6 }}
-            onClick={() => (data.flowChat ? joinChat(data.flowChat.id) : toast('Чат потока откроется ближе к старту'))}>
+            onClick={() => (data.flowChat ? joinChat(data.flowChat.id) : toast(data.paid ? 'Чат скоро откроется — мы пришлём ссылку в бот' : 'Чат открывается сразу после оплаты'))}>
             <MessagesSquare size={28} strokeWidth={1.8} />
             <span className="grow"><span style={{ display: 'block', fontSize: 20, fontWeight: 700 }}>Общий чат потока</span>{data.flow && <span style={{ opacity: 0.9 }}>{humanDate(data.flow.startsOn, true)}</span>}</span>
             {data.flowChat ? <ArrowUpRight size={18} /> : <Lock size={18} />}

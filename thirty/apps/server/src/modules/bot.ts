@@ -65,6 +65,13 @@ export async function seedTemplates() {
     await setSetting('community.countSince', new Date().toISOString());
     await prisma.setting.create({ data: { key: v8, value: { at: new Date().toISOString() } } });
   }
+  // Разово (30.10): сообщение после оплаты — анкета до старта и ссылка в чат (текст владельца)
+  const v9 = 'maintenance.paymentSuccessV2';
+  if (!(await prisma.setting.findUnique({ where: { key: v9 } }))) {
+    const d = DEFAULT_TEMPLATES.find((x) => x.key === 'payment_success');
+    if (d) await prisma.botMessageTemplate.update({ where: { key: 'payment_success' }, data: { text: d.text, buttons: d.buttons as object } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v9, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {
@@ -117,8 +124,17 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
     throw e;
   }
   const short = id.replace(/-/g, '');
-  const buttons = (tpl.buttons as { text: string; screen: string }[]).map((b) => [openAppButton(b.text, `m_${short}_${b.screen}`)]);
-  let text = render(tpl.text, vars);
+  // Кнопка-ссылка ({ text, url }) — например, личное приглашение в чат; без адреса не показывается
+  const buttons = (tpl.buttons as { text: string; screen?: string; url?: string }[])
+    .map((b) => {
+      if (b.url === undefined) return openAppButton(b.text, `m_${short}_${b.screen}`);
+      const url = b.url.replace(/\{(\w+)\}/g, (_m, k: string) => (vars[k] === undefined ? '' : String(vars[k])));
+      return /^https?:\/\//.test(url) ? { text: b.text, url } : null;
+    })
+    .filter(Boolean)
+    .map((b) => [b]);
+  // Пустая переменная не оставляет лишних пустых строк
+  let text = render(tpl.text, vars).replace(/\n{3,}/g, '\n\n').trim();
   try {
     const markup = buttons.length ? { inline_keyboard: buttons } : undefined;
     const image = imageUrlOf(tpl.imageUrl);
