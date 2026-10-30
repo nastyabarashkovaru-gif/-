@@ -79,6 +79,13 @@ export async function seedTemplates() {
     const { getSetting, setSetting } = await import('../settings');
     await setSetting('legacy.invite', { ...(await getSetting('legacy.invite')), code: newLegacyCode() });
   }
+  // Разово (30.10): напоминание о конце периода ведёт к продлению (автопродление у CloudPayments не включается обратно)
+  const v10 = 'maintenance.periodEndingV2';
+  if (!(await prisma.setting.findUnique({ where: { key: v10 } }))) {
+    const d = DEFAULT_TEMPLATES.find((x) => x.key === 'period_ending');
+    if (d) await prisma.botMessageTemplate.update({ where: { key: 'period_ending' }, data: { text: d.text, buttons: d.buttons as object } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v10, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {

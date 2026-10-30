@@ -94,6 +94,7 @@ export function MySubscription() {
               {s.autoRenew && ['active', 'prestart', 'past_due'].includes(s.status) && (
                 <button className="btn" style={{ background: '#fff', border: '1px solid #dedbe6', color: 'var(--ink-2)', fontWeight: 500, minHeight: 50 }} onClick={() => setCancel(true)}>Отменить подписку</button>
               )}
+              {s.status === 'canceled_at_period_end' && !s.canResume && <button className="btn btn-primary" onClick={() => nav('/tariffs')}>Продлить участие на следующий месяц</button>}
               {s.status === 'expired' && <button className="btn btn-primary" onClick={() => nav('/tariffs')}>Выбрать тариф</button>}
             </>
           ) : (

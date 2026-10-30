@@ -192,5 +192,13 @@ describe('переход оплативших до запуска приложе
     await setSetting('legacy.invite', { code: 'secretCODE123', maxUses: 10, expiresAt: '2026-11-07', enabled: true });
     clock.set('2026-11-08T09:00:00Z');
     expect((await api('POST', '/api/legacy/claim', 903, { code: 'secretCODE123' })).body.code).toBe('legacy_expired');
+
+    // в конце месяца — обычная оплата следующего потока (старый доступ закрывается, начинается декабрь)
+    setPaymentProvider(new MockProvider());
+    clock.set('2026-11-20T09:00:00Z');
+    await buy(901, 'legacy-renew-1');
+    const subs = await prisma.subscription.findMany({ where: { userId: 901n }, orderBy: { createdAt: 'asc' } });
+    expect(subs.map((x) => x.status)).toEqual(['expired', 'prestart']);
+    expect(await prisma.flowMembership.count({ where: { userId: 901n, flow: { startsOn: new Date('2026-12-01T00:00:00Z') } } })).toBe(1);
   });
 });
