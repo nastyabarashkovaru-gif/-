@@ -189,7 +189,7 @@ export async function createCheckout(userId: bigint, tariffId: string, idempoten
  * Подписка, из-за которой новая покупка была бы двойной. Отменённая подписка, оплаченная только до начала
  * нового периода, не мешает: человек возвращается в клуб со следующего потока.
  */
-async function blockingSubscription(userId: bigint, firstFlow: ISODate, db: Tx | typeof prisma = prisma) {
+export async function blockingSubscription(userId: bigint, firstFlow: ISODate, db: Tx | typeof prisma = prisma) {
   const live = await db.subscription.findMany({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
   return live.find((s) => !(s.status === 'canceled_at_period_end' && !s.autoRenew && fromDbDate(s.paidThroughFlow) < firstFlow)) ?? null;
 }

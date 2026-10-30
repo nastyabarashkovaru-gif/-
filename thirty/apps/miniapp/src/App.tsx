@@ -5,7 +5,7 @@ import { api } from './lib/api';
 import { ctx, track } from './lib/analytics';
 import { inTelegram, startParam } from './lib/telegram';
 import { MeContext, type Me } from './state';
-import { ErrorState, Loading, ToastHost } from './ui';
+import { ErrorState, Loading, ToastHost, errorText, toast } from './ui';
 import { Welcome, OnboardingStep, AboutScreen } from './screens/onboarding/Onboarding';
 import { Materials } from './screens/onboarding/Materials';
 import { DocScreen } from './screens/onboarding/Docs';
@@ -72,7 +72,14 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    refresh()
+    // Ссылка для оплативших до запуска приложения: сначала активируем месяц участия, потом грузим профиль (сразу в анкету)
+    const sp = startParam();
+    const claim = sp?.startsWith('legacy_')
+      ? api<{ ok: boolean; flow?: string; already?: boolean }>('/api/legacy/claim', { body: { code: sp.slice(7) } })
+          .then((r) => { if (r.flow) toast(`Готово! Ты в потоке «${r.flow}» — заполни анкету 💜`); })
+          .catch((e) => toast(errorText(e)))
+      : Promise.resolve();
+    claim.then(refresh)
       .then(async (m) => {
         track('app_open', { metadata: { startParam: startParam() ?? undefined } });
         try {

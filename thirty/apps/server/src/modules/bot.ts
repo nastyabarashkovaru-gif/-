@@ -72,6 +72,13 @@ export async function seedTemplates() {
     if (d) await prisma.botMessageTemplate.update({ where: { key: 'payment_success' }, data: { text: d.text, buttons: d.buttons as object } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v9, value: { at: new Date().toISOString() } } });
   }
+  // Код ссылки для перехода оплативших до запуска приложения — случайный, хранится только в базе
+  const legacy = await prisma.setting.findUnique({ where: { key: 'legacy.invite' } });
+  if (!legacy || !(legacy.value as { code?: string }).code) {
+    const { newLegacyCode } = await import('./legacy');
+    const { getSetting, setSetting } = await import('../settings');
+    await setSetting('legacy.invite', { ...(await getSetting('legacy.invite')), code: newLegacyCode() });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {

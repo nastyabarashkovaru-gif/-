@@ -171,3 +171,26 @@ describe('онбординг: отзывы и «Нас уже 300+»', () => {
     expect(v.body.items.map((x: { title: string }) => x.title)).toContain('Еженедельные разборы');
   });
 });
+
+describe('переход оплативших до запуска приложения', () => {
+  it('месяц участия по секретной ссылке: в ближайший поток, сразу в анкету; повтор, чужой код, лимит и срок', async () => {
+    const { setSetting } = await import('../src/settings');
+    clock.set('2026-10-30T09:00:00Z');
+    await setSetting('legacy.invite', { code: 'secretCODE123', maxUses: 2, expiresAt: '2026-11-07', enabled: true });
+    expect((await api('POST', '/api/legacy/claim', 901, { code: 'wrongCODE999' })).status).toBe(403);
+    const ok = await api('POST', '/api/legacy/claim', 901, { code: 'secretCODE123' });
+    expect(ok.status).toBe(200);
+    expect(ok.body.flow).toBe('Ноябрь 2026');
+    const me = await api('GET', '/api/me', 901);
+    expect(me.body.membership).toMatchObject({ status: 'reserved' });
+    const sub = await prisma.subscription.findFirstOrThrow({ where: { userId: 901n } });
+    expect(sub).toMatchObject({ autoRenew: false, cancelReason: 'legacy' });
+    expect(await prisma.payment.count({ where: { userId: 901n } })).toBe(0); // в выручку и счётчик оплат не попадает
+    expect((await api('POST', '/api/legacy/claim', 901, { code: 'secretCODE123' })).body).toMatchObject({ already: true });
+    expect((await api('POST', '/api/legacy/claim', 902, { code: 'secretCODE123' })).status).toBe(200);
+    expect((await api('POST', '/api/legacy/claim', 903, { code: 'secretCODE123' })).body.code).toBe('legacy_limit');
+    await setSetting('legacy.invite', { code: 'secretCODE123', maxUses: 10, expiresAt: '2026-11-07', enabled: true });
+    clock.set('2026-11-08T09:00:00Z');
+    expect((await api('POST', '/api/legacy/claim', 903, { code: 'secretCODE123' })).body.code).toBe('legacy_expired');
+  });
+});

@@ -134,6 +134,22 @@ export async function adminRoutes(app: FastifyInstance) {
       return { items };
     });
 
+    // ───────── Переход оплативших до запуска приложения ─────────
+    r.get('/admin-api/legacy', perm('tariffs'), async () => jsonSafe(await (await import('../modules/legacy')).legacyInfo()));
+    r.put('/admin-api/legacy', perm('tariffs'), async (req) => {
+      const body = parse(z.object({ maxUses: z.number().int().min(0).max(5000), expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), enabled: z.boolean() }), req.body);
+      const cfg = await getSetting('legacy.invite');
+      await setSetting('legacy.invite', { ...cfg, ...body });
+      await audit(req, 'legacy.update', 'setting', 'legacy.invite', { before: { ...cfg, code: undefined }, after: body });
+      return jsonSafe(await (await import('../modules/legacy')).legacyInfo());
+    });
+    r.post('/admin-api/legacy/regenerate', perm('tariffs'), async (req) => {
+      const m = await import('../modules/legacy');
+      await m.regenerateLegacyCode();
+      await audit(req, 'legacy.regenerate', 'setting', 'legacy.invite', {});
+      return jsonSafe(await m.legacyInfo());
+    });
+
     // ───────── Онбординг: карусель результатов и «Нас уже 300+» ─────────
     r.get('/admin-api/onboarding', perm('tariffs'), async () => {
       const { communityCount } = await import('../modules/community');

@@ -112,6 +112,8 @@ export const DEFAULT_SETTINGS = {
   'trackers.links': { tasks: 'https://docs.google.com/spreadsheets/d/1qyq0ghlBROxV1NyedXJLQB_tNAkCXVkwNQFl2b21_Tg/edit?usp=sharing', week: 'https://docs.google.com/spreadsheets/d/1qyq0ghlBROxV1NyedXJLQB_tNAkCXVkwNQFl2b21_Tg/edit?usp=sharing', finance: 'https://docs.google.com/spreadsheets/d/1qyq0ghlBROxV1NyedXJLQB_tNAkCXVkwNQFl2b21_Tg/edit?usp=sharing' },
   /** Ссылка в QR-коде карточки результатов: бот с продающей цепочкой (метка stories — для аналитики переходов) */
   'stories.botLink': 'https://t.me/Dney30_bot?start=stories',
+  /** Ссылка для оплативших до запуска приложения: месяц участия без оплаты (код создаётся при запуске сервера) */
+  'legacy.invite': { code: '', maxUses: 200, expiresAt: '2026-11-07', enabled: true },
 };
 
 export type SettingKey = keyof typeof DEFAULT_SETTINGS;

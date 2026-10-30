@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import {
   BadgePercent, BarChart3, Bot, CalendarRange, ChevronRight, ClipboardList, CreditCard, Download, FlaskConical, Gift, Layers, LogOut, MessageCircle,
-  MessagesSquare, Settings, ShoppingBag, Star, Target, Video, type LucideIcon,
+  MessagesSquare, Settings, ShoppingBag, Star, Target, Ticket, Video, type LucideIcon,
 } from 'lucide-react';
 import { api } from '../api';
 import { num, pctf } from '../charts';
@@ -31,6 +31,7 @@ function Hub({ title, items, can }: { title: string; items: HubItem[]; can: (p: 
 
 export const MANAGE: HubItem[] = [
   { to: '/flows', title: 'Потоки', text: 'Старт каждого месяца, участники, итоги', icon: CalendarRange, perm: 'flows' },
+  { to: '/legacy', title: 'Переход прошлых участниц', text: 'Ссылка на месяц участия для оплативших до приложения', icon: Ticket, perm: 'tariffs' },
   { to: '/onboarding-reviews', title: 'Первый экран: отзывы', text: 'Карусель результатов участниц и «С нами уже больше 300»', icon: Star, perm: 'tariffs' },
   { to: '/tariffs', title: 'Тарифы и ценность', text: 'Цены, акция, что входит в клуб', icon: Layers, perm: 'tariffs' },
   { to: '/promos', title: 'Промокоды и сторис', text: 'СТАРТ, персональные коды, проверка сторис', icon: BadgePercent, perm: 'tariffs' },

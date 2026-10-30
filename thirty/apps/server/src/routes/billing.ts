@@ -50,6 +50,12 @@ export async function billingRoutes(app: FastifyInstance) {
     }));
 
     // Промокоды: проверка и применение только на сервере
+    /** Переход оплативших до запуска приложения: месяц участия по секретной ссылке */
+    r.post('/api/legacy/claim', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
+      const { legacyClaim, legacyClaimInput } = await import('../modules/legacy');
+      return legacyClaim(req.user!.id, parse(legacyClaimInput, req.body).code);
+    });
+
     r.post('/api/promo/apply', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
       const { code } = parse(z.object({ code: z.string().max(40) }), req.body);
       return applyPromo(req.user!.id, code);
