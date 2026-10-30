@@ -128,7 +128,7 @@ export async function billingRoutes(app: FastifyInstance) {
   });
 
   app.get('/api/public/story-card.png', async (_req, reply) => {
-    const png = renderStoryCardPng(await getSetting('instagram.account'));
+    const png = renderStoryCardPng(await getSetting('stories.botLink'));
     return reply.header('content-type', 'image/png').header('cache-control', 'public, max-age=600').header('content-disposition', 'inline; filename="30-dney-story.png"').send(png);
   });
 

@@ -124,14 +124,15 @@ export async function renderCardPng(stats: Record<string, any>, link: string): P
 }
 
 /** Карточка для сторис «Я иду на челлендж 30 дней»: пустые строки под цели и отметка аккаунта */
-export function renderStoryCardPng(account: string): Buffer {
+/** Карточка «Я иду на челлендж» для сторис: внизу маленький QR на бота (запускает прогревающую цепочку) */
+export function renderStoryCardPng(botLink: string): Buffer {
   const lines = [0, 1, 2]
     .map((i) => {
       const y = 1010 + i * 170;
       return `<text x="170" y="${y}" font-family="Inter" font-weight="700" font-size="54" fill="#6C51DF">${i + 1}.</text><line x1="240" y1="${y + 12}" x2="900" y2="${y + 12}" stroke="#D7D2F4" stroke-width="4" stroke-dasharray="14 12" stroke-linecap="round"/>`;
     })
     .join('');
-  const tag = account ? `@${esc(account.replace(/^@/, ''))}` : '';
+  const qr = botLink ? qrSvg(botLink, 150) : '';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
   <rect width="1080" height="1920" fill="#F3F0FF"/>
   <circle cx="980" cy="160" r="260" fill="#E6DFFF"/>
@@ -147,7 +148,9 @@ export function renderStoryCardPng(account: string): Buffer {
   ${lines}
   <text x="540" y="1560" text-anchor="middle" font-family="Inter" font-size="44" fill="#77718C">Новые привычки, новые люди,</text>
   <text x="540" y="1620" text-anchor="middle" font-family="Inter" font-size="44" fill="#77718C">новая версия меня</text>
-  ${tag ? `<rect x="${540 - (tag.length * 15 + 60)}" y="1690" width="${tag.length * 30 + 120}" height="100" rx="50" fill="#6C51DF"/><text x="540" y="1757" text-anchor="middle" font-family="Inter" font-weight="600" font-size="46" fill="#FFFFFF">${tag}</text>` : ''}
+  ${qr ? `<g transform="translate(250,1680)"><rect x="-14" y="-14" width="178" height="178" rx="22" fill="#FFFFFF"/><g fill="#211C35">${qr}</g></g>
+  <text x="460" y="1752" font-family="Inter" font-weight="600" font-size="46" fill="#211C35">Присоединяйся</text>
+  <text x="460" y="1812" font-family="Inter" font-weight="600" font-size="46" fill="#7150E7">и ты к нам!</text>` : ''}
 </svg>`;
   const r = new Resvg(svg, { font: { fontFiles, loadSystemFonts: fontFiles.length === 0, defaultFontFamily: 'Inter' }, fitTo: { mode: 'width', value: 1080 } });
   return Buffer.from(r.render().asPng());

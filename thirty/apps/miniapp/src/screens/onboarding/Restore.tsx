@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Download, Gift, Instagram, Clock, CircleCheck, CircleX, Copy, ImagePlus, X } from 'lucide-react';
 import { api, uploadImage } from '../../lib/api';
 import { downloadImage, haptic } from '../../lib/telegram';
-import { BrandBar, Cta, ErrorState, Loading, Screen, errorText, toast, useLoad } from '../../ui';
+import { BrandBar, CopyHandle, Cta, ErrorState, Loading, Screen, errorText, toast, useLoad } from '../../ui';
 
 interface Req { id: string; status: 'pending' | 'approved' | 'rejected'; instagram: string; reason: string | null; promo: { code: string; validTo: string | null; used: boolean } | null }
 
@@ -65,13 +65,14 @@ export function RestoreDiscount() {
       ) : (
         <>
           <div className="card" style={{ gap: 12 }}>
-            {[
+            {([
               'Получи карточку «Я иду на челлендж 30 дней».',
               'Впиши в неё свои цели на ближайший месяц.',
-              `Выложи карточку в Instagram Stories и отметь мой аккаунт${account ? ` @${account}` : ''}.`,
-            ].map((t, i) => (
-              <div key={t} className="row" style={{ gap: 12, alignItems: 'flex-start' }}><span className={`num-sq ${['', 'green', 'peach'][i]}`} style={{ width: 36, height: 36, fontSize: 16 }}>{i + 1}</span><span style={{ paddingTop: 6 }}>{t}</span></div>
+              <>Выложи карточку в Instagram Stories и отметь меня {account ? <CopyHandle handle={account} /> : 'в сторис'}</>,
+            ] as React.ReactNode[]).map((t, i) => (
+              <div key={i} className="row" style={{ gap: 12, alignItems: 'flex-start' }}><span className={`num-sq ${['', 'green', 'peach'][i]}`} style={{ width: 36, height: 36, fontSize: 16 }}>{i + 1}</span><span style={{ paddingTop: 6 }}>{t}</span></div>
             ))}
+            {account && <div className="muted small" style={{ marginLeft: 48, marginTop: -4 }}>Нажми на ник, чтобы скопировать</div>}
           </div>
           <img src={card.data!.imageUrl} alt="Карточка «Я иду на челлендж 30 дней»" style={{ width: '62%', alignSelf: 'center', borderRadius: 18, boxShadow: '0 6px 24px rgba(33,28,53,.12)' }} />
           <button className="btn btn-secondary" onClick={() => downloadImage(card.data!.imageUrl, '30-dney-story.png')}><Download size={18} />Скачать карточку</button>

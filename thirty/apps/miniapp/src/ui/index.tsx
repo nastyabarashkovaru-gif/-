@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Bell, Home, LayoutList, MessagesSquare, User, WifiOff, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bell, Copy, Home, LayoutList, MessagesSquare, User, WifiOff, RefreshCw, X } from 'lucide-react';
 import { ApiError, api } from '../lib/api';
 import { screenView } from '../lib/analytics';
 import { haptic } from '../lib/telegram';
@@ -276,4 +276,24 @@ export function pctColor(p: number | null | undefined) {
   if (p >= 50) return 'var(--accent)';
   if (p >= 30) return 'var(--gold-ink)';
   return 'var(--danger)';
+}
+
+/** Ник Instagram, который копируется по нажатию (чтобы сразу отметить в сторис) */
+export function CopyHandle({ handle }: { handle: string }) {
+  const nick = `@${handle.replace(/^@/, '')}`;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(nick);
+    } catch {
+      const t = document.createElement('textarea');
+      t.value = nick;
+      document.body.appendChild(t);
+      t.select();
+      document.execCommand('copy');
+      t.remove();
+    }
+    haptic('success');
+    toast(`Ник ${nick} скопирован`);
+  };
+  return <button type="button" className="copy-handle" onClick={copy}>{nick}<Copy size={14} /></button>;
 }

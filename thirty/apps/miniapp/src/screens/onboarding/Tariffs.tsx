@@ -5,7 +5,7 @@ import { api, rub } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
 import { haptic, openTelegram } from '../../lib/telegram';
 import { useMe } from '../../state';
-import { BrandBar, Cta, ErrorState, Loading, Popup, Screen, errorText, toast } from '../../ui';
+import { BrandBar, CopyHandle, Cta, ErrorState, Loading, Popup, Screen, errorText, toast } from '../../ui';
 import { useTicker } from './Onboarding';
 
 /** «за месяц», «за 3 месяца», «за 6 месяцев» */
@@ -64,6 +64,10 @@ export function Tariffs() {
   const [error, setError] = useState<unknown>(null);
   const [selected, setSelected] = useState<string>('m3');
   const [restoreOpen, setRestoreOpen] = useState(false);
+  const [account, setAccount] = useState('');
+  useEffect(() => {
+    if (restoreOpen && !account) void api<{ account: string }>('/api/story-card').then((r) => setAccount(r.account)).catch(() => undefined);
+  }, [restoreOpen, account]);
   const [compare, setCompare] = useState(false);
   const clicked = useRef(false);
   useTicker(1000);
@@ -168,7 +172,7 @@ export function Tariffs() {
         <ol className="restore-steps">
           <li>Получи карточку «Я иду на челлендж 30&nbsp;дней».</li>
           <li>Впиши в неё свои цели на ближайший месяц.</li>
-          <li>Выложи карточку в Instagram Stories и отметь мой аккаунт.</li>
+          <li>Выложи карточку в Instagram Stories и отметь меня {account ? <CopyHandle handle={account} /> : 'в сторис'}</li>
         </ol>
         <p className="center" style={{ margin: 0, fontWeight: 600, color: 'var(--accent-ink)', lineHeight: 1.4 }}>После проверки сторис ты получишь персональный промокод, который вернёт тебе первоначальную скидку 💜</p>
         <button className="btn btn-primary" onClick={() => { setRestoreOpen(false); nav('/restore'); }}>Вернуть скидку 🎁</button>
