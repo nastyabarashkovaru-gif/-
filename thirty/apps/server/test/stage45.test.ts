@@ -108,6 +108,11 @@ describe('чаты (критерий №7)', () => {
     const topic = await prisma.telegramChat.create({ data: { kind: 'topic', topic: 'money', telegramChatId: -1002n, title: 'Деньги' } });
 
     expect((await api('POST', `/api/chats/${flowChat.id}/invite`, 1)).status).toBe(200);
+    // к декабрю чат ещё не привязан — общий чат открыт сразу после оплаты (последний привязанный)
+    expect((await api('POST', `/api/chats/${flowChat.id}/invite`, 2)).status).toBe(200);
+    // свой чат привязан — чужой потока больше недоступен
+    const dec = await prisma.flow.findFirstOrThrow({ where: { startsOn: new Date('2026-12-01T00:00:00Z') } });
+    await prisma.telegramChat.create({ data: { kind: 'flow', flowId: dec.id, telegramChatId: -1009n, title: 'Декабрь' } });
     expect((await api('POST', `/api/chats/${flowChat.id}/invite`, 2)).status).toBe(403);
     // тематический чат «Деньги» — только если среди целей есть «Деньги»
     const english = await prisma.telegramChat.create({ data: { kind: 'topic', topic: 'english', telegramChatId: -1003n, title: 'Английский' } });
