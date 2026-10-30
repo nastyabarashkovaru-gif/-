@@ -547,3 +547,4 @@ img { max-width: 100%; display: block; }
 /* Ник Instagram — нажми и скопируй */
 .copy-handle { display: inline-flex; align-items: center; gap: 6px; vertical-align: baseline; border: 1px dashed var(--accent); background: var(--accent-soft); color: var(--accent-ink); font: inherit; font-weight: 700; border-radius: 10px; padding: 2px 9px; margin: 2px 0; cursor: pointer; white-space: nowrap; }
 .copy-handle:active { transform: scale(0.97); }
+.channel-row .topic-emoji { color: var(--accent); }

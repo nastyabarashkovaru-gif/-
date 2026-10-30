@@ -32,7 +32,12 @@ export async function accessibleChats(userId: bigint, now = clock.now()): Promis
     where: {
       active: true,
       telegramChatId: { not: null },
-      OR: [{ kind: 'flow', flowId: { in: flowIds } }, ...(topics.length ? [{ kind: 'topic' as const, topic: { in: topics } }] : [])],
+      OR: [
+        { kind: 'flow', flowId: { in: flowIds } },
+        ...(topics.length ? [{ kind: 'topic' as const, topic: { in: topics } }] : []),
+        // Информационный канал — всем с оплаченным доступом (действующая подписка или участие в потоке)
+        ...(live || flowIds.length ? [{ kind: 'channel' }] : []),
+      ],
     },
   });
   // Общий чат открыт сразу после оплаты: если к потоку участника группа ещё не привязана — последний привязанный чат потока
@@ -131,7 +136,7 @@ export async function removeExpiredMembers() {
 }
 
 /** Привязка группы админом: поток или тематический чат; проверяем, что бот — админ с нужными правами */
-export async function bindChat(chatRowId: string, target: { kind: 'flow'; flowId: string } | { kind: 'topic'; topic: string }) {
+export async function bindChat(chatRowId: string, target: { kind: 'flow'; flowId: string } | { kind: 'topic'; topic: string } | { kind: 'channel' }) {
   const chat = await prisma.telegramChat.findUnique({ where: { id: chatRowId } });
   if (!chat || !chat.telegramChatId) throw notFound('chat_not_found');
   const me = await tg<{ id: number }>('getMe', {});
@@ -139,16 +144,23 @@ export async function bindChat(chatRowId: string, target: { kind: 'flow'; flowId
   const problems: string[] = [];
   if (member.status !== 'administrator') problems.push('бот не администратор группы');
   if (!member.can_invite_users) problems.push('нет права приглашать участников');
-  if (!member.can_restrict_members) problems.push('нет права ограничивать участников (нужно для удаления после окончания доступа)');
+  // В канале нет отдельного права «ограничивать», удаление подписчиков доступно администратору с правом приглашать
+  if (target.kind !== 'channel' && !member.can_restrict_members) problems.push('нет права ограничивать участников (нужно для удаления после окончания доступа)');
   if (problems.length) throw forbidden('bot_rights', `Выдайте боту права: ${problems.join('; ')}`);
   if (target.kind === 'topic' && !TOPIC_CHATS.some((t) => t.id === target.topic)) throw notFound('topic');
   // Старую привязку того же назначения снимаем
   await prisma.telegramChat.updateMany({
-    where: target.kind === 'flow' ? { kind: 'flow', flowId: target.flowId, id: { not: chat.id } } : { kind: 'topic', topic: target.topic, id: { not: chat.id } },
+    where:
+      target.kind === 'flow' ? { kind: 'flow', flowId: target.flowId, id: { not: chat.id } }
+      : target.kind === 'topic' ? { kind: 'topic', topic: target.topic, id: { not: chat.id } }
+      : { kind: 'channel', id: { not: chat.id } },
     data: { active: false, kind: 'pending', flowId: null, topic: null },
   });
   return prisma.telegramChat.update({
     where: { id: chat.id },
-    data: target.kind === 'flow' ? { kind: 'flow', flowId: target.flowId, topic: null, active: true } : { kind: 'topic', topic: target.topic, flowId: null, active: true },
+    data:
+      target.kind === 'flow' ? { kind: 'flow', flowId: target.flowId, topic: null, active: true }
+      : target.kind === 'topic' ? { kind: 'topic', topic: target.topic, flowId: null, active: true }
+      : { kind: 'channel', topic: null, flowId: null, active: true },
   });
 }

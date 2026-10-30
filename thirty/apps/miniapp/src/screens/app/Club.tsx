@@ -1,11 +1,11 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { MessagesSquare, ArrowUpRight, Lock, CalendarDays, ExternalLink } from 'lucide-react';
+import { MessagesSquare, ArrowUpRight, Lock, CalendarDays, ExternalLink, Megaphone } from 'lucide-react';
 import { api } from '../../lib/api';
 import { openExternal, openTelegram } from '../../lib/telegram';
 import { AppBar, ErrorState, Header, Loading, Screen, errorText, humanDate, toast, useLoad } from '../../ui';
 
 interface Meeting { id: string; direction: string; directionTitle: string; title: string; description: string | null; startsAt: string; durationMin: number; status: string; expert: { name: string; photoUrl: string | null; bio: string | null } | null; nextStep?: string | null; joined?: boolean }
-interface ClubData { paid: boolean; flowChat: { id: string; title: string } | null; flow: { startsOn: string; title: string } | null; topicChats: { topic: string; title: string; emoji: string; id: string | null; available: boolean }[]; meetings: Meeting[] }
+interface ClubData { paid: boolean; channel: { id: string; title: string } | null; channelExists: boolean; flowChat: { id: string; title: string } | null; flow: { startsOn: string; title: string } | null; topicChats: { topic: string; title: string; emoji: string; id: string | null; available: boolean }[]; meetings: Meeting[] }
 
 const time = (iso: string) => new Date(iso).toLocaleString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' });
 
@@ -38,6 +38,16 @@ export function Club() {
             <span className="grow"><span style={{ display: 'block', fontSize: 20, fontWeight: 700 }}>Общий чат потока</span>{data.flow && <span style={{ opacity: 0.9 }}>{humanDate(data.flow.startsOn, true)}</span>}</span>
             {data.flowChat ? <ArrowUpRight size={18} /> : <Lock size={18} />}
           </button>
+          {(data.channel || data.channelExists) && (
+            <button className={`card topic-row channel-row ${data.channel ? 'card-link' : 'locked'}`} disabled={!data.channel} onClick={() => data.channel && joinChat(data.channel.id)}>
+              <span className="topic-emoji"><Megaphone size={22} /></span>
+              <span className="grow" style={{ textAlign: 'left' }}>
+                <span className="h3" style={{ display: 'block', fontSize: 17 }}>Информационный канал</span>
+                <span className="muted" style={{ fontSize: 14 }}>Новости клуба, анонсы и важные объявления</span>
+              </span>
+              {data.channel ? <ArrowUpRight size={17} color="var(--accent)" /> : <Lock size={17} />}
+            </button>
+          )}
           <h2 className="h2" style={{ fontSize: 20, marginTop: 6 }}>Тематические чаты</h2>
           {data.topicChats.map((t) => (
             <button key={t.topic} className={`card topic-row ${t.available ? 'card-link' : 'locked'}`} disabled={!t.available} onClick={() => t.id && joinChat(t.id)}>

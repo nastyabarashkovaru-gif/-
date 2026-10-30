@@ -212,13 +212,13 @@ export async function handleUpdate(update: TgUpdate) {
     return onChatMemberUpdate(update.chat_member.chat.id, update.chat_member.new_chat_member.user.id, update.chat_member.new_chat_member.status);
   }
   if (update.my_chat_member) {
-    // Бота добавили в группу — запоминаем её, чтобы админ привязал в A05/A11 (бот не создаёт группы сам)
+    // Бота добавили в группу или канал — запоминаем, чтобы админ привязал в «Чатах» (бот не создаёт их сам)
     const c = update.my_chat_member.chat;
-    if (c.type === 'group' || c.type === 'supergroup') {
+    if (c.type === 'group' || c.type === 'supergroup' || c.type === 'channel') {
       const active = ['administrator', 'member'].includes(update.my_chat_member.new_chat_member.status);
       await prisma.telegramChat.upsert({
         where: { telegramChatId: BigInt(c.id) },
-        create: { kind: 'pending', title: c.title ?? `Группа ${c.id}`, telegramChatId: BigInt(c.id), active: false },
+        create: { kind: 'pending', title: c.title ?? `${c.type === 'channel' ? 'Канал' : 'Группа'} ${c.id}`, telegramChatId: BigInt(c.id), active: false },
         update: { title: c.title ?? undefined, ...(active ? {} : { active: false }) },
       });
     }

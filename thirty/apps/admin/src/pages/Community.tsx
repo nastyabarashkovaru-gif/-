@@ -26,7 +26,7 @@ export function Flows() {
 export function Chats() {
   const s = useLoad(() => api('/admin-api/chats'));
   const flows = useLoad(() => api('/admin-api/flows'));
-  const [bind, setBind] = useState<{ id: string; kind: 'flow' | 'topic'; target: string } | null>(null);
+  const [bind, setBind] = useState<{ id: string; kind: 'flow' | 'topic' | 'channel'; target: string } | null>(null);
   return (
     <>
       <h1>Чаты</h1>
@@ -43,14 +43,14 @@ export function Chats() {
       <Modal open={!!bind} onClose={() => setBind(null)} title="Привязать группу">
         {bind && (
           <div style={{ display: 'grid', gap: 10 }}>
-            <select value={bind.kind} onChange={(e) => setBind({ ...bind, kind: e.target.value as 'flow' | 'topic', target: '' })}><option value="flow">Чат потока</option><option value="topic">Тематический чат</option></select>
-            {bind.kind === 'flow' ? (
+            <select value={bind.kind} onChange={(e) => setBind({ ...bind, kind: e.target.value as 'flow' | 'topic' | 'channel', target: e.target.value === 'channel' ? 'channel' : '' })}><option value="flow">Чат потока</option><option value="topic">Тематический чат</option><option value="channel">Информационный канал (для всех оплативших)</option></select>
+            {bind.kind === 'channel' ? <div className="muted small">Вступление только по заявке: бот одобряет тех, у кого оплачен доступ, остальным отказывает.</div> : bind.kind === 'flow' ? (
               <select value={bind.target} onChange={(e) => setBind({ ...bind, target: e.target.value })}><option value="">Выберите поток</option>{flows.data?.map((f: any) => <option key={f.id} value={f.id}>{f.title}</option>)}</select>
             ) : (
               <select value={bind.target} onChange={(e) => setBind({ ...bind, target: e.target.value })}><option value="">Выберите тему</option>{s.data?.topics.map((t: any) => <option key={t.id} value={t.id}>{t.title}</option>)}</select>
             )}
             <button className="btn" disabled={!bind.target} onClick={async () => {
-              const body = bind.kind === 'flow' ? { kind: 'flow', flowId: bind.target } : { kind: 'topic', topic: bind.target };
+              const body = bind.kind === 'flow' ? { kind: 'flow', flowId: bind.target } : bind.kind === 'channel' ? { kind: 'channel' } : { kind: 'topic', topic: bind.target };
               if (await act(() => api(`/admin-api/chats/${bind.id}/bind`, { body }))) { setBind(null); s.reload(); }
             }}>Привязать (бот проверит свои права)</button>
           </div>

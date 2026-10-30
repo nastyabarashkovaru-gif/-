@@ -567,7 +567,7 @@ export async function adminRoutes(app: FastifyInstance) {
     // ───────── A11 чаты ─────────
     r.get('/admin-api/chats', perm('chats'), async () => jsonSafe({ chats: await prisma.telegramChat.findMany({ orderBy: { createdAt: 'desc' }, include: { _count: { select: { memberships: true } } } }), topics: TOPIC_CHATS }));
     r.post<{ Params: { id: string } }>('/admin-api/chats/:id/bind', perm('chats'), async (req) => {
-      const body = parse(z.union([z.object({ kind: z.literal('flow'), flowId: z.string().uuid() }), z.object({ kind: z.literal('topic'), topic: z.string() })]), req.body);
+      const body = parse(z.union([z.object({ kind: z.literal('flow'), flowId: z.string().uuid() }), z.object({ kind: z.literal('topic'), topic: z.string() }), z.object({ kind: z.literal('channel') })]), req.body);
       const c = await bindChat(req.params.id, body);
       await audit(req, 'chat.bind', 'chat', c.id, { after: body });
       return jsonSafe(c);

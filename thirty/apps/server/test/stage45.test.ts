@@ -99,6 +99,24 @@ describe('бот', () => {
 });
 
 describe('чаты (критерий №7)', () => {
+  it('информационный канал: всем оплатившим, неоплатившим — отказ; заявки проверяет бот', async () => {
+    clock.set('2026-10-21T09:00:00Z');
+    await paidUser(11, NOV);
+    await prisma.user.create({ data: { id: 12n, firstName: 'Гостья', allowsWrite: true } });
+    const ch = await prisma.telegramChat.create({ data: { kind: 'channel', telegramChatId: -1007n, title: 'Канал 30 дней' } });
+    expect((await api('GET', '/api/club', 11)).body).toMatchObject({ channel: { id: ch.id }, channelExists: true });
+    expect((await api('GET', '/api/club', 12)).body).toMatchObject({ channel: null, channelExists: true });
+    expect((await api('POST', `/api/chats/${ch.id}/invite`, 11)).status).toBe(200);
+    expect((await api('POST', `/api/chats/${ch.id}/invite`, 12)).status).toBe(403);
+    const app = await getApp();
+    const join = (user: number) => app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { chat_join_request: { chat: { id: -1007 }, from: { id: user } } } });
+    calls = [];
+    await join(11);
+    await join(12);
+    expect(calls.filter((c) => c.method === 'approveChatJoinRequest').map((c) => c.body.user_id)).toEqual([11]);
+    expect(calls.filter((c) => c.method === 'declineChatJoinRequest').map((c) => c.body.user_id)).toEqual([12]);
+  });
+
   it('чат потока — только его участникам; тематические — только по категориям целей; вступление через проверку заявки', async () => {
     clock.set('2026-10-21T09:00:00Z');
     await paidUser(1, NOV);
