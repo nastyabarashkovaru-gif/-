@@ -116,6 +116,16 @@ describe('дожимная цепочка до оплаты', () => {
     expect(calls.at(-1)!.body.reply_markup.inline_keyboard[0][0].web_app.url).toMatch(/_restore$/);
     expect(await prisma.botMessageLog.count({ where: { userId: 300n, templateKey: { startsWith: 'chain_' }, status: 'sent' } })).toBe(7);
 
+    // тестовая оплата (проверка владелицы после «Начать путь заново») покупкой не считается — цепочка идёт
+    clock.set('2026-10-21T09:00:00Z');
+    await start(302);
+    await api('POST', '/api/offer/start', 302);
+    await prisma.payment.create({ data: { userId: 302n, kind: 'initial', status: 'paid', amount: 999, test: true, paidAt: at(1), idempotencyKey: 'test-pay-302' } });
+    calls = [];
+    await runPrePurchaseChains(at(12));
+    expect(sent().some((t) => t.includes('получилось посмотреть'))).toBe(true);
+    await prisma.priceOffer.updateMany({ where: { userId: 302n }, data: { consumedAt: at(13) } });
+
     // оплатившему цепочка не идёт
     clock.set('2026-10-21T09:00:00Z');
     await start(301);

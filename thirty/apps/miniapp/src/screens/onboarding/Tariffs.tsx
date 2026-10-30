@@ -5,7 +5,7 @@ import { api, rub } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
 import { haptic, openTelegram } from '../../lib/telegram';
 import { useMe } from '../../state';
-import { BrandBar, Cta, ErrorState, Loading, Screen, errorText, toast } from '../../ui';
+import { BrandBar, Cta, ErrorState, Loading, Popup, Screen, errorText, toast } from '../../ui';
 import { useTicker } from './Onboarding';
 
 /** «за месяц», «за 3 месяца», «за 6 месяцев» */
@@ -63,6 +63,7 @@ export function Tariffs() {
   const [state, setState] = useState<OfferState | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [selected, setSelected] = useState<string>('m3');
+  const [restoreOpen, setRestoreOpen] = useState(false);
   const [compare, setCompare] = useState(false);
   const clicked = useRef(false);
   useTicker(1000);
@@ -156,6 +157,22 @@ export function Tariffs() {
           </button>
         ))}
       </div>
+      {/* Таймер скидки закончился — можно вернуть акционные цены через сторис (как сообщение 09 в боте) */}
+      {state.offer.started && !promoActive && (
+        <button className="btn discount-btn btn-shine" onClick={() => { track('restore_offer_open', { screen: 'S06' }); setRestoreOpen(true); }}><span>Хочу получить скидку 🔥</span></button>
+      )}
+      <Popup open={restoreOpen} onClose={() => setRestoreOpen(false)}>
+        <div className="center" style={{ fontSize: 44, lineHeight: 1 }}>🎁</div>
+        <h2 className="h2 center" style={{ margin: 0, fontSize: 22 }}>Хочешь вернуть скидку на вступление? Есть способ!</h2>
+        <p className="center muted" style={{ margin: 0, lineHeight: 1.45 }}>Я решила дать тебе ещё один шанс присоединиться к нам по специальной цене 😍</p>
+        <ol className="restore-steps">
+          <li>Получи карточку «Я иду на челлендж 30&nbsp;дней».</li>
+          <li>Впиши в неё свои цели на ближайший месяц.</li>
+          <li>Выложи карточку в Instagram Stories и отметь мой аккаунт.</li>
+        </ol>
+        <p className="center" style={{ margin: 0, fontWeight: 600, color: 'var(--accent-ink)', lineHeight: 1.4 }}>После проверки сторис ты получишь персональный промокод, который вернёт тебе первоначальную скидку 💜</p>
+        <button className="btn btn-primary" onClick={() => { setRestoreOpen(false); nav('/restore'); }}>Вернуть скидку 🎁</button>
+      </Popup>
       <div className="row" style={{ background: 'var(--green-soft)', color: 'var(--green)', borderRadius: 16, padding: '13px 14px', gap: 10, fontWeight: 600, fontSize: 14, alignItems: 'flex-start' }}>
         <Unlock size={18} style={{ flexShrink: 0, marginTop: 1 }} />
         <span>Доступ к полезным материалам, чатам и комьюнити откроется сразу после оплаты</span>

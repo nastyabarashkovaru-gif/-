@@ -34,11 +34,12 @@ export async function priceVars() {
   return v;
 }
 
-/** Кто уже купил или имеет действующую подписку — им цепочка не идёт */
+/** Кто уже купил по-настоящему или имеет действующую подписку — им цепочка не идёт */
 async function payers(): Promise<Set<string>> {
   const [paid, live] = await Promise.all([
-    prisma.payment.findMany({ where: { status: 'paid', kind: 'initial' }, select: { userId: true } }),
-    prisma.subscription.findMany({ where: { status: { in: [...LIVE_STATUSES] } }, select: { userId: true } }),
+    // Тестовые оплаты (проверки владелицы, тестовый режим CloudPayments) покупкой не считаются — дожим идёт как обычно
+    prisma.payment.findMany({ where: { status: 'paid', kind: 'initial', test: false }, select: { userId: true } }),
+    prisma.subscription.findMany({ where: { status: { in: [...LIVE_STATUSES] }, test: false }, select: { userId: true } }),
   ]);
   return new Set([...paid, ...live].map((r) => r.userId.toString()));
 }
