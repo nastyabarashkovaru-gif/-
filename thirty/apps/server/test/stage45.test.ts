@@ -51,7 +51,7 @@ describe('бот', () => {
     const ok = await app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: upd });
     expect(ok.statusCode).toBe(200);
     const msg = calls.find((c) => c.method === 'sendPhoto')!; // приветствие — картинка с подписью
-    expect(msg.body.photo).toMatch(/\/img\/bot-welcome\.jpg$/);
+    expect(msg.body.photo).toMatch(/\/img\/bot-welcome-light\.jpg$/);
     expect(msg.body).toMatchObject({ parse_mode: 'HTML' });
     expect(msg.body.caption).toContain('<b>ОТКРЫВАЙ ВИДЕО</b>');
     expect(msg.body.caption).toContain('https://youtu.be/eOpKSb9-jA4');

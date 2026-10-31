@@ -111,6 +111,12 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.update({ where: { key: 'how_to_join' }, data: { buttons: HOW_TO_JOIN_BUTTONS } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v14, value: { at: new Date().toISOString() } } });
   }
+  // Разово (31.10): картинка приветствия в светлой теме (если владелец не ставила свою)
+  const v15 = 'maintenance.welcomeLightV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v15 } }))) {
+    await prisma.botMessageTemplate.updateMany({ where: { key: 'welcome', imageUrl: '{public_url}/img/bot-welcome.jpg' }, data: { imageUrl: WELCOME_IMAGE } });
+    await prisma.setting.create({ data: { key: v15, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {
