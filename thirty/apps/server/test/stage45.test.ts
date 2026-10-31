@@ -59,7 +59,6 @@ describe('бот', () => {
     expect(msg.body.reply_markup.inline_keyboard.map((r: { text: string }[]) => r[0])).toEqual([
       { text: 'Ознакомился, как вступить? 🔥', callback_data: 'how_to_join' },
       { text: 'Задать вопрос ❓', url: 'https://t.me/barashkova_a' },
-      { text: 'Изучить ЧАСТЫЕ ВОПРОСЫ ❗️', url: 'https://nastyabarashkovaru-gif.github.io/-/' },
     ]);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: 100n } })).allowsWrite).toBe(true);
     // через секунду — правила клуба файлом
@@ -78,7 +77,8 @@ describe('бот', () => {
     const kb = how.body.reply_markup.inline_keyboard.map((r: { text: string }[]) => r[0]);
     expect(kb[0].text).toBe('ХОЧУ ОПЛАТИТЬ ВХОД! 🔥😍');
     expect(kb[0].web_app.url).toMatch(/_tariffs$/);
-    expect(kb[2]).toEqual({ text: 'Поддержка', url: 'https://t.me/barashkova_a' });
+    expect(kb).toHaveLength(2);
+    expect(kb[1]).toEqual({ text: 'Поддержка', url: 'https://t.me/barashkova_a' });
   });
 
   it('/bind в группе регистрирует группу для привязки в админке', async () => {

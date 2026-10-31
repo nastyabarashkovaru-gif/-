@@ -3,7 +3,7 @@ import type { BotMessageTemplate } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma, isUniqueViolation } from '../db';
 import { openAppButton, tg, TelegramError } from '../lib/telegram';
-import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, WELCOME_BUTTONS, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
+import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, HOW_TO_JOIN_BUTTONS, WELCOME_BUTTONS, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
 import { config } from '../config';
 import { setNotifier } from './notify';
 import { track } from './analytics';
@@ -103,6 +103,13 @@ export async function seedTemplates() {
   if (!(await prisma.setting.findUnique({ where: { key: v13 } }))) {
     await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT, buttons: WELCOME_BUTTONS, approved: true } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v13, value: { at: new Date().toISOString() } } });
+  }
+  // Разово (31.10): кнопка «Изучить ЧАСТЫЕ ВОПРОСЫ» убрана из обоих сообщений
+  const v14 = 'maintenance.noFaqV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v14 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { buttons: WELCOME_BUTTONS } }).catch(() => undefined);
+    await prisma.botMessageTemplate.update({ where: { key: 'how_to_join' }, data: { buttons: HOW_TO_JOIN_BUTTONS } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v14, value: { at: new Date().toISOString() } } });
   }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
