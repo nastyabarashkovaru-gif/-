@@ -123,6 +123,12 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.update({ where: { key: 'how_to_join' }, data: { text: HOW_TO_JOIN_TEXT } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v16, value: { at: new Date().toISOString() } } });
   }
+  // Разово (31.10): картинка приветствия от владельца (светлая, «Сообщество 30 дней»)
+  const v17 = 'maintenance.welcomeImageV3';
+  if (!(await prisma.setting.findUnique({ where: { key: v17 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { imageUrl: WELCOME_IMAGE } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v17, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {
