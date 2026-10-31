@@ -3,7 +3,7 @@ import type { BotMessageTemplate } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma, isUniqueViolation } from '../db';
 import { openAppButton, tg, TelegramError } from '../lib/telegram';
-import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, HOW_TO_JOIN_BUTTONS, WELCOME_BUTTONS, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
+import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, HOW_TO_JOIN_BUTTONS, HOW_TO_JOIN_TEXT, WELCOME_BUTTONS, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
 import { config } from '../config';
 import { setNotifier } from './notify';
 import { track } from './analytics';
@@ -116,6 +116,12 @@ export async function seedTemplates() {
   if (!(await prisma.setting.findUnique({ where: { key: v15 } }))) {
     await prisma.botMessageTemplate.updateMany({ where: { key: 'welcome', imageUrl: '{public_url}/img/bot-welcome.jpg' }, data: { imageUrl: WELCOME_IMAGE } });
     await prisma.setting.create({ data: { key: v15, value: { at: new Date().toISOString() } } });
+  }
+  // Разово (31.10): из «как вступить» убраны абзацы про минимальный срок и бездельников
+  const v16 = 'maintenance.howToJoinV2';
+  if (!(await prisma.setting.findUnique({ where: { key: v16 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'how_to_join' }, data: { text: HOW_TO_JOIN_TEXT } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v16, value: { at: new Date().toISOString() } } });
   }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
