@@ -76,6 +76,18 @@
 
   /* Что внутри */
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .items { display: grid; gap: 14px; }
+  .item { display: flex; gap: 16px; align-items: flex-start; padding: 22px 20px; border-radius: 24px; background: var(--soft); break-inside: avoid; page-break-inside: avoid; }
+  .item > svg { flex: none; width: 34px; height: 34px; margin-top: 2px; }
+  .item h3 { font-size: 19px; font-weight: 800; margin-bottom: 6px; }
+  .item p { margin: 0 0 10px; color: var(--ink-2); font-size: 16px; line-height: 1.55; }
+  .item p:last-child { margin-bottom: 0; }
+  .item .chips { margin: 0 0 12px; }
+  .item .aside { background: #fff; border-radius: 14px; padding: 10px 14px; font-size: 15px; }
+  .leaders { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
+  .leaders li { background: #fff; border-radius: 14px; padding: 10px 14px; font-size: 15px; color: var(--ink-2); line-height: 1.5; }
+  .leaders b { color: var(--ink); }
+  .item.app { flex-direction: column; gap: 14px; }
   .tile { padding: 20px 18px; border-radius: 22px; background: var(--soft); break-inside: avoid; page-break-inside: avoid; }
   .tile.wide { grid-column: 1 / -1; }
   .tile svg { width: 34px; height: 34px; margin-bottom: 12px; }
@@ -84,7 +96,7 @@
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .chip { padding: 5px 12px; border-radius: 999px; background: #fff; border: 1px solid var(--line); font-size: 14px; font-weight: 700; }
   .phone { display: flex; gap: 18px; align-items: center; }
-  .phone .mock { flex: none; width: 128px; border: 1.5px solid var(--ink); border-radius: 22px; padding: 12px 10px; background: #fff; }
+  .mock { flex: none; width: 128px; border: 1.5px solid var(--ink); border-radius: 22px; padding: 12px 10px; background: #fff; }
   .mock .row { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; padding: 5px 0; }
   .mock .ck { width: 14px; height: 14px; border-radius: 5px; background: var(--lime); flex: none; display: flex; align-items: center; justify-content: center; }
   .mock .ck.off { background: #fff; border: 1.5px solid #d6d4dc; }
@@ -177,40 +189,44 @@
     <div class="wrap">
       <div class="eyebrow">Что внутри</div>
       <h2>Что ты получаешь<span class="dot">.</span></h2>
-      <div class="grid">
-        <div class="tile">
-          <svg viewBox="0 0 34 34" fill="none"><rect x="3" y="9" width="28" height="18" rx="5" stroke="#ff2d87" stroke-width="2.4"/><path d="M3 15h28" stroke="#ff2d87" stroke-width="2.4"/><circle cx="25" cy="21" r="2" fill="#ff2d87"/></svg>
-          <h3>Вход в клуб</h3><p>Небольшой организационный взнос за членство.</p>
-        </div>
-        <div class="tile">
+      <div class="items">
+        <div class="item">
           <svg viewBox="0 0 34 34" fill="none"><circle cx="12" cy="12" r="5" stroke="#4d7a00" stroke-width="2.4"/><circle cx="23" cy="14" r="4" stroke="#4d7a00" stroke-width="2.4"/><path d="M3 29c1-6 5-9 9-9s8 3 9 9M20 22c4 0 8 2 10 7" stroke="#4d7a00" stroke-width="2.4" stroke-linecap="round"/></svg>
-          <h3>Окружение</h3><p>Каждый месяц — новое комьюнити, с кем проходишь месяц от и до.</p>
+          <div><h3>Сильное окружение</h3><p>Полезные знакомства — и даже друзей можно найти. На каждый месяц у тебя новое комьюнити людей, с кем ты проходишь этот месяц вместе от и до. <b>Новый месяц = новый челлендж.</b></p></div>
         </div>
-        <div class="tile wide">
+        <div class="item">
           <svg viewBox="0 0 34 34" fill="none"><path d="M5 8h18a3 3 0 013 3v9a3 3 0 01-3 3h-9l-6 5v-5H5a3 3 0 01-3-3v-9a3 3 0 013-3z" stroke="#ff2d87" stroke-width="2.4" stroke-linejoin="round"/><path d="M29 13a3 3 0 013 3v8a3 3 0 01-3 3h-1v4l-5-4" stroke="#ff2d87" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <h3>Чаты по твоей цели</h3><p>Быстро находишь единомышленников и двигаешься вместе со своими.</p>
+          <div><h3>Чаты по темам</h3><p>Внутри чата есть тематические ветки в зависимости от твоей цели. Кому интересно похудеть — в чате похудения. Кому интересно вести блог — в чате по блогингу. Кому интересно расти в деньгах — в чате финансов, и так далее.</p>
           <div class="chips"><span class="chip">Похудение</span><span class="chip">Блог</span><span class="chip">Финансы</span><span class="chip">Английский</span><span class="chip">Привычки</span></div>
+          <p>Так ты быстро найдёшь себе единомышленников и будешь двигаться вместе со своими ребятами.</p></div>
         </div>
-        <div class="tile wide">
+        <div class="item">
           <svg viewBox="0 0 34 34" fill="none"><rect x="2" y="8" width="22" height="18" rx="5" stroke="#4d7a00" stroke-width="2.4"/><path d="M24 15l8-5v14l-8-5" stroke="#4d7a00" stroke-width="2.4" stroke-linejoin="round"/></svg>
-          <h3>Созвоны с лидером своей темы</h3><p>Не всем клубом, а своей группой. Психолог — затыки, привычки, прокрастинация. Финансовый коуч — точки роста и план на неделю. Репетитор — разговорный английский, бесплатно в рамках клуба.</p>
+          <div><h3>Созвоны с лидерами</h3><p>Раз в неделю мы созваниваемся — не всем клубом, а именно той тематической группой, которая идёт к одним целям. В каждой ветке есть свой лидер-помощник:</p>
+          <ul class="leaders">
+            <li><b>Похудение и привычки — психолог.</b> Поможет разобрать твои затыки, отказаться от вредных привычек или победить прокрастинацию.</li>
+            <li><b>Финансы — финансовый коуч.</b> Подсветит твои точки роста со стороны, посмотрит, что было сделано за прошедшую неделю, и скорректирует план действий на следующую.</li>
+            <li><b>Английский — репетитор.</b> Еженедельно созваниваемся, чтобы практиковать именно речь — бесплатно в рамках клуба, в комфортной обстановке.</li>
+          </ul>
+          <p>И так по каждой ветке: ты еженедельно консультируешься с лидерами и другими участниками по своим задачам, целям и затыкам, чтобы расти быстрее.</p></div>
         </div>
-        <div class="tile">
+        <div class="item">
           <svg viewBox="0 0 34 34" fill="none"><circle cx="11" cy="12" r="5" stroke="#ff2d87" stroke-width="2.4"/><circle cx="23" cy="12" r="5" stroke="#ff2d87" stroke-width="2.4"/><path d="M3 29c1-5 4-8 8-8s7 3 8 8M15 29c1-5 4-8 8-8s7 3 8 8" stroke="#ff2d87" stroke-width="2.4" stroke-linecap="round"/></svg>
-          <h3>Личный бадди</h3><p>Поддерживаете и проверяете друг друга.</p>
+          <div><h3>Личный напарник — бадди</h3><p>Все участники делятся на пары и работают вместе. Бадди — это партнёр по челленджу, человек, с которым вы проходите этот путь вместе. Он нужен для взаимной поддержки, мотивации и контроля: вы ставите цели и ключевые задачи, отчитываетесь о них, подбадриваете друг друга и не даёте слиться.</p>
+          <p class="aside">Можно быть в паре со своим другом: он должен находиться в клубе, а вы — заранее написать нам о своём пожелании.</p></div>
         </div>
-        <div class="tile">
-          <svg viewBox="0 0 34 34" fill="none"><path d="M6 4h18v26H6z" stroke="#4d7a00" stroke-width="2.4" stroke-linejoin="round"/><path d="M10 10h10M10 16h10M10 22h6" stroke="#4d7a00" stroke-width="2.4" stroke-linecap="round"/><path d="M24 8h4v22h-4" stroke="#4d7a00" stroke-width="2.4" stroke-linejoin="round"/></svg>
-          <h3>Материалы</h3><p>Гайды, обучение и списки — пополняются.</p>
-        </div>
-        <div class="tile wide phone">
+        <div class="item app">
           <div class="mock" aria-hidden="true">
             <div class="row"><span class="ck"><svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 5l2 2 4-5" stroke="#141318" stroke-width="2" fill="none" stroke-linecap="round"/></svg></span>10 000 шагов</div>
             <div class="row"><span class="ck"><svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 5l2 2 4-5" stroke="#141318" stroke-width="2" fill="none" stroke-linecap="round"/></svg></span>Без сладкого</div>
             <div class="row"><span class="ck off"></span>1 рилс</div>
             <div class="bar"><i></i></div>
           </div>
-          <div><h3>Приложение для прогресса</h3><p>Каждый день отмечаешь: сделано. Цели, задачи, дни без пропусков — всё перед глазами. И дофаминовый кайф от каждой галочки.</p></div>
+          <div><h3>Приложение для отслеживания прогресса</h3><p>Каждый месяц ты видишь, над какими целями работал, какие задачи выполнял, какие цели уже выполнил, сколько дней провёл без пропусков. Каждый день заходишь в приложение и отмечаешь, что задача на сегодня выполнена. Представь этот дофаминовый кайф от собственной продуктивности и каждой поставленной галочки.</p></div>
+        </div>
+        <div class="item">
+          <svg viewBox="0 0 34 34" fill="none"><path d="M6 4h18v26H6z" stroke="#4d7a00" stroke-width="2.4" stroke-linejoin="round"/><path d="M10 10h10M10 16h10M10 22h6" stroke="#4d7a00" stroke-width="2.4" stroke-linecap="round"/><path d="M24 8h4v22h-4" stroke="#4d7a00" stroke-width="2.4" stroke-linejoin="round"/></svg>
+          <div><h3>Полезные материалы</h3><p>Уже лежат в чате и пополняются: список моих продуктов для похудения, на которых я похудела на −7 кг, обучение по набору подписчиков с нуля, по монетизации Instagram, подкаст, как начать вести блог, как перестать прокрастинировать — и многое другое.</p></div>
         </div>
       </div>
     </div>
@@ -219,7 +235,8 @@
   <section class="keep">
     <div class="wrap">
       <div class="eyebrow">Цель</div>
-      <h2>Как выбрать цель<span class="dot">?</span></h2>
+      <h2>Цель можешь выбрать любую<span class="dot">.</span></h2>
+      <p class="note" style="margin:-10px auto 22px">Каждый ставит свои цели и прописывает свои ежедневные действия.</p>
       <div class="goals"><span>Выучить язык</span><span>Запустить бизнес</span><span>Похудеть на Х кг</span><span>Заработать Х за Х дней</span><span>Набрать Х подписчиков</span><span>Наладить режим</span><span>Начать ходить в зал</span></div>
       <p class="note">Не знаешь, с чего начать? Внутри есть гайд, как найти свою цель и составить план, — и мы поможем разобраться.</p>
     </div>
