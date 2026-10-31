@@ -8,7 +8,8 @@ interface Video { url: string; title: string; duration: string }
 const ytId = (u: string) => u.trim().match(/^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1] ?? null;
 
 /** Продающее видео на первом экране: ссылка YouTube, название, длительность */
-function VideoBlock({ initial }: { initial: Video }) {
+// Блок скрыт, пока нет видео: вернуть — добавить <VideoBlock initial={s.data!.video} /> перед блоком счётчика
+export function VideoBlock({ initial }: { initial: Video }) {
   const [v, setV] = useState(initial);
   const [saved, setSaved] = useState(initial);
   const id = ytId(v.url);
@@ -67,11 +68,10 @@ export function OnboardingReviews() {
   const save = async () => { if (await act(() => api('/admin-api/onboarding', { method: 'PUT', body: { reviews: list, count } }))) { s.reload(); alert('Сохранено — в приложении уже новая карусель'); } };
   return (
     <>
-      <h1 className="page-title">Первый экран: видео и отзывы</h1>
+      <h1 className="page-title">Первый экран: отзывы</h1>
       <p className="sub">Карусель «Посмотри, чего уже добились наши участники». Только реальные результаты — по нажатию на карточку участник видит оригинальный скриншот.</p>
       <View s={s}>{() => (
         <>
-          <VideoBlock initial={s.data!.video} />
           <div className="block">
             <div className="money-hero" style={{ margin: '0 0 10px' }}>
               <span>Сейчас в приложении</span>
