@@ -227,3 +227,24 @@ export async function adminReplaceBuddy(userId: bigint) {
   };
   return { pairId: a.pair.id, newBuddy: await name(userId), formerBuddyNew: await name(otherId) };
 }
+
+const REPLACE_REASON: Record<string, string> = { no_contact: 'не выходит на связь', mismatch: 'не сошлись', other: 'другое' };
+
+/**
+ * Замена бадди самой участницей (кнопка «Заменить бадди»): сразу, без ожидания второго и без 5 дней.
+ * Причина и комментарий сохраняются (видны в админке), организаторам — сообщение в админ-бот.
+ */
+export async function memberReplaceBuddy(userId: bigint, flowId: string, reason: 'no_contact' | 'mismatch' | 'other', comment?: string) {
+  const b = await buddyOf(userId, flowId);
+  if (!b) throw notFound('no_buddy', 'У тебя сейчас нет бадди');
+  await prisma.buddyReplacement.create({ data: { pairId: b.pair.id, requesterId: userId, reason, comment: comment?.trim() || null } });
+  const [me, former] = await Promise.all([prisma.user.findUniqueOrThrow({ where: { id: userId } }), prisma.user.findUniqueOrThrow({ where: { id: b.otherId } })]);
+  const r = await adminReplaceBuddy(userId);
+  const { notifyAdmins, escAdmin } = await import('./adminBot');
+  const who = (u: { username: string | null }, n: string) => `${escAdmin(n)}${u.username ? ` (@${escAdmin(u.username)})` : ''}`;
+  await notifyAdmins(
+    `🔄 <b>Замена бадди</b>\n${who(me, displayName(me))} сменила бадди ${who(former, displayName(former))}.\nПричина: ${REPLACE_REASON[reason]}${comment?.trim() ? `\nКомментарий: ${escAdmin(comment.trim())}` : ''}\n` +
+      `Новый бадди: ${r.newBuddy ? escAdmin(r.newBuddy) : 'пока нет свободных — ждёт'}${r.formerBuddyNew ? `\nБывший бадди получил: ${escAdmin(r.formerBuddyNew)}` : ''}`,
+  ).catch(() => undefined);
+  return { state: r.newBuddy ? ('rematched' as const) : ('waiting_pool' as const), newBuddy: r.newBuddy };
+}

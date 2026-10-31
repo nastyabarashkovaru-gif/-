@@ -14,6 +14,9 @@ export function BuddyScreen() {
   const { data, error, loading, reload } = useLoad(() => api<BuddyState>('/api/buddy'));
   const [params] = useSearchParams();
   const [sheet, setSheet] = useState(params.get('replace') === '1');
+  const [reason, setReason] = useState<'no_contact' | 'mismatch' | 'other' | null>(null);
+  const [comment, setComment] = useState('');
+  const [busy, setBusy] = useState(false);
   if (loading) return <Screen id="S29"><Loading /></Screen>;
   if (error || !data) return <Screen id="S29"><ErrorState error={error} retry={reload} /></Screen>;
   if (data.state !== 'paired') {
@@ -31,14 +34,18 @@ export function BuddyScreen() {
       </Screen>
     );
   }
-  const replace = async (reason: 'mutual' | 'no_contact_5d') => {
+  const replace = async () => {
+    if (!reason || busy) return;
+    setBusy(true);
     try {
-      const r = await api<{ state: string }>('/api/buddy/replace', { body: { reason } });
-      toast(r.state === 'waiting_partner' ? 'Ждём, когда бадди тоже подтвердит замену' : r.state === 'rematched' ? 'Подобрали нового бадди!' : 'Пара распущена — подберём нового, как только появится свободный участник');
+      const r = await api<{ state: string; newBuddy: string | null }>('/api/buddy/replace', { body: { reason, comment: comment.trim() || undefined } });
+      toast(r.newBuddy ? `Готово! Твой новый бадди — ${r.newBuddy} 💜` : 'Пара распущена. Подберём нового бадди, как только появится свободная участница, и напишем в боте');
       setSheet(false);
       reload();
     } catch (e) {
       toast(errorText(e));
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -55,10 +62,13 @@ export function BuddyScreen() {
       <div className="spacer" />
       <button className="btn btn-ghost" onClick={() => setSheet(true)}>Заменить бадди</button>
       <Sheet open={sheet} onClose={() => setSheet(false)}>
-        <div className="h3">Замена бадди</div>
-        <p className="muted small" style={{ margin: 0 }}>Замена возможна по взаимному согласию или если бадди не выходит на связь больше 5 дней. Запросы видит модератор.</p>
-        <button className="btn btn-secondary" onClick={() => replace('mutual')}>Мы договорились расстаться</button>
-        <button className="btn btn-light" onClick={() => replace('no_contact_5d')}>Нет связи больше 5 дней</button>
+        <div className="h3">Заменить бадди</div>
+        <p className="muted small" style={{ margin: 0 }}>Подберём тебе нового бадди из свободных участниц — бывшего с тобой снова не поставим. Что случилось?</p>
+        {([['no_contact', 'Не выходит на связь'], ['mismatch', 'Не сошлись'], ['other', 'Другое']] as const).map(([k, t]) => (
+          <button key={k} className={`btn ${reason === k ? 'btn-secondary' : 'btn-light'}`} onClick={() => setReason(k)}>{t}</button>
+        ))}
+        <textarea className="input" rows={2} maxLength={500} placeholder="Комментарий (по желанию)" value={comment} onChange={(e) => setComment(e.target.value)} />
+        <button className="btn btn-primary" disabled={!reason || busy} onClick={replace}>{busy ? 'Подбираем…' : 'Заменить бадди'}</button>
         <button className="btn btn-ghost" onClick={async () => {
           const reason = prompt('Опишите проблему');
           if (!reason) return;

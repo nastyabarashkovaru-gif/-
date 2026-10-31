@@ -231,3 +231,22 @@ describe('заменить бадди', () => {
     await expect(adminReplaceBuddy(721n)).rejects.toThrow();
   });
 });
+
+describe('заменить бадди самой участницей', () => {
+  it('сразу, без согласия второго и без 5 дней; причина сохраняется; бывший бадди не возвращается', async () => {
+    clock.set('2026-11-01T09:00:00Z');
+    for (const id of [741, 742, 743]) await grantMembership(id, '2026-11-01');
+    const flow = await prisma.flow.findFirstOrThrow({ where: { startsOn: new Date('2026-11-01T00:00:00Z') } });
+    const { autoMatch, buddyOf } = await import('../src/modules/buddy');
+    await autoMatch(flow.id);
+    const paired = [741n, 742n, 743n].filter(Boolean);
+    const me = (await Promise.all(paired.map(async (u) => ((await buddyOf(u, flow.id)) ? u : null)))).find(Boolean)!;
+    const before = (await buddyOf(me, flow.id))!.otherId;
+    const free = paired.find((u) => u !== me && u !== before)!;
+    const r = await api('POST', '/api/buddy/replace', Number(me), { reason: 'no_contact', comment: 'молчит' });
+    expect(r.status).toBe(200);
+    expect(r.body.state).toBe('rematched');
+    expect((await buddyOf(me, flow.id))!.otherId).toBe(free);
+    expect(await prisma.buddyReplacement.findFirst({ where: { requesterId: me } })).toMatchObject({ reason: 'no_contact', comment: 'молчит' });
+  });
+});

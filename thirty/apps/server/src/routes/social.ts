@@ -162,10 +162,13 @@ export async function socialRoutes(app: FastifyInstance) {
     r.post<{ Params: { id: string } }>('/api/buddy/proposals/:id', async (req) => respondProposal(req.user!.id, req.params.id, parse(z.object({ accept: z.boolean() }), req.body).accept));
     r.post('/api/buddy/accept', async (req) => acceptInvite(req.user!.id, parse(z.object({ token: z.string().min(4).max(32) }), req.body).token));
     r.post('/api/buddy/replace', async (req) => {
-      const body = parse(z.object({ reason: z.enum(['mutual', 'no_contact_5d']), comment: z.string().max(500).optional() }), req.body);
+      const body = parse(z.object({ reason: z.enum(['no_contact', 'mismatch', 'other', 'mutual', 'no_contact_5d']), comment: z.string().max(500).optional() }), req.body);
       const m = await currentMembership(req.user!.id);
       if (!m) throw forbidden('no_membership');
-      return requestReplacement(req.user!.id, m.flowId, body.reason, body.comment);
+      // Прежние варианты (по согласию обоих / через 5 дней) — для старых версий приложения
+      if (body.reason === 'mutual' || body.reason === 'no_contact_5d') return requestReplacement(req.user!.id, m.flowId, body.reason, body.comment);
+      const { memberReplaceBuddy } = await import('../modules/buddy');
+      return memberReplaceBuddy(req.user!.id, m.flowId, body.reason, body.comment);
     });
 
     // Финал S33, отзывы S32, архив S34
