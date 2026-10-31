@@ -53,7 +53,7 @@ describe('бот', () => {
     const msg = calls.find((c) => c.method === 'sendPhoto')!; // приветствие — картинка с подписью
     expect(msg.body.photo).toMatch(/\/img\/bot-welcome\.jpg$/);
     expect(msg.body).toMatchObject({ parse_mode: 'HTML' });
-    expect(msg.body.caption).toContain('<b>Скорее нажимай');
+    expect(msg.body.caption).toContain('Скорее жми кнопку ОТКРЫТЬ ПРИЛОЖЕНИЕ');
     expect(msg.body.reply_markup.inline_keyboard[0][0].web_app.url).toContain('startapp=ref_abc');
     expect((await prisma.user.findUniqueOrThrow({ where: { id: 100n } })).allowsWrite).toBe(true);
   });

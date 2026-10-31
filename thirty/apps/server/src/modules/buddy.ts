@@ -204,6 +204,22 @@ export async function adminReplaceBuddy(userId: bigint) {
   const flowId = a.pair.flowId;
   const otherId = a.pair.userA === userId ? a.pair.userB : a.pair.userA;
   await dissolvePair(a.pair.id, 'approved');
+  // сначала ищем пару той, кого меняли (из свободных, кроме бывших бадди), потом — всем остальным
+  const past = await prisma.buddyPair.findMany({ where: { flowId, status: 'dissolved', OR: [{ userA: userId }, { userB: userId }] }, select: { userA: true, userB: true } });
+  const exes = new Set(past.map((p) => (p.userA === userId ? p.userB : p.userA).toString()));
+  const assigned = new Set((await prisma.buddyAssignment.findMany({ where: { flowId } })).map((x) => x.userId.toString()));
+  const free = await prisma.flowMembership.findMany({ where: { flowId, status: { in: [...ELIGIBLE] } }, include: { user: true } });
+  const pool = free
+    .filter((m) => m.userId === userId || (!assigned.has(m.userId.toString()) && !exes.has(m.userId.toString())))
+    .map((m) => ({ userId: m.userId.toString(), interests: m.user.interests, city: m.user.city, timezone: m.user.timezone }));
+  if (pool.length > 1) {
+    const me = userId.toString();
+    // лучшая по совместимости среди свободных: подбираем на пуле «я + каждая кандидатка» и берём максимальный балл
+    const best = pool.filter((c) => c.userId !== me).map((c) => matchBuddies([pool.find((x) => x.userId === me)!, c], `${flowId}:${me}:${c.userId}`).pairs[0]).sort((x, y) => y.score - x.score)[0];
+    const other = best.a === me ? best.b : best.a;
+    await serializable((tx) => createPair(tx, flowId, userId, BigInt(other), 'auto', best.reason));
+    await onMatched(flowId, [userId, BigInt(other)]);
+  }
   await autoMatch(flowId);
   const name = async (u: bigint) => {
     const b = await buddyOf(u, flowId);

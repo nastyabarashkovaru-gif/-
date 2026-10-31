@@ -86,6 +86,12 @@ export async function seedTemplates() {
     if (d) await prisma.botMessageTemplate.update({ where: { key: 'period_ending' }, data: { text: d.text, buttons: d.buttons as object } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v10, value: { at: new Date().toISOString() } } });
   }
+  // Разово (31.10): новый текст приветствия владельца (картинка и кнопка — прежние)
+  const v11 = 'maintenance.welcomeV2';
+  if (!(await prisma.setting.findUnique({ where: { key: v11 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v11, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {

@@ -93,11 +93,11 @@ describe('дожимная цепочка до оплаты', () => {
     clock.set('2026-10-21T09:00:00Z');
     await start(300);
     await start(300);
-    expect(sent()[0]).toContain('На связи Настя');
+    expect(sent()[0]).toContain('на связи Настя');
     expect(sent()[1]).toBe('Жми кнопку ниже, чтобы открыть приложение 👇');
     const app0 = await getApp();
     await app0.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { message: { message_id: 3, chat: { id: 300, type: 'private' }, from: { id: 300 }, text: '/start hello' } } });
-    expect(sent()[2]).toContain('На связи Настя');
+    expect(sent()[2]).toContain('на связи Настя');
     expect((await prisma.user.findUniqueOrThrow({ where: { id: 300n } })).marketingOptIn).toBe(true);
     calls = [];
 

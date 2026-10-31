@@ -71,6 +71,21 @@ export function matchBuddies(pool: BuddyCandidate[], seed: string, avoid: (a: st
     const [b] = rest.splice(k, 1);
     pairs.push({ a: a.userId, b: b.userId, reason: 'random', score: 0 });
   }
+  // Оставшиеся без пары из-за запрета (бывшие бадди): меняемся с уже собранной парой x+y → u1+x и u2+y
+  for (let i = 0; i < unmatched.length; i++) {
+    for (let j = i + 1; j < unmatched.length; j++) {
+      const [u1, u2] = [unmatched[i], unmatched[j]];
+      const k = pairs.findIndex((p) => (!avoid(u1, p.a) && !avoid(u2, p.b)) || (!avoid(u1, p.b) && !avoid(u2, p.a)));
+      if (k < 0) continue;
+      const p = pairs[k];
+      const [x, y] = !avoid(u1, p.a) && !avoid(u2, p.b) ? [p.a, p.b] : [p.b, p.a];
+      pairs.splice(k, 1, { a: u1, b: x, reason: 'random', score: 0 }, { a: u2, b: y, reason: 'random', score: 0 });
+      unmatched.splice(j, 1);
+      unmatched.splice(i, 1);
+      i = -1;
+      break;
+    }
+  }
   return { pairs, unmatched };
 }
 

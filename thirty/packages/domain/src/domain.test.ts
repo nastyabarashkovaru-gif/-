@@ -335,3 +335,15 @@ describe('прогресс числовой цели', () => {
     expect(isNumericGoal('A2', 'Могу говорить')).toBe(false);
   });
 });
+
+describe('подбор бадди: бывших вместе не ставим', () => {
+  it('двое бывших и двое новых — всегда две пары, бывшие не вместе (при любом случайном порядке)', () => {
+    const pool = ['1', '2', '3', '4'].map((userId) => ({ userId, interests: [] as string[], city: null, timezone: 'Europe/Moscow' }));
+    const avoid = (a: string, b: string) => [a, b].sort().join() === '1,2';
+    for (let s = 0; s < 50; s++) {
+      const r = matchBuddies(pool, `seed${s}`, avoid);
+      expect(r.unmatched).toEqual([]);
+      expect(r.pairs.some((p) => avoid(p.a, p.b))).toBe(false);
+    }
+  });
+});
