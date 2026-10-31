@@ -92,6 +92,12 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v11, value: { at: new Date().toISOString() } } });
   }
+  // Разово (31.10): конец приветствия и кнопка — «Хочу вступить»
+  const v12 = 'maintenance.welcomeV3';
+  if (!(await prisma.setting.findUnique({ where: { key: v12 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT, buttons: [{ text: WELCOME_BUTTON, screen: 'welcome' }] } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v12, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {
