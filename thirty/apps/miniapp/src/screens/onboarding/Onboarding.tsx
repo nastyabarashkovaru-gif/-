@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   HeartHandshake, MessagesSquare, Video, ChartNoAxesColumnIncreasing, Users, Smile, Heart, Wallet, HeartPulse, Smartphone, Languages, Flame,
-  Mic, MessageCircle, PhoneOff, User, CalendarCheck, TrendingUp, Brain, CircleCheck, Target, Pencil, LayoutGrid, Camera, Trophy, Sparkles, Check, Play, ArrowLeft, ArrowRight, ChevronDown, ChevronRight, X,
+  Mic, MessageCircle, PhoneOff, User, CalendarCheck, TrendingUp, Brain, CircleCheck, Target, Pencil, LayoutGrid, Camera, Trophy, Sparkles, Check, Play, ArrowLeft, ArrowRight, ChevronRight, X,
 } from 'lucide-react';
 import { api, rub } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
@@ -551,7 +551,6 @@ const FEATURES = [
 
 function Mechanics() {
   const nav = useNavigate();
-  const [open, setOpen] = useState<(typeof FEATURES)[number] | null>(null);
   return (
     <Stage n={2} cta="Что ещё входит в клуб?">
       <div className="col onb2-head">
@@ -560,26 +559,15 @@ function Mechanics() {
       </div>
       <div className="grid2 onb2-grid">
         {FEATURES.map((f) => (
-          <button key={f.topic} className="feat" onClick={() => { track('onboarding_feature_open', { screen: 'O02', metadata: { feature: f.topic } }); setOpen(f); }}>
+          <button key={f.topic} className="feat" onClick={() => { track('onboarding_feature_open', { screen: 'O02', metadata: { feature: f.topic } }); nav(`/about/${f.topic}/0`); }}>
             <span className={`mech-ic ${f.c}`}>{f.emoji}</span>
             <span className="feat-title">{f.title}</span>
             <span className="feat-text">{f.result}</span>
-            <span className="feat-more">Подробнее <ChevronDown size={15} /></span>
+            <span className="feat-more">Подробнее <ChevronRight size={15} /></span>
           </button>
         ))}
       </div>
       <div className="willpower">Тебе больше не придётся полагаться только на силу воли 💜</div>
-      <Popup open={!!open} onClose={() => setOpen(null)}>
-        {open && (
-          <>
-            <span className={`mech-ic ${open.c}`} style={{ alignSelf: 'center' }}>{open.emoji}</span>
-            <h2 className="h2 center" style={{ margin: 0 }}>{open.title}</h2>
-            <div className="center feat-result">{open.result}</div>
-            <p className="center" style={{ margin: 0, color: 'var(--ink-2)', lineHeight: 1.45 }}>{open.text}</p>
-            <button className="btn btn-light" onClick={() => { setOpen(null); nav(`/about/${open.topic}/0`); }}>Как это выглядит в клубе</button>
-          </>
-        )}
-      </Popup>
     </Stage>
   );
 }
