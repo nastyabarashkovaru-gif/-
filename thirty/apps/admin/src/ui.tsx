@@ -7,10 +7,13 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[] = []) {
   const [loading, setLoading] = useState(true);
   const ref = useRef(fn);
   ref.current = fn;
+  const seq = useRef(0);
   const reload = useCallback(() => {
+    // показываем ответ только на последний запрос (поиск по буквам: старый ответ не перетирает новый)
+    const n = ++seq.current;
     setLoading(true);
     setError(null);
-    ref.current().then((x) => { setData(x); setLoading(false); }, (e) => { setError(e.message); setLoading(false); });
+    ref.current().then((x) => { if (n !== seq.current) return; setData(x); setLoading(false); }, (e) => { if (n !== seq.current) return; setError(e.message); setLoading(false); });
   }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(reload, deps);

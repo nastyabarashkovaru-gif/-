@@ -117,3 +117,27 @@ describe('претенденты на приз (A09)', () => {
     expect(await prisma.auditLog.count({ where: { action: 'prize.approve' } })).toBe(4);
   });
 });
+
+describe('админка: поиск участников и продающее видео', () => {
+  it('ник находится с @, по ссылке t.me и без учёта регистра; имя + фамилия — тоже', async () => {
+    const owner = await adminSession();
+    await prisma.user.create({ data: { id: 901n, firstName: 'Анна', lastName: 'Смирнова', username: 'Anna_Fit' } });
+    await prisma.user.create({ data: { id: 902n, firstName: 'Ольга', username: 'olga' } });
+    for (const q of ['@anna_fit', 'anna', 'https://t.me/Anna_Fit', 'Анна Смирнова', '901']) {
+      const r = await owner('GET', `/admin-api/users?q=${encodeURIComponent(q)}`);
+      expect(r.body.map((u: { id: string }) => String(u.id)), q).toEqual(['901']);
+    }
+  });
+
+  it('ссылка YouTube в админке → карточка видео на первом экране; чужие ссылки не принимаются', async () => {
+    const owner = await adminSession();
+    expect((await api('GET', '/api/public/onboarding', 801)).body.video).toBeNull();
+    expect((await owner('PUT', '/admin-api/onboarding/video', { url: 'https://vk.com/video1', title: 'Видео', duration: '6 мин' })).status).toBe(400);
+    expect((await owner('PUT', '/admin-api/onboarding/video', { url: 'https://youtu.be/dQw4w9WgXcQ?si=x', title: 'Видео о клубе', duration: '6 мин' })).status).toBe(200);
+    expect((await api('GET', '/api/public/onboarding', 801)).body.video).toEqual({ id: 'dQw4w9WgXcQ', vertical: false, title: 'Видео о клубе', duration: '6 мин' });
+    await owner('PUT', '/admin-api/onboarding/video', { url: 'https://www.youtube.com/shorts/dQw4w9WgXcQ', title: 'Видео', duration: '' });
+    expect((await api('GET', '/api/public/onboarding', 801)).body.video.vertical).toBe(true);
+    await owner('PUT', '/admin-api/onboarding/video', { url: '', title: 'Видео', duration: '' });
+    expect((await api('GET', '/api/public/onboarding', 801)).body.video).toBeNull();
+  });
+});

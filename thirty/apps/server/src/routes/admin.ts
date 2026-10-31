@@ -13,7 +13,7 @@ import { reviewImageUrl } from './billing';
 import { setHidden } from '../modules/feedChat';
 import { normalizeCode } from '../modules/promos';
 import { decideStoryRequest } from '../modules/stories';
-import { DEFAULT_SETTINGS, getSetting, setSetting, type SettingKey } from '../settings';
+import { DEFAULT_SETTINGS, getSetting, setSetting, youtubeVideo, type SettingKey } from '../settings';
 import { dashboard, funnel, retention, screens, toCsv } from '../modules/adminAnalytics';
 import { homeFunnel, homeInsights, homeMembers, homeMoney, homeRetention, resolveRange } from '../modules/adminHome';
 import { cancelAutoRenew, markRefunded } from '../modules/billing';
@@ -153,7 +153,16 @@ export async function adminRoutes(app: FastifyInstance) {
     // ───────── Онбординг: карусель результатов и «Нас уже 300+» ─────────
     r.get('/admin-api/onboarding', perm('tariffs'), async () => {
       const { communityCount } = await import('../modules/community');
-      return { reviews: await getSetting('onboarding.reviews'), count: await getSetting('community.count'), since: await getSetting('community.countSince'), live: await communityCount() };
+      return { reviews: await getSetting('onboarding.reviews'), count: await getSetting('community.count'), since: await getSetting('community.countSince'), live: await communityCount(), video: await getSetting('onboarding.video') };
+    });
+    r.put('/admin-api/onboarding/video', perm('tariffs'), async (req) => {
+      const body = parse(z.object({
+        url: z.string().trim().max(300).refine((u) => u === '' || youtubeVideo(u) !== null, 'Нужна ссылка на ролик YouTube'),
+        title: z.string().trim().min(1).max(80), duration: z.string().trim().max(20),
+      }), req.body);
+      await audit(req, 'onboarding.video', 'setting', 'onboarding.video', { before: await getSetting('onboarding.video'), after: body });
+      await setSetting('onboarding.video', body);
+      return body;
     });
     r.put('/admin-api/onboarding', perm('tariffs'), async (req) => {
       const body = parse(z.object({
@@ -253,10 +262,16 @@ export async function adminRoutes(app: FastifyInstance) {
 
     // ───────── A06 пользователи ─────────
     r.get<{ Querystring: { q?: string; cursor?: string; stage?: string } }>('/admin-api/users', perm('users'), async (req) => {
-      const q = req.query.q?.trim();
+      // «@nick», «t.me/nick» и «Имя Фамилия» тоже находят: ник в базе хранится без @
+      const q = req.query.q?.trim().replace(/^(https?:\/\/)?(t\.me\/|telegram\.me\/)/i, '').replace(/^@+/, '').trim();
+      const words = q ? q.split(/\s+/).filter(Boolean) : [];
       const users = await prisma.user.findMany({
         where: {
-          ...(q ? { OR: [{ firstName: { contains: q, mode: 'insensitive' } }, { lastName: { contains: q, mode: 'insensitive' } }, { username: { contains: q, mode: 'insensitive' } }, ...(/^\d+$/.test(q) ? [{ id: BigInt(q) }] : [])] } : {}),
+          ...(q ? { OR: [
+            { firstName: { contains: q, mode: 'insensitive' } }, { lastName: { contains: q, mode: 'insensitive' } }, { displayName: { contains: q, mode: 'insensitive' } }, { username: { contains: q, mode: 'insensitive' } },
+            ...(words.length > 1 ? [{ AND: words.map((w) => ({ OR: [{ firstName: { contains: w, mode: 'insensitive' as const } }, { lastName: { contains: w, mode: 'insensitive' as const } }] })) }] : []),
+            ...(/^\d+$/.test(q) ? [{ id: BigInt(q) }] : []),
+          ] } : {}),
           ...(req.query.stage ? { onboardingStage: req.query.stage } : {}),
         },
         orderBy: { createdAt: 'desc' },

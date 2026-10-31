@@ -10,7 +10,7 @@ import { forbidden, jsonSafe, notFound } from '../http';
 import { parse } from '../lib/validate';
 import { paymentProvider } from '../payments';
 import { signMock } from '../payments/mock';
-import { getSetting } from '../settings';
+import { getSetting, youtubeVideo } from '../settings';
 import { track } from '../modules/analytics';
 import {
   appUrl, cancelAutoRenew, checkoutPreview, createCheckout, createDebtPayment, handleWebhook, offerState, resumeAutoRenew, startOffer, subscriptionSummary,
@@ -47,6 +47,11 @@ export async function billingRoutes(app: FastifyInstance) {
     r.get('/api/public/onboarding', async () => ({
       reviews: (await getSetting('onboarding.reviews')).filter((x) => x.enabled).map((x) => ({ ...x, image: x.image ? reviewImageUrl(x.image) : null })),
       count: String(await communityCount()),
+      video: await (async () => {
+        const v = await getSetting('onboarding.video');
+        const yt = youtubeVideo(v.url);
+        return yt ? { ...yt, title: v.title, duration: v.duration } : null;
+      })(),
     }));
 
     // Промокоды: проверка и применение только на сервере

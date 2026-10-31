@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   HeartHandshake, MessagesSquare, Video, ChartNoAxesColumnIncreasing, Users, Smile, Heart, Wallet, HeartPulse, Smartphone, Languages, Flame,
-  Mic, MessageCircle, PhoneOff, User, CalendarCheck, TrendingUp, Brain, CircleCheck, Target, Pencil, LayoutGrid, Camera, Trophy, Sparkles, Check, ArrowLeft, ArrowRight, ChevronDown, ChevronRight, X,
+  Mic, MessageCircle, PhoneOff, User, CalendarCheck, TrendingUp, Brain, CircleCheck, Target, Pencil, LayoutGrid, Camera, Trophy, Sparkles, Check, Play, ArrowLeft, ArrowRight, ChevronDown, ChevronRight, X,
 } from 'lucide-react';
 import { api, rub } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
@@ -499,16 +500,44 @@ function LiveCount({ initial }: { initial: number }) {
   );
 }
 
+interface OnbVideo { id: string; vertical: boolean; title: string; duration: string }
+
+/** Продающее видео: компактная карточка с обложкой, по нажатию — плеер YouTube поверх экрана */
+function VideoCard({ v }: { v: OnbVideo }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button className="vid-card" onClick={() => { track('onboarding_video_open', { screen: 'O01', metadata: { video: v.id } }); setOpen(true); }}>
+        <div className="vid-thumb">
+          <img src={`https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`} alt="" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
+          <span className="vid-play"><Play size={16} fill="currentColor" /></span>
+        </div>
+        <div className="grow"><b>{v.title}</b>{v.duration && <span>▶ Смотреть · {v.duration}</span>}</div>
+      </button>
+      {open && createPortal(
+        <div className="vid-overlay" onClick={() => setOpen(false)}>
+          <button className="vid-close" aria-label="Закрыть" onClick={() => setOpen(false)}><X size={22} /></button>
+          <div className={`vid-frame${v.vertical ? ' vertical' : ''}`} onClick={(e) => e.stopPropagation()}>
+            <iframe src={`https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&playsinline=1&rel=0&modestbranding=1`} title={v.title} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 export function Welcome() {
-  const { data } = useLoad(() => api<{ reviews: ReviewCard[]; count: string }>('/api/public/onboarding'));
+  const { data } = useLoad(() => api<{ reviews: ReviewCard[]; count: string; video: OnbVideo | null }>('/api/public/onboarding'));
   return (
     <Stage n={1} cta="Хочу вступить! 😍" arrow={false} ctaClass="cta-glow">
       <div className="col onb2-head">
         <h1 className="hero onb2-title">Вступай в наше сообщество «30 дней» 💜</h1>
         <p className="lead">Новые привычки, новые люди, новая версия тебя.</p>
       </div>
+      {data?.video && <VideoCard v={data.video} />}
       {data && <LiveCount initial={Number.parseInt(data.count, 10) || 0} />}
-      {data ? <ReviewsCarousel reviews={data.reviews} /> : <div className="rv-skeleton" />}
+      {data ? <div className={data.video ? 'with-video' : undefined}><ReviewsCarousel reviews={data.reviews} /></div> : <div className="rv-skeleton" />}
     </Stage>
   );
 }

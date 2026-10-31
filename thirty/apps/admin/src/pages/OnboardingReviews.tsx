@@ -3,6 +3,32 @@ import { ArrowDown, ArrowUp, ImagePlus, Plus, Trash2 } from 'lucide-react';
 import { api } from '../api';
 import { View, act, useLoad } from '../ui';
 
+interface Video { url: string; title: string; duration: string }
+
+const ytId = (u: string) => u.trim().match(/^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1] ?? null;
+
+/** Продающее видео на первом экране: ссылка YouTube, название, длительность */
+function VideoBlock({ initial }: { initial: Video }) {
+  const [v, setV] = useState(initial);
+  const [saved, setSaved] = useState(initial);
+  const id = ytId(v.url);
+  const dirty = JSON.stringify(v) !== JSON.stringify(saved);
+  const bad = v.url.trim() !== '' && !id;
+  const save = async () => { if (await act(() => api('/admin-api/onboarding/video', { method: 'PUT', body: v }))) { setSaved(v); alert(v.url.trim() ? 'Сохранено — видео уже на первом экране' : 'Видео убрано с первого экрана'); } };
+  return (
+    <div className="block">
+      <h2>Продающее видео</h2>
+      <p className="sub" style={{ margin: '0 0 8px' }}>Карточка «▶ Смотреть» над счётчиком участников. Видео открывается прямо в приложении. Чтобы убрать — очистите ссылку и сохраните.</p>
+      <label className="f">Ссылка на YouTube<input value={v.url} type="url" autoCapitalize="none" autoCorrect="off" placeholder="https://youtu.be/…" onChange={(e) => setV({ ...v, url: e.target.value })} /></label>
+      {bad && <div className="err">Это не похоже на ссылку на ролик YouTube</div>}
+      {id && <img src={`https://i.ytimg.com/vi/${id}/mqdefault.jpg`} alt="" style={{ width: 160, borderRadius: 10, display: 'block', margin: '4px 0 8px' }} />}
+      <label className="f">Название на карточке<input value={v.title} maxLength={80} onChange={(e) => setV({ ...v, title: e.target.value })} /></label>
+      <label className="f">Длительность<input value={v.duration} maxLength={20} placeholder="6 мин" onChange={(e) => setV({ ...v, duration: e.target.value })} /></label>
+      <button className="btn big" disabled={!dirty || bad || !v.title.trim()} onClick={save}>{dirty ? 'Сохранить видео' : 'Сохранено'}</button>
+    </div>
+  );
+}
+
 interface Review { id: string; emoji: string; title: string; text?: string; image?: string; enabled: boolean }
 
 const imgUrl = (image?: string) => (!image ? null : image.startsWith('/') ? image : `/api/public/review-image/${image.replace(/^reviews\//, '')}`);
@@ -22,7 +48,7 @@ async function uploadImage(file: File): Promise<string> {
 
 /** Первый экран онбординга: карточки результатов участниц (порядок, текст, оригинальный скриншот) и «Нас уже 300+» */
 export function OnboardingReviews() {
-  const s = useLoad(() => api<{ reviews: Review[]; count: string; since: string; live: number }>('/admin-api/onboarding'));
+  const s = useLoad(() => api<{ reviews: Review[]; count: string; since: string; live: number; video: Video }>('/admin-api/onboarding'));
   const [list, setList] = useState<Review[]>([]);
   const [count, setCount] = useState('');
   const [dirty, setDirty] = useState(false);
@@ -41,10 +67,11 @@ export function OnboardingReviews() {
   const save = async () => { if (await act(() => api('/admin-api/onboarding', { method: 'PUT', body: { reviews: list, count } }))) { s.reload(); alert('Сохранено — в приложении уже новая карусель'); } };
   return (
     <>
-      <h1 className="page-title">Первый экран: отзывы</h1>
+      <h1 className="page-title">Первый экран: видео и отзывы</h1>
       <p className="sub">Карусель «Посмотри, чего уже добились наши участники». Только реальные результаты — по нажатию на карточку участник видит оригинальный скриншот.</p>
       <View s={s}>{() => (
         <>
+          <VideoBlock initial={s.data!.video} />
           <div className="block">
             <div className="money-hero" style={{ margin: '0 0 10px' }}>
               <span>Сейчас в приложении</span>

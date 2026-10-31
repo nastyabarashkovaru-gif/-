@@ -13,6 +13,15 @@ export interface ValueItem {
   enabled: boolean;
 }
 
+/** Продающее видео на первом экране (ссылка на YouTube; пусто — карточки нет) */
+export interface OnboardingVideo { url: string; title: string; duration: string }
+
+/** id ролика из любой ссылки YouTube (watch, youtu.be, shorts, embed, live); vertical — Shorts */
+export function youtubeVideo(url: string): { id: string; vertical: boolean } | null {
+  const m = url.trim().match(/^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  return m ? { id: m[1], vertical: /\/shorts\//.test(url) } : null;
+}
+
 /** Карточка результата участницы в карусели первого экрана (только реальные отзывы) */
 export interface ReviewCard {
   id: string;
@@ -61,6 +70,7 @@ export const DEFAULT_SETTINGS = {
     { id: 'support', emoji: '💜', title: 'Поддержка и окружение', description: 'Найдёшь новых друзей, с кем будешь расти дальше вместе', price: 0, enabled: true },
   ] as ValueItem[],
   'onboarding.reviews': DEFAULT_REVIEWS,
+  'onboarding.video': { url: '', title: 'Видео о клубе «30 дней»', duration: '6 мин' } as OnboardingVideo,
   /** «С нами уже больше … участников!» на первом экране (число) */
   'community.count': '274',
   /** С какого момента к стартовому числу прибавляются новые оплатившие (ISO); пусто — только стартовое число */

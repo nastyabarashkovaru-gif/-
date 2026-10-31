@@ -14,7 +14,7 @@ export function Users() {
       <h1 className="page-title">Участники</h1>
       <SubNav items={[['/moderation', 'Модерация'], ['/rating', 'Рейтинг'], ['/prizes', 'Претенденты'], ['/buddy', 'Бадди']]} />
       <div className="search">
-        <input value={q} placeholder="Имя, @username или Telegram ID" onChange={(e) => setQ(e.target.value)} />
+        <input value={q} type="search" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="Имя, @ник или Telegram ID" onChange={(e) => setQ(e.target.value)} />
         <select value={stage} onChange={(e) => setStage(e.target.value)}>
           <option value="">Все этапы</option>
           {Object.entries(STAGE_RU).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
