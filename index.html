@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Клуб «90 дней»</title>
+<meta name="description" content="Сообщество, где мы меняемся по системе «новый месяц = новый челлендж»: цель, ежедневные действия, бадди, тематические чаты и созвоны с лидерами.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #111018;
+    --ink-2: #3b3946;
+    --muted: #6d6a7a;
+    --bg: #ffffff;
+    --yellow: #ffe600;
+    --pink: #ff2e93;
+    --blue: #2340ff;
+    --soft-pink: #ffe3f1;
+    --soft-blue: #e6eaff;
+    --soft-yellow: #fff8b8;
+    --line: #111018;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 500 17px/1.55 Manrope, system-ui, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { color: inherit; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+  h1, h2, h3 { font-family: Unbounded, Manrope, sans-serif; margin: 0; line-height: 1.12; letter-spacing: -0.01em; }
+  h2 { font-size: clamp(24px, 6vw, 34px); font-weight: 800; text-transform: uppercase; margin-bottom: 18px; }
+  p { margin: 0 0 12px; }
+  .mark { background: var(--yellow); padding: 0 6px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .pink { color: var(--pink); }
+  .blue { color: var(--blue); }
+
+  /* Шапка */
+  .hero { padding: 40px 0 34px; background: var(--yellow); border-bottom: 3px solid var(--line); position: relative; overflow: hidden; }
+  .hero::after { content: ""; position: absolute; right: -90px; top: -90px; width: 260px; height: 260px; border-radius: 50%; background: var(--pink); opacity: 0.9; }
+  .hero::before { content: ""; position: absolute; right: 60px; bottom: -70px; width: 150px; height: 150px; border-radius: 50%; background: var(--blue); }
+  .hero .wrap { position: relative; z-index: 1; }
+  .kicker { display: inline-block; font: 700 13px/1 Manrope, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; background: var(--ink); color: #fff; padding: 9px 12px; border-radius: 999px; }
+  .hero h1 { font-size: clamp(36px, 10vw, 64px); font-weight: 800; text-transform: uppercase; margin: 18px 0 14px; }
+  .hero h1 span { display: inline-block; background: #fff; border: 3px solid var(--line); padding: 2px 12px 6px; transform: rotate(-1.5deg); margin-top: 6px; }
+  .hero .lead { font-size: 19px; font-weight: 600; max-width: 560px; color: var(--ink); }
+  .formula { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 22px; font: 800 18px/1.2 Unbounded, sans-serif; }
+  .formula b { background: #fff; border: 2px solid var(--line); border-radius: 12px; padding: 8px 12px; }
+  .formula i { font-style: normal; color: var(--pink); font-size: 24px; }
+
+  .btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 54px; padding: 0 22px; border: 3px solid var(--line); border-radius: 16px; font: 800 17px/1 Manrope, sans-serif; text-decoration: none; background: var(--pink); color: #fff; box-shadow: 4px 4px 0 var(--line); }
+  .btn.light { background: #fff; color: var(--ink); }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--line); }
+
+  section { padding: 38px 0 6px; }
+  .card { border: 3px solid var(--line); border-radius: 22px; padding: 20px; background: #fff; box-shadow: 6px 6px 0 var(--line); break-inside: avoid; page-break-inside: avoid; }
+  .card + .card { margin-top: 18px; }
+
+  /* Правила: три шага */
+  .rules { display: grid; gap: 12px; counter-reset: r; }
+  .rule { display: flex; gap: 14px; align-items: flex-start; }
+  .rule::before { counter-increment: r; content: counter(r); flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--blue); color: #fff; font: 800 18px/40px Unbounded, sans-serif; text-align: center; }
+  .rule b { display: block; font-size: 18px; }
+  .note { margin-top: 16px; background: var(--soft-pink); border-radius: 16px; padding: 14px 16px; font-weight: 600; }
+
+  /* Что внутри: дорожка */
+  .path { list-style: none; margin: 0; padding: 0; position: relative; }
+  .path::before { content: ""; position: absolute; left: 25px; top: 10px; bottom: 10px; border-left: 3px dashed var(--line); }
+  .step { position: relative; padding-left: 70px; margin-bottom: 22px; break-inside: avoid; page-break-inside: avoid; }
+  .step .num { position: absolute; left: 0; top: 0; width: 52px; height: 52px; border-radius: 16px; border: 3px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 24px; background: var(--yellow); }
+  .step:nth-child(3n+2) .num { background: var(--soft-pink); }
+  .step:nth-child(3n) .num { background: var(--soft-blue); }
+  .step h3 { font-size: 19px; font-weight: 800; margin: 4px 0 8px; text-transform: uppercase; }
+  .step h3 small { display: block; font: 700 14px/1.3 Manrope, sans-serif; text-transform: none; color: var(--pink); margin-top: 6px; }
+  .step p { color: var(--ink-2); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
+  .chip { border: 2px solid var(--line); border-radius: 999px; padding: 6px 12px; font-weight: 700; font-size: 15px; background: #fff; }
+  .leaders { display: grid; gap: 10px; margin: 6px 0 10px; }
+  .leader { background: var(--soft-blue); border-radius: 14px; padding: 12px 14px; }
+  .leader b { color: var(--blue); }
+  .app { border: 3px solid var(--line); border-radius: 20px; padding: 14px; max-width: 330px; background: #fff; margin: 6px 0 12px; }
+  .app-top { display: flex; justify-content: space-between; font-weight: 800; font-size: 14px; margin-bottom: 8px; }
+  .app-top span { color: var(--pink); }
+  .task { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid #ecebf2; font-weight: 600; font-size: 15px; }
+  .tick { width: 24px; height: 24px; border-radius: 8px; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex: none; }
+  .tick.off { background: #fff; border: 2px solid #c9c6d6; }
+  .days { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; margin-top: 10px; }
+  .days i { height: 14px; border-radius: 4px; background: var(--yellow); border: 1px solid #e0cc00; }
+  .days i.n { background: #f1f0f6; border-color: #e4e2ec; }
+
+  .list { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 10px; }
+  .list li { position: relative; padding-left: 30px; }
+  .list li::before { content: ""; position: absolute; left: 0; top: 7px; width: 14px; height: 14px; border-radius: 4px; background: var(--pink); transform: rotate(45deg); }
+
+  .qa { display: grid; gap: 12px; margin-top: 14px; }
+  .qa div { border-left: 5px solid var(--blue); padding: 4px 0 4px 14px; }
+  .qa b { display: block; }
+  .together { margin-top: 16px; font: 800 18px/1.3 Unbounded, sans-serif; }
+
+  .goals { display: flex; flex-wrap: wrap; gap: 8px; }
+  .goals span { background: var(--soft-yellow); border: 2px solid var(--line); border-radius: 12px; padding: 7px 12px; font-weight: 700; }
+
+  .final { margin: 40px 0 0; padding: 36px 0 40px; background: var(--ink); color: #fff; }
+  .final h2 { color: #fff; }
+  .final .mark { color: var(--ink); }
+  .final p { color: #d9d7e3; font-size: 18px; }
+  .final .btn.light { box-shadow: 4px 4px 0 var(--yellow); border-color: #fff; }
+  .final .btn { box-shadow: 4px 4px 0 var(--yellow); border-color: #fff; }
+  .support { margin-top: 18px; font-weight: 700; }
+  .support a { color: var(--yellow); }
+
+  @media print {
+    @page { size: A4; margin: 12mm 0; }
+    body { font-size: 15px; }
+    .hero { padding-top: 26px; }
+    section { padding-top: 24px; }
+    .btn { box-shadow: none; }
+    h2 { break-after: avoid; page-break-after: avoid; }
+    section.keep, .keep-final { break-inside: avoid; page-break-inside: avoid; }
+    section.new-page { break-before: page; page-break-before: always; padding-top: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="kicker">Сообщество для тех, кто доводит до конца</span>
+    <h1>Правила клуба <span>«90 дней»</span></h1>
+    <div class="formula"><b>новый месяц</b><i>=</i><b>новый челлендж</b></div>
+    <p class="lead">Здесь те, кто не хочет просиживать свою жизнь. В одиночку у нас либо не получается начать, либо не получается довести до конца. Поэтому мы делаем это вместе — потому что сила в людях.</p>
+    <div class="btns">
+      <a class="btn" href="https://t.me/Dney30_bot">Хочу вступить</a>
+      <a class="btn light" href="https://t.me/barashkova_a">Задать вопрос</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="wrap">
+      <h2>Правила <span class="mark">простые</span></h2>
+      <div class="card">
+        <div class="rules">
+          <div class="rule"><div><b>Ставишь цель на месяц</b>Заработать Х, похудеть на Х кг, набрать Х подписчиков — любую, которая зажигает.</div></div>
+          <div class="rule"><div><b>Прописываешь ежедневные действия</b>Маленькие шаги, которые каждый день ведут тебя к цели.</div></div>
+          <div class="rule"><div><b>Каждый день отчитываешься</b>Отмечаешь выполненное в приложении и скидываешь отчёт — и уже не сливаешься.</div></div>
+        </div>
+        <div class="note">Пока не понимаешь, какую цель поставить? Внутри есть гайд, как найти свою цель и построить план действий, + мы поможем разобраться. Один не останешься.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="new-page">
+    <div class="wrap">
+      <h2>Что <span class="mark">внутри</span> клуба</h2>
+      <ol class="path">
+        <li class="step">
+          <div class="num">🎟</div>
+          <h3>Вступаешь в клуб<small>Небольшая оплата — по сути организационный взнос за членство в клубе</small></h3>
+          <p>Это не плата за курс, а вход в среду: окружение, система и люди, которые не дадут тебе слиться.</p>
+        </li>
+        <li class="step">
+          <div class="num">🤝</div>
+          <h3>Сильное окружение</h3>
+          <p>Полезные знакомства, единомышленники и даже новые друзья. Каждый месяц у тебя новое комьюнити людей, с которыми ты проходишь этот месяц вместе — от и до. <b>Новый месяц = новый челлендж.</b></p>
+        </li>
+        <li class="step">
+          <div class="num">💬</div>
+          <h3>Тематические чаты по твоей цели</h3>
+          <div class="chips"><span class="chip">Похудение</span><span class="chip">Блогинг</span><span class="chip">Финансы</span><span class="chip">Английский</span><span class="chip">Привычки</span></div>
+          <p>Хочешь похудеть — ты в чате похудения. Хочешь вести блог — в чате по блогингу. Расти в деньгах — в чате финансов. Так ты быстро находишь единомышленников и двигаешься вместе со своими ребятами.</p>
+        </li>
+        <li class="step">
+          <div class="num">🎥</div>
+          <h3>Созвоны раз в неделю<small>Не всем клубом, а своей тематической группой, которая идёт к тем же целям</small></h3>
+          <p>В каждой ветке есть свой лидер-помощник:</p>
+          <div class="leaders">
+            <div class="leader"><b>Похудение и привычки — психолог.</b> Поможет разобрать затыки, отказаться от вредных привычек и победить прокрастинацию.</div>
+            <div class="leader"><b>Финансы — финансовый коуч.</b> Подсветит точки роста со стороны, разберёт прошедшую неделю и скорректирует план на следующую.</div>
+            <div class="leader"><b>Английский — репетитор.</b> Каждую неделю практикуем разговорную речь в комфортной обстановке — бесплатно в рамках клуба.</div>
+          </div>
+          <p>И так в каждой ветке: ты еженедельно консультируешься с лидером и участниками по своим задачам, целям и затыкам — и растёшь быстрее.</p>
+        </li>
+        <li class="step">
+          <div class="num">👯</div>
+          <h3>Личный напарник — бадди</h3>
+          <p>Все участники делятся на пары и работают вместе: поддерживают друг друга и проверяют друг друга. Слиться, когда на тебя рассчитывают, гораздо сложнее.</p>
+        </li>
+        <li class="step">
+          <div class="num">📱</div>
+          <h3>Приложение для прогресса</h3>
+          <div class="app">
+            <div class="app-top">Сегодня · день 12 <span>🔥 12 дней без пропусков</span></div>
+            <div class="task"><span class="tick">✓</span>10 000 шагов</div>
+            <div class="task"><span class="tick">✓</span>Без сладкого</div>
+            <div class="task"><span class="tick off"></span>1 рилс в блог</div>
+            <div class="days"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i></div>
+          </div>
+          <p>Видишь, над какими целями работаешь, какие задачи выполняешь, что уже достигнуто и сколько дней ты без пропусков. Каждый день заходишь и отмечаешь: задача на сегодня выполнена. Представь этот дофаминовый кайф от собственной продуктивности и каждой поставленной галочки.</p>
+        </li>
+        <li class="step">
+          <div class="num">📚</div>
+          <h3>Полезные материалы<small>Уже лежат в чате и постоянно пополняются</small></h3>
+          <p>Мой список продуктов для похудения, на которых я похудела на −7 кг, обучение по набору подписчиков с нуля, монетизация Instagram, подкаст, как начать вести блог, как перестать прокрастинировать — и многое другое.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="keep">
+    <div class="wrap">
+      <h2>Работаем по <span class="mark">«бадди-системе»</span></h2>
+      <div class="card">
+        <p><b class="pink">БАДДИ</b> — это партнёр по челленджу, человек, с которым вы проходите этот путь вместе. Он нужен для взаимной поддержки, мотивации и контроля: вы ставите цели и ключевые задачи, отчитываетесь о них, подбадриваете друг друга и не даёте слиться.</p>
+        <div class="note" style="margin-top:6px"><b>Бонус:</b> вы можете быть в паре со своим другом. Он должен находиться в клубе, а вы — заранее написать нам о своём пожелании.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="keep">
+    <div class="wrap">
+      <h2>Я — <span class="mark">главный ментор</span></h2>
+      <div class="card">
+        <p>И помогаю вам, потому что мне есть чем делиться:</p>
+        <ul class="list">
+          <li>Заработала первый миллион в 20 лет, потому что договорилась на спор стабильно вести блог — хотя до этого годами не могла начать.</li>
+          <li>Набрала 46 тысяч подписчиков с нуля, потому что спорила на деньги, которые не хотела в конце отдавать.</li>
+          <li>Выходила на пассивный доход 35 тысяч рублей в день.</li>
+          <li>Похудела на 7 кг.</li>
+          <li>Много раз переезжала, начинала всё заново, вела несколько бизнесов — в том числе убыточных. Прожила кучу кризисов.</li>
+          <li>Случайные знакомства приводили меня к работе в Таиланде, крупному заработку, новым инсайтам и переменам. Поэтому я точно знаю: <b>люди — самое важное звено успеха.</b></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="keep">
+    <div class="wrap">
+      <h2>Как <span class="mark">выбрать цель?</span></h2>
+      <div class="card">
+        <p>Цель ты можешь выбрать любую:</p>
+        <div class="goals"><span>Выучить новый язык</span><span>Запустить бизнес</span><span>Похудеть на Х кг</span><span>Заработать Х за Х дней</span><span>Набрать Х подписчиков</span><span>Наладить режим</span><span>Начать ходить в зал</span></div>
+        <div class="qa">
+          <div><b>Хочешь открыть бизнес, но не знаешь, с чего начать?</b>Внутри найдутся предприниматели, которые помогут тебе.</div>
+          <div><b>Хочешь построить новое тело?</b>Каждый поделится советом, что помогло именно ему.</div>
+          <div><b>Хочешь развить блог?</b>Я расскажу свои секреты и дам обратную связь.</div>
+        </div>
+        <p class="together">Всё бесплатно внутри клуба — потому что мы <span class="pink">помогаем друг другу.</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="keep">
+    <div class="wrap">
+      <h2>Что из полезного <span class="mark">уже лежит</span></h2>
+      <div class="card">
+        <ul class="list">
+          <li><b>Обучение по развитию блога и пассивному заработку с него.</b> Подойдёт новичкам — объясняю, как мне приходило по 35 тысяч рублей в день через рилс.</li>
+          <li><b>Список моих любимых продуктов, на которых я похудела на −7 кг.</b> Всё можно найти в любом магазине.</li>
+          <li><b>Гайд для старта:</b> как определиться с целью на месяц и составить план действий.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="final keep-final">
+    <div class="wrap">
+      <h2>Главное, что толкает тебя наверх, — <span class="mark">это люди</span></h2>
+      <p>Если ты сейчас решишь фигачить — через пару месяцев оглянешься назад и не узнаешь себя. Ждём тебя внутри.</p>
+      <div class="btns">
+        <a class="btn" href="https://t.me/Dney30_bot">Хочу вступить</a>
+        <a class="btn light" href="https://t.me/barashkova_a">Написать в поддержку</a>
+      </div>
+      <p class="support">Остались вопросы — пиши: <a href="https://t.me/barashkova_a">t.me/barashkova_a</a></p>
+    </div>
+  </div>
+</main>
+</body>
+</html>
