@@ -337,29 +337,21 @@ export async function handleUpdate(update: TgUpdate) {
       if (u) await handleStartParam(u, safe);
     }
     const tpl = await prisma.botMessageTemplate.findUnique({ where: { key: 'welcome' } });
-    // Сообщение 1 — один раз; при повторном /start только кнопка входа. Ссылка ?start=hello всегда показывает приветствие
-    let first = payload === 'hello';
-    try {
-      await prisma.botMessageLog.create({ data: { userId, templateKey: 'welcome', dedupeKey: `welcome:${userId}`, status: 'sent', sentAt: clock.now() } });
-      first = true;
-    } catch (e) {
+    // Сообщение 1 — на каждый /start, как в прежнем боте; запись в журнале — только первая (для аналитики)
+    await prisma.botMessageLog.create({ data: { userId, templateKey: 'welcome', dedupeKey: `welcome:${userId}`, status: 'sent', sentAt: clock.now() } }).catch((e) => {
       if (!isUniqueViolation(e)) throw e;
-    }
+    });
     const image = imageUrlOf(tpl?.imageUrl);
-    if (first) {
-      const markup = welcomeMarkup(tpl?.buttons, await linkVars(), safe);
-      const text = tpl?.text ?? WELCOME_TEXT;
-      if (image && text.length <= 1024) await tg('sendPhoto', { chat_id: msg.chat.id, photo: image, caption: text, parse_mode: 'HTML', reply_markup: markup });
-      else {
-        if (image) await tg('sendPhoto', { chat_id: msg.chat.id, photo: image });
-        await tg('sendMessage', { chat_id: msg.chat.id, text, parse_mode: 'HTML', reply_markup: markup, link_preview_options: { is_disabled: true } });
-      }
-      // Правила клуба файлом — через секунду после приветствия
-      const chatId = msg.chat.id;
-      setTimeout(() => void sendRulesPdf(chatId), 1000);
-    } else {
-      await tg('sendMessage', { chat_id: msg.chat.id, text: 'Жми кнопку ниже, чтобы открыть приложение 👇', parse_mode: 'HTML', reply_markup: { inline_keyboard: [[openAppButton('ХОЧУ ОПЛАТИТЬ ВХОД! 🔥😍', safe)]] } });
+    const markup = welcomeMarkup(tpl?.buttons, await linkVars(), safe);
+    const text = tpl?.text ?? WELCOME_TEXT;
+    if (image && text.length <= 1024) await tg('sendPhoto', { chat_id: msg.chat.id, photo: image, caption: text, parse_mode: 'HTML', reply_markup: markup });
+    else {
+      if (image) await tg('sendPhoto', { chat_id: msg.chat.id, photo: image });
+      await tg('sendMessage', { chat_id: msg.chat.id, text, parse_mode: 'HTML', reply_markup: markup, link_preview_options: { is_disabled: true } });
     }
+    // Правила клуба файлом — через секунду после приветствия
+    const chatId = msg.chat.id;
+    setTimeout(() => void sendRulesPdf(chatId), 1000);
     if (testing) runChainTest(userId);
     return;
   }

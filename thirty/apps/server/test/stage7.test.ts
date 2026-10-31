@@ -89,12 +89,12 @@ describe('проверка на себе', () => {
 });
 
 describe('дожимная цепочка до оплаты', () => {
-  it('сообщение 1 — один раз; 2–7 по таймеру из реальных цен; пропущенные не досылаются; после оплаты — тишина', async () => {
+  it('сообщение 1 — на каждый /start; 2–7 по таймеру из реальных цен; пропущенные не досылаются; после оплаты — тишина', async () => {
     clock.set('2026-10-21T09:00:00Z');
     await start(300);
     await start(300);
     expect(sent()[0]).toContain('на связи Настя');
-    expect(sent()[1]).toBe('Жми кнопку ниже, чтобы открыть приложение 👇');
+    expect(sent()[1]).toContain('на связи Настя');
     const app0 = await getApp();
     await app0.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { message: { message_id: 3, chat: { id: 300, type: 'private' }, from: { id: 300 }, text: '/start hello' } } });
     expect(sent()[2]).toContain('на связи Настя');
