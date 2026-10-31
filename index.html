@@ -4,311 +4,246 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Клуб «90 дней»</title>
-<meta name="description" content="Сообщество, где мы меняемся по системе «новый месяц = новый челлендж»: цель, ежедневные действия, бадди, тематические чаты и созвоны с лидерами.">
+<meta name="description" content="Новый месяц = новый челлендж. Цель, ежедневные действия, бадди и созвоны раз в неделю.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ink: #111018;
-    --ink-2: #3b3946;
-    --muted: #6d6a7a;
+    --ink: #141318;
+    --ink-2: #4a4852;
+    --muted: #8b8894;
+    --line: #ecebef;
     --bg: #ffffff;
-    --yellow: #ffe600;
-    --pink: #ff2e93;
-    --blue: #2340ff;
-    --soft-pink: #ffe3f1;
-    --soft-blue: #e6eaff;
-    --soft-yellow: #fff8b8;
-    --line: #111018;
+    --soft: #f7f7f9;
+    --pink: #ff2d87;
+    --pink-soft: #ffe8f2;
+    --lime: #a6e22e;
+    --lime-soft: #f1fbdc;
+    --lime-ink: #4d7a00;
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 500 17px/1.55 Manrope, system-ui, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 500 17px/1.6 Manrope, system-ui, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   a { color: inherit; }
-  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
-  h1, h2, h3 { font-family: Unbounded, Manrope, sans-serif; margin: 0; line-height: 1.12; letter-spacing: -0.01em; }
-  h2 { font-size: clamp(24px, 6vw, 34px); font-weight: 800; text-transform: uppercase; margin-bottom: 18px; }
-  p { margin: 0 0 12px; }
-  .mark { background: var(--yellow); padding: 0 6px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
-  .pink { color: var(--pink); }
-  .blue { color: var(--blue); }
+  .wrap { max-width: 680px; margin: 0 auto; padding: 0 20px; }
+  h1, h2, h3 { margin: 0; letter-spacing: -0.02em; line-height: 1.15; }
+  section { padding: 64px 0 0; }
+  .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--pink); margin-bottom: 14px; }
+  h2 { font-size: clamp(28px, 7vw, 38px); font-weight: 800; margin-bottom: 28px; }
+  .dot { color: var(--pink); }
 
-  /* Шапка */
-  .hero { padding: 40px 0 34px; background: var(--yellow); border-bottom: 3px solid var(--line); position: relative; overflow: hidden; }
-  .hero::after { content: ""; position: absolute; right: -90px; top: -90px; width: 260px; height: 260px; border-radius: 50%; background: var(--pink); opacity: 0.9; }
-  .hero::before { content: ""; position: absolute; right: 60px; bottom: -70px; width: 150px; height: 150px; border-radius: 50%; background: var(--blue); }
-  .hero .wrap { position: relative; z-index: 1; }
-  .kicker { display: inline-block; font: 700 13px/1 Manrope, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; background: var(--ink); color: #fff; padding: 9px 12px; border-radius: 999px; }
-  .hero h1 { font-size: clamp(36px, 10vw, 64px); font-weight: 800; text-transform: uppercase; margin: 18px 0 14px; }
-  .hero h1 span { display: inline-block; background: #fff; border: 3px solid var(--line); padding: 2px 12px 6px; transform: rotate(-1.5deg); margin-top: 6px; }
-  .hero .lead { font-size: 19px; font-weight: 600; max-width: 560px; color: var(--ink); }
-  .formula { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 22px; font: 800 18px/1.2 Unbounded, sans-serif; }
-  .formula b { background: #fff; border: 2px solid var(--line); border-radius: 12px; padding: 8px 12px; }
-  .formula i { font-style: normal; color: var(--pink); font-size: 24px; }
-
-  .btns { display: flex; gap: 10px; flex-wrap: wrap; }
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 54px; padding: 0 22px; border: 3px solid var(--line); border-radius: 16px; font: 800 17px/1 Manrope, sans-serif; text-decoration: none; background: var(--pink); color: #fff; box-shadow: 4px 4px 0 var(--line); }
-  .btn.light { background: #fff; color: var(--ink); }
-  .btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--line); }
-
-  section { padding: 38px 0 6px; }
-  .card { border: 3px solid var(--line); border-radius: 22px; padding: 20px; background: #fff; box-shadow: 6px 6px 0 var(--line); break-inside: avoid; page-break-inside: avoid; }
-  .card + .card { margin-top: 18px; }
-
-  /* Правила: три шага */
-  .rules { display: grid; gap: 12px; counter-reset: r; }
-  .rule { display: flex; gap: 14px; align-items: flex-start; }
-  .rule::before { counter-increment: r; content: counter(r); flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--blue); color: #fff; font: 800 18px/40px Unbounded, sans-serif; text-align: center; }
-  .rule b { display: block; font-size: 18px; }
-  .note { margin-top: 16px; background: var(--soft-pink); border-radius: 16px; padding: 14px 16px; font-weight: 600; }
-
-  /* Что внутри: дорожка */
-  .path { list-style: none; margin: 0; padding: 0; position: relative; }
-  .path::before { content: ""; position: absolute; left: 25px; top: 10px; bottom: 10px; border-left: 3px dashed var(--line); }
-  .step { position: relative; padding-left: 70px; margin-bottom: 22px; break-inside: avoid; page-break-inside: avoid; }
-  .step .num { position: absolute; left: 0; top: 0; width: 52px; height: 52px; border-radius: 16px; border: 3px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 24px; background: var(--yellow); }
-  .step:nth-child(3n+2) .num { background: var(--soft-pink); }
-  .step:nth-child(3n) .num { background: var(--soft-blue); }
-  .step h3 { font-size: 19px; font-weight: 800; margin: 4px 0 8px; text-transform: uppercase; }
-  .step h3 small { display: block; font: 700 14px/1.3 Manrope, sans-serif; text-transform: none; color: var(--pink); margin-top: 6px; }
-  .step p { color: var(--ink-2); }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
-  .chip { border: 2px solid var(--line); border-radius: 999px; padding: 6px 12px; font-weight: 700; font-size: 15px; background: #fff; }
-  .leaders { display: grid; gap: 10px; margin: 6px 0 10px; }
-  .leader { background: var(--soft-blue); border-radius: 14px; padding: 12px 14px; }
-  .leader b { color: var(--blue); }
-  .app { border: 3px solid var(--line); border-radius: 20px; padding: 14px; max-width: 330px; background: #fff; margin: 6px 0 12px; }
-  .app-top { display: flex; justify-content: space-between; font-weight: 800; font-size: 14px; margin-bottom: 8px; }
-  .app-top span { color: var(--pink); }
-  .task { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid #ecebf2; font-weight: 600; font-size: 15px; }
-  .tick { width: 24px; height: 24px; border-radius: 8px; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex: none; }
-  .tick.off { background: #fff; border: 2px solid #c9c6d6; }
-  .days { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; margin-top: 10px; }
-  .days i { height: 14px; border-radius: 4px; background: var(--yellow); border: 1px solid #e0cc00; }
-  .days i.n { background: #f1f0f6; border-color: #e4e2ec; }
-
-  .list { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 10px; }
-  .list li { position: relative; padding-left: 30px; }
-  .list li::before { content: ""; position: absolute; left: 0; top: 7px; width: 14px; height: 14px; border-radius: 4px; background: var(--pink); transform: rotate(45deg); }
-
-  .qa { display: grid; gap: 12px; margin-top: 14px; }
-  .qa div { border-left: 5px solid var(--blue); padding: 4px 0 4px 14px; }
-  .qa b { display: block; }
-  .together { margin-top: 16px; font: 800 18px/1.3 Unbounded, sans-serif; }
-
-  .goals { display: flex; flex-wrap: wrap; gap: 8px; }
-  .goals span { background: var(--soft-yellow); border: 2px solid var(--line); border-radius: 12px; padding: 7px 12px; font-weight: 700; }
-
-  .final { margin: 40px 0 0; padding: 36px 0 40px; background: var(--ink); color: #fff; }
-  .final h2 { color: #fff; }
-  .final .mark { color: var(--ink); }
-  .final p { color: #d9d7e3; font-size: 18px; }
-  .final .btn.light { box-shadow: 4px 4px 0 var(--yellow); border-color: #fff; }
-  .final .btn { box-shadow: 4px 4px 0 var(--yellow); border-color: #fff; }
-  .support { margin-top: 18px; font-weight: 700; }
-  .support a { color: var(--yellow); }
-
-
-  /* Карусель отзывов — самое начало лендинга */
-  .reviews { background: var(--ink); color: #fff; padding: 26px 0 20px; }
-  .rv-h { color: #fff; font-size: clamp(20px, 5.4vw, 30px); margin-bottom: 16px; }
-  .rv-h .mark { color: var(--ink); }
-  .rv-track { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px max(16px, calc((100vw - 760px) / 2 + 16px)) 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  /* Отзывы */
+  .reviews { padding: 36px 0 8px; }
+  .reviews h2 { font-size: clamp(22px, 5.6vw, 30px); margin-bottom: 20px; }
+  .rv-track { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px max(20px, calc((100vw - 680px) / 2 + 20px)) 12px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .rv-track::-webkit-scrollbar { display: none; }
-  .rv { flex: 0 0 min(78vw, 340px); margin: 0; scroll-snap-align: center; border: 3px solid #fff; border-radius: 22px; padding: 14px 14px 0; display: flex; flex-direction: column; gap: 10px; height: min(118vw, 470px); color: var(--ink); }
-  .rv.t0 { background: var(--yellow); }
-  .rv.t1 { background: #ffd0e7; }
-  .rv.t2 { background: #d6ddff; }
-  .rv figcaption { display: flex; gap: 10px; align-items: center; font: 800 17px/1.25 Manrope, sans-serif; min-height: 46px; }
-  .rv figcaption span { font-size: 24px; flex: none; }
-  .rv-img { flex: 1; min-height: 0; background: #fff; border-radius: 14px; margin-bottom: 14px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .rv { flex: 0 0 min(76vw, 320px); margin: 0; scroll-snap-align: center; border: 1px solid var(--line); border-radius: 24px; padding: 16px 16px 0; display: flex; flex-direction: column; gap: 12px; height: min(116vw, 450px); background: var(--soft); }
+  .rv figcaption { font-weight: 800; font-size: 16px; line-height: 1.3; min-height: 42px; display: flex; gap: 8px; align-items: center; }
+  .rv figcaption span { font-size: 20px; }
+  .rv-img { flex: 1; min-height: 0; background: #fff; border-radius: 16px; margin-bottom: 16px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
   .rv-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
   .rv-dots { display: flex; justify-content: center; gap: 6px; margin-top: 6px; }
-  .rv-dots i { width: 7px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.35); transition: all .25s; }
-  .rv-dots i.on { width: 20px; background: var(--yellow); }
+  .rv-dots i { width: 6px; height: 6px; border-radius: 3px; background: #dcdbe2; transition: all .25s; }
+  .rv-dots i.on { width: 18px; background: var(--pink); }
 
+  /* Шапка */
+  .hero { padding: 56px 0 8px; text-align: center; }
+  .hero h1 { font-size: clamp(38px, 10vw, 60px); font-weight: 800; }
+  .hero h1 em { font-style: normal; color: var(--pink); }
+  .formula { display: inline-flex; align-items: center; gap: 10px; margin: 22px 0 18px; padding: 10px 18px; border-radius: 999px; background: var(--lime-soft); color: var(--lime-ink); font-weight: 800; font-size: 16px; }
+  .hero p { color: var(--ink-2); max-width: 480px; margin: 0 auto 30px; font-size: 18px; }
+  .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 54px; padding: 0 26px; border-radius: 999px; font-weight: 800; font-size: 16px; text-decoration: none; background: var(--pink); color: #fff; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+
+  /* Правила: схема */
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0 0 30px; position: relative; }
+  .flow::before { content: ""; position: absolute; left: 12%; right: 12%; top: 30px; border-top: 2px dashed #d9d7df; }
+  .fs { position: relative; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .fi { width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+  .fi.pink { background: var(--pink-soft); }
+  .fi.lime { background: var(--lime-soft); }
+  .fi svg { width: 30px; height: 30px; }
+  .fs b { font-size: 15px; line-height: 1.2; }
+  .fs small { font-size: 12px; color: var(--muted); line-height: 1.25; }
+  .rules { display: grid; gap: 14px; }
+  .rule { display: flex; gap: 18px; align-items: flex-start; padding: 22px; border: 1px solid var(--line); border-radius: 24px; break-inside: avoid; page-break-inside: avoid; }
+  .num { flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--pink); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .rule:nth-child(2) .num { background: var(--lime); color: var(--ink); }
+  .rule h3 { font-size: 19px; font-weight: 800; margin-bottom: 4px; }
+  .rule p { margin: 0; color: var(--ink-2); font-size: 16px; }
+
+  /* Что внутри */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .tile { padding: 20px 18px; border-radius: 22px; background: var(--soft); break-inside: avoid; page-break-inside: avoid; }
+  .tile.wide { grid-column: 1 / -1; }
+  .tile svg { width: 34px; height: 34px; margin-bottom: 12px; }
+  .tile h3 { font-size: 17px; font-weight: 800; margin-bottom: 4px; }
+  .tile p { margin: 0; color: var(--ink-2); font-size: 15px; line-height: 1.5; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { padding: 5px 12px; border-radius: 999px; background: #fff; border: 1px solid var(--line); font-size: 14px; font-weight: 700; }
+  .phone { display: flex; gap: 18px; align-items: center; }
+  .phone .mock { flex: none; width: 128px; border: 1.5px solid var(--ink); border-radius: 22px; padding: 12px 10px; background: #fff; }
+  .mock .row { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; padding: 5px 0; }
+  .mock .ck { width: 14px; height: 14px; border-radius: 5px; background: var(--lime); flex: none; display: flex; align-items: center; justify-content: center; }
+  .mock .ck.off { background: #fff; border: 1.5px solid #d6d4dc; }
+  .mock .bar { height: 6px; border-radius: 3px; background: var(--line); margin-top: 8px; overflow: hidden; }
+  .mock .bar i { display: block; height: 100%; width: 68%; background: var(--pink); }
+
+  .goals { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .goals span { padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line); font-weight: 700; font-size: 15px; }
+  .goals span:nth-child(3n+1) { background: var(--pink-soft); border-color: transparent; }
+  .goals span:nth-child(3n+2) { background: var(--lime-soft); border-color: transparent; }
+  .note { text-align: center; color: var(--ink-2); margin: 22px auto 0; max-width: 460px; }
+
+  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+  .list li { display: flex; gap: 14px; align-items: flex-start; padding: 18px 0; border-bottom: 1px solid var(--line); }
+  .list li:last-child { border-bottom: 0; }
+  .list b { display: block; }
+  .list span.t { color: var(--ink-2); font-size: 15px; }
+  .list .i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--lime); margin-top: 9px; }
+
+  .final { margin-top: 72px; padding: 64px 0 72px; background: var(--soft); text-align: center; }
+  .final h2 { margin-bottom: 14px; }
+  .final p { color: var(--ink-2); margin: 0 auto 28px; max-width: 420px; }
+  .support { margin-top: 22px; font-weight: 600; color: var(--ink-2); }
+  .support a { color: var(--pink); font-weight: 800; }
+
+  @media (max-width: 420px) { .grid { grid-template-columns: 1fr; } }
   @media print {
-    .reviews { display: none; }
-    @page { size: A4; margin: 12mm 0; }
+    @page { size: A4; margin: 14mm 0; }
     body { font-size: 15px; }
-    .hero { padding-top: 26px; }
-    section { padding-top: 24px; }
-    .btn { box-shadow: none; }
+    .reviews { display: none; }
+    section { padding-top: 40px; }
     h2 { break-after: avoid; page-break-after: avoid; }
-    section.keep, .keep-final { break-inside: avoid; page-break-inside: avoid; }
-    section.new-page { break-before: page; page-break-before: always; padding-top: 0; }
+    .keep { break-inside: avoid; page-break-inside: avoid; }
+    .final { break-inside: avoid; page-break-inside: avoid; margin-top: 40px; }
   }
 </style>
 </head>
 <body>
 
 <section class="reviews">
-  <div class="wrap">
-    <h2 class="rv-h">Посмотри, чего уже добились <span class="mark">наши участницы</span> 🔥</h2>
-  </div>
+  <div class="wrap"><div class="eyebrow">Результаты участниц</div><h2>Посмотри, чего уже добились наши участницы</h2></div>
   <div class="rv-track" id="rv">
-        <figure class="rv t0"><figcaption><span>⚖️🔥</span>−6,2 кг!</figcaption><div class="rv-img"><img src="img/reviews/weight.jpg" alt="−6,2 кг!" loading="eager"></div></figure>
-        <figure class="rv t1"><figcaption><span>📈🚀</span>309 000 просмотров на одном Reels!</figcaption><div class="rv-img"><img src="img/reviews/reels.jpg" alt="309 000 просмотров на одном Reels!" loading="eager"></div></figure>
-        <figure class="rv t2"><figcaption><span>🦷😍</span>Начала лечение зубов и готовится поставить виниры!</figcaption><div class="rv-img"><img src="img/reviews/veneers.jpg" alt="Начала лечение зубов и готовится поставить виниры!" loading="lazy"></div></figure>
-        <figure class="rv t0"><figcaption><span>💰🔥</span>100 000 ₽ за один день!</figcaption><div class="rv-img"><img src="img/reviews/income.jpg" alt="100 000 ₽ за один день!" loading="lazy"></div></figure>
-        <figure class="rv t1"><figcaption><span>🇬🇧📱</span>51 день английского и блога без пропусков!</figcaption><div class="rv-img"><img src="img/reviews/english.jpg" alt="51 день английского и блога без пропусков!" loading="lazy"></div></figure>
-        <figure class="rv t2"><figcaption><span>📚🌟</span>Перестала откладывать и решилась на перемены!</figcaption><div class="rv-img"><img src="img/reviews/learning.jpg" alt="Перестала откладывать и решилась на перемены!" loading="lazy"></div></figure>
-        <figure class="rv t0"><figcaption><span>💪😍</span>Появилась дисциплина, которой раньше не хватало!</figcaption><div class="rv-img"><img src="img/reviews/discipline.jpg" alt="Появилась дисциплина, которой раньше не хватало!" loading="lazy"></div></figure>
-        <figure class="rv t1"><figcaption><span>🎙️💜</span>Результат уже за полмесяца!</figcaption><div class="rv-img"><img src="img/reviews/voice.jpg" alt="Результат уже за полмесяца!" loading="lazy"></div></figure>
-        <figure class="rv t2"><figcaption><span>🥗💪</span>−1,5 кг на пути к цели!</figcaption><div class="rv-img"><img src="img/reviews/weight2.jpg" alt="−1,5 кг на пути к цели!" loading="lazy"></div></figure>
+    <figure class="rv"><figcaption><span>⚖️</span>−6,2 кг!</figcaption><div class="rv-img"><img src="img/reviews/weight.jpg" alt="−6,2 кг"></div></figure>
+    <figure class="rv"><figcaption><span>📈</span>309 000 просмотров на одном Reels!</figcaption><div class="rv-img"><img src="img/reviews/reels.jpg" alt="309 000 просмотров"></div></figure>
+    <figure class="rv"><figcaption><span>🦷</span>Начала лечение зубов и готовится поставить виниры!</figcaption><div class="rv-img"><img src="img/reviews/veneers.jpg" alt="Виниры" loading="lazy"></div></figure>
+    <figure class="rv"><figcaption><span>💰</span>100 000 ₽ за один день!</figcaption><div class="rv-img"><img src="img/reviews/income.jpg" alt="100 000 ₽" loading="lazy"></div></figure>
+    <figure class="rv"><figcaption><span>🇬🇧</span>51 день английского и блога без пропусков!</figcaption><div class="rv-img"><img src="img/reviews/english.jpg" alt="51 день" loading="lazy"></div></figure>
+    <figure class="rv"><figcaption><span>📚</span>Перестала откладывать и решилась на перемены!</figcaption><div class="rv-img"><img src="img/reviews/learning.jpg" alt="Перемены" loading="lazy"></div></figure>
+    <figure class="rv"><figcaption><span>💪</span>Появилась дисциплина, которой раньше не хватало!</figcaption><div class="rv-img"><img src="img/reviews/discipline.jpg" alt="Дисциплина" loading="lazy"></div></figure>
+    <figure class="rv"><figcaption><span>🎙️</span>Результат уже за полмесяца!</figcaption><div class="rv-img"><img src="img/reviews/voice.jpg" alt="Результат" loading="lazy"></div></figure>
+    <figure class="rv"><figcaption><span>🥗</span>−1,5 кг на пути к цели!</figcaption><div class="rv-img"><img src="img/reviews/weight2.jpg" alt="−1,5 кг" loading="lazy"></div></figure>
   </div>
   <div class="rv-dots" id="rvd"></div>
 </section>
 
 <header class="hero">
   <div class="wrap">
-    <span class="kicker">Сообщество для тех, кто доводит до конца</span>
-    <h1>Правила клуба <span>«90 дней»</span></h1>
-    <div class="formula"><b>новый месяц</b><i>=</i><b>новый челлендж</b></div>
-    <p class="lead">Здесь те, кто не хочет просиживать свою жизнь. В одиночку у нас либо не получается начать, либо не получается довести до конца. Поэтому мы делаем это вместе — потому что сила в людях.</p>
+    <div class="eyebrow">Сообщество</div>
+    <h1>Правила клуба<br><em>«90 дней»</em></h1>
+    <div class="formula">новый месяц = новый челлендж</div>
+    <p>Здесь те, кто не хочет просиживать свою жизнь. В одиночку сложно начать и довести до конца — поэтому мы делаем это вместе.</p>
     <div class="btns">
       <a class="btn" href="https://t.me/Dney30_bot">Хочу вступить</a>
-      <a class="btn light" href="https://t.me/barashkova_a">Задать вопрос</a>
+      <a class="btn ghost" href="https://t.me/barashkova_a">Задать вопрос</a>
     </div>
   </div>
 </header>
 
 <main>
+  <section class="keep">
+    <div class="wrap">
+      <div class="eyebrow">Механика</div>
+      <h2>Правила простые<span class="dot">.</span></h2>
+      <!-- Схема месяца: цель → действия → отчёт → созвон -->
+      <div class="flow" aria-hidden="true">
+        <div class="fs"><span class="fi pink"><svg viewBox="0 0 34 34" fill="none"><circle cx="17" cy="17" r="11" stroke="#ff2d87" stroke-width="2.6"/><circle cx="17" cy="17" r="4" fill="#ff2d87"/></svg></span><b>Цель</b><small>на месяц</small></div>
+        <div class="fs"><span class="fi lime"><svg viewBox="0 0 34 34" fill="none"><rect x="6" y="6" width="22" height="22" rx="6" stroke="#4d7a00" stroke-width="2.6"/><path d="M11 17l4 4 8-9" stroke="#4d7a00" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><b>Действия</b><small>каждый день</small></div>
+        <div class="fs"><span class="fi pink"><svg viewBox="0 0 34 34" fill="none"><path d="M9 5h12l6 6v18H9z" stroke="#ff2d87" stroke-width="2.6" stroke-linejoin="round"/><path d="M13 17h10M13 22h7" stroke="#ff2d87" stroke-width="2.6" stroke-linecap="round"/></svg></span><b>Отчёт</b><small>каждый день</small></div>
+        <div class="fs"><span class="fi lime"><svg viewBox="0 0 34 34" fill="none"><rect x="4" y="9" width="18" height="16" rx="5" stroke="#4d7a00" stroke-width="2.6"/><path d="M22 15l8-5v14l-8-5" stroke="#4d7a00" stroke-width="2.6" stroke-linejoin="round"/></svg></span><b>Созвон</b><small>раз в неделю</small></div>
+      </div>
+      <div class="rules">
+        <div class="rule"><div class="num">1</div><div><h3>Ставим цель на месяц</h3><p>Прописываем ежедневные действия и каждый день скидываем отчёты о проделанной работе.</p></div></div>
+        <div class="rule"><div class="num">2</div><div><h3>Созваниваемся раз в неделю</h3><p>Трекаем прогресс, убираем затыки и видим точки роста со стороны.</p></div></div>
+        <div class="rule"><div class="num">3</div><div><h3>Работаем в парах</h3><p>Поддержка и взаимная ответственность, чтобы не слиться. Можно встать в пару с другом — напиши нам заранее.</p></div></div>
+      </div>
+    </div>
+  </section>
+
   <section>
     <div class="wrap">
-      <h2>Правила <span class="mark">простые</span></h2>
-      <div class="card">
-        <div class="rules">
-          <div class="rule"><div><b>Ставишь цель на месяц</b>Заработать Х, похудеть на Х кг, набрать Х подписчиков — любую, которая зажигает.</div></div>
-          <div class="rule"><div><b>Прописываешь ежедневные действия</b>Маленькие шаги, которые каждый день ведут тебя к цели.</div></div>
-          <div class="rule"><div><b>Каждый день отчитываешься</b>Отмечаешь выполненное в приложении и скидываешь отчёт — и уже не сливаешься.</div></div>
+      <div class="eyebrow">Что внутри</div>
+      <h2>Что ты получаешь<span class="dot">.</span></h2>
+      <div class="grid">
+        <div class="tile">
+          <svg viewBox="0 0 34 34" fill="none"><rect x="3" y="9" width="28" height="18" rx="5" stroke="#ff2d87" stroke-width="2.4"/><path d="M3 15h28" stroke="#ff2d87" stroke-width="2.4"/><circle cx="25" cy="21" r="2" fill="#ff2d87"/></svg>
+          <h3>Вход в клуб</h3><p>Небольшой организационный взнос за членство.</p>
         </div>
-        <div class="note">Пока не понимаешь, какую цель поставить? Внутри есть гайд, как найти свою цель и построить план действий, + мы поможем разобраться. Один не останешься.</div>
-      </div>
-    </div>
-  </section>
-
-  <section class="new-page">
-    <div class="wrap">
-      <h2>Что <span class="mark">внутри</span> клуба</h2>
-      <ol class="path">
-        <li class="step">
-          <div class="num">🎟</div>
-          <h3>Вступаешь в клуб<small>Небольшая оплата — по сути организационный взнос за членство в клубе</small></h3>
-          <p>Это не плата за курс, а вход в среду: окружение, система и люди, которые не дадут тебе слиться.</p>
-        </li>
-        <li class="step">
-          <div class="num">🤝</div>
-          <h3>Сильное окружение</h3>
-          <p>Полезные знакомства, единомышленники и даже новые друзья. Каждый месяц у тебя новое комьюнити людей, с которыми ты проходишь этот месяц вместе — от и до. <b>Новый месяц = новый челлендж.</b></p>
-        </li>
-        <li class="step">
-          <div class="num">💬</div>
-          <h3>Тематические чаты по твоей цели</h3>
-          <div class="chips"><span class="chip">Похудение</span><span class="chip">Блогинг</span><span class="chip">Финансы</span><span class="chip">Английский</span><span class="chip">Привычки</span></div>
-          <p>Хочешь похудеть — ты в чате похудения. Хочешь вести блог — в чате по блогингу. Расти в деньгах — в чате финансов. Так ты быстро находишь единомышленников и двигаешься вместе со своими ребятами.</p>
-        </li>
-        <li class="step">
-          <div class="num">🎥</div>
-          <h3>Созвоны раз в неделю<small>Не всем клубом, а своей тематической группой, которая идёт к тем же целям</small></h3>
-          <p>В каждой ветке есть свой лидер-помощник:</p>
-          <div class="leaders">
-            <div class="leader"><b>Похудение и привычки — психолог.</b> Поможет разобрать затыки, отказаться от вредных привычек и победить прокрастинацию.</div>
-            <div class="leader"><b>Финансы — финансовый коуч.</b> Подсветит точки роста со стороны, разберёт прошедшую неделю и скорректирует план на следующую.</div>
-            <div class="leader"><b>Английский — репетитор.</b> Каждую неделю практикуем разговорную речь в комфортной обстановке — бесплатно в рамках клуба.</div>
-          </div>
-          <p>И так в каждой ветке: ты еженедельно консультируешься с лидером и участниками по своим задачам, целям и затыкам — и растёшь быстрее.</p>
-        </li>
-        <li class="step">
-          <div class="num">👯</div>
-          <h3>Личный напарник — бадди</h3>
-          <p>Все участники делятся на пары и работают вместе: поддерживают друг друга и проверяют друг друга. Слиться, когда на тебя рассчитывают, гораздо сложнее.</p>
-        </li>
-        <li class="step">
-          <div class="num">📱</div>
-          <h3>Приложение для прогресса</h3>
-          <div class="app">
-            <div class="app-top">Сегодня · день 12 <span>🔥 12 дней без пропусков</span></div>
-            <div class="task"><span class="tick">✓</span>10 000 шагов</div>
-            <div class="task"><span class="tick">✓</span>Без сладкого</div>
-            <div class="task"><span class="tick off"></span>1 рилс в блог</div>
-            <div class="days"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i><i class="n"></i></div>
-          </div>
-          <p>Видишь, над какими целями работаешь, какие задачи выполняешь, что уже достигнуто и сколько дней ты без пропусков. Каждый день заходишь и отмечаешь: задача на сегодня выполнена. Представь этот дофаминовый кайф от собственной продуктивности и каждой поставленной галочки.</p>
-        </li>
-        <li class="step">
-          <div class="num">📚</div>
-          <h3>Полезные материалы<small>Уже лежат в чате и постоянно пополняются</small></h3>
-          <p>Мой список продуктов для похудения, на которых я похудела на −7 кг, обучение по набору подписчиков с нуля, монетизация Instagram, подкаст, как начать вести блог, как перестать прокрастинировать — и многое другое.</p>
-        </li>
-      </ol>
-    </div>
-  </section>
-
-  <section class="keep">
-    <div class="wrap">
-      <h2>Работаем по <span class="mark">«бадди-системе»</span></h2>
-      <div class="card">
-        <p><b class="pink">БАДДИ</b> — это партнёр по челленджу, человек, с которым вы проходите этот путь вместе. Он нужен для взаимной поддержки, мотивации и контроля: вы ставите цели и ключевые задачи, отчитываетесь о них, подбадриваете друг друга и не даёте слиться.</p>
-        <div class="note" style="margin-top:6px"><b>Бонус:</b> вы можете быть в паре со своим другом. Он должен находиться в клубе, а вы — заранее написать нам о своём пожелании.</div>
-      </div>
-    </div>
-  </section>
-
-  <section class="keep">
-    <div class="wrap">
-      <h2>Я — <span class="mark">главный ментор</span></h2>
-      <div class="card">
-        <p>И помогаю вам, потому что мне есть чем делиться:</p>
-        <ul class="list">
-          <li>Заработала первый миллион в 20 лет, потому что договорилась на спор стабильно вести блог — хотя до этого годами не могла начать.</li>
-          <li>Набрала 46 тысяч подписчиков с нуля, потому что спорила на деньги, которые не хотела в конце отдавать.</li>
-          <li>Выходила на пассивный доход 35 тысяч рублей в день.</li>
-          <li>Похудела на 7 кг.</li>
-          <li>Много раз переезжала, начинала всё заново, вела несколько бизнесов — в том числе убыточных. Прожила кучу кризисов.</li>
-          <li>Случайные знакомства приводили меня к работе в Таиланде, крупному заработку, новым инсайтам и переменам. Поэтому я точно знаю: <b>люди — самое важное звено успеха.</b></li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <section class="keep">
-    <div class="wrap">
-      <h2>Как <span class="mark">выбрать цель?</span></h2>
-      <div class="card">
-        <p>Цель ты можешь выбрать любую:</p>
-        <div class="goals"><span>Выучить новый язык</span><span>Запустить бизнес</span><span>Похудеть на Х кг</span><span>Заработать Х за Х дней</span><span>Набрать Х подписчиков</span><span>Наладить режим</span><span>Начать ходить в зал</span></div>
-        <div class="qa">
-          <div><b>Хочешь открыть бизнес, но не знаешь, с чего начать?</b>Внутри найдутся предприниматели, которые помогут тебе.</div>
-          <div><b>Хочешь построить новое тело?</b>Каждый поделится советом, что помогло именно ему.</div>
-          <div><b>Хочешь развить блог?</b>Я расскажу свои секреты и дам обратную связь.</div>
+        <div class="tile">
+          <svg viewBox="0 0 34 34" fill="none"><circle cx="12" cy="12" r="5" stroke="#4d7a00" stroke-width="2.4"/><circle cx="23" cy="14" r="4" stroke="#4d7a00" stroke-width="2.4"/><path d="M3 29c1-6 5-9 9-9s8 3 9 9M20 22c4 0 8 2 10 7" stroke="#4d7a00" stroke-width="2.4" stroke-linecap="round"/></svg>
+          <h3>Окружение</h3><p>Каждый месяц — новое комьюнити, с кем проходишь месяц от и до.</p>
         </div>
-        <p class="together">Всё бесплатно внутри клуба — потому что мы <span class="pink">помогаем друг другу.</span></p>
+        <div class="tile wide">
+          <svg viewBox="0 0 34 34" fill="none"><path d="M5 8h18a3 3 0 013 3v9a3 3 0 01-3 3h-9l-6 5v-5H5a3 3 0 01-3-3v-9a3 3 0 013-3z" stroke="#ff2d87" stroke-width="2.4" stroke-linejoin="round"/><path d="M29 13a3 3 0 013 3v8a3 3 0 01-3 3h-1v4l-5-4" stroke="#ff2d87" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <h3>Чаты по твоей цели</h3><p>Быстро находишь единомышленников и двигаешься вместе со своими.</p>
+          <div class="chips"><span class="chip">Похудение</span><span class="chip">Блог</span><span class="chip">Финансы</span><span class="chip">Английский</span><span class="chip">Привычки</span></div>
+        </div>
+        <div class="tile wide">
+          <svg viewBox="0 0 34 34" fill="none"><rect x="2" y="8" width="22" height="18" rx="5" stroke="#4d7a00" stroke-width="2.4"/><path d="M24 15l8-5v14l-8-5" stroke="#4d7a00" stroke-width="2.4" stroke-linejoin="round"/></svg>
+          <h3>Созвоны с лидером своей темы</h3><p>Не всем клубом, а своей группой. Психолог — затыки, привычки, прокрастинация. Финансовый коуч — точки роста и план на неделю. Репетитор — разговорный английский, бесплатно в рамках клуба.</p>
+        </div>
+        <div class="tile">
+          <svg viewBox="0 0 34 34" fill="none"><circle cx="11" cy="12" r="5" stroke="#ff2d87" stroke-width="2.4"/><circle cx="23" cy="12" r="5" stroke="#ff2d87" stroke-width="2.4"/><path d="M3 29c1-5 4-8 8-8s7 3 8 8M15 29c1-5 4-8 8-8s7 3 8 8" stroke="#ff2d87" stroke-width="2.4" stroke-linecap="round"/></svg>
+          <h3>Личный бадди</h3><p>Поддерживаете и проверяете друг друга.</p>
+        </div>
+        <div class="tile">
+          <svg viewBox="0 0 34 34" fill="none"><path d="M6 4h18v26H6z" stroke="#4d7a00" stroke-width="2.4" stroke-linejoin="round"/><path d="M10 10h10M10 16h10M10 22h6" stroke="#4d7a00" stroke-width="2.4" stroke-linecap="round"/><path d="M24 8h4v22h-4" stroke="#4d7a00" stroke-width="2.4" stroke-linejoin="round"/></svg>
+          <h3>Материалы</h3><p>Гайды, обучение и списки — пополняются.</p>
+        </div>
+        <div class="tile wide phone">
+          <div class="mock" aria-hidden="true">
+            <div class="row"><span class="ck"><svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 5l2 2 4-5" stroke="#141318" stroke-width="2" fill="none" stroke-linecap="round"/></svg></span>10 000 шагов</div>
+            <div class="row"><span class="ck"><svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 5l2 2 4-5" stroke="#141318" stroke-width="2" fill="none" stroke-linecap="round"/></svg></span>Без сладкого</div>
+            <div class="row"><span class="ck off"></span>1 рилс</div>
+            <div class="bar"><i></i></div>
+          </div>
+          <div><h3>Приложение для прогресса</h3><p>Каждый день отмечаешь: сделано. Цели, задачи, дни без пропусков — всё перед глазами. И дофаминовый кайф от каждой галочки.</p></div>
+        </div>
       </div>
     </div>
   </section>
 
   <section class="keep">
     <div class="wrap">
-      <h2>Что из полезного <span class="mark">уже лежит</span></h2>
-      <div class="card">
-        <ul class="list">
-          <li><b>Обучение по развитию блога и пассивному заработку с него.</b> Подойдёт новичкам — объясняю, как мне приходило по 35 тысяч рублей в день через рилс.</li>
-          <li><b>Список моих любимых продуктов, на которых я похудела на −7 кг.</b> Всё можно найти в любом магазине.</li>
-          <li><b>Гайд для старта:</b> как определиться с целью на месяц и составить план действий.</li>
-        </ul>
-      </div>
+      <div class="eyebrow">Цель</div>
+      <h2>Как выбрать цель<span class="dot">?</span></h2>
+      <div class="goals"><span>Выучить язык</span><span>Запустить бизнес</span><span>Похудеть на Х кг</span><span>Заработать Х за Х дней</span><span>Набрать Х подписчиков</span><span>Наладить режим</span><span>Начать ходить в зал</span></div>
+      <p class="note">Не знаешь, с чего начать? Внутри есть гайд, как найти свою цель и составить план, — и мы поможем разобраться.</p>
     </div>
   </section>
 
-  <div class="final keep-final">
+  <section class="keep">
     <div class="wrap">
-      <h2>Главное, что толкает тебя наверх, — <span class="mark">это люди</span></h2>
-      <p>Если ты сейчас решишь фигачить — через пару месяцев оглянешься назад и не узнаешь себя. Ждём тебя внутри.</p>
+      <div class="eyebrow">Уже внутри</div>
+      <h2>Что из полезного уже лежит<span class="dot">.</span></h2>
+      <ul class="list">
+        <li><span class="i"></span><div><b>Обучение по развитию блога</b><span class="t">и пассивному заработку с него — для новичков.</span></div></li>
+        <li><span class="i"></span><div><b>Список продуктов для похудения</b><span class="t">на которых я похудела на −7 кг.</span></div></li>
+        <li><span class="i"></span><div><b>Гайд для старта</b><span class="t">как определиться с целью и составить план действий.</span></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="final">
+    <div class="wrap">
+      <h2>Главное, что толкает наверх, — <span class="dot">люди</span></h2>
+      <p>Ждём тебя внутри.</p>
       <div class="btns">
         <a class="btn" href="https://t.me/Dney30_bot">Хочу вступить</a>
-        <a class="btn light" href="https://t.me/barashkova_a">Написать в поддержку</a>
+        <a class="btn ghost" href="https://t.me/barashkova_a">Написать в поддержку</a>
       </div>
       <p class="support">Остались вопросы — пиши: <a href="https://t.me/barashkova_a">t.me/barashkova_a</a></p>
     </div>
