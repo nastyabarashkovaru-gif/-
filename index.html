@@ -109,7 +109,27 @@
   .support { margin-top: 18px; font-weight: 700; }
   .support a { color: var(--yellow); }
 
+
+  /* Карусель отзывов — самое начало лендинга */
+  .reviews { background: var(--ink); color: #fff; padding: 26px 0 20px; }
+  .rv-h { color: #fff; font-size: clamp(20px, 5.4vw, 30px); margin-bottom: 16px; }
+  .rv-h .mark { color: var(--ink); }
+  .rv-track { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px max(16px, calc((100vw - 760px) / 2 + 16px)) 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .rv-track::-webkit-scrollbar { display: none; }
+  .rv { flex: 0 0 min(78vw, 340px); margin: 0; scroll-snap-align: center; border: 3px solid #fff; border-radius: 22px; padding: 14px 14px 0; display: flex; flex-direction: column; gap: 10px; height: min(118vw, 470px); color: var(--ink); }
+  .rv.t0 { background: var(--yellow); }
+  .rv.t1 { background: #ffd0e7; }
+  .rv.t2 { background: #d6ddff; }
+  .rv figcaption { display: flex; gap: 10px; align-items: center; font: 800 17px/1.25 Manrope, sans-serif; min-height: 46px; }
+  .rv figcaption span { font-size: 24px; flex: none; }
+  .rv-img { flex: 1; min-height: 0; background: #fff; border-radius: 14px; margin-bottom: 14px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .rv-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .rv-dots { display: flex; justify-content: center; gap: 6px; margin-top: 6px; }
+  .rv-dots i { width: 7px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.35); transition: all .25s; }
+  .rv-dots i.on { width: 20px; background: var(--yellow); }
+
   @media print {
+    .reviews { display: none; }
     @page { size: A4; margin: 12mm 0; }
     body { font-size: 15px; }
     .hero { padding-top: 26px; }
@@ -122,6 +142,24 @@
 </style>
 </head>
 <body>
+
+<section class="reviews">
+  <div class="wrap">
+    <h2 class="rv-h">Посмотри, чего уже добились <span class="mark">наши участницы</span> 🔥</h2>
+  </div>
+  <div class="rv-track" id="rv">
+        <figure class="rv t0"><figcaption><span>⚖️🔥</span>−6,2 кг!</figcaption><div class="rv-img"><img src="img/reviews/weight.jpg" alt="−6,2 кг!" loading="eager"></div></figure>
+        <figure class="rv t1"><figcaption><span>📈🚀</span>309 000 просмотров на одном Reels!</figcaption><div class="rv-img"><img src="img/reviews/reels.jpg" alt="309 000 просмотров на одном Reels!" loading="eager"></div></figure>
+        <figure class="rv t2"><figcaption><span>🦷😍</span>Начала лечение зубов и готовится поставить виниры!</figcaption><div class="rv-img"><img src="img/reviews/veneers.jpg" alt="Начала лечение зубов и готовится поставить виниры!" loading="lazy"></div></figure>
+        <figure class="rv t0"><figcaption><span>💰🔥</span>100 000 ₽ за один день!</figcaption><div class="rv-img"><img src="img/reviews/income.jpg" alt="100 000 ₽ за один день!" loading="lazy"></div></figure>
+        <figure class="rv t1"><figcaption><span>🇬🇧📱</span>51 день английского и блога без пропусков!</figcaption><div class="rv-img"><img src="img/reviews/english.jpg" alt="51 день английского и блога без пропусков!" loading="lazy"></div></figure>
+        <figure class="rv t2"><figcaption><span>📚🌟</span>Перестала откладывать и решилась на перемены!</figcaption><div class="rv-img"><img src="img/reviews/learning.jpg" alt="Перестала откладывать и решилась на перемены!" loading="lazy"></div></figure>
+        <figure class="rv t0"><figcaption><span>💪😍</span>Появилась дисциплина, которой раньше не хватало!</figcaption><div class="rv-img"><img src="img/reviews/discipline.jpg" alt="Появилась дисциплина, которой раньше не хватало!" loading="lazy"></div></figure>
+        <figure class="rv t1"><figcaption><span>🎙️💜</span>Результат уже за полмесяца!</figcaption><div class="rv-img"><img src="img/reviews/voice.jpg" alt="Результат уже за полмесяца!" loading="lazy"></div></figure>
+        <figure class="rv t2"><figcaption><span>🥗💪</span>−1,5 кг на пути к цели!</figcaption><div class="rv-img"><img src="img/reviews/weight2.jpg" alt="−1,5 кг на пути к цели!" loading="lazy"></div></figure>
+  </div>
+  <div class="rv-dots" id="rvd"></div>
+</section>
 
 <header class="hero">
   <div class="wrap">
@@ -276,5 +314,21 @@
     </div>
   </div>
 </main>
+<script>
+  // Карусель: листается сама каждые 3,5 с, после последнего — снова к первому; касание ставит на паузу
+  (function () {
+    var t = document.getElementById('rv'), d = document.getElementById('rvd');
+    if (!t) return;
+    var cards = t.children, n = cards.length, paused = 0;
+    for (var i = 0; i < n; i++) d.appendChild(document.createElement('i'));
+    function idx() { var c = t.scrollLeft + t.clientWidth / 2, best = 0, bd = 1e9; for (var i = 0; i < n; i++) { var m = cards[i].offsetLeft + cards[i].offsetWidth / 2, dd = Math.abs(m - c); if (dd < bd) { bd = dd; best = i; } } return best; }
+    function dots() { var k = idx(); for (var i = 0; i < n; i++) d.children[i].className = i === k ? 'on' : ''; }
+    function go(k) { var c = cards[k]; t.scrollTo({ left: c.offsetLeft - (t.clientWidth - c.offsetWidth) / 2, behavior: 'smooth' }); }
+    t.addEventListener('scroll', dots, { passive: true });
+    ['touchstart', 'pointerdown', 'wheel'].forEach(function (e) { t.addEventListener(e, function () { paused = Date.now(); }, { passive: true }); });
+    setInterval(function () { if (Date.now() - paused < 6000 || document.hidden) return; go((idx() + 1) % n); }, 3500);
+    dots();
+  })();
+</script>
 </body>
 </html>
