@@ -53,9 +53,32 @@ describe('бот', () => {
     const msg = calls.find((c) => c.method === 'sendPhoto')!; // приветствие — картинка с подписью
     expect(msg.body.photo).toMatch(/\/img\/bot-welcome\.jpg$/);
     expect(msg.body).toMatchObject({ parse_mode: 'HTML' });
-    expect(msg.body.caption).toContain('Скорее жми кнопку ХОЧУ ВСТУПИТЬ');
-    expect(msg.body.reply_markup.inline_keyboard[0][0].web_app.url).toContain('startapp=ref_abc');
+    expect(msg.body.caption).toContain('<b>ОТКРЫВАЙ ВИДЕО</b>');
+    expect(msg.body.caption).toContain('https://youtu.be/eOpKSb9-jA4');
+    // как в прежнем боте: «как вступить» — следующее сообщение, вопрос — поддержка, частые вопросы — лендинг
+    expect(msg.body.reply_markup.inline_keyboard.map((r: { text: string }[]) => r[0])).toEqual([
+      { text: 'Ознакомился, как вступить? 🔥', callback_data: 'how_to_join' },
+      { text: 'Задать вопрос ❓', url: 'https://t.me/barashkova_a' },
+      { text: 'Изучить ЧАСТЫЕ ВОПРОСЫ ❗️', url: 'https://nastyabarashkovaru-gif.github.io/-/' },
+    ]);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: 100n } })).allowsWrite).toBe(true);
+    // через секунду — правила клуба файлом
+    await new Promise((r) => setTimeout(r, 1300));
+    const doc = calls.find((c) => c.method === 'sendDocument')!;
+    expect(doc.body.document).toMatchObject({ filename: 'Правила клуба 90 дней.pdf', contentType: 'application/pdf' });
+
+    // «Ознакомился, как вступить?» → условия с картинкой и кнопкой оплаты (открывает тарифы)
+    calls.length = 0;
+    const cb = { callback_query: { id: 'q1', from: { id: 100 }, data: 'how_to_join', message: { chat: { id: 100 } } } };
+    expect((await app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: cb })).statusCode).toBe(200);
+    expect(calls.find((c) => c.method === 'answerCallbackQuery')).toBeTruthy();
+    const how = calls.find((c) => c.method === 'sendPhoto')!;
+    expect(how.body.photo).toMatch(/\/img\/bot-rules\.jpg$/);
+    expect(how.body.caption).toContain('Чтобы вступить в сообщество');
+    const kb = how.body.reply_markup.inline_keyboard.map((r: { text: string }[]) => r[0]);
+    expect(kb[0].text).toBe('ХОЧУ ОПЛАТИТЬ ВХОД! 🔥😍');
+    expect(kb[0].web_app.url).toMatch(/_tariffs$/);
+    expect(kb[2]).toEqual({ text: 'Поддержка', url: 'https://t.me/barashkova_a' });
   });
 
   it('/bind в группе регистрирует группу для привязки в админке', async () => {

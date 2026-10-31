@@ -712,7 +712,7 @@ export async function adminRoutes(app: FastifyInstance) {
     r.patch<{ Params: { key: string } }>('/admin-api/bot/templates/:key', perm('bot'), async (req) => {
       const body = parse(
         z.object({
-          title: z.string().max(120), text: z.string().min(1).max(4000), buttons: z.array(z.union([z.object({ text: z.string().min(1).max(64), screen: z.string().regex(/^[a-z_]{1,24}$/) }), z.object({ text: z.string().min(1).max(64), url: z.string().regex(/^(https:\/\/|\{[a-z_]+\}$)/).max(300) })])).max(3),
+          title: z.string().max(120), text: z.string().min(1).max(4000), buttons: z.array(z.union([z.object({ text: z.string().min(1).max(64), screen: z.string().regex(/^[a-z_]{1,24}$/) }), z.object({ text: z.string().min(1).max(64), url: z.string().regex(/^(https:\/\/|\{[a-z_]+\}$)/).max(300) }), z.object({ text: z.string().min(1).max(64), callback: z.enum(['how_to_join']) })])).max(3),
           enabled: z.boolean(), isMarketing: z.boolean(), delayMinutes: z.number().int().min(0).max(10080), capHours: z.number().int().min(0).max(720), priority: z.number().int().min(0).max(100), approved: z.boolean(), imageUrl: z.string().max(500).nullable(),
         }).partial(),
         req.body,

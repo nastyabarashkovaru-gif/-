@@ -117,7 +117,7 @@ describe('дожимная цепочка до оплаты', () => {
     await runPrePurchaseChains(at(152));
     expect(sent().at(-1)).toContain('ЧТО Ж, Я ВИЖУ');
     await runPrePurchaseChains(at(171));
-    expect(sent().at(-1)).toContain('2 490 ₽ → 8 970 ₽');
+    expect(sent().at(-1)).toContain('2 990 ₽ → 8 970 ₽');
     await runPrePurchaseChains(at(181));
     expect(sent().at(-1)).toContain('ТВОЯ СКИДКА СГОРЕЛА');
     expect(sent()).toHaveLength(5);
@@ -213,7 +213,7 @@ describe('дожимная цепочка до оплаты', () => {
     expect((await api('POST', '/api/promo/apply', 400, { code: ' старт ' })).body).toMatchObject({ ok: true, code: 'СТАРТ' });
     const st = await api('GET', '/api/offer', 400);
     expect(st.body.offer).toMatchObject({ active: true, kind: 'promo', promoCode: 'СТАРТ' });
-    expect(st.body.tariffs.map((t: { price: number }) => t.price)).toEqual([999, 2490, 3990]);
+    expect(st.body.tariffs.map((t: { price: number }) => t.price)).toEqual([999, 2990, 3990]);
     expect(await buy(400)).toBe(999);
     const red = await prisma.promoRedemption.findFirstOrThrow({ where: { userId: 400n } });
     expect(red.paymentId).not.toBeNull();

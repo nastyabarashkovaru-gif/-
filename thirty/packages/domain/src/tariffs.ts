@@ -43,10 +43,10 @@ export const DEFAULT_TARIFFS: TariffConfig[] = [
     title: '3 месяца',
     months: 3,
     goalLimit: 3,
-    promoPrice: 2490,
+    promoPrice: 2990,
     regularPrice: 8970,
     comparisonMonthPrice: 2990,
-    renewalPrice: 2490,
+    renewalPrice: 2990,
     highlighted: true,
     badge: 'Хит 🔥',
     features: [

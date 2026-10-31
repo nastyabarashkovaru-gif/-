@@ -11,12 +11,22 @@ export type TgCall = <T = unknown>(method: string, body: Record<string, unknown>
 
 async function rawCall<T>(method: string, body: Record<string, unknown>): Promise<T> {
   if (!config.BOT_TOKEN) throw new TelegramError(method, 0, 'BOT_TOKEN not set');
-  const res = await fetch(`https://api.telegram.org/bot${config.BOT_TOKEN}/${method}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
-  });
+  // Поле вида { file: Buffer, filename } — загрузка файла (multipart), остальное — обычный JSON
+  const upload = Object.entries(body).find(([, v]) => v && typeof v === 'object' && Buffer.isBuffer((v as { file?: unknown }).file));
+  let init: RequestInit;
+  if (upload) {
+    const form = new FormData();
+    for (const [k, v] of Object.entries(body)) {
+      if (k === upload[0]) {
+        const f = v as { file: Buffer; filename: string; contentType?: string };
+        form.append(k, new Blob([f.file], { type: f.contentType ?? 'application/octet-stream' }), f.filename);
+      } else if (v !== undefined) form.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+    }
+    init = { method: 'POST', body: form, signal: AbortSignal.timeout(60_000) };
+  } else {
+    init = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(15_000) };
+  }
+  const res = await fetch(`https://api.telegram.org/bot${config.BOT_TOKEN}/${method}`, init);
   const data = (await res.json()) as { ok: boolean; result: T; error_code?: number; description?: string; parameters?: { retry_after?: number } };
   if (!data.ok) throw new TelegramError(method, data.error_code ?? res.status, data.description ?? '', data.parameters?.retry_after);
   return data.result;

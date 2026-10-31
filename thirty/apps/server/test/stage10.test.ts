@@ -31,9 +31,7 @@ describe('главный экран админки', () => {
     // 1–4 нажали /start; 5 открыла приложение по прямой ссылке
     for (const u of [1, 2, 3, 4]) await prisma.botMessageLog.create({ data: { userId: BigInt(u), templateKey: 'welcome', dedupeKey: `welcome:${u}`, status: 'sent', sentAt: ts('2026-10-20T10:00:00Z') } });
     for (const u of [1, 2, 3, 5]) { await ev(u, 'app_open', '2026-10-20T10:05:00Z'); await ev(u, 'app_open', '2026-10-20T11:00:00Z'); }
-    for (const u of [1, 2, 3]) await ev(u, 'onboarding_step_view', '2026-10-20T10:06:00Z', 'O01');
-    for (const u of [1, 2]) await ev(u, 'onboarding_step_view', '2026-10-20T10:07:00Z', 'O02');
-    await ev(1, 'onboarding_step_view', '2026-10-20T10:08:00Z', 'O03');
+    for (const u of [1, 2, 3]) await ev(u, 'bot_how_to_join_click', '2026-10-20T10:03:00Z');
     for (const u of [1, 2, 5]) await ev(u, 'tariff_view', '2026-10-20T10:09:00Z');
     await ev(1, 'payment_start', '2026-10-20T10:10:00Z');
     // оплатила на следующий день — переход всё равно засчитан
@@ -46,8 +44,7 @@ describe('главный экран админки', () => {
     expect(f.cards).toMatchObject({ bot: { count: 5 }, app: { count: 4, ofPrev: 80 }, tariffs: { count: 3, ofPrev: 75 }, paid: { count: 1, ofPrev: 33.3 } });
     expect(f.hero.botToPaid).toBe(20);
     expect(f.previous).toBeNull(); // до периода данных нет — сравнение не выдумываем
-    expect(step('o01').count).toBe(4); // 5 пропустила онбординг, но дошла до тарифов
-    expect(step('o03')).toMatchObject({ count: 3, lost: 0 });
+    expect(step('how').count).toBe(4); // 5 открыла приложение по прямой ссылке, но дошла до тарифов
     expect(step('select')).toMatchObject({ count: 1, lost: 2, lostPct: 66.7 });
     expect(f.worst).toMatchObject({ from: 'Тарифы', to: 'Присоединиться', lostPct: 66.7 });
     expect(f.daily.current.app[5]).toBe(4); // повторные открытия в тот же день — один человек

@@ -3,7 +3,7 @@ import type { BotMessageTemplate } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma, isUniqueViolation } from '../db';
 import { openAppButton, tg, TelegramError } from '../lib/telegram';
-import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, WELCOME_BUTTON, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
+import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, WELCOME_BUTTONS, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
 import { config } from '../config';
 import { setNotifier } from './notify';
 import { track } from './analytics';
@@ -95,13 +95,19 @@ export async function seedTemplates() {
   // Разово (31.10): конец приветствия и кнопка — «Хочу вступить»
   const v12 = 'maintenance.welcomeV3';
   if (!(await prisma.setting.findUnique({ where: { key: v12 } }))) {
-    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT, buttons: [{ text: WELCOME_BUTTON, screen: 'welcome' }] } }).catch(() => undefined);
+    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT, buttons: WELCOME_BUTTONS } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v12, value: { at: new Date().toISOString() } } });
+  }
+  // Разово (31.10): приветствие как в прежнем боте — видео, правила PDF, три кнопки; второе сообщение «как вступить»
+  const v13 = 'maintenance.welcomeV4';
+  if (!(await prisma.setting.findUnique({ where: { key: v13 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT, buttons: WELCOME_BUTTONS, approved: true } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v13, value: { at: new Date().toISOString() } } });
   }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {
-    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT, buttons: [{ text: WELCOME_BUTTON, screen: 'welcome' }], title: 'Цепочка 01. /start — приветствие (один раз)', approved: true } });
+    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT, buttons: WELCOME_BUTTONS, title: 'Цепочка 01. /start — приветствие (один раз)', approved: true } });
     await prisma.botMessageTemplate.updateMany({ where: { key: { in: ['abandoned_purchase', 'nudge_not_reached_tariffs', 'nudge_tariffs_no_select', 'nudge_selected_no_payment', 'offer_ending_60', 'offer_ending_15', 'offer_expired'] } }, data: { enabled: false } });
     await prisma.setting.create({ data: { key: marker, value: { at: new Date().toISOString() } } });
   }
@@ -150,9 +156,11 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
     throw e;
   }
   const short = id.replace(/-/g, '');
+  vars = { ...(await linkVars()), ...vars };
   // Кнопка-ссылка ({ text, url }) — например, личное приглашение в чат; без адреса не показывается
-  const buttons = (tpl.buttons as { text: string; screen?: string; url?: string }[])
+  const buttons = (tpl.buttons as { text: string; screen?: string; url?: string; callback?: string }[])
     .map((b) => {
+      if (b.callback) return { text: b.text, callback_data: b.callback };
       if (b.url === undefined) return openAppButton(b.text, `m_${short}_${b.screen}`);
       const url = b.url.replace(/\{(\w+)\}/g, (_m, k: string) => (vars[k] === undefined ? '' : String(vars[k])));
       return /^https?:\/\//.test(url) ? { text: b.text, url } : null;
@@ -212,9 +220,62 @@ interface TgUpdate {
   chat_join_request?: { chat: { id: number; title?: string }; from: { id: number; first_name?: string }; invite_link?: { invite_link: string; name?: string } };
   my_chat_member?: { chat: { id: number; type: string; title?: string }; new_chat_member: { status: string } };
   chat_member?: { chat: { id: number }; new_chat_member: { user: { id: number }; status: string } };
+  callback_query?: { id: string; from: { id: number }; data?: string; message?: { chat: { id: number } } };
+}
+
+/** Ссылки для кнопок: поддержка и лендинг (частые вопросы) */
+async function linkVars() {
+  const { getSetting } = await import('../settings');
+  return { support_url: `https://t.me/${await getSetting('support.username')}`, faq_url: await getSetting('landing.url') };
+}
+
+/** Правила клуба PDF — отправляется через секунду после приветствия; file_id кэшируем, чтобы не загружать файл каждый раз */
+const RULES_PDF = 'pravila-kluba.pdf';
+let rulesFileId: string | null = null;
+export async function sendRulesPdf(chatId: number) {
+  try {
+    if (rulesFileId) {
+      await tg('sendDocument', { chat_id: chatId, document: rulesFileId });
+      return;
+    }
+    const { readFile } = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { config } = await import('../config');
+    const dir = config.STATIC_MINIAPP_DIR || path.resolve(process.cwd(), '../miniapp/dist');
+    const file = await readFile(path.join(dir, 'docs', RULES_PDF));
+    const r = await tg<{ document?: { file_id: string } }>('sendDocument', { chat_id: chatId, document: { file: file, filename: 'Правила клуба 90 дней.pdf', contentType: 'application/pdf' } });
+    rulesFileId = r?.document?.file_id ?? null;
+  } catch (e) {
+    console.error('[bot] rules pdf', (e as Error).message);
+  }
+}
+
+/** Кнопки шаблона для /start: экран приложения (с реферальным параметром), ссылка или следующее сообщение */
+function welcomeMarkup(raw: unknown, vars: Record<string, string>, startParam?: string) {
+  const list = (raw as { text: string; screen?: string; url?: string; callback?: string }[] | undefined) ?? WELCOME_BUTTONS;
+  const rows = list
+    .map((b) => {
+      if (b.callback) return { text: b.text, callback_data: b.callback };
+      if (b.url === undefined) return openAppButton(b.text, startParam);
+      const url = b.url.replace(/\{(\w+)\}/g, (_m, k: string) => vars[k] ?? '');
+      return /^https?:\/\//.test(url) ? { text: b.text, url } : null;
+    })
+    .filter(Boolean)
+    .map((b) => [b]);
+  return { inline_keyboard: rows };
 }
 
 export async function handleUpdate(update: TgUpdate) {
+  if (update.callback_query) {
+    const q = update.callback_query;
+    await tg('answerCallbackQuery', { callback_query_id: q.id }).catch(() => undefined);
+    if (q.data === 'how_to_join') {
+      const userId = BigInt(q.from.id);
+      await track({ userId, eventName: 'bot_how_to_join_click', dedupeKey: `how_to_join:${userId}` });
+      await sendTemplate(userId, 'how_to_join', {}, `how_to_join:${userId}:${clock.now().getTime()}`);
+    }
+    return;
+  }
   if (update.chat_join_request) {
     const { onJoinRequest } = await import('./chats');
     return onJoinRequest(update.chat_join_request.chat.id, update.chat_join_request.from.id);
@@ -269,8 +330,13 @@ export async function handleUpdate(update: TgUpdate) {
     const safe = payload && payload !== 'hello' && /^[A-Za-z0-9_-]{1,64}$/.test(payload) ? payload : undefined;
     // Первый вход в воронку через бота (повторные /start не считаются); источник — параметр ссылки t.me/…?start=
     if (!existed) await track({ userId, eventName: 'bot_start', metadata: { source: safe ?? (payload === 'hello' ? 'hello' : null) }, dedupeKey: `bot_start:${userId}` });
+    // Реферальная ссылка на бота (?start=ref_…): визит засчитываем сразу — в приложение человек попадёт позже, из второго сообщения
+    if (safe?.startsWith('ref_')) {
+      const { handleStartParam } = await import('./entry');
+      const u = await prisma.user.findUnique({ where: { id: userId } });
+      if (u) await handleStartParam(u, safe);
+    }
     const tpl = await prisma.botMessageTemplate.findUnique({ where: { key: 'welcome' } });
-    const button = (tpl?.buttons as { text: string }[] | undefined)?.[0]?.text ?? WELCOME_BUTTON;
     // Сообщение 1 — один раз; при повторном /start только кнопка входа. Ссылка ?start=hello всегда показывает приветствие
     let first = payload === 'hello';
     try {
@@ -279,10 +345,21 @@ export async function handleUpdate(update: TgUpdate) {
     } catch (e) {
       if (!isUniqueViolation(e)) throw e;
     }
-    const markup = { inline_keyboard: [[openAppButton(button, safe)]] };
     const image = imageUrlOf(tpl?.imageUrl);
-    if (first && image) await tg('sendPhoto', { chat_id: msg.chat.id, photo: image, caption: tpl?.text ?? WELCOME_TEXT, parse_mode: 'HTML', reply_markup: markup });
-    else await tg('sendMessage', { chat_id: msg.chat.id, text: first ? tpl?.text ?? WELCOME_TEXT : 'Жми кнопку ниже, чтобы открыть приложение 👇', parse_mode: 'HTML', reply_markup: markup });
+    if (first) {
+      const markup = welcomeMarkup(tpl?.buttons, await linkVars(), safe);
+      const text = tpl?.text ?? WELCOME_TEXT;
+      if (image && text.length <= 1024) await tg('sendPhoto', { chat_id: msg.chat.id, photo: image, caption: text, parse_mode: 'HTML', reply_markup: markup });
+      else {
+        if (image) await tg('sendPhoto', { chat_id: msg.chat.id, photo: image });
+        await tg('sendMessage', { chat_id: msg.chat.id, text, parse_mode: 'HTML', reply_markup: markup, link_preview_options: { is_disabled: true } });
+      }
+      // Правила клуба файлом — через секунду после приветствия
+      const chatId = msg.chat.id;
+      setTimeout(() => void sendRulesPdf(chatId), 1000);
+    } else {
+      await tg('sendMessage', { chat_id: msg.chat.id, text: 'Жми кнопку ниже, чтобы открыть приложение 👇', parse_mode: 'HTML', reply_markup: { inline_keyboard: [[openAppButton('ХОЧУ ОПЛАТИТЬ ВХОД! 🔥😍', safe)]] } });
+    }
     if (testing) runChainTest(userId);
     return;
   }

@@ -22,10 +22,9 @@ export interface DayRange {
 type Step = { key: string; title: string; short: string; event?: string; screen?: string };
 export const HOME_STEPS: Step[] = [
   { key: 'bot', title: 'Открыли бота', short: 'Бот' },
+  // 31.10: знакомство перенесено в бота — экраны онбординга убраны, приложение открывается сразу на тарифах
+  { key: 'how', title: 'Нажали «Ознакомился, как вступить?» в боте', short: 'Как вступить', event: 'bot_how_to_join_click' },
   { key: 'app', title: 'Открыли приложение', short: 'Приложение', event: 'app_open' },
-  { key: 'o01', title: 'Онбординг 1 · Вступай в сообщество', short: 'Экран 1', event: 'onboarding_step_view', screen: 'O01' },
-  { key: 'o02', title: 'Онбординг 2 · Как всё устроено', short: 'Экран 2', event: 'onboarding_step_view', screen: 'O02' },
-  { key: 'o03', title: 'Онбординг 3 · Что входит в клуб', short: 'Экран 3', event: 'onboarding_step_view', screen: 'O03' },
   { key: 'tariffs', title: 'Экран тарифов', short: 'Тарифы', event: 'tariff_view' },
   // «Присоединиться» под тарифами → экран оформления; «Оплатить» там → страница оплаты CloudPayments
   { key: 'select', title: 'Нажали «Присоединиться» (под тарифами)', short: 'Присоединиться', event: 'tariff_join_click' },

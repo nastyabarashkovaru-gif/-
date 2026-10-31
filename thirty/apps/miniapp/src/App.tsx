@@ -6,7 +6,6 @@ import { ctx, track } from './lib/analytics';
 import { inTelegram, startParam } from './lib/telegram';
 import { MeContext, type Me } from './state';
 import { ErrorState, Loading, ToastHost, errorText, toast } from './ui';
-import { Welcome, OnboardingStep, AboutScreen } from './screens/onboarding/Onboarding';
 import { Materials } from './screens/onboarding/Materials';
 import { DocScreen } from './screens/onboarding/Docs';
 import { RestoreDiscount } from './screens/onboarding/Restore';
@@ -27,7 +26,7 @@ import { ComebackScreen, FeedbackScreen, FinaleScreen, ResultCardScreen, Tracker
 
 /** Экран по параметру кнопки бота: m_<log>_<screen> */
 const SCREEN_ROUTES: Record<string, string> = {
-  welcome: '/welcome', resume: '/', tariffs: '/tariffs', restore: '/restore', checkout: '/tariffs', reg_profile: '/reg/about', reg_goals: '/reg/goals', reg_buddy: '/reg/buddy',
+  welcome: '/tariffs', resume: '/', tariffs: '/tariffs', restore: '/restore', checkout: '/tariffs', reg_profile: '/reg/about', reg_goals: '/reg/goals', reg_buddy: '/reg/buddy',
   home: '/', report: '/report', card: '/cards', review: '/review', buddy: '/buddy', meeting: '/club', final: '/finale', finale: '/finale', feedback: '/feedback', trackers: '/trackers', comeback: '/comeback', profile: '/profile', support: '/profile',
 };
 
@@ -53,8 +52,7 @@ function initialRoute(me: Me): string {
   }
   if (fromBot === '/tariffs' || fromBot === '/restore') return fromBot;
   if (me.user.onboardingStage === 'checkout' || me.user.onboardingStage === 'tariffs') return '/tariffs';
-  if (me.user.onboardingStage === 'onboarding' && me.user.lastScreen?.startsWith('/onboarding')) return me.user.lastScreen;
-  return '/welcome';
+  return '/tariffs';
 }
 
 export function App() {
@@ -122,9 +120,10 @@ export function App() {
   return (
     <MeContext.Provider value={{ me, refresh }}>
       <Routes>
-        <Route path="/welcome" element={<Welcome />} />
-        <Route path="/onboarding/:n" element={<OnboardingStep />} />
-        <Route path="/about/:topic/:i" element={<AboutScreen />} />
+        {/* 31.10: экраны знакомства убраны — приложение сразу открывается на тарифах (знакомство теперь в боте и на лендинге) */}
+        <Route path="/welcome" element={<Navigate to="/tariffs" replace />} />
+        <Route path="/onboarding/:n" element={<Navigate to="/tariffs" replace />} />
+        <Route path="/about/:topic/:i" element={<Navigate to="/tariffs" replace />} />
         <Route path="/materials" element={<Materials />} />
         <Route path="/docs/:kind" element={<DocScreen />} />
         <Route path="/restore" element={<RestoreDiscount />} />
@@ -145,7 +144,7 @@ export function App() {
         <Route path="/reg/buddy" element={<RegBuddy />} />
         <Route path="/reg/chats" element={<RegChats />} />
         <Route path="/reg/waiting" element={<RegWaiting />} />
-        <Route path="/" element={me.membership ? <Home /> : <Navigate to="/welcome" replace />} />
+        <Route path="/" element={me.membership ? <Home /> : <Navigate to="/tariffs" replace />} />
         <Route path="/goal/:id" element={<GoalScreen />} />
         <Route path="/report" element={<ReportScreen />} />
         <Route path="/reports" element={<ReportHistory />} />

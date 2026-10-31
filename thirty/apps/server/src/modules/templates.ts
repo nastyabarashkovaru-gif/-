@@ -8,7 +8,7 @@ export interface TemplateSeed {
   title: string;
   text: string;
   /** screen — экран мини-приложения; url — внешняя ссылка (можно с переменной, например {chat_url}) */
-  buttons: { text: string; screen?: string; url?: string }[];
+  buttons: { text: string; screen?: string; url?: string; callback?: string }[];
   enabled: boolean;
   isMarketing: boolean;
   delayMinutes: number;
@@ -23,9 +23,16 @@ export interface TemplateSeed {
  * 10–11 — минут ДО старта ближайшего потока. Цены подставляются из настроек тарифов.
  */
 /** Тексты в HTML-разметке Telegram: <b>…</b> — жирный */
-export const WELCOME_TEXT = "Привет, на связи Настя, основатель сообщества\n«30 дней», где мы меняемся по системе «новый месяц = новый челлендж!» 😍🔥\n\nЗдесь те, кто не хочет просиживать свою жизнь.\n\nКак ты уже понял, сила – в людях!\nВ одиночку у нас либо не получается начать,\nлибо не получается довести до конца.\n\nПоэтому внутри сообщества мы:\n\n1️⃣ Ставим цель на месяц, прописываем ежедневные действия и каждый день скидываем отчеты о проделанной работе.\n\n2️⃣ Созваниваемся раз в неделю, чтобы трекать прогресс, убирать затыки и видеть точки роста со стороны\n\n3️⃣ Работаем в парах, чтобы всегда иметь поддержку со стороны и взаимную ответственность, чтоб не слиться!\n\nСТАРТ УЖЕ 1го НОЯБРЯ! Торопись! 😍🔥\n\n🔥 Скорее жми кнопку ХОЧУ ВСТУПИТЬ, чтобы узнать, что внутри и как попасть в чат. 👇🏼";
+export const WELCOME_TEXT = "<b>Привет, на связи Настя, основатель сообщества\n«30 дней», где мы меняемся по системе «новый месяц = новый челлендж!» 😍🔥</b>\n\nЗдесь те, кто не хочет просиживать свою жизнь.\n\nКак ты уже понял, <b>сила – в людях!</b>\nВ одиночку у нас либо не получается начать,\nлибо не получается довести до конца.\n\n<b>Поэтому внутри сообщества мы:</b>\n\n1️⃣ <b>Ставим цель на месяц,</b> прописываем ежедневные действия и каждый день скидываем отчеты о проделанной работе.\n\n2️⃣ <b>Созваниваемся раз в неделю,</b> чтобы трекать прогресс, убирать затыки и видеть точки роста со стороны\n\n3️⃣ <b>Работаем в парах,</b> чтобы всегда иметь поддержку со стороны и взаимную ответственность, чтоб не слиться!\n\n<b>СТАРТ УЖЕ 1го НОЯБРЯ! Торопись! 😍🔥</b>\n\n👉 Скорее <b>ОТКРЫВАЙ ВИДЕО</b> (идет всего 6 мин), чтоб узнать, что внутри, и ознакамливайся с <b>правилами сообщества</b> в файле ниже.\n\n🔥 <a href=\"https://youtu.be/eOpKSb9-jA4\">СМОТРЕТЬ ВИДЕО</a>";
 export const WELCOME_IMAGE = '{public_url}/img/bot-welcome.jpg';
-export const WELCOME_BUTTON = 'Хочу вступить';
+export const WELCOME_BUTTON = 'Ознакомился, как вступить? 🔥';
+/** Кнопки приветствия: «как вступить» — следующее сообщение бота, вопрос — поддержка, частые вопросы — лендинг */
+export const WELCOME_BUTTONS = [
+  { text: WELCOME_BUTTON, callback: 'how_to_join' },
+  { text: 'Задать вопрос ❓', url: '{support_url}' },
+  { text: 'Изучить ЧАСТЫЕ ВОПРОСЫ ❗️', url: '{faq_url}' },
+];
+export const HOW_TO_JOIN_TEXT = "<b>Чтобы вступить в сообщество, подтверди, что ты:</b>\n\n<b>1) Готов работать над своей целью каждый день\n2) Готов уделять ей время все 30 дней\n3) Готов быть активистом внутри и принимаешь правила выше.</b>\n\nЯ сказала: минимальный срок нахождения в клубе - 3 месяца. Мне текучка не нужна. Как и вам.\n\n🔥 <b>ВХОД СЕЙЧАС -\nВСЕГО 3.000р ЗА ВСЕ 3 МЕСЯЦА\n(это всего 33р/день)</b>\n\n<b>Знаешь, уж точно лучше, чем снова кальян или вб)</b>\n\nБездельники - тоже мимо. Если принял решение - делай, жизнь одна.\n\n🤝 И если попадешь внутрь - мы будем рады и со всем поможем. Я сама была и часто бываю на твоем месте.\n\n<b>Чтобы купить вход, ЖМИ КНОПКУ НИЖЕ:</b>\n<i>(можно оплатить на месяц)</i>";
 
 const chain = (n: string, title: string, text: string, button: string, screen: string, delayMinutes: number, extra: Partial<TemplateSeed> = {}): TemplateSeed => ({
   key: `chain_${n}`, title: `Цепочка ${n}. ${title}`, text, buttons: [{ text: button, screen }], enabled: true, isMarketing: true, delayMinutes, capHours: 0, priority: 60, ...extra,
@@ -46,7 +53,8 @@ export const CHAIN_TEMPLATES: TemplateSeed[] = [
 
 export const DEFAULT_TEMPLATES: TemplateSeed[] = [
   // B01–B03
-  { key: 'welcome', title: 'Цепочка 01. /start — приветствие (один раз)', text: WELCOME_TEXT, imageUrl: WELCOME_IMAGE, buttons: [{ text: WELCOME_BUTTON, screen: 'welcome' }], enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },
+  { key: 'welcome', title: 'Цепочка 01. /start — приветствие (один раз)', text: WELCOME_TEXT, imageUrl: WELCOME_IMAGE, buttons: WELCOME_BUTTONS, enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },
+  { key: 'how_to_join', title: 'Цепочка 01б. «Ознакомился, как вступить?» — условия и вход', text: HOW_TO_JOIN_TEXT, imageUrl: '{public_url}/img/bot-rules.jpg', buttons: [{ text: 'ХОЧУ ОПЛАТИТЬ ВХОД! 🔥😍', screen: 'tariffs' }, { text: 'Изучить ЧАСТЫЕ ВОПРОСЫ ❗️', url: '{faq_url}' }, { text: 'Поддержка', url: '{support_url}' }], enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },
   { key: 'abandoned_purchase', title: 'B02 Незавершённая покупка', text: 'Ты остановился в шаге от старта. Твой выбор сохранён — можно продолжить с того же места.', buttons: [{ text: 'Продолжить', screen: 'resume' }], enabled: false, isMarketing: true, delayMinutes: 60, capHours: 24, priority: 60 },
   { key: 'payment_success', title: 'B03 Оплата прошла', text: 'Оплата прошла, ты в клубе! 🎉\n\nСкорее заполняй анкету, чтобы участвовать в нашем челлендже (если не успеешь заполнить до старта — ты не будешь определена в пару), и заходи в наш чат!\n\n{chat_url}\n\nДобро пожаловать! 💜', buttons: [{ text: 'Заполнить анкету 📝', screen: 'reg_profile' }, { text: 'Зайти в чат 💬', url: '{chat_url}' }], enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },
   // B04–B09 дожим до оплаты

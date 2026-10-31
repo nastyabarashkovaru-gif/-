@@ -39,7 +39,7 @@ describe('таймер предложения', () => {
     clock.set('2026-10-21T09:00:00Z');
     const first = await api('POST', '/api/offer/start', U);
     expect(first.body.offer.active).toBe(true);
-    expect(first.body.tariffs.map((t: { price: number }) => t.price)).toEqual([999, 2490, 3990]);
+    expect(first.body.tariffs.map((t: { price: number }) => t.price)).toEqual([999, 2990, 3990]);
     expect(first.body.tariffs.map((t: { comparison: number }) => t.comparison)).toEqual([2990, 8970, 17940]);
     clock.set('2026-10-21T10:30:00Z');
     const again = await api('POST', '/api/offer/start', U);
@@ -72,13 +72,13 @@ describe('оплата и права доступа', () => {
     await api('POST', '/api/offer/start', U);
     const pv = await api('GET', '/api/checkout/preview?tariff=m3', U);
     expect(pv.body.flows.map((f: { startsOn: string }) => f.startsOn)).toEqual(['2026-11-01', '2026-12-01', '2027-01-01']);
-    expect(pv.body.nextCharge).toMatchObject({ date: '2027-01-28', amount: 2490 });
+    expect(pv.body.nextCharge).toMatchObject({ date: '2027-01-28', amount: 2990 });
     expect(pv.body.text.renewal).toContain('28 января 2027');
   });
 
   it('критерий №2: webhook даёт 3 потока, следующий платёж 28.01, без списаний 28.11 и 28.12', async () => {
     const co = await buy(U, 'm3');
-    expect(co.amount).toBe(2490);
+    expect(co.amount).toBe(2990);
     // повтор нажатия с тем же ключом — та же ссылка
     const again = await api('POST', '/api/checkout', U, { tariffId: 'm3', idempotencyKey: `key-${U}-m3` });
     expect(again.body.paymentId).toBe(co.paymentId);
@@ -87,7 +87,7 @@ describe('оплата и права доступа', () => {
     expect((await api('GET', `/api/payments/${co.paymentId}`, U)).body.status).toBe('pending');
     expect((await api('GET', '/api/membership', U)).body.membership).toBeNull();
 
-    await webhook(paidEvent(co.paymentId, 2490, U));
+    await webhook(paidEvent(co.paymentId, 2990, U));
     const sub = await prisma.subscription.findFirstOrThrow({ where: { userId: BigInt(U) } });
     expect(sub.status).toBe('prestart');
     expect(sub.nextChargeDate?.toISOString().slice(0, 10)).toBe('2027-01-28');
@@ -96,7 +96,7 @@ describe('оплата и права доступа', () => {
     expect(mockCalls).toContainEqual(expect.objectContaining({ method: 'setNextChargeDate', arg: '2027-01-28' }));
     const sched = await prisma.billingSchedule.findMany({ where: { subscriptionId: sub.id } });
     expect(sched).toHaveLength(1);
-    expect(sched[0]).toMatchObject({ months: 3, amount: 2490, status: 'synced' });
+    expect(sched[0]).toMatchObject({ months: 3, amount: 2990, status: 'synced' });
 
     for (const day of ['2026-11-28T12:00:00Z', '2026-12-28T12:00:00Z']) {
       clock.set(day);
@@ -148,9 +148,9 @@ describe('оплата и права доступа', () => {
 
   it('продление 28 января даёт февраль–апрель; повтор автоплатежа игнорируется', async () => {
     const co = await buy(U, 'm3');
-    await webhook(paidEvent(co.paymentId, 2490, U));
+    await webhook(paidEvent(co.paymentId, 2990, U));
     clock.set('2027-01-28T08:00:00Z');
-    const renewal = { order_id: 'auto-1', sum: '2490.00', payment_status: 'success', autopayment: '1', subscription_id: 'mock-sub', customer_extra: `tg:${U}`, customer_phone: '+79990001122' };
+    const renewal = { order_id: 'auto-1', sum: '2990.00', payment_status: 'success', autopayment: '1', subscription_id: 'mock-sub', customer_extra: `tg:${U}`, customer_phone: '+79990001122' };
     await prisma.subscription.updateMany({ data: { providerSubscriptionId: 'mock-sub' } });
     expect(await webhook(renewal)).toMatchObject({ extended: ['2027-02-01', '2027-03-01', '2027-04-01'] });
     await webhook({ ...renewal, attempt: '2' });
@@ -197,7 +197,7 @@ describe('оплата и права доступа', () => {
 
   it('возврат отзывает доступ и выключает автопродление', async () => {
     const co = await buy(U, 'm3');
-    await webhook(paidEvent(co.paymentId, 2490, U));
+    await webhook(paidEvent(co.paymentId, 2990, U));
     await markRefunded(co.paymentId, 'admin');
     expect((await prisma.subscription.findFirstOrThrow()).status).toBe('expired');
     expect(await prisma.flowMembership.count({ where: { status: 'revoked' } })).toBe(3);

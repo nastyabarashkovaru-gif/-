@@ -34,7 +34,7 @@ describe('CloudPayments', () => {
     await api('POST', '/api/consents', U, { kinds: ['offer', 'personal_data'] });
     const co = await api('POST', '/api/checkout', U, { tariffId: 'm3', idempotencyKey: 'cp-key-1' });
     expect(co.status).toBe(200);
-    expect(co.body.amount).toBe(2490);
+    expect(co.body.amount).toBe(2990);
     const url = new URL(co.body.url);
     expect(url.pathname).toBe(`/pay/${co.body.paymentId}`);
     const page = await (await getApp()).inject({ method: 'GET', url: url.pathname + url.search });
@@ -43,7 +43,7 @@ describe('CloudPayments', () => {
     expect(page.body).toContain('"startDate":"2027-01-28T09:00:00"');
     expect((await (await getApp()).inject({ method: 'GET', url: `/pay/${co.body.paymentId}?e=1&s=bad` })).body).toContain('недействительна');
 
-    const base = { InvoiceId: co.body.paymentId, AccountId: String(U), Amount: '2490.00', Currency: 'RUB' };
+    const base = { InvoiceId: co.body.paymentId, AccountId: String(U), Amount: '2990.00', Currency: 'RUB' };
     expect((await notify('check', { ...base, Amount: '1.00' })).body).toEqual({ code: 12 });
     expect((await notify('check', { ...base, AccountId: '1' })).body).toEqual({ code: 11 });
     expect((await notify('check', base, false)).status).toBe(401);
@@ -53,16 +53,16 @@ describe('CloudPayments', () => {
     expect((await notify('pay', pay)).body).toEqual({ code: 0 });
     expect((await notify('pay', pay)).body).toEqual({ code: 0 }); // повтор — без двойного доступа
     const sub = await prisma.subscription.findFirstOrThrow({ where: { userId: BigInt(U) } });
-    expect(sub).toMatchObject({ providerSubscriptionId: 'sc_abc', renewalPrice: 2490 });
+    expect(sub).toMatchObject({ providerSubscriptionId: 'sc_abc', renewalPrice: 2990 });
     expect(sub.nextChargeDate!.toISOString().slice(0, 10)).toBe('2027-01-28');
     expect(await prisma.flowMembership.count({ where: { userId: BigInt(U) } })).toBe(3);
     // сервер сам выставил дату и сумму автосписания
-    expect(apiCalls.find((c) => c.url.endsWith('/subscriptions/update'))!.body).toMatchObject({ Id: 'sc_abc', StartDate: '2027-01-28T09:00:00', Amount: 2490 });
+    expect(apiCalls.find((c) => c.url.endsWith('/subscriptions/update'))!.body).toMatchObject({ Id: 'sc_abc', StartDate: '2027-01-28T09:00:00', Amount: 2990 });
     expect((await notify('check', base)).body).toEqual({ code: 13 }); // уже оплачен
 
     // автосписание 28 января: без InvoiceId, по SubscriptionId
     clock.set('2027-01-28T09:05:00Z');
-    expect((await notify('pay', { AccountId: String(U), Amount: '2490.00', TransactionId: 2002, SubscriptionId: 'sc_abc', Status: 'Completed' })).body).toEqual({ code: 0 });
+    expect((await notify('pay', { AccountId: String(U), Amount: '2990.00', TransactionId: 2002, SubscriptionId: 'sc_abc', Status: 'Completed' })).body).toEqual({ code: 0 });
     const renewed = await prisma.subscription.findFirstOrThrow({ where: { userId: BigInt(U) } });
     expect(renewed.paidThroughFlow.toISOString().slice(0, 10)).toBe('2027-04-01');
     expect(renewed.nextChargeDate!.toISOString().slice(0, 10)).toBe('2027-04-28');
@@ -73,7 +73,7 @@ describe('CloudPayments', () => {
     expect(apiCalls.find((c) => c.url.endsWith('/subscriptions/cancel'))!.body).toEqual({ Id: 'sc_abc' });
 
     // неуспешное автосписание другого покупателя не трогает эту подписку; Recurrent Cancelled гасит автопродление
-    expect((await notify('recurrent', { Id: 'sc_abc', AccountId: String(U), Status: 'Cancelled', Amount: '2490' })).body).toEqual({ code: 0 });
+    expect((await notify('recurrent', { Id: 'sc_abc', AccountId: String(U), Status: 'Cancelled', Amount: '2990' })).body).toEqual({ code: 0 });
     expect((await prisma.subscription.findFirstOrThrow({ where: { userId: BigInt(U) } })).autoRenew).toBe(false);
   });
 

@@ -26,6 +26,11 @@ export async function seed() {
       console.log(`[seed] ${t.id}: цена после таймера ${row.regularPrice} → ${t.regularPrice}`);
     }
   }
+  // 31.10: тариф на 3 месяца — 2 990 ₽ вместо 2 490 ₽ (только если цену не меняли в админке)
+  if (!(await prisma.setting.findUnique({ where: { key: 'maintenance.m3priceV1' } }))) {
+    await prisma.tariff.updateMany({ where: { id: 'm3', promoPrice: 2490 }, data: { promoPrice: 2990, renewalPrice: 2990 } });
+    await prisma.setting.create({ data: { key: 'maintenance.m3priceV1', value: { at: new Date().toISOString() } } });
+  }
   // Редизайн 24.10: старые формулировки («эксперты», «Хит продаж») заменяем на утверждённые; правки владельца не трогаем
   for (const t of DEFAULT_TARIFFS) {
     const row = await prisma.tariff.findUnique({ where: { id: t.id } });

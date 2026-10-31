@@ -88,9 +88,9 @@ describe('биллинг (критерий приёмки №2)', () => {
 describe('тарифы и цены (ТЗ 1.1)', () => {
   it('акционные цены и сравнение с отдельными месяцами', () => {
     const [m1, m3, m6] = DEFAULT_TARIFFS;
-    expect([m1.promoPrice, m3.promoPrice, m6.promoPrice]).toEqual([999, 2490, 3990]);
+    expect([m1.promoPrice, m3.promoPrice, m6.promoPrice]).toEqual([999, 2990, 3990]);
     expect(quote(m1, true)).toMatchObject({ price: 999, comparison: 2990, savingsPercent: 67 });
-    expect(quote(m3, true)).toMatchObject({ price: 2490, comparison: 8970, savingsPercent: 72 });
+    expect(quote(m3, true)).toMatchObject({ price: 2990, comparison: 8970, savingsPercent: 67 });
     expect(quote(m6, true)).toMatchObject({ price: 3990, comparison: 17940, savingsPercent: 78 });
     expect(quote(m3, false).price).toBe(m3.regularPrice);
     expect(formatRub(17940)).toBe('17 940 ₽');

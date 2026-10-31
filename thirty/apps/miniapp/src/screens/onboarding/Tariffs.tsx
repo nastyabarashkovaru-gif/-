@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronUp, CircleCheck, Clock, Gift, HeartHandshake, Lock, Unlock, ArrowLeft, MessageCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleCheck, Clock, Gift, Lock, Unlock, MessageCircle } from 'lucide-react';
 import { api, rub } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
 import { haptic, openTelegram } from '../../lib/telegram';
@@ -107,16 +107,14 @@ export function Tariffs() {
   if (!state) return <Screen id="S06"><Loading /></Screen>;
 
   return (
-    <Screen id="S06">
-      <div className="row between">
-        <button className="icon-btn" aria-label="Назад" onClick={() => nav('/onboarding/3')}><ArrowLeft size={20} /></button>
-        <span className="secure"><Lock size={12} />Безопасная оплата</span>
+    <Screen id="S06" className="tariffs-bright">
+      <div className="th-hero">
+        <span className="th-secure"><Lock size={12} />Безопасная оплата</span>
+        <div className="th-emoji" aria-hidden>🎉</div>
+        <h1>Ура! Рады, что ты хочешь к нам присоединиться!</h1>
+        <p>Ты уже в шаге от своей новой, яркой, продуктивной жизни ✨</p>
       </div>
-      <span className="ic lg" style={{ alignSelf: 'center', marginTop: 10 }}><HeartHandshake size={30} strokeWidth={1.8} /></span>
-      <div className="col" style={{ gap: 10 }}>
-        <h1 className="hero">Твоё новое окружение <em>уже ждёт тебя!</em></h1>
-        <p className="lead">Выбери, насколько кардинально ты хочешь изменить свою жизнь.</p>
-      </div>
+      <div className="th-pick">Выбери свой тариф 👇</div>
       {promoActive && state.offer.kind === 'promo' && (
         <div className="row" style={{ background: 'var(--green-soft)', color: 'var(--green)', borderRadius: 16, padding: '14px', gap: 10, alignItems: 'flex-start' }}>
           <Gift size={20} style={{ flexShrink: 0 }} />

@@ -30,7 +30,7 @@ const DAYS_HINT: Record<number, string> = { 1: 'первый день', 7: 'пе
 const SCREENS: [string, string][] = [
   ['/', 'Главная'], ['/report', 'Отчёт'], ['/feed', 'Лента'], ['/feed?tab=people', 'Участники'], ['/club', 'Сообщество'], ['/buddy', 'Бадди'],
   ['/materials', 'Материалы'], ['/profile', 'Профиль'], ['/profile/subscription', 'Подписка'], ['/feedback', 'Обратная связь'], ['/finale', 'Итоги'],
-  ['/finale/card', 'Карточка Stories'], ['/comeback', 'Продление 40 мин'], ['/trackers', 'Трекеры за отзыв'], ['/welcome', 'Онбординг'], ['/tariffs', 'Тарифы'], ['/reg/about', 'Анкета'],
+  ['/finale/card', 'Карточка Stories'], ['/comeback', 'Продление 40 мин'], ['/trackers', 'Трекеры за отзыв'], ['/tariffs', 'Тарифы'], ['/reg/about', 'Анкета'],
 ];
 
 function load(): DemoState {

@@ -84,6 +84,8 @@ export const DEFAULT_SETTINGS = {
     selfdev: { evidence: 'checkbox', photoRequired: false, selfReported: true, note: 'Отметка о выполнении.' },
   } as EvidencePolicy,
   'support.username': 'barashkova_a',
+  /** Лендинг клуба: кнопка «Изучить ЧАСТЫЕ ВОПРОСЫ» в боте */
+  'landing.url': 'https://nastyabarashkovaru-gif.github.io/-/',
   /** Продавец и реквизиты для оферты и политики ПДн */
   'legal.seller': 'Индивидуальный предприниматель Барашкова Анастасия Андреевна (ИНН 420535629401)',
   /** То же в родительном падеже — для фразы «оферта …» */
