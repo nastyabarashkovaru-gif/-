@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Send, Sparkles, User } from 'lucide-react';
 import { api } from '../../lib/api';
 import { openTelegram } from '../../lib/telegram';
@@ -12,7 +12,8 @@ type BuddyState = { state: 'paired'; pairId: string; source: string; since: stri
 export function BuddyScreen() {
   const nav = useNavigate();
   const { data, error, loading, reload } = useLoad(() => api<BuddyState>('/api/buddy'));
-  const [sheet, setSheet] = useState(false);
+  const [params] = useSearchParams();
+  const [sheet, setSheet] = useState(params.get('replace') === '1');
   if (loading) return <Screen id="S29"><Loading /></Screen>;
   if (error || !data) return <Screen id="S29"><ErrorState error={error} retry={reload} /></Screen>;
   if (data.state !== 'paired') {
@@ -52,7 +53,7 @@ export function BuddyScreen() {
       <button className="btn btn-primary" onClick={() => openTelegram(data.buddy.writeUrl)}><Send size={18} /> Написать</button>
       <button className="btn btn-ghost" onClick={() => nav(`/u/${data.buddy.id}`)}>Профиль бадди</button>
       <div className="spacer" />
-      <button className="btn btn-ghost" onClick={() => setSheet(true)}>Запросить замену</button>
+      <button className="btn btn-ghost" onClick={() => setSheet(true)}>Заменить бадди</button>
       <Sheet open={sheet} onClose={() => setSheet(false)}>
         <div className="h3">Замена бадди</div>
         <p className="muted small" style={{ margin: 0 }}>Замена возможна по взаимному согласию или если бадди не выходит на связь больше 5 дней. Запросы видит модератор.</p>

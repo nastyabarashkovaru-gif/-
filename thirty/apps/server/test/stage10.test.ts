@@ -202,3 +202,35 @@ describe('переход оплативших до запуска приложе
     expect(await prisma.flowMembership.count({ where: { userId: 901n, flow: { startsOn: new Date('2026-12-01T00:00:00Z') } } })).toBe(1);
   });
 });
+
+describe('заменить бадди', () => {
+  it('из админки: пара распадается, обеим сразу новые бадди, бывших вместе снова не ставим', async () => {
+    clock.set('2026-10-31T09:00:00Z');
+    for (const id of [721, 722, 723, 724]) await grantMembership(id, '2026-11-01');
+    const flow = await prisma.flow.findFirstOrThrow({ where: { startsOn: new Date('2026-11-01T00:00:00Z') } });
+    const { autoMatch, adminReplaceBuddy, buddyOf } = await import('../src/modules/buddy');
+    await autoMatch(flow.id);
+    const before = (await buddyOf(721n, flow.id))!.otherId;
+    // все в парах: свободных нет — оба ждут, бывших заново не соединяем
+    expect(await adminReplaceBuddy(721n)).toMatchObject({ newBuddy: null, formerBuddyNew: null });
+    // пришли две новые участницы — каждой из бывшей пары достаётся своя
+    for (const id of [725, 726]) await grantMembership(id, '2026-11-01');
+    await autoMatch(flow.id);
+    const after = (await buddyOf(721n, flow.id))!.otherId;
+    expect([725n, 726n]).toContain(after);
+    expect([725n, 726n]).toContain((await buddyOf(before, flow.id))!.otherId);
+    // замена при свободной участнице: сразу новый бадди
+    await grantMembership(727, '2026-11-01');
+    const r = await adminReplaceBuddy(721n);
+    expect(r.newBuddy).not.toBeNull();
+    expect((await buddyOf(721n, flow.id))!.otherId).toBe(727n);
+    // вдвоём в потоке: после замены заново вместе не ставим — ждут свободного участника
+    await prisma.buddyAssignment.deleteMany({});
+    await prisma.buddyPair.deleteMany({});
+    await prisma.flowMembership.updateMany({ where: { userId: { notIn: [721n, 722n] } }, data: { status: 'revoked' } });
+    await autoMatch(flow.id);
+    const r2 = await adminReplaceBuddy(721n);
+    expect(r2).toMatchObject({ newBuddy: null, formerBuddyNew: null });
+    await expect(adminReplaceBuddy(721n)).rejects.toThrow();
+  });
+});

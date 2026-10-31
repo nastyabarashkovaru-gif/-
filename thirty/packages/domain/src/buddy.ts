@@ -40,7 +40,8 @@ function score(x: BuddyCandidate, y: BuddyCandidate) {
  * затем совместимость (город, часовой пояс), иначе случайно среди доступных.
  * Каждый попадает максимум в одну пару; при нечётном числе один остаётся в очереди ожидания.
  */
-export function matchBuddies(pool: BuddyCandidate[], seed: string): { pairs: BuddyMatch[]; unmatched: string[] } {
+/** avoid — кого нельзя ставить в пару снова (бывшие бадди после замены) */
+export function matchBuddies(pool: BuddyCandidate[], seed: string, avoid: (a: string, b: string) => boolean = () => false): { pairs: BuddyMatch[]; unmatched: string[] } {
   const rnd = seededRandom(seed);
   const people = [...pool].sort((a, b) => a.userId.localeCompare(b.userId));
   const jitter = new Map(people.map((p) => [p.userId, rnd()]));
@@ -56,18 +57,21 @@ export function matchBuddies(pool: BuddyCandidate[], seed: string): { pairs: Bud
   const pairs: BuddyMatch[] = [];
   for (const e of edges) {
     if (e.total <= 0) break; // остальные — случайно ниже
-    if (used.has(e.a.userId) || used.has(e.b.userId)) continue;
+    if (used.has(e.a.userId) || used.has(e.b.userId) || avoid(e.a.userId, e.b.userId)) continue;
     used.add(e.a.userId);
     used.add(e.b.userId);
     pairs.push({ a: e.a.userId, b: e.b.userId, reason: e.common > 0 ? 'interests' : 'compatibility', score: e.total });
   }
   const rest = people.filter((p) => !used.has(p.userId)).sort((x, y) => jitter.get(x.userId)! - jitter.get(y.userId)!);
-  while (rest.length >= 2) {
+  const unmatched: string[] = [];
+  while (rest.length) {
     const a = rest.shift()!;
-    const b = rest.shift()!;
+    const k = rest.findIndex((b) => !avoid(a.userId, b.userId));
+    if (k < 0) { unmatched.push(a.userId); continue; }
+    const [b] = rest.splice(k, 1);
     pairs.push({ a: a.userId, b: b.userId, reason: 'random', score: 0 });
   }
-  return { pairs, unmatched: rest.map((r) => r.userId) };
+  return { pairs, unmatched };
 }
 
 /** Можно ли просить замену бадди: взаимное согласие или нет связи больше 5 дней */

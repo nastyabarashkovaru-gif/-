@@ -78,7 +78,7 @@ export function Buddy() {
           <div className="card"><h2>Пары</h2>
             <table><thead><tr><th>Создана</th><th>Участники</th><th>Источник</th><th>Причина подбора</th><th>Статус</th><th /></tr></thead>
               <tbody>{data.pairs.map((p: any) => <tr key={p.id}><td>{dt(p.createdAt)}</td><td>{p.userA} + {p.userB}</td><td>{p.source}</td><td>{p.matchReason ?? '—'}</td><td><Status v={p.status} /></td>
-                <td>{p.status === 'active' && <button className="btn light" onClick={async () => { if (await withReason('Распустить пару', (reason) => api(`/admin-api/buddy/${p.id}/dissolve`, { body: { reason } }))) s.reload(); }}>Распустить</button>}</td></tr>)}</tbody></table>
+                <td>{p.status === 'active' && <button className="btn light" onClick={async () => { if (await withReason('Заменить бадди (обоим подберём новых)', (reason) => api(`/admin-api/buddy/${p.id}/dissolve`, { body: { reason } }))) s.reload(); }}>Заменить</button>}</td></tr>)}</tbody></table>
           </div>
         </>
       )}</View>

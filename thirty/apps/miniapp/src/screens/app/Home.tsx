@@ -177,6 +177,9 @@ export function Home() {
             <>
               <div style={{ fontWeight: 600, color: 'var(--ink-2)' }}>{data.buddy.buddy.name}</div>
               <button className="link-accent" style={{ alignSelf: 'flex-start', padding: 0, fontWeight: 500 }} onClick={() => nav(`/u/${(data.buddy as { buddy: { id: string } }).buddy.id}`)}>Посмотреть профиль</button>
+              <div className="spacer" />
+              <div className="divider" />
+              <button className="link-accent" style={{ alignSelf: 'flex-start', padding: 0, fontWeight: 500, color: 'var(--muted)' }} onClick={() => nav('/buddy?replace=1')}>Заменить бадди</button>
             </>
           ) : (
             <div className="muted">{before ? `Откроется ${humanDate(flow.startsOn)}` : 'Подбираем бадди'}</div>

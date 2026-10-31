@@ -96,6 +96,17 @@ export function UserDetail({ canEdit, canStartOver = false }: { canEdit: boolean
             <div>Интересы: {u.user.interests.join(', ') || '—'} · видимость: {u.user.visibility}</div>
             <div>Бот: {u.user.allowsWrite ? 'может писать' : 'не может писать'}{u.user.botBlocked ? ' · заблокировал бота' : ''} · реклама: {u.user.marketingOptIn ? 'да' : 'нет'}</div>
             <div>Этап: {u.user.onboardingStage} · последний экран: {u.user.lastScreen ?? '—'}</div>
+            <div>Бадди: {u.buddy ? <Link to={`/users/${u.buddy.id}`}>{u.buddy.name}{u.buddy.username ? ` (@${u.buddy.username})` : ''}</Link> : 'нет'}</div>
+            {u.buddy && canEdit && (
+              <button className="btn light" style={{ marginTop: 8 }} onClick={async () => {
+                if (!confirm(`Заменить бадди?\n\nПара с «${u.buddy.name}» распадётся, обеим сразу подберём новых из свободных участниц потока (друг с другом снова не поставим). Бот сообщит о новом бадди.`)) return;
+                try {
+                  const r = await api(`/admin-api/users/${u.user.id}/replace-buddy`, { body: {} });
+                  alert(r.newBuddy ? `Новый бадди: ${r.newBuddy}` : 'Пара распущена. Свободных участниц сейчас нет — подберём, как только появятся.');
+                  s.reload();
+                } catch (e) { alert((e as Error).message); }
+              }}>Заменить бадди</button>
+            )}
             {canEdit && <button className="btn light" style={{ marginTop: 8 }} onClick={async () => { if (confirm('Сбросить таймер скидки? При следующем открытии тарифов он начнётся заново (3 часа).')) { await api(`/admin-api/users/${u.user.id}/reset-offer`, { body: {} }); alert('Таймер сброшен'); } }}>Сбросить таймер скидки</button>}
             {canStartOver && (
               <button className="btn light" style={{ marginTop: 8 }} onClick={async () => {

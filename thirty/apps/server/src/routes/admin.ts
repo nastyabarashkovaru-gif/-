@@ -20,7 +20,7 @@ import { cancelAutoRenew, markRefunded } from '../modules/billing';
 import { bindChat } from '../modules/chats';
 import { ensureFlow, flowInfo } from '../modules/flows';
 import { computeLeaderboard, loadFacts, memberStats } from '../modules/rating';
-import { dissolvePair } from '../modules/buddy';
+import { adminReplaceBuddy, autoMatch, dissolvePair } from '../modules/buddy';
 import { displayName } from '../modules/users';
 import { track } from '../modules/analytics';
 import { notify } from '../modules/notify';
@@ -282,6 +282,13 @@ export async function adminRoutes(app: FastifyInstance) {
       return jsonSafe(users.map((u) => ({ id: u.id, name: displayName(u), username: u.username, city: u.city, stage: u.onboardingStage, createdAt: u.createdAt, subscription: u.subscriptions[0] ? { status: u.subscriptions[0].status, tariffId: u.subscriptions[0].tariffId } : null })));
     });
 
+    r.post<{ Params: { id: string } }>('/admin-api/users/:id/replace-buddy', perm('buddy'), async (req) => {
+      const { reason } = parse(z.object({ reason: z.string().trim().max(500).default('') }), req.body ?? {});
+      const r = await adminReplaceBuddy(BigInt(req.params.id));
+      await audit(req, 'buddy.replace', 'user', req.params.id, { reason, after: { pairId: r.pairId, newBuddy: r.newBuddy } });
+      return r;
+    });
+
     /** Карточка пользователя: воронка, экраны, клики по тарифам, оплаты, подписка, потоки, отчёты, согласия, модерация */
     r.post<{ Params: { id: string } }>('/admin-api/users/:id/reset-offer', perm('payments'), async (req) => {
       const r = await prisma.priceOffer.deleteMany({ where: { userId: BigInt(req.params.id), consumedAt: null } });
@@ -364,6 +371,12 @@ export async function adminRoutes(app: FastifyInstance) {
         offers: await prisma.priceOffer.findMany({ where: { userId: id }, orderBy: { startedAt: 'desc' } }),
         promos: await prisma.promoRedemption.findMany({ where: { userId: id }, include: { promo: true }, orderBy: { appliedAt: 'desc' } }),
         stories: await prisma.storyRequest.findMany({ where: { userId: id }, orderBy: { createdAt: 'desc' } }),
+        buddy: await (async () => {
+          const a = await prisma.buddyAssignment.findFirst({ where: { userId: id, pair: { status: 'active' } }, include: { pair: true }, orderBy: { pair: { createdAt: 'desc' } } });
+          if (!a) return null;
+          const other = await prisma.user.findUniqueOrThrow({ where: { id: a.pair.userA === id ? a.pair.userB : a.pair.userA } });
+          return { id: other.id, name: displayName(other), username: other.username, since: a.pair.createdAt };
+        })(),
       });
     });
 
@@ -574,8 +587,11 @@ export async function adminRoutes(app: FastifyInstance) {
     });
     r.post<{ Params: { id: string } }>('/admin-api/buddy/:id/dissolve', perm('buddy'), async (req) => {
       const { reason } = parse(z.object({ reason: z.string().min(3).max(500) }), req.body);
+      const pair = await prisma.buddyPair.findUniqueOrThrow({ where: { id: req.params.id } });
       await dissolvePair(req.params.id, 'approved', req.admin!.id);
       await audit(req, 'buddy.dissolve', 'buddy_pair', req.params.id, { reason });
+      // сразу подбираем обоим новых (бывших друг с другом не ставим)
+      await autoMatch(pair.flowId);
       return { ok: true };
     });
 

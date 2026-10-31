@@ -114,7 +114,10 @@ export async function autoMatch(flowId: string) {
   const pool = members
     .filter((m) => !assigned.has(m.userId.toString()))
     .map((m) => ({ userId: m.userId.toString(), interests: m.user.interests, city: m.user.city, timezone: m.user.timezone }));
-  const { pairs, unmatched } = matchBuddies(pool, `${flowId}:${pool.length}`);
+  // после замены бывших бадди друг с другом снова не ставим
+  const past = await prisma.buddyPair.findMany({ where: { flowId, status: 'dissolved' }, select: { userA: true, userB: true } });
+  const avoid = new Set(past.flatMap((p) => [`${p.userA}:${p.userB}`, `${p.userB}:${p.userA}`]));
+  const { pairs, unmatched } = matchBuddies(pool, `${flowId}:${pool.length}`, (a, b) => avoid.has(`${a}:${b}`));
   let created = 0;
   for (const p of pairs) {
     try {
@@ -189,4 +192,22 @@ export async function dissolvePair(pairId: string, replacementStatus = 'approved
     prisma.buddyPair.update({ where: { id: pairId }, data: { status: 'dissolved', dissolvedAt: clock.now() } }),
     prisma.buddyReplacement.updateMany({ where: { pairId, status: 'open' }, data: { status: replacementStatus, decidedBy } }),
   ]);
+}
+
+/**
+ * Замена бадди организатором (админка): пара распускается, оба сразу получают новых из свободных участников потока.
+ * Тот, кого не удалось подобрать, ждёт — подберём, как только появится свободный участник.
+ */
+export async function adminReplaceBuddy(userId: bigint) {
+  const a = await prisma.buddyAssignment.findFirst({ where: { userId, pair: { status: 'active' } }, include: { pair: true }, orderBy: { pair: { createdAt: 'desc' } } });
+  if (!a) throw notFound('no_buddy', 'У участницы сейчас нет бадди');
+  const flowId = a.pair.flowId;
+  const otherId = a.pair.userA === userId ? a.pair.userB : a.pair.userA;
+  await dissolvePair(a.pair.id, 'approved');
+  await autoMatch(flowId);
+  const name = async (u: bigint) => {
+    const b = await buddyOf(u, flowId);
+    return b ? displayName(await prisma.user.findUniqueOrThrow({ where: { id: b.otherId } })) : null;
+  };
+  return { pairId: a.pair.id, newBuddy: await name(userId), formerBuddyNew: await name(otherId) };
 }
