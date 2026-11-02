@@ -396,3 +396,30 @@ describe('действия «X раз в неделю»', () => {
     expect((await api('POST', `/api/goals/${g.body.id}/tasks`, 880, { title: 'Тренировка 8', frequency: 'n_per_week', n: 8 })).status).toBe(400);
   });
 });
+
+describe('«X раз в неделю» во время потока', () => {
+  it('после отправки анкеты: прошлые недели не меняются, с текущей — новая норма, сделанное сохраняется', async () => {
+    clock.set('2026-10-25T09:00:00Z');
+    await paidUser(890);
+    const g = await api('POST', '/api/goals', 890, { category: 'habits', title: 'Спорт', pointA: 'старт', pointB: 'финиш', confirmMethod: 'daily_reports', successCriterion: 'Регулярно' });
+    const t = await api('POST', `/api/goals/${g.body.id}/tasks`, 890, { title: 'Тренировка', frequency: 'n_per_week', n: 3 });
+    expect((await api('POST', '/api/membership/fix', 890)).status).toBe(200);
+    // обычное редактирование закрыто
+    expect((await api('PATCH', `/api/tasks/${t.body.id}`, 890, { n: 4 })).status).toBe(403);
+    clock.set('2026-11-11T09:00:00Z'); // среда третьей недели (9–15 ноября)
+    const count = (from: string) => prisma.taskOccurrence.count({ where: { taskId: t.body.id, windowStart: new Date(`${from}T00:00:00Z`) } });
+    expect(await count('2026-11-02')).toBe(3);
+    const r = await api('POST', `/api/tasks/${t.body.id}/per-week`, 890, { n: 5 });
+    expect(r.status).toBe(200);
+    expect(await count('2026-11-02')).toBe(3); // прошлая неделя — как была
+    expect(await count('2026-11-09')).toBe(5);
+    expect(await count('2026-11-16')).toBe(5);
+    // уменьшение: отмеченное не удаляется
+    const one = await prisma.taskOccurrence.findFirstOrThrow({ where: { taskId: t.body.id, windowStart: new Date('2026-11-09T00:00:00Z') } });
+    await prisma.taskOccurrence.update({ where: { id: one.id }, data: { status: 'done' } });
+    expect((await api('POST', `/api/tasks/${t.body.id}/per-week`, 890, { n: 1 })).status).toBe(200);
+    expect(await count('2026-11-09')).toBe(1);
+    expect(await prisma.taskOccurrence.findUnique({ where: { id: one.id } })).not.toBeNull();
+    expect((await api('POST', `/api/tasks/${t.body.id}/per-week`, 890, { n: 8 })).status).toBe(400);
+  });
+});

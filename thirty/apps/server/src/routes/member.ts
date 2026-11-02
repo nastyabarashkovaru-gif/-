@@ -52,6 +52,11 @@ export async function memberRoutes(app: FastifyInstance) {
   });
   app.post<{ Params: { id: string } }>('/api/goals/:id/tasks', async (req) => createTask(req.user!.id, req.params.id, parse(taskInput, req.body)));
   app.patch<{ Params: { id: string } }>('/api/tasks/:id', async (req) => updateTask(req.user!.id, req.params.id, parse(taskInput.partial(), req.body)));
+  // «X раз в неделю» — можно менять и после отправки анкеты, с текущей недели
+  app.post<{ Params: { id: string } }>('/api/tasks/:id/per-week', async (req) => {
+    const { changeWeeklyCount } = await import('../modules/goals');
+    return changeWeeklyCount(req.user!.id, req.params.id, parse(z.object({ n: z.number().int().min(1).max(7) }), req.body).n);
+  });
   app.delete<{ Params: { id: string } }>('/api/tasks/:id', async (req) => {
     await deleteTask(req.user!.id, req.params.id);
     return { ok: true };
@@ -123,7 +128,7 @@ export async function memberRoutes(app: FastifyInstance) {
         ...serializeGoal(g),
         // Для нечисловых целей прогресс — процент выполненных запланированных действий
         planPercent: info.phase === 'upcoming' ? null : Math.round((await goalStats(g.id, m.id, m.flow)).ratio * 100),
-        tasks: g.tasks.map((t) => ({ id: t.id, title: t.title, schedule: scheduleLabel(t), evidence: t.evidence })),
+        tasks: g.tasks.map((t) => ({ id: t.id, title: t.title, schedule: scheduleLabel(t), evidence: t.evidence, frequency: t.frequency, n: t.n })),
       }))),
       todayReported: Boolean(today && today.status === 'accepted'),
       buddy: await buddyCard(user.id, m.flowId),

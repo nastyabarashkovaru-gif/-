@@ -242,3 +242,41 @@ export function scheduleLabel(t: Pick<Task, 'frequency' | 'n'> & { dueDate?: Dat
 }
 
 export type { ISODate };
+
+/**
+ * «X раз в неделю» можно поменять и во время потока (решение владельца 02.11): прошлые недели не трогаем,
+ * в текущей и следующих неделях норма пересчитывается, уже сделанные отметки сохраняются.
+ */
+export async function changeWeeklyCount(userId: bigint, taskId: string, n: number) {
+  if (!Number.isInteger(n) || n < 1 || n > 7) throw badRequest('bad_schedule', 'От 1 до 7 раз в неделю');
+  const task = await prisma.task.findUnique({ where: { id: taskId }, include: { goal: { include: { membership: { include: { flow: true } } } } } });
+  if (!task || task.goal.membership.userId !== userId) throw notFound('task_not_found');
+  const m = task.goal.membership;
+  if (m.status === 'revoked' || m.status === 'finished') throw forbidden('goals_locked', 'Поток уже завершён');
+  if (task.frequency !== 'n_per_week') throw badRequest('not_weekly', 'Менять можно только действия «X раз в неделю»');
+  if (await canEditGoals(m)) return updateTask(userId, taskId, { n });
+  const today = flowToday(m.flow, clock.now());
+  const plan = generateOccurrences({ frequency: 'n_per_week', n }, fromDbDate(m.flow.startsOn)).filter((o) => o.windowEnd >= today);
+  const byWeek = new Map<string, { windowStart: ISODate; windowEnd: ISODate; need: number }>();
+  for (const o of plan) {
+    const w = byWeek.get(o.windowStart) ?? { windowStart: o.windowStart, windowEnd: o.windowEnd, need: 0 };
+    w.need++;
+    byWeek.set(o.windowStart, w);
+  }
+  await prisma.$transaction(async (tx) => {
+    for (const w of byWeek.values()) {
+      const have = await tx.taskOccurrence.findMany({ where: { taskId, windowStart: toDbDate(w.windowStart) }, include: { _count: { select: { reportItems: true } } }, orderBy: { slot: 'asc' } });
+      if (have.length < w.need) {
+        const maxSlot = have.reduce((a, o) => Math.max(a, o.slot), -1);
+        await tx.taskOccurrence.createMany({ data: Array.from({ length: w.need - have.length }, (_, i) => ({ taskId, membershipId: m.id, windowStart: toDbDate(w.windowStart), windowEnd: toDbDate(w.windowEnd), slot: maxSlot + 1 + i })) });
+      } else if (have.length > w.need) {
+        // убираем только пустые (не отмеченные) — сделанное остаётся засчитанным
+        const removable = have.filter((o) => o.status !== 'done' && o._count.reportItems === 0).reverse();
+        const drop = removable.slice(0, have.length - w.need).map((o) => o.id);
+        if (drop.length) await tx.taskOccurrence.deleteMany({ where: { id: { in: drop } } });
+      }
+    }
+    await tx.task.update({ where: { id: taskId }, data: { n } });
+  });
+  return { ok: true, n };
+}

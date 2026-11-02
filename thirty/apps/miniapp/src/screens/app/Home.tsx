@@ -3,7 +3,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { HeartHandshake, MessagesSquare, BookOpen, ChevronRight, ChevronDown, ChevronUp, ArrowRight, CircleCheck, TrendingUp, ClipboardCheck, PenLine, Instagram, Copy, Download, Share2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { formatMetric } from '../../lib/metric';
-import { AppBar, ErrorState, Loading, Screen, Sheet, humanDate, plural, toast, useLoad } from '../../ui';
+import { AppBar, ErrorState, Loading, Screen, Sheet, errorText, humanDate, plural, toast, useLoad } from '../../ui';
 import { canShareStory, downloadImage, shareLink, shareStory } from '../../lib/telegram';
 import { catTitle } from '../reg/Registration';
 import { ReportForm } from './Report';
@@ -20,7 +20,7 @@ interface HomeGoal {
   current: number | null;
   progress: number | null;
   planPercent: number | null;
-  tasks: { id: string; title: string; schedule: string }[];
+  tasks: { id: string; title: string; schedule: string; frequency?: string; n?: number }[];
 }
 
 interface HomeData {
@@ -209,6 +209,49 @@ export function Home() {
   );
 }
 
+/** Действие плана; у «X раз в неделю» число можно поменять прямо здесь (с текущей недели) */
+function TaskRow({ t }: { t: HomeGoal['tasks'][number] }) {
+  const [edit, setEdit] = useState(false);
+  const [n, setN] = useState(t.n ?? 3);
+  const [saved, setSaved] = useState(t.n ?? 3);
+  const [busy, setBusy] = useState(false);
+  const weekly = t.frequency === 'n_per_week';
+  const label = weekly ? `${saved} ${plural(saved, 'раз', 'раза', 'раз')} в неделю` : t.schedule.replace(/^Однократно, до/, 'До');
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api(`/api/tasks/${t.id}/per-week`, { body: { n } });
+      setSaved(n);
+      setEdit(false);
+      toast('Готово! Новая норма — с этой недели 💜');
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
+      <CircleCheck size={16} color="var(--accent)" style={{ marginTop: 3 }} />
+      <div className="grow">
+        <div>{t.title}</div>
+        <div className="muted small">{label}{weekly && !edit && <button className="link-accent" style={{ padding: 0, marginLeft: 8, fontSize: 13, fontWeight: 600 }} onClick={() => setEdit(true)}>Изменить</button>}</div>
+        {edit && (
+          <div className="col" style={{ gap: 8, marginTop: 8 }}>
+            <div className="n-chips" role="radiogroup">
+              {[1, 2, 3, 4, 5, 6, 7].map((k) => <button key={k} type="button" role="radio" aria-checked={n === k} className={n === k ? 'on' : ''} onClick={() => setN(k)}>{k}</button>)}
+            </div>
+            <div className="row" style={{ gap: 8 }}>
+              <button className="btn btn-primary" style={{ minHeight: 42 }} disabled={busy || n === saved} onClick={save}>{busy ? 'Сохраняю…' : `Сохранить: ${n} ${plural(n, 'раз', 'раза', 'раз')} в неделю`}</button>
+              <button className="btn btn-ghost" style={{ minHeight: 42, width: 'auto' }} onClick={() => { setN(saved); setEdit(false); }}>Отмена</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function GoalItem({ goal, n }: { goal: HomeGoal; n: number }) {
   const [open, setOpen] = useState(false);
   return (
@@ -231,12 +274,7 @@ function GoalItem({ goal, n }: { goal: HomeGoal; n: number }) {
           </div>
           <GoalProgress goal={goal} />
           <div className="h3">План действий</div>
-          {goal.tasks.map((t) => (
-            <div className="row" key={t.id} style={{ alignItems: 'flex-start', gap: 10 }}>
-              <CircleCheck size={16} color="var(--accent)" style={{ marginTop: 3 }} />
-              <div><div>{t.title}</div><div className="muted small">{t.schedule.replace(/^Однократно, до/, 'До')}</div></div>
-            </div>
-          ))}
+          {goal.tasks.map((t) => <TaskRow key={t.id} t={t} />)}
         </>
       )}
     </div>
