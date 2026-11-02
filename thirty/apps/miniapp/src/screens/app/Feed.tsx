@@ -19,6 +19,8 @@ export function Feed() {
   const pick = (t: Tab) => { setTab(t); sessionStorage.setItem('thirty.feedTab', t); };
   return (
     <Screen id={tab === 'chat' ? 'S23' : tab === 'board' ? 'S26' : 'S24'} nav>
+      {/* Шапка, заголовок и вкладки остаются наверху при прокрутке ленты (просьба владельца 02.11) */}
+      <div className="feed-head">
       <AppBar />
       <div className="row" style={{ alignItems: 'flex-start' }}>
         {/* Пришли из уведомления — стрелка назад к уведомлениям */}
@@ -32,6 +34,7 @@ export function Feed() {
         {([['chat', 'Отчёты'], ['board', 'Лидерборд'], ['people', 'Все участники']] as const).map(([k, l]) => (
           <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => pick(k)}>{l}</button>
         ))}
+      </div>
       </div>
       {tab === 'chat' ? <Chat focus={focus} /> : tab === 'board' ? <Board /> : <People />}
     </Screen>

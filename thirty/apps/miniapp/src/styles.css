@@ -459,7 +459,8 @@ img { max-width: 100%; display: block; }
 .story-loading { color: #b7b2c8; font-size: 14px; }
 /* Вкладки ленты остаются наверху при прокрутке чата */
 /* Вкладки ленты: заметная плашка, активная вкладка — фиолетовая (просьба владельца 02.11) */
-.feed-tabs { position: sticky; top: var(--safe-top, 0px); z-index: 25; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 4px; gap: 4px; box-shadow: 0 -16px 0 var(--bg), 0 8px 18px -10px rgba(33, 28, 53, 0.28); }
+.feed-head { position: sticky; top: 0; z-index: 25; display: flex; flex-direction: column; gap: 12px; margin: calc(-14px - var(--safe-top)) -16px 0; padding: calc(14px + var(--safe-top)) 16px 10px; background: var(--bg); box-shadow: 0 8px 14px -12px rgba(33, 28, 53, 0.25); }
+.feed-tabs { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 4px; gap: 4px; box-shadow: 0 6px 16px -10px rgba(33, 28, 53, 0.28); }
 .feed-tabs button { color: var(--ink-2); font-weight: 600; min-height: 40px; transition: background 0.15s, color 0.15s; }
 .feed-tabs button.on { background: var(--accent); color: #fff; box-shadow: 0 4px 12px -4px rgba(108, 81, 223, 0.55); }
 .hero-btn { background: #fff; color: var(--accent-ink); font-weight: 700; min-height: 50px; margin-top: 6px; }
