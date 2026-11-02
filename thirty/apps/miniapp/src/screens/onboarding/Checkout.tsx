@@ -147,11 +147,11 @@ export function PaymentWait() {
         </div>
         {st.needsRefund && <div className="banner warn">У тебя уже была действующая подписка — повторный платёж вернём, двойного списания не будет.</div>}
         <div className="card center" style={{ alignItems: 'center', gap: 6 }}>
-          <span className="row muted" style={{ gap: 8, fontSize: 14 }}><CalendarHeart size={16} color="var(--accent)" />Свой челлендж ты начнёшь тогда, когда удобно</span>
-          <span className="muted" style={{ fontSize: 13 }}>Сегодня или в любой выбранный день — а пока давай познакомимся и подготовим твою цель!</span>
+          <span className="row muted" style={{ gap: 8, fontSize: 14 }}><CalendarHeart size={16} color="var(--accent)" />Свой челлендж ты начнёшь в удобный день</span>
+          <span className="muted" style={{ fontSize: 13 }}>Заполни анкету в приложении — поставь цели, выбери дату старта и найди бадди 💜</span>
         </div>
         <div className="spacer" />
-        <Cta onClick={() => nav('/reg/start')}>Приступить к заполнению анкеты</Cta>
+        <Cta onClick={() => nav('/', { replace: true })}>Перейти в приложение</Cta>
       </Screen>
     );
   }

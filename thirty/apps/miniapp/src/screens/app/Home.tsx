@@ -76,7 +76,7 @@ export function Home() {
 
   if (loading && !data) return <Screen id="S19" nav><Loading /></Screen>;
   if (error || !data) return <Screen id="S19" nav><ErrorState error={error} retry={reload} /></Screen>;
-  if (data.state === 'registration') return <Navigate to="/reg/about" replace />;
+  if (data.state === 'registration') return <RegistrationHome />;
   if (data.state === 'no_membership') return <Navigate to="/tariffs" replace />;
   const { flow, stats } = data;
   const before = data.state === 'waiting';
@@ -358,5 +358,34 @@ export function StorySheet({ open, onClose }: { open: boolean; onClose: () => vo
         else shareLink(link ?? 'https://t.me/Dney30_bot', text);
       }}><Share2 size={17} />Поделиться</button>
     </Sheet>
+  );
+}
+
+/** Анкета ещё не заполнена: после оплаты человек сразу в приложении, участие начинается после анкеты (решение владельца 03.11) */
+function RegistrationHome() {
+  const nav = useNavigate();
+  return (
+    <Screen id="S19" nav>
+      <AppBar />
+      <div>
+        <h1 className="h2" style={{ fontSize: 24 }}>Добро пожаловать в клуб! 💜</h1>
+        <p className="sub" style={{ fontSize: 15 }}>Остался один шаг до старта твоего челленджа.</p>
+      </div>
+      <div className="hero-card">
+        <div className="hero-title">Заполни свою анкету, чтобы начать участие в челлендже ✨</div>
+        <div style={{ opacity: 0.92 }}>Поставь цели, распиши ежедневные действия, выбери дату старта и найди бадди — это займёт 5–7 минут.</div>
+        <button className="btn hero-btn" onClick={() => nav('/reg/about')}>Заполнить анкету<ArrowRight size={17} /></button>
+      </div>
+      <button className="card card-link" style={{ flexDirection: 'row', alignItems: 'center', textAlign: 'left' }} onClick={() => nav('/club')}>
+        <MessagesSquare size={20} color="var(--accent)" />
+        <span className="grow"><span className="h3" style={{ display: 'block' }}>Моё сообщество</span><span className="muted small">Чаты и созвоны клуба</span></span>
+        <ChevronRight size={18} color="var(--accent)" />
+      </button>
+      <button className="card card-link" style={{ flexDirection: 'row', alignItems: 'center', textAlign: 'left' }} onClick={() => nav('/materials')}>
+        <BookOpen size={20} color="var(--accent)" />
+        <span className="grow"><span className="h3" style={{ display: 'block' }}>Полезные материалы</span><span className="muted small">Гайды, обучение, подкасты</span></span>
+        <ChevronRight size={18} color="var(--accent)" />
+      </button>
+    </Screen>
   );
 }

@@ -120,13 +120,12 @@ function StartForm({ m }: { m: MembershipView }) {
   const { refresh } = useMe();
   const today = m.flow.today || isoToday();
   const chosen = (m.flow as { chosen?: boolean }).chosen ? m.flow.startsOn : null;
-  const [mode, setMode] = useState<'today' | 'date' | null>(chosen ? (chosen === today ? 'today' : 'date') : null);
-  const [date, setDate] = useState(chosen && chosen !== today ? chosen : plusDays(today, 1));
+  const [date, setDate] = useState(chosen && chosen >= today ? chosen : today);
   const [busy, setBusy] = useState(false);
   const save = async () => {
     setBusy(true);
     try {
-      await api('/api/membership/start', { body: { date: mode === 'today' ? today : date } });
+      await api('/api/membership/start', { body: { date } });
       await refresh();
       haptic('success');
       nav('/reg/buddy-mode');
@@ -143,20 +142,12 @@ function StartForm({ m }: { m: MembershipView }) {
         <h1 className="hero" style={{ textAlign: 'left' }}>Когда начнём твой челлендж? 🚀</h1>
         <p className="lead" style={{ textAlign: 'left' }}>Выбери день, с которого начнёшь двигаться к своей цели.</p>
       </div>
-      <button className={`card card-link start-choice ${mode === 'today' ? 'on' : ''}`} onClick={() => setMode('today')}>
-        <span className="start-ic">🔥</span><span className="grow"><b>Начать сегодня</b><span>{humanDate(today)} — первый день из 30</span></span>
-      </button>
-      <button className={`card card-link start-choice ${mode === 'date' ? 'on' : ''}`} onClick={() => setMode('date')}>
-        <span className="start-ic">📅</span><span className="grow"><b>Выбрать дату</b><span>Начнёшь с удобного тебе дня</span></span>
-      </button>
-      {mode === 'date' && (
-        <label className="field"><span className="muted" style={{ fontWeight: 400, fontSize: 14 }}>Дата старта</span>
-          <input className="input" type="date" value={date} min={today} max={plusDays(today, 90)} onChange={(e) => setDate(e.target.value)} />
-        </label>
-      )}
-      {mode && <div className="panel small" style={{ padding: 12 }}>Твои 30 дней: {humanDate(mode === 'today' ? today : date)} — {humanDate(plusDays(mode === 'today' ? today : date, 29))}</div>}
+      <label className="field start-date"><span className="row" style={{ gap: 8, fontWeight: 600 }}>📅 Выбери дату старта</span>
+        <input className="input" type="date" value={date} min={today} max={plusDays(today, 90)} onChange={(e) => setDate(e.target.value)} />
+      </label>
+      {date && <div className="panel small" style={{ padding: 12 }}>Твои 30 дней: {humanDate(date)} — {humanDate(plusDays(date, 29))}{date === today ? ' · начинаешь сегодня 🔥' : ''}</div>}
       <div className="spacer" />
-      <Cta disabled={!mode || busy || (mode === 'date' && (!date || date < today))} onClick={save}>Продолжить</Cta>
+      <Cta disabled={busy || !date || date < today} onClick={save}>Продолжить</Cta>
     </Screen>
   );
 }
@@ -169,14 +160,14 @@ export function BuddyModeStep() {
   const { data } = useLoad(() => api<{ state: string }>('/api/buddy'));
   useEffect(() => {
     // пара уже есть (например, следующий челлендж с прежним бадди) — шаг пропускаем
-    if (data?.state === 'paired') nav('/reg/about', { replace: true });
+    if (data?.state === 'paired') nav('/reg/confirm', { replace: true });
   }, [data?.state]);
   const choose = async (mode: 'auto' | 'self') => {
     setBusy(true);
     try {
       await api('/api/buddy/mode', { body: { mode } });
       haptic('success');
-      nav('/reg/about');
+      nav('/reg/confirm');
     } catch (e) {
       toast(errorText(e));
     } finally {
@@ -502,7 +493,8 @@ function PlanForm({ m, i }: { m: MembershipView; i: number }) {
         } else await api(`/api/goals/${goal.id}/tasks`, { body });
       }
       haptic('success');
-      nav(i + 1 < m.goals.length ? `/reg/plan/${i + 1}` : '/reg/confirm');
+      // после плана действий — дата старта, затем бадди и «обещание себе» (решение владельца 03.11)
+      nav(i + 1 < m.goals.length ? `/reg/plan/${i + 1}` : '/reg/start');
     } catch (e) {
       toast(errorText(e));
     } finally {

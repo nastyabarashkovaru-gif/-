@@ -293,7 +293,7 @@ async function buildDemoState(ownerId: bigint, ownerName: string, s: DemoState) 
     const mine = await enroll(ownerId, ownerName, 'Москва', s.tariff, flow.id, flowStart);
     await prisma.flowMembership.update({ where: { id: mine.id }, data: { expectation: null } });
     await prisma.user.update({ where: { id: ownerId }, data: { age: null, occupation: null, city: null } });
-    return { userId: ownerId.toString(), go: '/reg/start' };
+    return { userId: ownerId.toString(), go: '/' };
   }
 
   const mine = await enroll(ownerId, ownerName, 'Москва', s.tariff, flow.id, flowStart);

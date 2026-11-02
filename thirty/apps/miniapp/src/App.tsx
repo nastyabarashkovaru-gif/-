@@ -26,7 +26,7 @@ import { ComebackScreen, FeedbackScreen, FinaleScreen, ResultCardScreen, Tracker
 
 /** Экран по параметру кнопки бота: m_<log>_<screen> */
 const SCREEN_ROUTES: Record<string, string> = {
-  welcome: '/tariffs', resume: '/', tariffs: '/tariffs', restore: '/restore', checkout: '/tariffs', reg_profile: '/reg/start', reg_goals: '/reg/goals', reg_buddy: '/reg/buddy',
+  welcome: '/tariffs', resume: '/', tariffs: '/tariffs', restore: '/restore', checkout: '/tariffs', reg_profile: '/reg/about', reg_goals: '/reg/goals', reg_buddy: '/reg/buddy',
   home: '/', report: '/report', card: '/cards', review: '/review', buddy: '/buddy', meeting: '/club', final: '/finale', finale: '/finale', feedback: '/feedback', trackers: '/trackers', comeback: '/comeback', profile: '/profile', support: '/profile',
 };
 
@@ -47,7 +47,8 @@ function initialRoute(me: Me): string {
   const fromBot = m ? SCREEN_ROUTES[m[1]] : null;
   if (me.membership) {
     // Личный старт (ТЗ 02.11): анкета начинается с «Когда начнём твой челлендж?»
-    if (me.membership.status === 'reserved') return fromBot && fromBot.startsWith('/reg') && fromBot !== '/reg/about' ? fromBot : '/reg/start';
+    // После оплаты — сразу в приложение: на главной «Заполни свою анкету» (решение владельца 03.11)
+    if (me.membership.status === 'reserved') return fromBot && fromBot.startsWith('/reg') ? fromBot : '/';
     if (fromBot && fromBot !== '/') return fromBot;
     return '/';
   }
