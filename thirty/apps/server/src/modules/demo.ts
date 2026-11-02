@@ -115,7 +115,8 @@ const ABOUT: Record<string, [number, string, string]> = {
 
 /** Чаты-заглушки: в демо замки снимаются так же, как в настоящем приложении, но в Telegram не ведут */
 async function demoChats(flowId: string) {
-  await prisma.telegramChat.create({ data: { kind: 'flow', flowId, telegramChatId: -1009000000000n, title: 'Общий чат потока' } });
+  await prisma.telegramChat.create({ data: { kind: 'flow', flowId, telegramChatId: -1009000000000n, title: 'Общий чат клуба' } });
+  await prisma.telegramChat.create({ data: { kind: 'channel', telegramChatId: -1008999999999n, title: 'Информационный канал' } });
   for (const [i, t] of TOPIC_CHATS.entries()) {
     await prisma.telegramChat.create({ data: { kind: 'topic', topic: t.id, telegramChatId: -1009000000001n - BigInt(i), title: `Чат «${t.title}»` } });
   }
@@ -212,6 +213,34 @@ async function reportFor(userId: bigint, membershipId: string, seedIdx: number, 
   await submitReport(userId, membershipId, { items, mediaIds: [await photo(userId, seedIdx)], text, progress, publicAck: true }).catch(() => undefined);
 }
 
+/**
+ * История клуба до старта владелицы: остальные участницы начали раньше (личные даты старта),
+ * поэтому в общем чате отчётов уже есть их отчёты за последние дни.
+ */
+async function clubHistory(flowStart: string, before: string) {
+  const prevStart = addMonths(flowStart, -1);
+  clock.set(at(addDays(prevStart, -3), 12));
+  const flow = await ensureFlow(prevStart);
+  const ms: { id: string; userId: bigint }[] = [];
+  for (const p of PEOPLE) {
+    const m = await prisma.flowMembership.create({ data: { userId: p.id, flowId: flow.id, tariffId: 'm3', startsOn: new Date(`${prevStart}T00:00:00Z`) } });
+    await fillGoals(p.id, m.id, p.goals);
+    ms.push({ id: m.id, userId: p.id });
+  }
+  const days: number[] = [];
+  for (let day = 1; addDays(prevStart, day - 1) < before; day++) days.push(day);
+  for (const day of days.slice(-6)) {
+    const date = addDays(prevStart, day - 1);
+    clock.set(at(date, 0, 5));
+    await refreshFlowStatuses();
+    for (const [k, p] of PEOPLE.entries()) {
+      if (((day * 7 + k * 13) % 100) / 100 > p.rate) continue;
+      clock.set(at(date, 9 + k, (day * 7) % 50));
+      await reportFor(p.id, ms[k].id, k + day, TEXTS[(k + day) % TEXTS.length]);
+    }
+  }
+}
+
 /** Прошлый месяц владельца (меньше успешных дней) — для «на N дней больше, чем в предыдущем месяце» */
 async function previousMonth(ownerId: bigint, flowStart: string) {
   const prevStart = addMonths(flowStart, -1);
@@ -284,6 +313,10 @@ async function buildDemoState(ownerId: bigint, ownerName: string, s: DemoState) 
   const flow = await ensureFlow(flowStart);
   await prisma.flow.update({ where: { id: flow.id }, data: { status: 'upcoming' } });
   await participants(flow.id, flowStart);
+  if (s.status === 'paid' || s.status === 'waiting') {
+    await clubHistory(flowStart, addDays(flowStart, -7));
+    clock.set(at(addDays(flowStart, -7), 12));
+  }
 
   if (s.status === 'prepay') {
     const newId = BigInt(800000 + Math.floor(Math.random() * 99999));

@@ -88,7 +88,7 @@ function Gate({ q, id, children }: { q: ReturnType<typeof useMembership>; id: st
     if (q.data.status === 'reserved') {
       return (
         <Screen id={id}>
-          <Empty title="Анкета на этот поток уже закрыта" text="Поток начался, а цели не были заполнены. Напиши в поддержку — поможем присоединиться." action={<SupportButton />} />
+          <Empty title="Анкета уже закрыта" text="Челлендж начался, а цели не были заполнены. Напиши в поддержку — поможем присоединиться." action={<SupportButton />} />
         </Screen>
       );
     }

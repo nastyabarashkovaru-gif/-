@@ -84,7 +84,7 @@ const S4 = () => (
     <div className="mini" style={{ margin: '0 22px' }}>
       <div className="row" style={{ gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--line)' }}>
         <span className="ic"><Users size={18} /></span>
-        <div className="grow"><div className="h3">Наш поток 💜</div><div className="muted" style={{ fontSize: 11 }}>Общий чат участников</div></div>
+        <div className="grow"><div className="h3">Наш клуб 💜</div><div className="muted" style={{ fontSize: 11 }}>Общий чат участников</div></div>
         <span className="pill green" style={{ fontSize: 11, padding: '3px 8px' }}>Вместе</span>
       </div>
       {CHAT.map(([name, text, time, c, likes]) => (
@@ -101,7 +101,7 @@ const S4 = () => (
         </div>
       ))}
     </div>
-    <Title lead="В общем чате твоего потока можно быть собой, делиться победами, задавать вопросы и каждый день видеть отчёты других участников.">
+    <Title lead="В общем чате клуба можно быть собой, делиться победами, задавать вопросы и каждый день видеть отчёты других участников.">
       Здесь все свои. <em>И все идут вперёд!</em>
     </Title>
   </Onb>

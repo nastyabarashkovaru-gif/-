@@ -76,7 +76,7 @@ export function App() {
     const sp = startParam();
     const claim = sp?.startsWith('legacy_')
       ? api<{ ok: boolean; flow?: string; already?: boolean }>('/api/legacy/claim', { body: { code: sp.slice(7) } })
-          .then((r) => { if (r.flow) toast(`Готово! Ты в потоке «${r.flow}» — заполни анкету 💜`); })
+          .then((r) => { if (r.flow) toast('Готово! Доступ активирован — заполни анкету 💜'); })
           .catch((e) => toast(errorText(e)))
       : Promise.resolve();
     claim.then(refresh)

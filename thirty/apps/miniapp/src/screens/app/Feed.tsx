@@ -168,10 +168,10 @@ function Chat({ focus }: { focus: string | null }) {
       <div className="card" style={{ gap: 14 }} ref={box}>
         <div className="row" style={{ gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--line)' }}>
           <span className="ic sq" style={{ width: 44, height: 44, borderRadius: 12 }}><MessagesSquare size={20} /></span>
-          <div><div className="h3" style={{ fontSize: 17 }}>Общий чат отчётов</div><div className="muted small">Поток {humanDate(flow.startsOn, true)}</div></div>
+          <div><div className="h3" style={{ fontSize: 17 }}>Общий чат отчётов</div><div className="muted small">Все участники клуба</div></div>
         </div>
         {hasMore && <button className="link-btn" onClick={older}>Показать предыдущие</button>}
-        {msgs.length === 0 && <div className="muted center small" style={{ padding: '12px 0' }}>Здесь появятся отчёты и сообщения участников твоего потока.</div>}
+        {msgs.length === 0 && <div className="muted center small" style={{ padding: '12px 0' }}>Здесь появятся отчёты и сообщения участников клуба.</div>}
         {msgs.map((m) => {
           // Как в Telegram: аватарка и ник; по нажатию — личный Telegram (или профиль в приложении, если ника нет)
           const openUser = () => (m.user.username ? openTelegram(`https://t.me/${m.user.username}`) : nav(`/u/${m.user.id}`));
@@ -281,14 +281,12 @@ interface Person { id: string; name: string; photoUrl: string | null; city: stri
 function People() {
   const nav = useNavigate();
   const { me } = useMe();
-  const [flowStart, setFlowStart] = useState(me?.membership?.flow.startsOn ?? '');
   const [city, setCity] = useState('');
   const [category, setCategory] = useState('');
   const [buddy, setBuddy] = useState<'' | 'free' | 'paired'>('');
   const [q, setQ] = useState('');
-  const flows = useLoad(() => api<{ flows: { id: string; title: string; startsOn: string }[] }>('/api/flows'));
   const cities = useLoad(() => api<{ cities: string[] }>('/api/participants-cities'));
-  const qs = new URLSearchParams({ ...(flowStart ? { flowStart } : {}), ...(city ? { city } : {}), ...(category ? { category } : {}), ...(buddy ? { buddy } : {}), ...(q.trim() ? { q: q.trim() } : {}) }).toString();
+  const qs = new URLSearchParams({ ...(city ? { city } : {}), ...(category ? { category } : {}), ...(buddy ? { buddy } : {}), ...(q.trim() ? { q: q.trim() } : {}) }).toString();
   const list = useLoad(() => api<{ items: Person[] }>(`/api/participants?${qs}`), [qs]);
   return (
     <>
@@ -298,12 +296,6 @@ function People() {
         <div className="seg" role="tablist">
           {([['', 'Все участники'], ['free', 'Без пары'], ['paired', 'С бадди']] as const).map(([k, l]) => <button key={k} className={buddy === k ? 'on' : ''} onClick={() => setBuddy(k)}>{l}</button>)}
         </div>
-        <label className="field"><span className="muted" style={{ fontWeight: 400, fontSize: 14 }}>Дата старта потока</span>
-          <select className="select pill-select" value={flowStart} onChange={(e) => setFlowStart(e.target.value)}>
-            <option value="">Все потоки</option>
-            {flows.data?.flows.map((f) => <option key={f.id} value={f.startsOn}>{humanDate(f.startsOn, true)}</option>)}
-          </select>
-        </label>
         <div className="grid2">
           <label className="field"><span className="muted" style={{ fontWeight: 400, fontSize: 14 }}>Город</span>
             <select className="select pill-select" value={city} onChange={(e) => setCity(e.target.value)}>

@@ -23,7 +23,7 @@ export function Profile() {
   if (!me) return null;
   const items: [typeof ClipboardList, string, string, () => void][] = [
     [ClipboardList, 'Моя анкета', 'Цели, точки А и Б, действия', () => nav('/profile/questionnaire')],
-    [History, 'История участия', 'Мои потоки и результаты', () => nav('/archive')],
+    [History, 'История участия', 'Мои челленджи и результаты', () => nav('/archive')],
     [Gift, 'Трекеры за отзыв', 'Три трекера в подарок за честный отзыв', () => nav('/trackers')],
     [CreditCard, 'Моя подписка', 'Тариф, оплата и отмена', () => nav('/profile/subscription')],
     [Headphones, 'Поддержка', 'Помощь и вопросы', () => openTelegram(me.support)],
@@ -326,7 +326,7 @@ export function Archive() {
   return (
     <Screen id="S34">
       <Header title="Архив" sub="Твоя история по месяцам" back="/profile" />
-      {loading ? <Loading /> : error ? <ErrorState error={error} retry={reload} /> : data!.months.length === 0 ? <Empty title="Архив появится после первого потока" /> : (
+      {loading ? <Loading /> : error ? <ErrorState error={error} retry={reload} /> : data!.months.length === 0 ? <Empty title="Архив появится после первого челленджа" /> : (
         <>
           {data!.perks.transformationMap6 && (
             <div className="card peach">

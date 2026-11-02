@@ -266,7 +266,7 @@ function NotYet() {
       <Header title="Итоги месяца" back="/" />
       <div className="col center" style={{ gap: 12, alignItems: 'center', marginTop: '10vh' }}>
         <span className="finale-badge">⏳</span>
-        <h1 className="hero" style={{ fontSize: 24 }}>Итоги откроются в последний день потока</h1>
+        <h1 className="hero" style={{ fontSize: 24 }}>Итоги откроются в последний день челленджа</h1>
         <p className="lead" style={{ fontSize: 15 }}>В этот день ты увидишь свою статистику за месяц, оценишь цели и соберёшь карточку для Stories 💜</p>
       </div>
       <div className="spacer" />
