@@ -104,11 +104,7 @@ export function RegProfile() {
         </div>
       </div>
       <div className="card">
-        <div className="h3">Кто видит мой профиль</div>
-        <div className="seg">
-          {[['public', 'Все'], ['members', 'Мой поток'], ['hidden', 'Скрыть']].map(([v, l]) => <button key={v} className={visibility === v ? 'on' : ''} onClick={() => setVisibility(v)}>{l}</button>)}
-        </div>
-        <p className="muted small" style={{ margin: 0 }}>Профиль и статистика в поиске участников. Ежедневные отчёты в ленте публичны в любом случае.</p>
+        <p className="muted small" style={{ margin: 0 }}>Анкета, цели и статистика видны всем участникам клуба — так проще найти единомышленников и бадди 💜</p>
         <label className="check"><input type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} /><span>Присылать в бот полезные напоминания и предложения клуба (можно отключить командой /stop)</span></label>
       </div>
       <button className="btn btn-primary" disabled={busy || name.trim().length < 1} onClick={save}>Дальше</button>

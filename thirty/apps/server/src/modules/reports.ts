@@ -148,7 +148,7 @@ export function serializeReport(r: Awaited<ReturnType<typeof loadReport>>) {
     flow: { id: r.membership.flowId, title: r.membership.flow.title },
     items: r.items.map((i) => ({
       task: i.occurrence.task.title,
-      goal: i.occurrence.task.goal.isPublic ? i.occurrence.task.goal.title : 'Личная цель',
+      goal: i.occurrence.task.goal.title,
       category: i.occurrence.task.goal.category,
       link: i.link,
       note: i.note,

@@ -218,7 +218,7 @@ describe('бадди (критерий №8)', () => {
 });
 
 describe('лента, участники, рейтинг', () => {
-  it('отчёт виден в ленте, реакции и комментарии работают, скрытые участники не ищутся', async () => {
+  it('отчёт виден в ленте, реакции и комментарии работают; анкеты всех участников видны всем', async () => {
     clock.set('2026-10-21T09:00:00Z');
     await paidUser(10, NOV);
     await paidUser(11, NOV);
@@ -240,7 +240,8 @@ describe('лента, участники, рейтинг', () => {
     expect(d.body.comments).toHaveLength(1);
 
     const all = await api('GET', '/api/participants', 10);
-    expect(all.body.items.map((x: { id: string }) => x.id)).toEqual(['10']);
+    expect(all.body.items.map((x: { id: string }) => x.id)).toEqual(['10', '11']);
+    expect((await api('GET', '/api/participants/11', 10)).body.hidden).toBeUndefined();
     const byFlow = await api('GET', `/api/participants?flowStart=${NOV}&city=москва`, 11);
     expect(byFlow.body.items.map((x: { id: string }) => x.id)).toEqual(['10']);
     expect((await api('GET', '/api/participants?flowStart=2026-12-01', 11)).body.items).toHaveLength(0);
@@ -253,7 +254,7 @@ describe('лента, участники, рейтинг', () => {
     const lb2 = await api('GET', '/api/leaderboard', 10);
     expect(lb2.body.week).toMatchObject({ from: '2026-11-02', to: '2026-11-08' });
     expect(lb2.body.rows).toHaveLength(2);
-    expect(lb2.body.rows.find((r: { userId: string }) => r.userId === '11').name).toBe('Участник');
+    expect(lb2.body.rows.find((r: { userId: string }) => r.userId === '11').name).not.toBe('Участник');
     expect(lb2.body.me.eligible).toBe(true);
     // история: прошлая неделя доступна
     expect((await api('GET', '/api/leaderboard?week=2026-10-26', 10)).body.week).toMatchObject({ from: '2026-10-26', to: '2026-11-01' });

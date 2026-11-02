@@ -211,10 +211,9 @@ export async function weeklyLeaderboard(viewerId: bigint | null, weekStartArg?: 
   }
   const all = [...byUser.entries()].map(([userId, a]) => ({
     userId,
-    // скрытый профиль: в рейтинге без имени и фото
-    name: a.user.visibility === 'hidden' ? 'Участник' : displayName(a.user),
-    username: a.user.visibility === 'hidden' ? null : a.user.username,
-    photoUrl: a.user.visibility === 'hidden' ? null : a.user.photoUrl,
+    name: displayName(a.user),
+    username: a.user.username,
+    photoUrl: a.user.photoUrl,
     percent: a.planned > 0 ? Math.round((a.done / a.planned) * 100) : 0,
     hasPlan: a.planned > 0,
     fullDays: a.fullDays,

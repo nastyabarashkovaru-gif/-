@@ -45,7 +45,7 @@ async function serialize(rows: Row[], me: bigint) {
       id: r.id,
       createdAt: r.createdAt.toISOString(),
       mine: r.userId === me,
-      user: { id: r.userId.toString(), name: r.user.deletedAt ? 'Участник' : nameOf(r.user), photoUrl: r.user.deletedAt ? null : r.user.photoUrl, username: r.user.deletedAt || r.user.visibility === 'hidden' ? null : r.user.username },
+      user: { id: r.userId.toString(), name: r.user.deletedAt ? 'Участник' : nameOf(r.user), photoUrl: r.user.deletedAt ? null : r.user.photoUrl, username: r.user.deletedAt ? null : r.user.username },
       text: hidden ? null : r.text,
       hidden,
       report: rep && !hidden

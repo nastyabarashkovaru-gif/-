@@ -71,7 +71,7 @@ export async function proposeBuddy(userId: bigint, flowId: string, targetId: big
   const inv = await prisma.buddyInvite.create({ data: { flowId, fromUserId: userId, toUserId: targetId, token: randomBytes(9).toString('base64url') } });
   const me = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   const { sendBuddyProposal } = await import('./bot');
-  await sendBuddyProposal(targetId, inv.id, { name: displayName(me), username: me.visibility === 'hidden' ? null : me.username });
+  await sendBuddyProposal(targetId, inv.id, { name: displayName(me), username: me.username });
   await pushNotification(targetId, 'buddy_proposal', { title: 'Тебе предложили стать парой 💜', body: `${displayName(me)} хочет стать твоим бадди`, link: '/buddy' }, `buddy_proposal:${inv.id}`);
   await track({ userId, eventName: 'buddy_invite_sent', screenId: 'S25', flowId, metadata: { direct: true } });
   return { proposalId: inv.id, matched: false };
@@ -162,7 +162,7 @@ export async function buddyCard(userId: bigint, flowId: string) {
   }
   const other = await prisma.user.findUniqueOrThrow({ where: { id: b.otherId } });
   const m = await prisma.flowMembership.findFirst({ where: { userId: b.otherId, flowId }, include: { flow: true } });
-  const showProgress = other.visibility !== 'hidden' && m && m.status === 'active';
+  const showProgress = m && m.status === 'active';
   const percent = showProgress ? Math.round((await memberStats(m.id, m.flow)).ratio * 100) : null;
   return {
     state: 'paired' as const,
@@ -328,7 +328,7 @@ export async function freeParticipants(userId: bigint, q?: string) {
       userId: { notIn: [userId, ...paired, ...observers] },
       user: { deletedAt: null, ...(term ? { OR: [{ firstName: { contains: term, mode: 'insensitive' } }, { lastName: { contains: term, mode: 'insensitive' } }, { displayName: { contains: term, mode: 'insensitive' } }, { username: { contains: term, mode: 'insensitive' } }] } : {}) },
     },
-    include: { user: true, goals: { where: { isPublic: true }, select: { title: true } } },
+    include: { user: true, goals: { select: { title: true } } },
     orderBy: { createdAt: 'asc' },
     take: 100,
   });
@@ -336,10 +336,10 @@ export async function freeParticipants(userId: bigint, q?: string) {
   return members.map((x) => ({
     id: x.userId.toString(),
     name: displayName(x.user),
-    username: x.user.visibility === 'hidden' ? null : x.user.username,
+    username: x.user.username,
     photoUrl: x.user.photoUrl,
     city: x.user.city,
-    goals: x.user.visibility === 'hidden' ? [] : x.goals.map((g) => g.title),
+    goals: x.goals.map((g) => g.title),
     proposed: sent.has(x.userId.toString()),
   }));
 }

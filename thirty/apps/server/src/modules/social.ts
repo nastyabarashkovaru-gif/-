@@ -6,6 +6,7 @@ import { currentMembership } from './flows';
 import { prisma } from '../db';
 import { badRequest, forbidden, notFound } from '../http';
 import { getSetting } from '../settings';
+import { config } from '../config';
 import { loadReport, reportInclude, serializeReport } from './reports';
 import { challengeWindow, memberStats } from './rating';
 import { scheduleLabel } from './goals';
@@ -115,13 +116,14 @@ export async function participants(viewerId: bigint, q: { q?: string; flowStart?
   const viewerFlows = (await prisma.flowMembership.findMany({ where: { userId: viewerId, status: { not: 'revoked' } }, select: { flowId: true } })).map((m) => m.flowId);
   const membershipFilter: Prisma.FlowMembershipWhereInput = { status: { in: ['registered', 'active', 'finished'] } };
   if (q.flowStart && /^\d{4}-\d{2}-\d{2}$/.test(q.flowStart)) membershipFilter.flow = { startsOn: new Date(`${q.flowStart}T00:00:00Z`) };
-  if (q.category) membershipFilter.goals = { some: { category: q.category as never, isPublic: true } };
+  if (q.category) membershipFilter.goals = { some: { category: q.category as never } };
   const observers = [...(await (await import('./observers')).observerIds())].map((x) => BigInt(x));
   const where: Prisma.UserWhereInput = {
     deletedAt: null,
     ...(observers.length ? { id: { notIn: observers } } : {}),
     memberships: { some: membershipFilter },
-    OR: [{ visibility: 'public' }, { visibility: 'members', memberships: { some: { flowId: { in: viewerFlows } } } }],
+    // анкеты всех участников видны всем (решение владельца 02.11); в демо — без сгенерированных для аналитики
+    ...(config.DEMO_MODE ? { NOT: { id: { gte: 7_700_000_000n, lt: 7_800_000_000n } } } : {}),
   };
   const and: Prisma.UserWhereInput[] = [];
   // Фильтр по бадди: без пары / с бадди (активная пара в любом потоке)
@@ -138,7 +140,7 @@ export async function participants(viewerId: bigint, q: { q?: string; flowStart?
     take: 31,
     ...(q.cursor ? { cursor: { id: BigInt(q.cursor) }, skip: 1 } : {}),
     orderBy: { id: 'asc' },
-    include: { memberships: { where: { status: { not: 'revoked' } }, include: { flow: true, goals: { where: { isPublic: true } } }, orderBy: { flow: { startsOn: 'desc' } } } },
+    include: { memberships: { where: { status: { not: 'revoked' } }, include: { flow: true, goals: true }, orderBy: { flow: { startsOn: 'desc' } } } },
   });
   const todayL = localDate(clock.now(), await getSetting('flow.timezone'));
   // в списке — текущее участие (а не самое позднее оплаченное)
@@ -173,10 +175,7 @@ export async function participantProfile(viewerId: bigint, id: string) {
   const u = await prisma.user.findUnique({ where: { id: BigInt(id) } });
   if (!u || u.deletedAt) throw notFound();
   const memberships = await prisma.flowMembership.findMany({ where: { userId: u.id, status: { not: 'revoked' } }, include: { flow: true, goals: { include: { tasks: { orderBy: { createdAt: 'asc' } } } } }, orderBy: { flow: { startsOn: 'desc' } } });
-  const viewerFlows = new Set((await prisma.flowMembership.findMany({ where: { userId: viewerId }, select: { flowId: true } })).map((m) => m.flowId));
   const self = viewerId === u.id;
-  const visible = self || u.visibility === 'public' || (u.visibility === 'members' && memberships.some((m) => viewerFlows.has(m.flowId)));
-  if (!visible) return { id, name: displayName(u), hidden: true };
   const today = localDate(clock.now(), await getSetting('flow.timezone'));
   const current = pickCurrent(memberships, today);
   const stats = current && ['active', 'finished'].includes(current.status) ? await memberStats(current.id, current.flow) : null;
@@ -196,7 +195,7 @@ export async function participantProfile(viewerId: bigint, id: string) {
     flow: current ? { title: current.flow.title, startsOn: fromDbDate(current.flow.startsOn) } : null,
     // Личный челлендж: дата старта, день из 30 (до старта — 0)
     challenge: win ? { startsOn: win.start, endsOn: win.end, day: dayNumber, length } : null,
-    goals: current?.goals.filter((g) => g.isPublic).sort((a, b) => a.sort - b.sort).map((g) => ({ title: g.title, category: g.category, pointA: g.pointA, pointB: g.pointB, tasks: g.tasks.map((t) => ({ title: t.title, schedule: scheduleLabel(t) })) })) ?? [],
+    goals: current?.goals.slice().sort((a, b) => a.sort - b.sort).map((g) => ({ title: g.title, category: g.category, pointA: g.pointA, pointB: g.pointB, tasks: g.tasks.map((t) => ({ title: t.title, schedule: scheduleLabel(t) })) })) ?? [],
     stats: stats ? { percent: Math.round(stats.ratio * 100), successfulDays: stats.successfulDays, currentStreak: stats.currentStreak } : null,
     flowsCount: memberships.length,
     buddy: await buddyState(viewerId, u.id),
