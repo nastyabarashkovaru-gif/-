@@ -40,6 +40,8 @@ export async function meRoutes(app: FastifyInstance) {
         consents: [...(await activeConsents(u.id))],
         startParam: req.tg?.startParam ?? null,
         support: `https://t.me/${await getSetting('support.username')}`,
+        // Организатор-наблюдатель: может посмотреть окна отмены, ничего не отменяя
+        observer: (await getSetting('flow.observers')).includes(String(u.id)),
         membership: m ? { id: m.id, status: m.status, tariffId: m.tariffId, flow: flowInfo(m.flow), registeredAt: m.registeredAt } : null,
         // Какой по счёту месяц участия — цвет темы приложения
         month: m ? await monthNumber(u.id, (await homeMembership(u.id)) ?? m) : 1,

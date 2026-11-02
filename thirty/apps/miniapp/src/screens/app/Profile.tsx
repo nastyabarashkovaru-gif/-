@@ -58,6 +58,7 @@ const goalsLine = (limit: number | null | undefined) => (limit === null || limit
 /** Моя подписка: тариф, следующее списание, отмена (через 3 экрана удержания) */
 export function MySubscription() {
   const nav = useNavigate();
+  const { me } = useMe();
   const { data, error, loading, reload } = useLoad(() => api<SubSummary>('/api/subscription'));
   const s = data?.subscription;
   const [cancel, setCancel] = useState(() => new URLSearchParams(window.location.search).get('cancel') === '1');
@@ -93,6 +94,9 @@ export function MySubscription() {
               )}
               {s.autoRenew && ['active', 'prestart', 'past_due'].includes(s.status) && (
                 <button className="btn" style={{ background: '#fff', border: '1px solid #dedbe6', color: 'var(--ink-2)', fontWeight: 500, minHeight: 50 }} onClick={() => setCancel(true)}>Отменить подписку</button>
+              )}
+              {me?.observer && !(s.autoRenew && ['active', 'prestart', 'past_due'].includes(s.status)) && (
+                <button className="btn" style={{ background: '#fff', border: '1px dashed #c9c5d6', color: 'var(--ink-2)', fontWeight: 500, minHeight: 50 }} onClick={() => setCancel(true)}>👀 Окна отмены (как видят участницы)</button>
               )}
               {s.status === 'canceled_at_period_end' && !s.canResume && <button className="btn btn-primary" onClick={() => nav('/tariffs')}>Продлить участие на следующий месяц</button>}
               {s.status === 'expired' && <button className="btn btn-primary" onClick={() => nav('/tariffs')}>Выбрать тариф</button>}

@@ -7,6 +7,7 @@ export interface Me {
   consents: string[];
   startParam: string | null;
   support: string;
+  observer?: boolean;
   membership: { id: string; status: string; tariffId: string; registeredAt: string | null; flow: { id: string; title: string; startsOn: string; endsOn: string; days: number; phase: string; today: string } } | null;
   subscription: { id: string; status: string; tariffId: string; tariffTitle: string; autoRenew: boolean } | null;
 }
