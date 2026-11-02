@@ -129,6 +129,12 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { imageUrl: WELCOME_IMAGE } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v17, value: { at: new Date().toISOString() } } });
   }
+  // Разово (02.11): новый текст приветствия от владельца — «ВХОД ЗАКРОЕТСЯ ЧЕРЕЗ 3 ДНЯ ‼️»
+  const v21 = 'maintenance.welcomeV5';
+  if (!(await prisma.setting.findUnique({ where: { key: v21 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v21, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
