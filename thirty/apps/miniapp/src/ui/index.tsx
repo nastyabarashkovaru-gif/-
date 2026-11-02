@@ -272,9 +272,10 @@ export function AppBar() {
 /** Цвет процента участника (решение владельца 24.10): >80 зелёный, 50–80 фиолетовый, 30–<50 жёлтый, <30 красный */
 export function pctColor(p: number | null | undefined) {
   if (p === null || p === undefined) return 'var(--muted-2)';
-  if (p > 80) return 'var(--green)';
-  if (p >= 50) return 'var(--accent)';
-  if (p >= 30) return 'var(--gold-ink)';
+  // от 80% — зелёный, 60–79 — жёлтый, 40–59 — оранжевый, ниже — красный
+  if (p >= 80) return 'var(--green)';
+  if (p >= 60) return '#d4a017';
+  if (p >= 40) return 'var(--orange)';
   return 'var(--danger)';
 }
 

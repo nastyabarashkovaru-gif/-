@@ -161,6 +161,8 @@ export function Home() {
               {reportOpen && <ReportForm onSent={() => { setReportOpen(false); reload(); }} />}
             </>
           )}
+          {/* Суть ежедневной отчётности: только за сегодня */}
+          <div className="report-rule">⏰ Отчёт можно отправить только за сегодня — прикрепить задним числом за вчера не получится</div>
         </div>
       )}
 

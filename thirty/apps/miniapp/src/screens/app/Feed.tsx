@@ -42,7 +42,7 @@ interface Msg {
   id: string;
   createdAt: string;
   mine: boolean;
-  user: { id: string; name: string; photoUrl: string | null };
+  user: { id: string; name: string; photoUrl: string | null; username?: string | null };
   text: string | null;
   hidden: boolean;
   report: { id: string; photos: string[]; done: string[] } | null;
@@ -53,6 +53,7 @@ interface ChatPage { flow: { id: string; title: string; startsOn: string }; mess
 const time = (iso: string) => new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
 function Chat({ focus }: { focus: string | null }) {
+  const nav = useNavigate();
   const [flow, setFlow] = useState<ChatPage['flow'] | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -140,9 +141,17 @@ function Chat({ focus }: { focus: string | null }) {
         </div>
         {hasMore && <button className="link-btn" onClick={older}>Показать предыдущие</button>}
         {msgs.length === 0 && <div className="muted center small" style={{ padding: '12px 0' }}>Здесь появятся отчёты и сообщения участников твоего потока.</div>}
-        {msgs.map((m) => (
-          <div key={m.id} id={`m-${m.id}`} className={`bubble ${m.mine ? 'mine' : ''} ${m.id === focus ? 'focus' : ''}`}>
-            <div className="row between"><span className="bubble-name">{m.user.name}</span><span className="muted small">{time(m.createdAt)}</span></div>
+        {msgs.map((m) => {
+          // Как в Telegram: аватарка и ник; по нажатию — личный Telegram (или профиль в приложении, если ника нет)
+          const openUser = () => (m.user.username ? openTelegram(`https://t.me/${m.user.username}`) : nav(`/u/${m.user.id}`));
+          return (
+          <div key={m.id} className={`msg-row ${m.mine ? 'mine' : ''}`}>
+            {!m.mine && <button className="msg-ava" aria-label={`Написать ${m.user.name}`} onClick={openUser}><Avatar name={m.user.name} url={m.user.photoUrl} /></button>}
+          <div id={`m-${m.id}`} className={`bubble ${m.mine ? 'mine' : ''} ${m.id === focus ? 'focus' : ''}`}>
+            <div className="row between" style={{ gap: 8 }}>
+              <button className="bubble-who" onClick={openUser}><span className="bubble-name">{m.user.name}</span>{m.user.username && <span className="bubble-nick">@{m.user.username}</span>}</button>
+              <span className="muted small">{time(m.createdAt)}</span>
+            </div>
             {m.replyTo && <div className="bubble-quote"><b>{m.replyTo.name}</b><span>{m.replyTo.text}</span></div>}
             {m.hidden ? <div className="muted small">Сообщение скрыто модератором</div> : (
               <>
@@ -155,7 +164,9 @@ function Chat({ focus }: { focus: string | null }) {
               <button className="bubble-reply" onClick={() => { setReply(m); input.current?.focus(); }}><Reply size={14} />Ответить</button>
             )}
           </div>
-        ))}
+          </div>
+          );
+        })}
       </div>
       <div className="composer">
         {reply && (
@@ -188,15 +199,19 @@ function Board() {
       </div>
       {data.rows.length === 0 && <Empty title="Рейтинг появится после старта" text="Места считаются по проценту выполнения." />}
       {data.rows.map((r) => (
-        <button key={r.userId} className={`card card-link board-row ${r.userId === data.me ? 'me' : ''}`} onClick={() => nav(`/u/${r.userId}`)}>
-          <span className="board-rank" style={{ color: r.rank <= 3 ? 'var(--accent)' : 'var(--muted-2)' }}>{r.rank}</span>
+        <button key={r.userId} className={`card card-link board-row ${r.rank <= 3 ? `top top${r.rank}` : ''} ${r.userId === data.me ? 'me' : ''}`} onClick={() => nav(`/u/${r.userId}`)}>
+          {r.rank <= 3 ? (
+            <span className={`cup cup${r.rank}`} aria-label={`${r.rank} место`}><Trophy size={20} strokeWidth={2.2} /><i>{r.rank}</i></span>
+          ) : (
+            <span className="board-rank" style={{ color: 'var(--muted-2)' }}>{r.rank}</span>
+          )}
           {r.photoUrl ? <Avatar name={r.name} url={r.photoUrl} /> : <span className="ic"><User size={18} /></span>}
           <span className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
             <span className="h3" style={{ display: 'block' }}>{r.name}</span>
             <span className="muted small ellipsis">{[r.city, r.category ? shortCat(r.category) : null].filter(Boolean).join(' · ')}</span>
           </span>
           <span style={{ textAlign: 'right' }}>
-            <b style={{ color: 'var(--accent)', fontSize: 19 }}>{r.percent}%</b>
+            <b style={{ color: pctColor(r.percent), fontSize: 19 }}>{r.percent}%</b>
             <span className="muted small" style={{ display: 'block' }}>выполнено</span>
           </span>
         </button>
