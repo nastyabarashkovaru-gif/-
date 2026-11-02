@@ -63,6 +63,32 @@ function Chat({ focus }: { focus: string | null }) {
   const [busy, setBusy] = useState(false);
   const last = useRef<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  // «Прилипание» к низу: фото отчётов догружаются позже и сдвигают ленту — пока человек сам не листает вверх, держим низ
+  const pinned = useRef(true);
+  const toBottom = () => window.scrollTo({ top: document.documentElement.scrollHeight });
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => { if (pinned.current) toBottom(); });
+    ro.observe(el);
+    // Отпускаем низ только когда человек сам листает (палец/колесо), а не когда догрузилось фото
+    let touching = false;
+    const touch = () => { touching = true; };
+    const release = () => { setTimeout(() => { touching = false; }, 600); };
+    const onScroll = () => { if (touching) pinned.current = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160; };
+    window.addEventListener('touchstart', touch, { passive: true });
+    window.addEventListener('wheel', touch, { passive: true });
+    window.addEventListener('touchend', release, { passive: true });
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('touchstart', touch);
+      window.removeEventListener('wheel', touch);
+      window.removeEventListener('touchend', release);
+      window.removeEventListener('scroll', onScroll);
+    };
+  });
 
   const load = useCallback(async () => {
     try {
@@ -80,11 +106,12 @@ function Chat({ focus }: { focus: string | null }) {
       setHasMore(more);
       last.current = list.at(-1)?.id ?? null;
       setError(null);
-      // Как в Telegram: открываем чат на последних сообщениях (или на сообщении из уведомления)
+      // Как в Telegram: открываем чат на последнем сообщении (или на сообщении из уведомления)
+      pinned.current = !focus;
       requestAnimationFrame(() => {
         const el = focus ? document.getElementById(`m-${focus}`) : null;
         if (el) el.scrollIntoView({ block: 'center' });
-        else window.scrollTo({ top: document.body.scrollHeight });
+        else toBottom();
       });
     } catch (e) {
       setError(e);
@@ -101,6 +128,7 @@ function Chat({ focus }: { focus: string | null }) {
         if (r.messages.length) {
           setMsgs((m) => { const ids = new Set(m.map((x) => x.id)); return [...m, ...r.messages.filter((x) => !ids.has(x.id))]; });
           last.current = r.messages.at(-1)!.id;
+          if (pinned.current) requestAnimationFrame(toBottom);
         }
       } catch { /* следующая попытка через 5 секунд */ }
     }, 5000);
@@ -109,6 +137,7 @@ function Chat({ focus }: { focus: string | null }) {
 
   const older = async () => {
     if (!msgs.length) return;
+    pinned.current = false;
     const r = await api<ChatPage>(`/api/feed/chat?before=${msgs[0].id}`);
     setMsgs([...r.messages, ...msgs]);
     setHasMore(r.hasMore);
@@ -121,6 +150,8 @@ function Chat({ focus }: { focus: string | null }) {
       const m = await api<Msg>('/api/feed/chat', { body: { text: text.trim(), replyToId: reply?.id ?? null } });
       setMsgs((x) => [...x, m]);
       last.current = m.id;
+      pinned.current = true;
+      requestAnimationFrame(toBottom);
       setText('');
       setReply(null);
     } catch (e) {
@@ -134,7 +165,7 @@ function Chat({ focus }: { focus: string | null }) {
   if (!flow) return <Loading lines={2} />;
   return (
     <>
-      <div className="card" style={{ gap: 14 }}>
+      <div className="card" style={{ gap: 14 }} ref={box}>
         <div className="row" style={{ gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--line)' }}>
           <span className="ic sq" style={{ width: 44, height: 44, borderRadius: 12 }}><MessagesSquare size={20} /></span>
           <div><div className="h3" style={{ fontSize: 17 }}>Общий чат отчётов</div><div className="muted small">Поток {humanDate(flow.startsOn, true)}</div></div>
