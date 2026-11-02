@@ -35,7 +35,7 @@ function paidEvent(paymentId: string, amount: number, userId: number) {
 }
 
 describe('таймер предложения', () => {
-  it('стартует один раз, не сбрасывается и реально меняет цену', async () => {
+  it('пока идёт — не сбрасывается; после конца при новом заходе засекается заново; реально меняет цену', async () => {
     clock.set('2026-10-21T09:00:00Z');
     const first = await api('POST', '/api/offer/start', U);
     expect(first.body.offer.active).toBe(true);
@@ -56,6 +56,11 @@ describe('таймер предложения', () => {
     const pv = await api('GET', '/api/checkout/preview?tariff=m1', U);
     expect(pv.body.nextCharge.amount).toBe(2990);
     expect(pv.body.tariff.savingsPercent).toBe(0);
+    // новый заход на тарифы — снова 3 часа скидки
+    const back = await api('POST', '/api/offer/start', U);
+    expect(back.body.offer.active).toBe(true);
+    expect(back.body.offer.expiresAt).toBe('2026-10-21T15:00:01.000Z');
+    expect(back.body.tariffs.map((t: { price: number }) => t.price)).toEqual([999, 2990, 3990]);
   });
 });
 

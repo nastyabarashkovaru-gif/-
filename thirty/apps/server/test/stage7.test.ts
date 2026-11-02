@@ -127,10 +127,10 @@ describe('дожимная цепочка до оплаты', () => {
 
     await runPrePurchaseChains(at(180 + 2 * 24 * 60 + 1));
     expect(sent().at(-1)).toContain('спишь?');
+    // «вернуть скидку через сторис» выключено (02.11): скидка и так возвращается при новом заходе
     await runPrePurchaseChains(at(180 + 4 * 24 * 60 + 1));
-    expect(sent().at(-1)).toContain('ВЕРНУТЬ СКИДКУ');
-    expect(calls.at(-1)!.body.reply_markup.inline_keyboard[0][0].web_app.url).toMatch(/_restore$/);
-    expect(await prisma.botMessageLog.count({ where: { userId: 300n, templateKey: { startsWith: 'chain_' }, status: 'sent' } })).toBe(7);
+    expect(sent().join('\n')).not.toContain('ВЕРНУТЬ СКИДКУ');
+    expect(await prisma.botMessageLog.count({ where: { userId: 300n, templateKey: { startsWith: 'chain_' }, status: 'sent' } })).toBe(6);
 
     // тестовая оплата (проверка владелицы после «Начать путь заново») покупкой не считается — цепочка идёт
     clock.set('2026-10-21T09:00:00Z');
@@ -309,7 +309,7 @@ describe('дожимная цепочка до оплаты', () => {
       expect((await api('GET', '/api/me', 777)).body.subscription).toBeNull();
       await new Promise((r) => setTimeout(r, 10_500));
       const texts = sent();
-      expect(texts.length).toBe(11);
+      expect(texts.length).toBe(10); // 09 «вернуть скидку» выключено
       expect(texts[1]).toContain('получилось посмотреть');
       // Обычное расписание владельцу ничего не дублирует
       calls = [];

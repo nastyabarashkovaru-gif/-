@@ -129,6 +129,12 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { imageUrl: WELCOME_IMAGE } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v17, value: { at: new Date().toISOString() } } });
   }
+  // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
+  const v18 = 'maintenance.noRestoreV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
+    await prisma.botMessageTemplate.updateMany({ where: { key: 'chain_09' }, data: { enabled: false } });
+    await prisma.setting.create({ data: { key: v18, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {

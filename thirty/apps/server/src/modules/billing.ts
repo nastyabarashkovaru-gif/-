@@ -23,14 +23,20 @@ export const LIVE_STATUSES = ['prestart', 'active', 'past_due', 'canceled_at_per
 
 // ───────────── Персональное предложение (таймер 3 часа) ─────────────
 
-/** Таймер стартует один раз при первом показе тарифов и хранится на сервере; повторное открытие его не сбрасывает */
+/**
+ * Таймер скидки на 3 часа хранится на сервере. Пока он идёт, повторное открытие тарифов его не сбрасывает;
+ * если он закончился — при новом заходе засекается заново (решение владельца 02.11: без «вернуть скидку»).
+ */
 export async function startOffer(userId: bigint, now = clock.now()) {
   const minutes = await getSetting('offer.durationMinutes');
+  const expiresAt = new Date(now.getTime() + minutes * 60_000);
   try {
-    return await prisma.priceOffer.create({ data: { userId, kind: 'intro', startedAt: now, expiresAt: new Date(now.getTime() + minutes * 60_000) } });
+    return await prisma.priceOffer.create({ data: { userId, kind: 'intro', startedAt: now, expiresAt } });
   } catch (e) {
     if (!isUniqueViolation(e)) throw e;
-    return prisma.priceOffer.findUniqueOrThrow({ where: { userId_kind: { userId, kind: 'intro' } } });
+    const o = await prisma.priceOffer.findUniqueOrThrow({ where: { userId_kind: { userId, kind: 'intro' } } });
+    if (o.consumedAt || o.expiresAt > now) return o;
+    return prisma.priceOffer.update({ where: { id: o.id }, data: { startedAt: now, expiresAt } });
   }
 }
 
