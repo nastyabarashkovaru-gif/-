@@ -441,9 +441,11 @@ function PlanForm({ m, i }: { m: MembershipView; i: number }) {
           {x.frequency === 'n_per_week' && (
             <div className="field" style={{ background: 'var(--bg)', borderRadius: 14, padding: 12 }}>
               <span className="muted" style={{ fontWeight: 400, fontSize: 14 }}>Сколько раз в неделю?</span>
-              <select className="select pill-select" value={x.n} onChange={(e) => set(k, { n: Number(e.target.value) })}>
-                {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n} {n === 1 ? 'раз' : n < 5 ? 'раза' : 'раз'}</option>)}
-              </select>
+              {/* Любое число от 1 до 7 — все варианты видны сразу */}
+              <div className="n-chips" role="radiogroup">
+                {[1, 2, 3, 4, 5, 6, 7].map((n) => <button key={n} type="button" role="radio" aria-checked={x.n === n} className={x.n === n ? 'on' : ''} onClick={() => set(k, { n })}>{n}</button>)}
+              </div>
+              <span className="small" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>{x.n} {x.n === 1 ? 'раз' : x.n < 5 ? 'раза' : 'раз'} в неделю</span>
             </div>
           )}
           {x.frequency === 'once' && (

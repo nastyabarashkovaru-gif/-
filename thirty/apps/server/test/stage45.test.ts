@@ -382,3 +382,17 @@ describe('финал, отзывы, карточки', () => {
     expect(await prisma.attendance.count()).toBe(1);
   });
 });
+
+describe('действия «X раз в неделю»', () => {
+  it('можно любое число от 1 до 7, больше 7 — нельзя', async () => {
+    clock.set('2026-10-25T09:00:00Z');
+    await paidUser(880);
+    const g = await api('POST', '/api/goals', 880, { category: 'habits', title: 'Спорт', pointA: 'старт', pointB: 'финиш', confirmMethod: 'daily_reports', successCriterion: 'Регулярно' });
+    for (const n of [1, 2, 4, 5, 6, 7]) {
+      const t = await api('POST', `/api/goals/${g.body.id}/tasks`, 880, { title: `Тренировка ${n}`, frequency: 'n_per_week', n });
+      expect(t.status, String(n)).toBe(200);
+      await api('DELETE', `/api/tasks/${t.body.id}`, 880);
+    }
+    expect((await api('POST', `/api/goals/${g.body.id}/tasks`, 880, { title: 'Тренировка 8', frequency: 'n_per_week', n: 8 })).status).toBe(400);
+  });
+});

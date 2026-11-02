@@ -582,3 +582,8 @@ img { max-width: 100%; display: block; }
 .tariffs-bright .tariff .pill.solid { background: linear-gradient(135deg, #ff4fb0, #ff8a3d); color: #fff; }
 .tariffs-bright .offer { background: linear-gradient(135deg, #fff3d6, #ffe0ef); border: 2px solid #ffc6de; }
 .tariffs-bright > .btn-primary { background: linear-gradient(135deg, #ff4fb0 0%, #9b5cff 55%, #5b6cff 100%); box-shadow: 0 12px 26px rgba(155, 92, 255, 0.4); }
+
+/* Анкета: «X раз в неделю» — числа 1–7 кнопками */
+.n-chips { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.n-chips button { height: 42px; border-radius: 12px; border: 1.5px solid var(--line); background: #fff; font-weight: 700; font-size: 16px; color: var(--ink); cursor: pointer; }
+.n-chips button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
