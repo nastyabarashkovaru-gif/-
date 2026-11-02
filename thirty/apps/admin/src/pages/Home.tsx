@@ -321,7 +321,7 @@ function Retention({ d }: { d: any }) {
         </div>
       )}
       <div className="mini-grid">
-        <div><span>Активные подписки</span><b>{num(d.liveSubscriptions)}</b></div>
+        <div><span>Активные подписки</span><b>{num(d.liveSubscriptions)}</b>{d.legacyLive > 0 && <em>из них {num(d.legacyLive)} — перенос из прошлых потоков (оплата вне приложения)</em>}</div>
         <div><span>Отменили автопродление</span><b>{num(d.canceling)}</b><em>доступ до конца периода</em></div>
         <div><span>Долг по списанию</span><b>{num(d.pastDue)}</b></div>
         <div><span>Неуспешных списаний</span><b>{num(d.failedCharges)}</b><em>за всё время</em></div>

@@ -1,3 +1,4 @@
+import { LEGACY_REASON } from './legacy';
 import { addDays, addMonths, coverage, fromDbDate, localDate, startOfLocalDay, type ISODate } from '@thirty/domain';
 import { clock } from '../clock';
 import { prisma } from '../db';
@@ -371,11 +372,15 @@ export async function homeRetention(r: DayRange) {
   });
   const failedCharges = await prisma.payment.count({ where: { kind: 'renewal', status: 'failed', test: false } });
   const pastDue = await prisma.subscription.count({ where: { status: 'past_due', test: false } });
-  const canceling = await prisma.subscription.count({ where: { status: 'canceled_at_period_end', test: false } });
+  // Перенесённые из прошлых потоков (ссылка legacy) оплачивали вне приложения: автопродления у них не было —
+  // их не считаем «отменившими», а показываем отдельно
+  const notLegacy = { OR: [{ cancelReason: null }, { cancelReason: { not: LEGACY_REASON } }] };
+  const canceling = await prisma.subscription.count({ where: { status: 'canceled_at_period_end', test: false, ...notLegacy } });
+  const legacyLive = await prisma.subscription.count({ where: { status: { in: [...LIVE_STATUSES] }, test: false, cancelReason: LEGACY_REASON } });
   return {
     due: inRange.length, renewed, notRenewed,
     renewedPct: pct(renewed, inRange.length), churnPct: pct(notRenewed, inRange.length),
-    liveSubscriptions: live, pastDue, canceling, failedCharges,
+    liveSubscriptions: live, legacyLive, pastDue, canceling, failedCharges,
     trend, cohorts,
   };
 }
