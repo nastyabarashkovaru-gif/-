@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
-  Target, Sparkles, Lightbulb, CircleX, CircleCheck, Trophy, Plus, Route, ArrowDown, ShieldCheck, ListChecks, ClipboardCheck,
+  Target,    CircleCheck,  Plus,    ListChecks, ClipboardCheck,
   CalendarDays, ChevronDown, ChevronUp, Handshake, HeartHandshake, MapPin, Users, Hourglass, CheckCheck, BookOpen, ArrowRight, Pencil,
 } from 'lucide-react';
 import { api } from '../../lib/api';
@@ -21,14 +21,6 @@ export const GOAL_CATEGORIES = [
   { id: 'other', title: 'Другое', emoji: '✨' },
 ] as const;
 
-const CONFIRM = [
-  ['screenshot', 'Скриншот статистики или приложения'],
-  ['photo_video', 'Фото или видео'],
-  ['document', 'Документ или другой показатель'],
-  ['daily_reports', 'Ежедневные отчёты'],
-  ['other', 'Другой способ'],
-] as const;
-
 /** Подсказки к полям: для блога — тексты макета, для остальных категорий — в том же духе */
 const HINTS: Record<string, { a: string; b: string; action: string; examples: string[] }> = {
   blog: { a: 'Сейчас в моём блоге 250 подписчиков', b: 'Через 30 дней в блоге 1 000 подписчиков', action: 'Например, публиковать Reels', examples: ['Ежедневно — публиковать 1 Reels', '3 раза в неделю — анализировать статистику роликов', 'Одноразово — оформить шапку профиля до 5 ноября'] },
@@ -45,18 +37,18 @@ type Goal = MembershipView['goals'][number];
 function StepBar({ step }: { step: number }) {
   return (
     <>
-      <BrandBar right={<span className="counter">Шаг {step} из 4</span>} />
-      <div className="steps" aria-hidden>{[1, 2, 3, 4].map((i) => <i key={i} className={i <= step ? 'on' : ''} />)}</div>
+      <BrandBar right={<span className="counter">Шаг {step} из 3</span>} />
+      <div className="steps" aria-hidden>{[1, 2, 3].map((i) => <i key={i} className={i <= step ? 'on' : ''} />)}</div>
     </>
   );
 }
 
-function Head({ icon, children, lead }: { icon: ReactNode; children: ReactNode; lead: ReactNode }) {
+function Head({ icon, children, lead }: { icon: ReactNode; children: ReactNode; lead?: ReactNode }) {
   return (
     <div className="col" style={{ gap: 10, alignItems: 'center', marginTop: 8 }}>
       <span className="ic lg">{icon}</span>
       <h1 className="hero" style={{ marginTop: 6 }}>{children}</h1>
-      <p className="lead" style={{ fontSize: 15 }}>{lead}</p>
+      {lead && <p className="lead" style={{ fontSize: 15 }}>{lead}</p>}
     </div>
   );
 }
@@ -234,56 +226,62 @@ function AboutForm({ m }: { m: MembershipView }) {
     }
   };
 
+  // Без подсказок в полях и лишних текстов (решение владельца 02.11)
   return (
     <Screen id="S12">
       <StepBar step={1} />
-      <Head icon={<Users size={28} strokeWidth={1.8} />} lead="Расскажи немного о себе, чтобы твой бадди и другие участники узнали, кто идёт с ними к цели.">
-        Давай <em>знакомиться!</em> 😍
-      </Head>
+      <Head icon={<Users size={28} strokeWidth={1.8} />}>Давай <em>знакомиться!</em> 😍</Head>
       <label className="field">
-        <span className="h3" style={{ fontSize: 15 }}>Как тебя зовут?</span>
-        <input className="input" placeholder="Например, Настя" value={name} maxLength={64} autoComplete="given-name" onChange={(e) => setName(e.target.value)} />
+        <span className="h3" style={{ fontSize: 15 }}>Имя</span>
+        <input className="input" value={name} maxLength={64} autoComplete="given-name" onChange={(e) => setName(e.target.value)} />
       </label>
       <label className="field">
-        <span className="h3" style={{ fontSize: 15 }}>Из какого ты города?</span>
-        <input className="input" placeholder="Например, Москва" value={city} maxLength={64} autoComplete="address-level2" onChange={(e) => setCity(e.target.value)} />
+        <span className="h3" style={{ fontSize: 15 }}>Город</span>
+        <input className="input" value={city} maxLength={64} autoComplete="address-level2" onChange={(e) => setCity(e.target.value)} />
       </label>
       <label className="field">
-        <span className="h3" style={{ fontSize: 15 }}>Сколько тебе лет?</span>
-        <input className="input" placeholder="Например, 25" inputMode="numeric" value={age} maxLength={2} onChange={(e) => setAge(e.target.value.replace(/\D/g, ''))} />
+        <span className="h3" style={{ fontSize: 15 }}>Возраст</span>
+        <input className="input" inputMode="numeric" value={age} maxLength={2} onChange={(e) => setAge(e.target.value.replace(/\D/g, ''))} />
       </label>
       <label className="field">
-        <span className="h3" style={{ fontSize: 15 }}>Чем ты занимаешься?</span>
-        <textarea className="textarea" rows={2} placeholder="Учусь, работаю, развиваю блог, создаю бизнес..." value={occupation} maxLength={300} onChange={(e) => setOccupation(e.target.value)} />
+        <span className="h3" style={{ fontSize: 15 }}>Чем занимаешься?</span>
+        <textarea className="textarea" rows={2} value={occupation} maxLength={300} onChange={(e) => setOccupation(e.target.value)} />
       </label>
       <label className="field">
-        <span className="h3" style={{ fontSize: 15 }}>Что ты хочешь получить от клуба «30 дней»?</span>
-        <textarea className="textarea" rows={3} placeholder="Например, поддержку, новые привычки, дисциплину, окружение…" value={expectation} maxLength={1000} onChange={(e) => setExpectation(e.target.value)} />
-        <p className="hint">Этот ответ видит только команда клуба — он помогает нам сделать «30 дней» полезнее.</p>
+        <span className="h3" style={{ fontSize: 15 }}>Что хочешь получить от сообщества «30 дней»?</span>
+        <textarea className="textarea" rows={3} value={expectation} maxLength={1000} onChange={(e) => setExpectation(e.target.value)} />
       </label>
       <Cta disabled={!valid || busy} onClick={save}>Продолжить</Cta>
     </Screen>
   );
 }
 
-/* ───────────── Шаг 2: цели ───────────── */
+/* ───────────── Шаг 2: цель, точки А и Б, категория (шаги 2 и 3 объединены, 02.11) ───────────── */
 
-interface GoalDraft { id?: string; title: string; category: string }
+interface GoalDraft { id?: string; title: string; pointA: string; pointB: string; category: string }
 
 export function GoalsStep() {
   const q = useQuestionnaire('/reg/goals');
   return <Gate q={q} id="S13">{(m) => <GoalsForm m={m} />}</Gate>;
 }
 
+/** Старый адрес шага «точки А и Б» (ссылки из старых сообщений) — теперь это часть шага целей */
+export function PointsStep() {
+  return <Navigate to="/reg/goals" replace />;
+}
+
+const emptyGoal = (): GoalDraft => ({ title: '', pointA: '', pointB: '', category: '' });
+
 function GoalsForm({ m }: { m: MembershipView }) {
   const nav = useNavigate();
-  const [drafts, setDrafts] = useState<GoalDraft[]>(() => (m.goals.length ? m.goals.map((g) => ({ id: g.id, title: g.title, category: g.category })) : [{ title: '', category: '' }]));
+  const [drafts, setDrafts] = useState<GoalDraft[]>(() => (m.goals.length
+    ? m.goals.map((g) => ({ id: g.id, title: g.title, pointA: g.pointA ?? '', pointB: g.pointB ?? '', category: g.category }))
+    : [emptyGoal()]));
   const [busy, setBusy] = useState(false);
   const limit = m.goalLimit;
   const single = limit === 1;
-  const unlimited = limit === null;
   const canAdd = limit === null || drafts.length < limit;
-  const valid = drafts.every((d) => d.title.trim().length >= 3 && d.category);
+  const valid = drafts.every((d) => d.title.trim().length >= 3 && d.pointA.trim().length >= 2 && d.pointB.trim().length >= 2 && d.category);
   const set = (i: number, patch: Partial<GoalDraft>) => setDrafts(drafts.map((d, j) => (j === i ? { ...d, ...patch } : d)));
 
   const save = async () => {
@@ -292,14 +290,14 @@ function GoalsForm({ m }: { m: MembershipView }) {
       const keep = new Set(drafts.map((d) => d.id).filter(Boolean));
       for (const g of m.goals) if (!keep.has(g.id)) await api(`/api/goals/${g.id}`, { method: 'DELETE' });
       for (const d of drafts) {
-        const body = { title: d.title.trim(), category: d.category };
+        const body = { title: d.title.trim(), category: d.category, pointA: d.pointA.trim(), pointB: d.pointB.trim(), successCriterion: d.pointB.trim() };
         if (d.id) {
           const prev = m.goals.find((g) => g.id === d.id);
-          if (prev && (prev.title !== body.title || prev.category !== body.category)) await api(`/api/goals/${d.id}`, { method: 'PATCH', body });
+          if (prev && (prev.title !== body.title || prev.category !== body.category || prev.pointA !== body.pointA || prev.pointB !== body.pointB)) await api(`/api/goals/${d.id}`, { method: 'PATCH', body });
         } else await api('/api/goals', { body });
       }
       haptic('success');
-      nav('/reg/points/0');
+      nav('/reg/plan/0');
     } catch (e) {
       toast(errorText(e));
     } finally {
@@ -310,39 +308,30 @@ function GoalsForm({ m }: { m: MembershipView }) {
   return (
     <Screen id="S13">
       <StepBar step={2} />
-      <Head
-        icon={unlimited ? <Sparkles size={28} strokeWidth={1.8} /> : <Target size={28} strokeWidth={1.8} />}
-        lead={single ? 'Укажи одну измеримую цель, которую ты обязуешься достичь за ближайшие 30 дней.' : unlimited ? 'Укажи измеримые цели, которые ты обязуешься достичь за ближайшие 30 дней.' : `Укажи до ${limit} измеримых целей, которые ты обязуешься достичь за ближайшие 30 дней.`}
-      >
-        Время поставить <em>{single ? 'свою цель!' : 'свои цели!'}</em> 🎯
-      </Head>
-      {!single && <span className="pill" style={{ alignSelf: 'center' }}>{unlimited ? '∞ Безлимит целей' : `Твой тариф: до ${limit} целей`}</span>}
-      <div className="card" style={{ gap: 8 }}>
-        <div className="row h3" style={{ gap: 8 }}><Lightbulb size={18} color="var(--accent)" />Как правильно поставить цель?</div>
-        {[
-          ['Хочу развивать блог', 'Непонятно, какой результат считать успехом', 'Набрать 1 000 подписчиков за 30 дней', 'Измеримый результат'],
-          ['Хочу раньше вставать', 'Непонятно, во сколько и как часто', 'Каждый день вставать в 7:00 без пропусков', 'Измеримая привычка — 30 из 30 дней'],
-        ].map(([bad, why, good, ok], i) => (
-          <div key={bad} className="col" style={{ gap: 4, paddingTop: i ? 12 : 4, borderTop: i ? '1px solid var(--line)' : 0 }}>
-            <div className="row" style={{ gap: 8, color: 'var(--muted-2)', textDecoration: 'line-through' }}><CircleX size={16} color="#d27b7b" />{bad}</div>
-            <div className="muted small" style={{ paddingLeft: 24 }}>{why}</div>
-            <div className="row" style={{ gap: 8, fontWeight: 500, marginTop: 4 }}><CircleCheck size={16} color="var(--green-2)" />{good}</div>
-            <div className="small" style={{ paddingLeft: 24, color: 'var(--green)' }}>{ok}</div>
-          </div>
-        ))}
-      </div>
+      <Head icon={<Target size={28} strokeWidth={1.8} />}>Время поставить <em>{single ? 'свою цель!' : 'свои цели!'}</em> 🎯</Head>
+      {!single && <span className="pill" style={{ alignSelf: 'center' }}>{limit === null ? '∞ Безлимит целей' : `Твой тариф: до ${limit} целей`}</span>}
       {drafts.map((d, i) => (
-        <div className="field" key={d.id ?? `new${i}`}>
-          <div className="row between">
-            <span className="h3" style={{ fontSize: 15 }}>{single ? 'Твоя цель на 30 дней' : `Цель ${i + 1}`}</span>
-            {single ? <span className="counter">1 из 1</span> : i === 0 ? <span className="counter">Обязательная</span> : (
-              <button className="link-btn" style={{ padding: 0 }} onClick={() => setDrafts(drafts.filter((_, j) => j !== i))}>Удалить</button>
-            )}
-          </div>
-          <textarea className="textarea" placeholder="Я обязуюсь..." value={d.title} maxLength={200} onChange={(e) => set(i, { title: e.target.value })} />
-          <div className="card" style={{ gap: 10, marginTop: 4 }}>
-            <span className="row h3" style={{ gap: 8, alignItems: 'flex-start' }}><Target size={18} color="var(--accent)" style={{ marginTop: 2 }} />К какой категории относится твоя цель?</span>
-            <span className="muted small" style={{ marginTop: -4 }}>Так другие участники смогут найти тебя по интересам.</span>
+        <div className="card" style={{ gap: 12 }} key={d.id ?? `new${i}`}>
+          {!single && (
+            <div className="row between">
+              <span className="label">Цель {i + 1}</span>
+              {i > 0 && <button className="link-btn" style={{ padding: 0 }} onClick={() => setDrafts(drafts.filter((_, j) => j !== i))}>Удалить</button>}
+            </div>
+          )}
+          <label className="field">
+            <span className="h3" style={{ fontSize: 15 }}>Цель</span>
+            <textarea className="textarea" rows={2} value={d.title} maxLength={200} onChange={(e) => set(i, { title: e.target.value })} />
+          </label>
+          <label className="field">
+            <span className="h3" style={{ fontSize: 15 }}>Точка А</span>
+            <textarea className="textarea" rows={2} value={d.pointA} maxLength={300} onChange={(e) => set(i, { pointA: e.target.value })} />
+          </label>
+          <label className="field">
+            <span className="h3" style={{ fontSize: 15 }}>Точка Б</span>
+            <textarea className="textarea" rows={2} value={d.pointB} maxLength={300} onChange={(e) => set(i, { pointB: e.target.value })} />
+          </label>
+          <div className="field">
+            <span className="h3" style={{ fontSize: 15 }}>Категория</span>
             <div className="grid2">
               {GOAL_CATEGORIES.map(({ id, title, emoji }) => (
                 <button key={id} type="button" className={`cat-btn ${d.category === id ? 'on' : ''}`} aria-pressed={d.category === id} onClick={() => set(i, { category: id })}>
@@ -350,113 +339,17 @@ function GoalsForm({ m }: { m: MembershipView }) {
                 </button>
               ))}
             </div>
-            {d.category && <span className="row small" style={{ gap: 6, color: 'var(--accent)' }}><CircleCheck size={15} />Выбрано: {GOAL_CATEGORIES.find((c) => c.id === d.category)?.title}</span>}
           </div>
         </div>
       ))}
-      {single ? (
-        <p className="hint">Сформулируй цель так, чтобы через 30 дней можно было однозначно определить: выполнена она или нет.</p>
-      ) : (
-        <>
-          {canAdd && <button className="btn btn-outline" onClick={() => setDrafts([...drafts, { title: '', category: '' }])}><Plus size={17} />Добавить ещё одну цель</button>}
-          <p className="hint">{unlimited ? 'Добавляй столько целей, сколько готов выполнить и подтвердить за 30 дней.' : 'Каждая цель должна иметь результат, который можно объективно проверить через 30 дней.'}</p>
-        </>
-      )}
+      {!single && canAdd && <button className="btn btn-outline" onClick={() => setDrafts([...drafts, emptyGoal()])}><Plus size={17} />Добавить ещё одну цель</button>}
       <button className="link-btn" onClick={() => nav('/materials')}>Не знаешь, какую цель поставить?</button>
-      <Note icon={<Trophy size={17} />} title={single ? 'Твоя цель — твоё обещание' : 'Твои цели — твоё обещание'}>
-        {single
-          ? 'Каждый день отмечай выполненные действия — так ты видишь свою дисциплину и поднимаешься в рейтинге недели.'
-          : 'Каждый день отмечай выполненные действия по всем целям — так ты видишь свою дисциплину и поднимаешься в рейтинге недели.'}
-      </Note>
       <Cta disabled={!valid || busy} onClick={save}>Продолжить</Cta>
     </Screen>
   );
 }
 
-function GoalCard({ goal, index, total }: { goal: Goal; index: number; total: number }) {
-  return (
-    <div className="card" style={{ gap: 4, padding: '12px 14px' }}>
-      <div className="row between">
-        <span className="label">{total > 1 ? `Цель ${index + 1} из ${total}` : 'Твоя цель'}</span>
-        <Target size={15} color="var(--accent)" />
-      </div>
-      <div className="h3" style={{ fontSize: 16 }}>{goal.title}</div>
-    </div>
-  );
-}
-
-/* ───────────── Шаг 3: точки А и Б ───────────── */
-
-export function PointsStep() {
-  const i = Number(useParams().i ?? 0);
-  const q = useQuestionnaire(`/reg/points/${i}`);
-  return <Gate q={q} id="S14">{(m) => (m.goals[i] ? <PointsForm key={m.goals[i].id} m={m} i={i} /> : <Navigate to="/reg/goals" replace />)}</Gate>;
-}
-
-function PointsForm({ m, i }: { m: MembershipView; i: number }) {
-  const nav = useNavigate();
-  const goal = m.goals[i];
-  const h = hints(goal.category);
-  const [a, setA] = useState(goal.pointA ?? '');
-  const [b, setB] = useState(goal.pointB ?? '');
-  const [method, setMethod] = useState(goal.confirmMethod ?? '');
-  const [note, setNote] = useState(goal.confirmNote ?? '');
-  const [busy, setBusy] = useState(false);
-  const valid = a.trim().length >= 2 && b.trim().length >= 2 && method && (method !== 'other' || note.trim().length >= 3);
-
-  const save = async () => {
-    setBusy(true);
-    try {
-      await api(`/api/goals/${goal.id}`, { method: 'PATCH', body: { pointA: a.trim(), pointB: b.trim(), successCriterion: b.trim(), confirmMethod: method, confirmNote: method === 'other' ? note.trim() : null } });
-      nav(i + 1 < m.goals.length ? `/reg/points/${i + 1}` : '/reg/plan/0');
-    } catch (e) {
-      toast(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Screen id="S14">
-      <StepBar step={3} />
-      <Head icon={<Route size={28} strokeWidth={1.8} />} lead="Давай зафиксируем, где ты сейчас и какой результат должен быть через 30 дней.">
-        От точки А <em>до точки Б!</em> 🚀
-      </Head>
-      <GoalCard goal={goal} index={i} total={m.goals.length} />
-      <div className="field">
-        <div className="row" style={{ gap: 10 }}>
-          <span className="ic sq" style={{ width: 34, height: 34, borderRadius: 10, fontWeight: 600 }}>А</span>
-          <span className="h3" style={{ fontSize: 16 }}>Опиши свою стартовую точку</span>
-        </div>
-        <textarea className="textarea" placeholder={h.a} value={a} maxLength={300} onChange={(e) => setA(e.target.value)} />
-        <p className="hint">Это точка А. С неё ты сможешь оценить свой прогресс.</p>
-      </div>
-      <div className="row" style={{ gap: 10 }}><div className="divider grow" /><ArrowDown size={14} color="var(--accent)" /><div className="divider grow" /></div>
-      <div className="field">
-        <div className="row" style={{ gap: 10 }}>
-          <span className="ic sq" style={{ width: 34, height: 34, borderRadius: 10, fontWeight: 600, background: 'var(--accent)', color: '#fff' }}>Б</span>
-          <span className="h3" style={{ fontSize: 16 }}>Какой результат должен быть через 30 дней?</span>
-        </div>
-        <textarea className="textarea" placeholder={h.b} value={b} maxLength={300} onChange={(e) => setB(e.target.value)} />
-        <p className="hint">Это точка Б. Так мы сможем проверить, была ли выполнена цель.</p>
-      </div>
-      <div className="card" style={{ gap: 4 }}>
-        <div className="row h3" style={{ gap: 8, fontSize: 15 }}><ShieldCheck size={17} color="var(--accent)" />Как подтвердим результат?</div>
-        <p className="muted small" style={{ margin: '2px 0 6px' }}>Выбери способ, которым сможешь доказать выполнение цели в конце челленджа.</p>
-        <div role="radiogroup">
-          {CONFIRM.map(([id, label]) => <Radio key={id} on={method === id} onClick={() => setMethod(id)}>{label}</Radio>)}
-        </div>
-        {method === 'other' && <input className="input" placeholder="Опиши, как подтвердишь результат" value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} />}
-      </div>
-      <Note icon={<Trophy size={17} />} title="Точка Б — конкретная и проверяемая">
-        Так через 30 дней ты точно поймёшь, достигла ли цели, и сможешь подтвердить результат.
-      </Note>
-      <Cta disabled={!valid || busy} onClick={save}>{i + 1 < m.goals.length ? 'Следующая цель' : 'Перейти к плану действий'}</Cta>
-    </Screen>
-  );
-}
-
-/* ───────────── Шаг 4: план действий ───────────── */
+/* ───────────── Шаг 3: план действий ───────────── */
 
 interface ActionDraft { id?: string; title: string; frequency: '' | 'daily' | 'n_per_week' | 'once'; n: number; dueDate: string }
 
@@ -504,7 +397,7 @@ function PlanForm({ m, i }: { m: MembershipView; i: number }) {
 
   return (
     <Screen id="S15">
-      <StepBar step={4} />
+      <StepBar step={3} />
       <Head icon={<ListChecks size={28} strokeWidth={1.8} />} lead="Какие ключевые действия ты обязуешься выполнять, чтобы достичь своей цели, и ежедневно отчитываться о них?">
         Большая цель начинается <em>с маленьких действий!</em> 🚀
       </Head>
@@ -580,7 +473,7 @@ function ConfirmForm({ m }: { m: MembershipView }) {
   const { refresh } = useMe();
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
-  const incomplete = useMemo(() => m.goals.findIndex((g) => !g.pointA || !g.pointB || !g.confirmMethod || g.tasks.length === 0), [m.goals]);
+  const incomplete = useMemo(() => m.goals.findIndex((g) => !g.pointA || !g.pointB || g.tasks.length === 0), [m.goals]);
 
   const submit = async () => {
     setBusy(true);
@@ -630,10 +523,10 @@ function PromiseCard({ goal, i, total }: { goal: Goal; i: number; total: number 
       </div>
       <div className="grid2">
         <div className="row" style={{ background: 'var(--bg)', borderRadius: 14, padding: '12px', alignItems: 'flex-start' }}>
-          <span className="grow"><span className="label" style={{ color: 'var(--muted)', display: 'block', fontSize: 12 }}>Точка А</span><span style={{ display: 'block', marginTop: 6, fontSize: 15 }}>{goal.pointA || '—'}</span></span>{edit(`/reg/points/${i}`)}
+          <span className="grow"><span className="label" style={{ color: 'var(--muted)', display: 'block', fontSize: 12 }}>Точка А</span><span style={{ display: 'block', marginTop: 6, fontSize: 15 }}>{goal.pointA || '—'}</span></span>{edit('/reg/goals')}
         </div>
         <div className="row" style={{ background: 'var(--accent-soft)', borderRadius: 14, padding: '12px', alignItems: 'flex-start' }}>
-          <span className="grow"><span className="label" style={{ color: 'var(--accent)', display: 'block', fontSize: 12 }}>Точка Б</span><span style={{ display: 'block', marginTop: 6, fontSize: 15, color: 'var(--ink-2)' }}>{goal.pointB || '—'}</span></span>{edit(`/reg/points/${i}`)}
+          <span className="grow"><span className="label" style={{ color: 'var(--accent)', display: 'block', fontSize: 12 }}>Точка Б</span><span style={{ display: 'block', marginTop: 6, fontSize: 15, color: 'var(--ink-2)' }}>{goal.pointB || '—'}</span></span>{edit('/reg/goals')}
         </div>
       </div>
       <button className="row between" style={{ border: 0, background: 'none', padding: '4px 0', cursor: 'pointer' }} onClick={() => setOpen(!open)} aria-expanded={open}>

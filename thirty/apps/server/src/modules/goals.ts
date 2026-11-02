@@ -174,8 +174,8 @@ export async function fixGoals(userId: bigint, membershipId: string) {
   if (!goals.length) throw badRequest('no_goals', 'Добавьте хотя бы одну цель');
   const empty = goals.find((g) => g.tasks.length === 0);
   if (empty) throw badRequest('goal_without_tasks', `Добавь действия к цели «${empty.title}»`);
-  const noPoints = goals.find((g) => !g.pointA || !g.pointB || !g.confirmMethod);
-  if (noPoints) throw badRequest('goal_without_points', `Заполни точку А, точку Б и способ подтверждения для цели «${noPoints.title}»`);
+  const noPoints = goals.find((g) => !g.pointA || !g.pointB);
+  if (noPoints) throw badRequest('goal_without_points', `Заполни точку А и точку Б для цели «${noPoints.title}»`);
   const now = clock.now();
   // Дату старта не выбрали — начинаем с начала месяца участия или сегодня, если он уже идёт
   if (!m.startsOn) {
