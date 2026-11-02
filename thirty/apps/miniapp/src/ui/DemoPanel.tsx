@@ -11,9 +11,10 @@ interface DemoState {
   review: 'none' | 'pending' | 'needs_info' | 'granted';
   subscription: 'active' | 'ended' | 'renewed';
   timer: number;
+  buddy: 'paired' | 'none' | 'free';
 }
 
-const DEFAULT: DemoState = { status: 'active', day: 13, tariff: 'm3', reports: 'some', outcome: 'full', review: 'none', subscription: 'active', timer: 2400 };
+const DEFAULT: DemoState = { status: 'active', day: 13, tariff: 'm3', reports: 'some', outcome: 'full', review: 'none', subscription: 'active', timer: 2400, buddy: 'paired' };
 const KEY = 'thirty.demoState';
 
 const STATUS: [DemoState['status'], string][] = [
@@ -112,6 +113,9 @@ export function DemoPanel() {
           <Select label="Статус пользователя" value={state.status} options={STATUS} onChange={(v) => set('status', v)} />
           {state.status === 'active' && (
             <Select label="День челленджа" value={state.day} options={Array.from({ length: 30 }, (_, i) => [i + 1, `День ${i + 1}${DAYS_HINT[i + 1] ? ` — ${DAYS_HINT[i + 1]}` : ''}`] as [number, string])} onChange={(v) => set('day', v)} />
+          )}
+          {['waiting', 'active'].includes(state.status) && (
+            <Select label="Бадди" value={state.buddy} options={[['paired', 'Есть бадди'], ['none', 'Нет бадди — все заняты'], ['free', 'Нет бадди — есть свободная (автоподбор найдёт)']]} onChange={(v) => set('buddy', v)} />
           )}
           {state.status !== 'prepay' && <Select label="Тариф" value={state.tariff} options={[['m1', '1 месяц (1 цель)'], ['m3', '3 месяца (до 3 целей)'], ['m6', '6 месяцев (без лимита)']]} onChange={(v) => set('tariff', v)} />}
           {(state.status === 'active' || done) && (

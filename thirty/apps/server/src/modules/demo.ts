@@ -163,6 +163,8 @@ export const demoStateInput = z.object({
   review: z.enum(['none', 'pending', 'needs_info', 'granted']).default('none'),
   subscription: z.enum(['active', 'ended', 'renewed']).default('active'),
   timer: z.number().int().min(0).max(2400).default(2400),
+  /** Бадди у владельца: есть / нет и все заняты / нет и есть свободная в очереди автоподбора */
+  buddy: z.enum(['paired', 'none', 'free']).default('paired'),
 });
 export type DemoState = z.infer<typeof demoStateInput>;
 
@@ -296,8 +298,13 @@ async function buildDemoState(ownerId: bigint, ownerName: string, s: DemoState) 
 
   const mine = await enroll(ownerId, ownerName, 'Москва', s.tariff, flow.id, flowStart);
   await fillGoals(ownerId, mine.id, OWNER_GOALS.slice(0, OWNER_GOAL_COUNT[s.tariff]));
-  const pair = await prisma.buddyPair.create({ data: { flowId: flow.id, userA: ownerId, userB: PEOPLE[0].id, source: 'auto', matchReason: 'Общая цель: блог' } });
-  await prisma.buddyAssignment.createMany({ data: [{ flowId: flow.id, userId: ownerId, pairId: pair.id }, { flowId: flow.id, userId: PEOPLE[0].id, pairId: pair.id }] });
+  if (s.buddy === 'paired') {
+    const pair = await prisma.buddyPair.create({ data: { flowId: flow.id, userA: ownerId, userB: PEOPLE[0].id, source: 'auto', matchReason: 'Общая цель: блог' } });
+    await prisma.buddyAssignment.createMany({ data: [{ flowId: flow.id, userId: ownerId, pairId: pair.id }, { flowId: flow.id, userId: PEOPLE[0].id, pairId: pair.id }] });
+  } else if (s.buddy === 'free') {
+    // свободная участница уже ждёт в очереди автоподбора — «Подобрать пару» сразу найдёт её
+    await prisma.flowMembership.updateMany({ where: { flowId: flow.id, userId: PEOPLE[1].id }, data: { buddyMode: 'auto', buddyQueuedAt: new Date(Date.now() - 3600_000) } });
+  }
   if (s.status === 'waiting') {
     clock.set(at(addDays(flowStart, -7), 11, 30));
     await trackerReview(ownerId, 'none');
