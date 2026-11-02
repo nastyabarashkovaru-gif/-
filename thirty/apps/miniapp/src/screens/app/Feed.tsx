@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, HeartHandshake, MessagesSquare, Reply, Send, SlidersHorizontal, Trophy, User, X, ChevronRight } from 'lucide-react';
+import { ArrowLeft, CircleCheck, HeartHandshake, MessagesSquare, Reply, Send, SlidersHorizontal, Trophy, User, X, ChevronRight } from 'lucide-react';
 import { api } from '../../lib/api';
 import { openTelegram } from '../../lib/telegram';
 import { useMe } from '../../state';
@@ -345,7 +345,7 @@ function People() {
 
 export function ParticipantScreen() {
   const { id = '' } = useParams();
-  const { data, error, loading, reload } = useLoad(() => api<{ name: string; hidden?: boolean; photoUrl?: string; city?: string; age?: number | null; occupation?: string | null; aspiration?: string | null; sixMonthBadge?: boolean; writeUrl?: string; flow?: { title: string } | null; goals?: { title: string; category: string }[]; stats?: { percent: number; successfulDays: number; currentStreak: number } | null; flowsCount?: number; buddy?: { state: string; proposalId?: string } }>(`/api/participants/${id}`), [id]);
+  const { data, error, loading, reload } = useLoad(() => api<{ name: string; hidden?: boolean; photoUrl?: string; city?: string; age?: number | null; occupation?: string | null; aspiration?: string | null; sixMonthBadge?: boolean; writeUrl?: string; flow?: { title: string } | null; challenge?: { startsOn: string; endsOn: string; day: number; length: number } | null; goals?: { title: string; category: string; pointA: string | null; pointB: string | null; tasks: { title: string; schedule: string }[] }[]; stats?: { percent: number; successfulDays: number; currentStreak: number } | null; flowsCount?: number; buddy?: { state: string; proposalId?: string } }>(`/api/participants/${id}`), [id]);
   const [busy, setBusy] = useState(false);
   const propose = async () => {
     setBusy(true);
@@ -380,7 +380,7 @@ export function ParticipantScreen() {
       <div className="card center" style={{ alignItems: 'center' }}>
         <Avatar name={data.name} url={data.photoUrl} size="lg" />
         <div className="h2">{data.name} {data.sixMonthBadge && '🏅'}</div>
-        {data.hidden ? <div className="muted">Участник скрыл профиль</div> : <div className="muted">{[data.city, data.age ? ageText(data.age) : null, data.flow?.title].filter(Boolean).join(' · ')}</div>}
+        {data.hidden ? <div className="muted">Участник скрыл профиль</div> : <div className="muted">{[data.city, data.age ? ageText(data.age) : null].filter(Boolean).join(' · ')}</div>}
       </div>
       {!data.hidden && (data.occupation || data.aspiration) && (
         <div className="card" style={{ gap: 10 }}>
@@ -391,6 +391,16 @@ export function ParticipantScreen() {
       )}
       {!data.hidden && (
         <>
+          {data.challenge && (
+            <div className="card" style={{ gap: 8 }}>
+              <div className="row between">
+                <span className="h3">Челлендж</span>
+                <span className="pill">{data.challenge.day > 0 ? `День ${data.challenge.day} из ${data.challenge.length}` : 'Ещё не начался'}</span>
+              </div>
+              <div className="muted small">Старт {humanDate(data.challenge.startsOn, true)} · финиш {humanDate(data.challenge.endsOn, true)}</div>
+              <div className="bar"><i style={{ width: `${Math.round((data.challenge.day / data.challenge.length) * 100)}%` }} /></div>
+            </div>
+          )}
           {data.stats && (
             <div className="stats3">
               <div className="stat"><b>{data.stats.percent}%</b><span>Выполнение</span></div>
@@ -399,7 +409,21 @@ export function ParticipantScreen() {
             </div>
           )}
           {data.goals && data.goals.length > 0 && (
-            <div className="card"><div className="h3">Цели</div>{data.goals.map((g) => <div className="list-item" key={g.title}><span className="pill">{catTitle(g.category).split(' ')[0]}</span><div className="grow">{g.title}</div></div>)}</div>
+            <div className="card" style={{ gap: 14 }}>
+              <div className="h3">Цели и ежедневные действия</div>
+              {data.goals.map((g, i) => (
+                <div key={g.title + i} className="col" style={{ gap: 8, paddingTop: i ? 12 : 0, borderTop: i ? '1px solid var(--line)' : 0 }}>
+                  <div className="row" style={{ gap: 8, alignItems: 'flex-start' }}><span className="pill">{catTitle(g.category).split(' ')[0]}</span><b className="grow">{g.title}</b></div>
+                  {(g.pointA || g.pointB) && <div className="small muted">{g.pointA ?? '—'} → <span style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>{g.pointB ?? '—'}</span></div>}
+                  {g.tasks.map((t) => (
+                    <div key={t.title} className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
+                      <CircleCheck size={15} color="var(--accent)" style={{ marginTop: 3, flex: 'none' }} />
+                      <div><div>{t.title}</div><div className="muted small">{t.schedule.replace(/^Однократно, до/, 'До')}</div></div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
           )}
           {data.buddy?.state === 'can_propose' && <button className="btn btn-primary" disabled={busy} onClick={propose}><HeartHandshake size={18} />Стать бадди 💜</button>}
           {data.buddy?.state === 'sent' && <div className="banner warn center">Предложение стать парой отправлено — ждём ответа</div>}

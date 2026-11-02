@@ -481,3 +481,19 @@ describe('бадди: автоподбор по очереди и самосто
     expect(await ids('free')).toEqual(['903']);
   });
 });
+
+describe('профиль участницы', () => {
+  it('при оплате нескольких месяцев показывает текущий челлендж: цели, действия, старт и день', async () => {
+    clock.set('2026-10-25T09:00:00Z');
+    await paidUser(920);
+    await grantMembership(920, '2026-12-01');
+    await grantMembership(920, '2027-01-01');
+    await fixDaily(920);
+    await prisma.user.update({ where: { id: 920n }, data: { visibility: 'public' } });
+    clock.set('2026-11-02T09:00:00Z');
+    await paidUser(921);
+    const p = await api('GET', '/api/participants/920', 921);
+    expect(p.body.challenge).toMatchObject({ startsOn: '2026-11-01', day: 2, length: 30 });
+    expect(p.body.goals[0]).toMatchObject({ title: 'Привычка', tasks: [{ title: 'Сделать', schedule: 'Ежедневно' }] });
+  });
+});

@@ -1,4 +1,4 @@
-import { fromDbDate, flowBounds, localDate } from '@thirty/domain';
+import { fromDbDate, flowBounds, localDate, daysBetween } from '@thirty/domain';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { clock } from '../clock';
@@ -7,7 +7,8 @@ import { prisma } from '../db';
 import { badRequest, forbidden, notFound } from '../http';
 import { getSetting } from '../settings';
 import { loadReport, reportInclude, serializeReport } from './reports';
-import { memberStats } from './rating';
+import { challengeWindow, memberStats } from './rating';
+import { scheduleLabel } from './goals';
 import { displayName } from './users';
 
 export const REACTIONS = ['🔥', '💪', '👏', '❤️'] as const;
@@ -97,6 +98,19 @@ export async function reportDetails(id: string) {
  * Поиск участников всех потоков с учётом видимости: hidden — не в поиске;
  * members — только для участников того же потока. Фильтр по дате старта потока, городу, категории цели.
  */
+/**
+ * Текущее участие для профиля и списка: идущий сейчас челлендж; если нет — последний начавшийся; иначе ближайший будущий.
+ * (При оплате нескольких месяцев сразу есть участия и в будущих потоках — показывать нужно текущий, а не самый поздний.)
+ */
+function pickCurrent<T extends { flow: Parameters<typeof challengeWindow>[0]['flow'] }>(list: T[], today: string): T | undefined {
+  const w = (m: T) => challengeWindow(m);
+  const running = list.find((m) => w(m).start <= today && w(m).end >= today);
+  if (running) return running;
+  const started = list.filter((m) => w(m).start <= today).sort((a, b) => (w(a).start < w(b).start ? 1 : -1))[0];
+  if (started) return started;
+  return [...list].sort((a, b) => (w(a).start > w(b).start ? 1 : -1))[0];
+}
+
 export async function participants(viewerId: bigint, q: { q?: string; flowStart?: string; city?: string; category?: string; cursor?: string; buddy?: string }) {
   const viewerFlows = (await prisma.flowMembership.findMany({ where: { userId: viewerId, status: { not: 'revoked' } }, select: { flowId: true } })).map((m) => m.flowId);
   const membershipFilter: Prisma.FlowMembershipWhereInput = { status: { in: ['registered', 'active', 'finished'] } };
@@ -124,8 +138,14 @@ export async function participants(viewerId: bigint, q: { q?: string; flowStart?
     take: 31,
     ...(q.cursor ? { cursor: { id: BigInt(q.cursor) }, skip: 1 } : {}),
     orderBy: { id: 'asc' },
-    include: { memberships: { where: { status: { not: 'revoked' } }, include: { flow: true, goals: { where: { isPublic: true } } }, orderBy: { flow: { startsOn: 'desc' } }, take: 1 } },
+    include: { memberships: { where: { status: { not: 'revoked' } }, include: { flow: true, goals: { where: { isPublic: true } } }, orderBy: { flow: { startsOn: 'desc' } } } },
   });
+  const todayL = localDate(clock.now(), await getSetting('flow.timezone'));
+  // в списке — текущее участие (а не самое позднее оплаченное)
+  for (const u of rows) {
+    const cur = pickCurrent(u.memberships, todayL);
+    u.memberships = cur ? [cur] : [];
+  }
   const page = rows.slice(0, 30);
   const entries = await prisma.leaderboardEntry.findMany({
     where: { OR: page.filter((u) => u.memberships[0]).map((u) => ({ userId: u.id, flowId: u.memberships[0].flowId })) },
@@ -152,13 +172,17 @@ export async function participantProfile(viewerId: bigint, id: string) {
   if (!/^\d+$/.test(id)) throw notFound();
   const u = await prisma.user.findUnique({ where: { id: BigInt(id) } });
   if (!u || u.deletedAt) throw notFound();
-  const memberships = await prisma.flowMembership.findMany({ where: { userId: u.id, status: { not: 'revoked' } }, include: { flow: true, goals: true }, orderBy: { flow: { startsOn: 'desc' } } });
+  const memberships = await prisma.flowMembership.findMany({ where: { userId: u.id, status: { not: 'revoked' } }, include: { flow: true, goals: { include: { tasks: { orderBy: { createdAt: 'asc' } } } } }, orderBy: { flow: { startsOn: 'desc' } } });
   const viewerFlows = new Set((await prisma.flowMembership.findMany({ where: { userId: viewerId }, select: { flowId: true } })).map((m) => m.flowId));
   const self = viewerId === u.id;
   const visible = self || u.visibility === 'public' || (u.visibility === 'members' && memberships.some((m) => viewerFlows.has(m.flowId)));
   if (!visible) return { id, name: displayName(u), hidden: true };
-  const current = memberships[0];
+  const today = localDate(clock.now(), await getSetting('flow.timezone'));
+  const current = pickCurrent(memberships, today);
   const stats = current && ['active', 'finished'].includes(current.status) ? await memberStats(current.id, current.flow) : null;
+  const win = current ? challengeWindow(current) : null;
+  const length = win ? daysBetween(win.start, win.end) + 1 : 0;
+  const dayNumber = win && today >= win.start ? Math.min(length, daysBetween(win.start, today) + 1) : 0;
   return {
     id,
     name: displayName(u),
@@ -170,7 +194,9 @@ export async function participantProfile(viewerId: bigint, id: string) {
     sixMonthBadge: u.sixMonthBadge,
     writeUrl: u.username ? `https://t.me/${u.username}` : `tg://user?id=${u.id}`,
     flow: current ? { title: current.flow.title, startsOn: fromDbDate(current.flow.startsOn) } : null,
-    goals: current?.goals.filter((g) => g.isPublic).sort((a, b) => a.sort - b.sort).map((g) => ({ title: g.title, category: g.category, pointA: g.pointA, pointB: g.pointB })) ?? [],
+    // Личный челлендж: дата старта, день из 30 (до старта — 0)
+    challenge: win ? { startsOn: win.start, endsOn: win.end, day: dayNumber, length } : null,
+    goals: current?.goals.filter((g) => g.isPublic).sort((a, b) => a.sort - b.sort).map((g) => ({ title: g.title, category: g.category, pointA: g.pointA, pointB: g.pointB, tasks: g.tasks.map((t) => ({ title: t.title, schedule: scheduleLabel(t) })) })) ?? [],
     stats: stats ? { percent: Math.round(stats.ratio * 100), successfulDays: stats.successfulDays, currentStreak: stats.currentStreak } : null,
     flowsCount: memberships.length,
     buddy: await buddyState(viewerId, u.id),
