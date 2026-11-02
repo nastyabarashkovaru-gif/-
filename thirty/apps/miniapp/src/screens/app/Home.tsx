@@ -7,6 +7,7 @@ import { AppBar, ErrorState, Loading, Screen, Sheet, errorText, humanDate, plura
 import { canShareStory, downloadImage, shareLink, shareStory } from '../../lib/telegram';
 import { catTitle } from '../reg/Registration';
 import { ReportForm } from './Report';
+import { BuddyRoulette } from './Buddy';
 import { FeedbackPopup, TrackersPopup } from './Journey';
 
 interface HomeGoal {
@@ -67,6 +68,7 @@ export function Home() {
   const loc = useLocation();
   const [share, setShare] = useState(false);
   const [reportOpen, setReportOpen] = useState(() => new URLSearchParams(loc.search).get('report') === '1');
+  const [roulette, setRoulette] = useState(false);
   const p = data?.prompts;
   const [feedbackOpen, closeFeedback] = useOncePerDay(data ? `feedback.${data.membership.id}` : null, Boolean(p?.feedbackPopup));
   // Окно трекеров не накладывается на окно обратной связи
@@ -183,13 +185,13 @@ export function Home() {
               <div className="divider" />
               <button className="link-accent" style={{ alignSelf: 'flex-start', padding: 0, fontWeight: 500, color: 'var(--muted)' }} onClick={() => nav('/buddy?replace=1')}>Заменить бадди</button>
             </>
-          ) : (data.buddy as { mode?: string | null }).mode === 'auto' ? (
-            <>
-              <div className="muted">Ищем тебе бадди 💜</div>
-              <button className="link-accent" style={{ alignSelf: 'flex-start', padding: 0, fontWeight: 500 }} onClick={() => nav('/buddy')}>Подробнее</button>
-            </>
           ) : (
-            <button className="btn btn-primary" style={{ minHeight: 42, fontSize: 15 }} onClick={() => nav('/buddy')}>Найти бадди 💜</button>
+            <>
+              {(data.buddy as { mode?: string | null }).mode === 'auto' && <div className="muted small">Ищем тебе бадди 💜</div>}
+              <button className="btn btn-primary" style={{ minHeight: 42, fontSize: 14, padding: '0 10px' }} onClick={() => setRoulette(true)}>🎲 Подобрать пару</button>
+              <button className="link-accent" style={{ alignSelf: 'flex-start', padding: 0, fontWeight: 500, fontSize: 14 }} onClick={() => nav('/buddy')}>Выбрать самой</button>
+              {roulette && <BuddyRoulette onClose={() => { setRoulette(false); reload(); }} />}
+            </>
           )}
           <div className="spacer" />
 

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Send, Sparkles, User } from 'lucide-react';
 import { api } from '../../lib/api';
-import { openTelegram } from '../../lib/telegram';
+import { haptic, openTelegram } from '../../lib/telegram';
 import { BuddyProposals } from '../reg/Registration';
 import { Avatar, ErrorState, Header, Loading, Screen, Sheet, errorText, humanDate, toast, useLoad } from '../../ui';
 
@@ -79,7 +80,12 @@ interface FreePerson { id: string; name: string; username: string | null; photoU
 function FindBuddy({ mode, onChange }: { mode: 'auto' | 'self' | null; onChange: () => void }) {
   const nav = useNavigate();
   const [busy, setBusy] = useState(false);
+  const [spin, setSpin] = useState(false);
   const choose = async (m: 'auto' | 'self') => {
+    if (m === 'auto') {
+      setSpin(true);
+      return;
+    }
     setBusy(true);
     try {
       const r = await api<{ state: string }>('/api/buddy/mode', { body: { mode: m } });
@@ -91,19 +97,22 @@ function FindBuddy({ mode, onChange }: { mode: 'auto' | 'self' | null; onChange:
       setBusy(false);
     }
   };
+  const roulette = spin && <BuddyRoulette onClose={() => { setSpin(false); onChange(); }} />;
   if (mode === 'auto') {
     return (
       <>
         <div className="card center" style={{ alignItems: 'center', gap: 10 }}>
           <Sparkles size={40} color="var(--accent)" />
           <div className="h3">Ищем тебе бадди 💜</div>
-          <div className="muted small">Как только появится свободная участница с автоподбором, мы вас объединим и напишем в боте.</div>
+          <div className="muted small">Сейчас все бадди заняты. Как только появится свободная участница, мы сразу пришлём уведомление в бот!</div>
         </div>
+        <button className="btn btn-primary" onClick={() => choose('auto')}>🎲 Подобрать пару ещё раз</button>
         <button className="btn btn-light" disabled={busy} onClick={() => choose('self')}>Выбрать бадди самостоятельно</button>
+        {roulette}
       </>
     );
   }
-  if (mode === 'self') return <FreeList onChange={onChange} onAuto={() => choose('auto')} />;
+  if (mode === 'self') return <>{<FreeList onChange={onChange} onAuto={() => choose('auto')} />}{roulette}</>;
   return (
     <>
       <div className="col" style={{ gap: 6 }}>
@@ -119,6 +128,7 @@ function FindBuddy({ mode, onChange }: { mode: 'auto' | 'self' | null; onChange:
         <span className="grow"><b>Выбрать самостоятельно</b><span>Выбери участника, с которым хочешь проходить челлендж вместе</span></span>
       </button>
       <button className="link-btn" onClick={() => nav('/reg/buddy')}>Пригласить подругу по ссылке</button>
+      {roulette}
     </>
   );
 }
@@ -166,5 +176,73 @@ function FreeList({ onChange, onAuto }: { onChange: () => void; onAuto: () => vo
       ))}
       <button className="link-btn" onClick={onAuto}>Лучше подберите мне бадди автоматически</button>
     </>
+  );
+}
+
+type Found = { name: string; photoUrl: string | null; writeUrl: string } | null;
+
+/**
+ * «Подобрать пару автоматически»: окно с «крутилкой» аватарок (~2,5 с), затем результат —
+ * бадди найдена или «все заняты, пришлём уведомление в бот».
+ */
+export function BuddyRoulette({ onClose }: { onClose: () => void }) {
+  const [faces, setFaces] = useState<{ name: string; photoUrl: string | null }[]>([]);
+  const [phase, setPhase] = useState<'spin' | 'found' | 'wait'>('spin');
+  const [found, setFound] = useState<Found>(null);
+  useEffect(() => {
+    let alive = true;
+    const started = Date.now();
+    void api<{ items: { name: string; photoUrl: string | null }[] }>('/api/buddy/free').then((r) => alive && setFaces(r.items.slice(0, 12))).catch(() => undefined);
+    void (async () => {
+      let res: Found = null;
+      try {
+        const r = await api<{ state: string; buddy?: { name: string; photoUrl: string | null; writeUrl: string } }>('/api/buddy/mode', { body: { mode: 'auto' } });
+        if (r.state === 'paired' && r.buddy) res = r.buddy;
+      } catch (e) {
+        toast(errorText(e));
+      }
+      // крутилка крутится минимум 2,5 секунды — даже если ответ пришёл сразу
+      await new Promise((ok) => setTimeout(ok, Math.max(0, 2500 - (Date.now() - started))));
+      if (!alive) return;
+      setFound(res);
+      setPhase(res ? 'found' : 'wait');
+      haptic(res ? 'success' : 'light');
+    })();
+    return () => { alive = false; };
+  }, []);
+  // лента аватарок для «слота»: повторяем, чтобы прокрутка была длинной
+  const base = faces.length ? faces : [{ name: '💜', photoUrl: null }, { name: '✨', photoUrl: null }, { name: '🤝', photoUrl: null }, { name: '🔥', photoUrl: null }];
+  const reel = Array.from({ length: 6 }, () => base).flat();
+  return createPortal(
+    <div className="roulette-overlay">
+      <div className="roulette-card">
+        {phase === 'spin' && (
+          <>
+            <div className="slot"><div className="slot-reel">{reel.map((f, i) => <div key={i} className="slot-face">{f.photoUrl ? <img src={f.photoUrl} alt="" /> : <span>{f.name.slice(0, 1)}</span>}</div>)}</div></div>
+            <div className="h2 center" style={{ margin: 0 }}>Подбираем тебе бадди…</div>
+            <div className="muted center">Ищем свободную участницу 💜</div>
+          </>
+        )}
+        {phase === 'found' && found && (
+          <>
+            <div className="found-party" aria-hidden>🎉</div>
+            <div className="found-face">{found.photoUrl ? <img src={found.photoUrl} alt="" /> : <span>{found.name.slice(0, 1)}</span>}</div>
+            <div className="h2 center" style={{ margin: 0 }}>Ура! Мы нашли тебе бадди! 💜</div>
+            <div className="muted center">Твой напарник — <b style={{ color: 'var(--ink)' }}>{found.name}</b>. Познакомьтесь и вместе двигайтесь к своим целям!</div>
+            <button className="btn btn-primary" onClick={() => openTelegram(found.writeUrl)}><Send size={18} />Написать бадди</button>
+            <button className="btn btn-ghost" onClick={onClose}>Отлично!</button>
+          </>
+        )}
+        {phase === 'wait' && (
+          <>
+            <div className="wait-ic" aria-hidden>⏳</div>
+            <div className="h2 center" style={{ margin: 0 }}>Сейчас все бадди заняты 💜</div>
+            <div className="muted center">Как только появится свободная участница, мы сразу пришлём уведомление в бот!</div>
+            <button className="btn btn-primary" onClick={onClose}>Хорошо, жду</button>
+          </>
+        )}
+      </div>
+    </div>,
+    document.body,
   );
 }

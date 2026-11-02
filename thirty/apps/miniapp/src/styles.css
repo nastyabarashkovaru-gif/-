@@ -617,3 +617,19 @@ img { max-width: 100%; display: block; }
 .search-field { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 0 14px; color: var(--muted); }
 .search-field input { flex: 1; border: 0; outline: 0; background: none; font: inherit; color: var(--ink); padding: 13px 0; min-width: 0; }
 .free-row { gap: 12px; }
+
+/* «Подобрать пару автоматически»: крутилка аватарок */
+.roulette-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(24, 16, 48, 0.55); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 20px; animation: fade-in 0.2s ease; }
+.roulette-card { width: 100%; max-width: 380px; background: #fff; border-radius: 28px; padding: 26px 20px 20px; display: flex; flex-direction: column; align-items: center; gap: 12px; box-shadow: 0 20px 60px rgba(40, 20, 90, 0.35); animation: pop-in 0.35s cubic-bezier(.2,1.4,.4,1); }
+.slot { flex: none; width: 120px; height: 120px; aspect-ratio: 1; border-radius: 50%; overflow: hidden; position: relative; background: var(--accent-soft); box-shadow: 0 0 0 6px var(--accent-soft-2), 0 0 0 9px var(--accent); }
+.slot-reel { display: flex; flex-direction: column; animation: reel-spin 2.4s cubic-bezier(.25,.1,.25,1) forwards; }
+.slot-face { width: 120px; height: 120px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 46px; font-weight: 800; color: var(--accent); }
+.slot-face img, .found-face img { width: 100%; height: 100%; object-fit: cover; }
+@keyframes reel-spin { 0% { transform: translateY(0); filter: blur(0); } 15% { filter: blur(2px); } 85% { filter: blur(1.5px); } 100% { transform: translateY(-80%); filter: blur(0); } }
+.found-face { flex: none; width: 120px; height: 120px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 46px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--accent), #ff6fb5); box-shadow: 0 0 0 6px var(--accent-soft-2); animation: pop-in 0.5s cubic-bezier(.2,1.6,.4,1); }
+.found-party { font-size: 44px; line-height: 1; animation: bounce-in 0.6s ease; }
+.wait-ic { font-size: 54px; line-height: 1; animation: wait-pulse 1.6s ease-in-out infinite; }
+@keyframes pop-in { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes bounce-in { 0% { transform: translateY(10px) scale(0.6); opacity: 0; } 60% { transform: translateY(-6px) scale(1.15); opacity: 1; } 100% { transform: none; } }
+@keyframes wait-pulse { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
