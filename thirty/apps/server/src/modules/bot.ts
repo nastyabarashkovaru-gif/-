@@ -300,6 +300,10 @@ export async function handleUpdate(update: TgUpdate) {
   if (update.callback_query) {
     const q = update.callback_query;
     await tg('answerCallbackQuery', { callback_query_id: q.id }).catch(() => undefined);
+    if (q.data === 'cancel_sub' || q.data === 'cancel_keep') {
+      await handleCancelChoice(BigInt(q.from.id), q.data === 'cancel_sub', q.message?.chat.id ?? q.from.id);
+      return;
+    }
     if (q.data === 'how_to_join') {
       const userId = BigInt(q.from.id);
       await track({ userId, eventName: 'bot_how_to_join_click', dedupeKey: `how_to_join:${userId}` });
@@ -361,6 +365,11 @@ export async function handleUpdate(update: TgUpdate) {
     const safe = payload && payload !== 'hello' && /^[A-Za-z0-9_-]{1,64}$/.test(payload) ? payload : undefined;
     // Первый вход в воронку через бота (повторные /start не считаются); источник — параметр ссылки t.me/…?start=
     if (!existed) await track({ userId, eventName: 'bot_start', metadata: { source: safe ?? (payload === 'hello' ? 'hello' : null) }, dedupeKey: `bot_start:${userId}` });
+    // Ссылка для отмены подписки от поддержки: t.me/<бот>?start=cancel — человек сам отключает автопродление
+    if (payload === 'cancel') {
+      await cancelStart(userId, msg.chat.id);
+      return;
+    }
     // Реферальная ссылка на бота (?start=ref_…): визит засчитываем сразу — в приложение человек попадёт позже, из второго сообщения
     if (safe?.startsWith('ref_')) {
       const { handleStartParam } = await import('./entry');
@@ -399,3 +408,46 @@ export async function handleUpdate(update: TgUpdate) {
 }
 
 export type { BotMessageTemplate };
+
+/** Отмена автопродления по ссылке t.me/<бот>?start=cancel: подписка и кнопка подтверждения */
+async function cancelStart(userId: bigint, chatId: number) {
+  const { subscriptionSummary } = await import('./billing');
+  const { humanDate } = await import('@thirty/domain');
+  const s = (await subscriptionSummary(userId)).subscription;
+  if (!s || s.status === 'expired') {
+    await tg('sendMessage', { chat_id: chatId, text: 'У тебя сейчас нет активной подписки — списаний не будет 💜' });
+    return;
+  }
+  if (!s.autoRenew) {
+    await tg('sendMessage', { chat_id: chatId, text: `Автопродление уже отключено ✅\n\nНовых списаний не будет, доступ сохранится до ${humanDate(s.paidUntil, true)}.` });
+    return;
+  }
+  const next = s.nextCharge ? `\nСледующее списание: <b>${humanDate(s.nextCharge.date, true)} · ${s.nextCharge.amount} ₽</b>` : '';
+  await tg('sendMessage', {
+    chat_id: chatId,
+    parse_mode: 'HTML',
+    text: `<b>Отмена автопродления</b>\n\nТвой тариф: ${escHtml(s.tariffTitle)}${next}\n\nПосле отмены новых списаний не будет, а доступ к сообществу сохранится до <b>${humanDate(s.paidUntil, true)}</b>.`,
+    reply_markup: { inline_keyboard: [[{ text: 'Отменить автопродление', callback_data: 'cancel_sub' }], [{ text: 'Я остаюсь 💜', callback_data: 'cancel_keep' }]] },
+  });
+}
+
+async function handleCancelChoice(userId: bigint, confirm: boolean, chatId: number) {
+  if (!confirm) {
+    await tg('sendMessage', { chat_id: chatId, text: 'Ура, остаёмся вместе! 💜' });
+    return;
+  }
+  const { cancelAutoRenew } = await import('./billing');
+  const { humanDate } = await import('@thirty/domain');
+  try {
+    const r = await cancelAutoRenew(userId, 'self: ссылка отмены от поддержки');
+    // при отмене бот сам присылает «Автопродление отключено…» (шаблон cancel_confirmed); уже отменённым — отвечаем здесь
+    if ('alreadyCanceled' in r) await tg('sendMessage', { chat_id: chatId, text: `Автопродление уже отключено ✅ Доступ сохранится до ${humanDate(r.paidUntil, true)}.` });
+    else {
+      const u = await prisma.user.findUnique({ where: { id: userId } });
+      const { notifyAdmins, escAdmin } = await import('./adminBot');
+      await notifyAdmins(`❌ <b>Отмена автопродления по ссылке</b>\n${escAdmin(u ? (await import('./users')).displayName(u) : String(userId))}${u?.username ? ` (@${escAdmin(u.username)})` : ''}\nДоступ до ${humanDate(r.paidUntil, true)}`).catch(() => undefined);
+    }
+  } catch {
+    await tg('sendMessage', { chat_id: chatId, text: 'У тебя сейчас нет активной подписки — списаний не будет 💜' });
+  }
+}

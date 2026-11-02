@@ -423,3 +423,20 @@ describe('«X раз в неделю» во время потока', () => {
     expect((await api('POST', `/api/tasks/${t.body.id}/per-week`, 890, { n: 8 })).status).toBe(400);
   });
 });
+
+describe('отмена подписки по ссылке t.me/<бот>?start=cancel', () => {
+  it('бот показывает подписку и кнопку; по нажатию автопродление отключается', async () => {
+    clock.set('2026-10-25T09:00:00Z');
+    await paidUser(895);
+    await prisma.subscription.updateMany({ where: { userId: 895n }, data: { autoRenew: true, nextChargeDate: new Date('2026-11-28T00:00:00Z') } });
+    const app = await getApp();
+    const hook = (payload: object) => app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload });
+    await hook({ message: { message_id: 1, chat: { id: 895, type: 'private' }, from: { id: 895, first_name: 'Оля' }, text: '/start cancel' } });
+    const m = calls.find((c) => c.method === 'sendMessage')!;
+    expect(m.body.text).toContain('Отмена автопродления');
+    expect(calls.some((c) => c.method === 'sendPhoto')).toBe(false); // приветствие не шлём
+    expect(m.body.reply_markup.inline_keyboard[0][0]).toEqual({ text: 'Отменить автопродление', callback_data: 'cancel_sub' });
+    await hook({ callback_query: { id: 'c1', from: { id: 895 }, data: 'cancel_sub', message: { chat: { id: 895 } } } });
+    expect(await prisma.subscription.findFirstOrThrow({ where: { userId: 895n } })).toMatchObject({ autoRenew: false, status: 'canceled_at_period_end' });
+  });
+});

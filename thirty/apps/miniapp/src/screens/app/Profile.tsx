@@ -246,7 +246,7 @@ export function CancelPopups({ open, onClose, sub }: { open: boolean; onClose: (
           {([
             [HeartHandshake, 'Поддержка бадди', 'Человек, с которым вы вместе идёте к цели'],
             [MessagesSquare, 'Тематические чаты', 'Общение с людьми, у которых похожие цели'],
-            [Trophy, 'Лидерборд и призы', 'Мотивация и возможность участвовать в розыгрышах'],
+            [Trophy, 'Лидерборд', 'Мотивация видеть свой прогресс рядом с другими'],
             [ClipboardCheck, 'Ежедневные отчёты', 'Система, которая помогает держать слово'],
           ] as const).map(([I, t, d]) => (
             <div key={t} className="row" style={{ alignItems: 'flex-start', gap: 12 }}>
