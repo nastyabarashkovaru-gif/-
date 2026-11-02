@@ -35,7 +35,7 @@ export function Club() {
           <button className="hero-card card-link" style={{ flexDirection: 'row', alignItems: 'center', gap: 16, border: 0, textAlign: 'left', cursor: data.flowChat ? 'pointer' : 'default', opacity: data.flowChat ? 1 : 0.6 }}
             onClick={() => (data.flowChat ? joinChat(data.flowChat.id) : toast(data.paid ? 'Чат скоро откроется — мы пришлём ссылку в бот' : 'Чат открывается сразу после оплаты'))}>
             <MessagesSquare size={28} strokeWidth={1.8} />
-            <span className="grow"><span style={{ display: 'block', fontSize: 20, fontWeight: 700 }}>Общий чат клуба</span><span style={{ opacity: 0.9 }}>Все участники «30 дней»</span></span>
+            <span className="grow"><span style={{ display: 'block', fontSize: 20, fontWeight: 700 }}>Общий чат клуба</span></span>
             {data.flowChat ? <ArrowUpRight size={18} /> : <Lock size={18} />}
           </button>
           {(data.channel || data.channelExists) && (
