@@ -48,7 +48,7 @@ export const SUBTITLE: Record<string, string> = { m1: 'Попробовать и
 const MATRIX: [string, (t: TariffView) => boolean][] = [
   ['Бадди и чаты', () => true],
   ['Созвоны с лидерами', () => true],
-  ['Лидерборд и призы', () => true],
+  ['Недельный рейтинг дисциплины', () => true],
   ['Расширенная статистика', (t) => t.months >= 3],
   ['Сравнение месяцев', () => true],
   ['История трансформации', (t) => t.months >= 3],

@@ -178,3 +178,60 @@ export function compareWithPrevious(previousSuccessfulDays: number | null, curre
   const baseline = previousSuccessfulDays ?? 0;
   return { firstMonth, baseline, current: currentSuccessfulDays, delta: currentSuccessfulDays - baseline };
 }
+
+// ───────────── Недельный рейтинг дисциплины (ТЗ 02.11) ─────────────
+
+export interface WeekStats {
+  /** Запланировано на неделю (окна, которые уже закрылись, + выполненные досрочно) */
+  planned: number;
+  done: number;
+  /** % выполнения; null — на неделе пока нечего считать */
+  percent: number | null;
+  /** Дни недели, когда весь план выполнен и сдан отчёт (дни без задач не считаются) */
+  fullDays: number;
+}
+
+/** Статистика за неделю weekStart…weekEnd по фактам участника; считаются только дни челленджа */
+export function weekStats(f: MemberFacts, weekStart: ISODate, weekEnd: ISODate): WeekStats {
+  const from = f.flowStart > weekStart ? f.flowStart : weekStart;
+  const to = f.flowEnd < weekEnd ? f.flowEnd : weekEnd;
+  if (from > to) return { planned: 0, done: 0, percent: null, fullDays: 0 };
+  const reports = new Set(f.reportDates);
+  let planned = 0;
+  let done = 0;
+  const byDay = new Map<ISODate, { total: number; done: number }>();
+  for (const o of f.occurrences) {
+    if (o.windowEnd < from || o.windowEnd > to) continue;
+    const closed = o.windowEnd < f.today;
+    if (closed || o.done) planned++;
+    if (o.done) done++;
+    const d = byDay.get(o.windowEnd) ?? { total: 0, done: 0 };
+    d.total++;
+    if (o.done) d.done++;
+    byDay.set(o.windowEnd, d);
+  }
+  let fullDays = 0;
+  for (const day of eachDay(from, to)) {
+    if (day > f.today) break;
+    const d = byDay.get(day);
+    if (d && d.total > 0 && d.done === d.total && reports.has(day)) fullDays++;
+  }
+  return { planned, done, percent: planned > 0 ? Math.round((done / planned) * 100) : null, fullDays };
+}
+
+/** Сколько полных дней участник уже в челлендже (до вчерашнего включительно) */
+export function participationDays(challengeStart: ISODate, challengeEnd: ISODate, today: ISODate): number {
+  const last = addDays(today, -1) < challengeEnd ? addDays(today, -1) : challengeEnd;
+  return last < challengeStart ? 0 : eachDay(challengeStart, last).length;
+}
+
+/** Сортировка недельного рейтинга: %, затем дни с выполненным планом, затем выполненные действия; места с ничьими */
+export function rankWeekly<T extends { percent: number; fullDays: number; done: number }>(rows: T[]): (T & { rank: number })[] {
+  const sorted = [...rows].sort((a, b) => b.percent - a.percent || b.fullDays - a.fullDays || b.done - a.done);
+  let rank = 0;
+  return sorted.map((r, i) => {
+    const prev = sorted[i - 1];
+    if (!prev || prev.percent !== r.percent || prev.fullDays !== r.fullDays || prev.done !== r.done) rank = i + 1;
+    return { ...r, rank };
+  });
+}

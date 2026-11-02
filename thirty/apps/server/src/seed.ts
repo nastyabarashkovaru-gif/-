@@ -31,6 +31,11 @@ export async function seed() {
     await prisma.tariff.updateMany({ where: { id: 'm3', promoPrice: 2490 }, data: { promoPrice: 2990, renewalPrice: 2990 } });
     await prisma.setting.create({ data: { key: 'maintenance.m3priceV1', value: { at: new Date().toISOString() } } });
   }
+  // 02.11: призы убраны — в составе тарифов вместо «Лидерборд и призы» недельный рейтинг
+  for (const t of await prisma.tariff.findMany()) {
+    const f = t.features as string[];
+    if (f.includes('Лидерборд и призы')) await prisma.tariff.update({ where: { id: t.id }, data: { features: f.map((x) => (x === 'Лидерборд и призы' ? 'Недельный рейтинг дисциплины' : x)) } });
+  }
   // Редизайн 24.10: старые формулировки («эксперты», «Хит продаж») заменяем на утверждённые; правки владельца не трогаем
   for (const t of DEFAULT_TARIFFS) {
     const row = await prisma.tariff.findUnique({ where: { id: t.id } });

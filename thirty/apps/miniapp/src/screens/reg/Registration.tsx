@@ -358,7 +358,7 @@ export function RegBefore() {
       </div>
       <div className="card">
         <div className="h3">Фото «ДО» (необязательно)</div>
-        <p className="muted small" style={{ margin: 0 }}>Видны только тебе и проверке призов. В рекламе — только с отдельным согласием в отзыве.</p>
+        <p className="muted small" style={{ margin: 0 }}>Видны только тебе и организаторам. В рекламе — только с отдельным согласием в отзыве.</p>
         <label className="check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /><span>Согласен(на) на хранение моих фото «ДО/ПОСЛЕ» для проверки результата</span></label>
         <div className="photo-grid">{photos.map((p) => <img key={p.id} src={p.url} alt="Фото до" />)}</div>
         <label className={`btn btn-light ${consent ? '' : 'disabled'}`} style={{ opacity: consent ? 1 : 0.45 }}>

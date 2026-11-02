@@ -347,3 +347,18 @@ describe('подбор бадди: бывших вместе не ставим',
     }
   });
 });
+
+describe('недельный рейтинг дисциплины', () => {
+  it('процент по запланированному, дни без задач не дают 100%, только дни челленджа', async () => {
+    const { weekStats, participationDays, rankWeekly } = await import('./rating');
+    const occ = (d: string, done: boolean) => ({ windowStart: d, windowEnd: d, done, taskId: 't' });
+    const f = { flowStart: '2026-11-04', flowEnd: '2026-12-03', today: '2026-11-08', reportDates: ['2026-11-04', '2026-11-05'], occurrences: [occ('2026-11-02', true), occ('2026-11-04', true), occ('2026-11-05', true), occ('2026-11-06', false), occ('2026-11-08', false)] };
+    // 2.11 до старта не считается; 8.11 — сегодня, ещё не закрыто
+    expect(weekStats(f, '2026-11-02', '2026-11-08')).toEqual({ planned: 3, done: 2, percent: 67, fullDays: 2 });
+    expect(weekStats({ ...f, occurrences: [] }, '2026-11-02', '2026-11-08')).toEqual({ planned: 0, done: 0, percent: null, fullDays: 0 });
+    expect(participationDays('2026-11-04', '2026-12-03', '2026-11-11')).toBe(7);
+    expect(participationDays('2026-11-04', '2026-12-03', '2026-11-04')).toBe(0);
+    const r = rankWeekly([{ percent: 90, fullDays: 3, done: 18 }, { percent: 90, fullDays: 5, done: 18 }, { percent: 100, fullDays: 1, done: 2 }, { percent: 90, fullDays: 5, done: 18 }]);
+    expect(r.map((x) => x.rank)).toEqual([1, 2, 2, 4]);
+  });
+});

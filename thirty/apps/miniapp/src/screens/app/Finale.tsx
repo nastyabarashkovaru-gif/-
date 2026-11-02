@@ -76,7 +76,7 @@ export function ReviewScreen() {
   };
   return (
     <Screen id="S32">
-      <Header title={trigger === 'meeting' ? 'Как прошла встреча?' : 'Что изменилось?'} sub="Это добровольно и не влияет на рейтинг и приз" back />
+      <Header title={trigger === 'meeting' ? 'Как прошла встреча?' : 'Что изменилось?'} sub="Это добровольно и не влияет на рейтинг" back />
       <div className="card">
         <div className="h3">Оценка клуба</div>
         <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>{Array.from({ length: 10 }, (_, i) => i + 1).map((n) => <button key={n} className={`chip ${rating === n ? 'on' : ''}`} style={{ minWidth: 44, justifyContent: 'center', padding: 8 }} onClick={() => setRating(n)}>{n}</button>)}</div>

@@ -184,31 +184,54 @@ function Chat({ focus }: { focus: string | null }) {
   );
 }
 
-interface BoardRow { userId: string; name: string; photoUrl: string | null; city: string | null; category: string | null; rank: number; percent: number }
+interface BoardRow { userId: string; name: string; username: string | null; photoUrl: string | null; percent: number; fullDays: number; done: number; planned: number; days: number; rank: number }
+interface WeekBoard { week: { from: string; to: string; current: boolean }; minDays: number; rows: BoardRow[]; me: (Omit<BoardRow, 'rank'> & { rank: number | null; eligible: boolean; daysLeft: number }) | null }
 
+const shiftWeek = (iso: string, days: number) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10); };
+const weekTitle = (w: WeekBoard['week']) => `${humanDate(w.from)} — ${humanDate(w.to)}`;
+
+/** Рейтинг недели (ТЗ 02.11): пн–вс, в топе — с 7 дней участия; свой результат виден всегда; 1–3 места с кубками */
 function Board() {
   const nav = useNavigate();
-  const { data, error, loading, reload } = useLoad(() => api<{ rows: BoardRow[]; me: string }>('/api/leaderboard'));
-  if (loading) return <Loading lines={3} />;
+  const [week, setWeek] = useState<string | null>(null);
+  const { data, error, loading, reload } = useLoad(() => api<WeekBoard>(`/api/leaderboard${week ? `?week=${week}` : ''}`), [week]);
+  if (loading && !data) return <Loading lines={3} />;
   if (error || !data) return <ErrorState error={error} retry={reload} />;
+  const me = data.me;
   return (
     <>
       <div className="panel" style={{ gap: 4, padding: 14 }}>
-        <span className="row" style={{ gap: 8, color: 'var(--accent-ink)', fontWeight: 600, fontSize: 16 }}><Trophy size={18} />Лидерборд челленджа</span>
-        <span className="muted" style={{ fontSize: 14 }}>Места по проценту выполнения запланированных действий.</span>
+        <span className="row" style={{ gap: 8, color: 'var(--accent-ink)', fontWeight: 600, fontSize: 16 }}><Trophy size={18} />Рейтинг недели</span>
+        <span className="muted" style={{ fontSize: 14 }}>Процент выполнения запланированных действий за неделю (пн–вс). Каждый понедельник — новый рейтинг.</span>
+        <div className="row between" style={{ marginTop: 8 }}>
+          <button className="icon-btn" aria-label="Прошлая неделя" onClick={() => setWeek(shiftWeek(data.week.from, -7))}><ArrowLeft size={18} /></button>
+          <b>{data.week.current ? 'Эта неделя' : weekTitle(data.week)}</b>
+          <button className="icon-btn" aria-label="Следующая неделя" disabled={data.week.current} onClick={() => setWeek(shiftWeek(data.week.from, 7))}><ChevronRight size={18} /></button>
+        </div>
+        {data.week.current && <span className="muted small center">{weekTitle(data.week)}</span>}
       </div>
-      {data.rows.length === 0 && <Empty title="Рейтинг появится после старта" text="Места считаются по проценту выполнения." />}
+      {me && (
+        <div className="card me-week" style={{ gap: 6 }}>
+          <div className="row between"><b>Твой результат</b>{me.eligible && me.rank && <span className="pill">{me.rank} место</span>}</div>
+          <div className="row between" style={{ alignItems: 'flex-end' }}>
+            <span className="muted small">Выполнено {me.done} из {me.planned} · дней с выполненным планом: {me.fullDays}</span>
+            <b style={{ color: pctColor(me.percent), fontSize: 24 }}>{me.planned ? `${me.percent}%` : '—'}</b>
+          </div>
+          {!me.eligible && <div className="banner warn small">Ты появишься в рейтинге после {data.minDays} дней участия{me.daysLeft ? ` — осталось ${me.daysLeft} ${me.daysLeft === 1 ? 'день' : me.daysLeft < 5 ? 'дня' : 'дней'}` : ''} 💜</div>}
+        </div>
+      )}
+      {data.rows.length === 0 && <Empty title="Рейтинг недели пока пуст" text={`Здесь появятся участники с ${data.minDays}+ днями в челлендже.`} />}
       {data.rows.map((r) => (
-        <button key={r.userId} className={`card card-link board-row ${r.rank <= 3 ? `top top${r.rank}` : ''} ${r.userId === data.me ? 'me' : ''}`} onClick={() => nav(`/u/${r.userId}`)}>
+        <button key={r.userId} className={`card card-link board-row ${r.rank <= 3 ? `top top${r.rank}` : ''} ${me && r.userId === me.userId ? 'me' : ''}`} onClick={() => nav(`/u/${r.userId}`)}>
           {r.rank <= 3 ? (
             <span className={`cup cup${r.rank}`} aria-label={`${r.rank} место`}><Trophy size={20} strokeWidth={2.2} /><i>{r.rank}</i></span>
           ) : (
             <span className="board-rank" style={{ color: 'var(--muted-2)' }}>{r.rank}</span>
           )}
-          {r.photoUrl ? <Avatar name={r.name} url={r.photoUrl} /> : <span className="ic"><User size={18} /></span>}
+          <Avatar name={r.name} url={r.photoUrl} />
           <span className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
             <span className="h3" style={{ display: 'block' }}>{r.name}</span>
-            <span className="muted small ellipsis">{[r.city, r.category ? shortCat(r.category) : null].filter(Boolean).join(' · ')}</span>
+            <span className="muted small ellipsis">{r.fullDays} {r.fullDays === 1 ? 'день' : r.fullDays < 5 && r.fullDays > 1 ? 'дня' : 'дней'} с выполненным планом</span>
           </span>
           <span style={{ textAlign: 'right' }}>
             <b style={{ color: pctColor(r.percent), fontSize: 19 }}>{r.percent}%</b>

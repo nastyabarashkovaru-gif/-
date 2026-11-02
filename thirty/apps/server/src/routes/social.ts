@@ -92,43 +92,12 @@ export async function socialRoutes(app: FastifyInstance) {
       return { flows: flows.map((f) => ({ id: f.id, title: f.title, startsOn: f.startsOn.toISOString().slice(0, 10), status: f.status })) };
     });
 
-    // Рейтинг S26: снапшот не старше 5 минут
-    r.get<{ Querystring: { flowId?: string } }>('/api/leaderboard', async (req) => {
-      const m = await currentMembership(req.user!.id);
-      const flowId = req.query.flowId ?? m?.flowId;
-      if (!flowId) return { rows: [], rules: await getSetting('prize.rulesText') };
-      await track({ userId: req.user!.id, eventName: 'leaderboard_open', screenId: 'S26', flowId });
-      const fresh = await prisma.leaderboardEntry.findFirst({ where: { flowId }, orderBy: { computedAt: 'desc' } });
-      if (!fresh || Date.now() - fresh.computedAt.getTime() > 5 * 60_000) await computeLeaderboard(flowId);
-      const rows = await prisma.leaderboardEntry.findMany({ where: { flowId }, orderBy: [{ rank: 'asc' }, { userId: 'asc' }], take: 500 });
-      const users = await prisma.user.findMany({ where: { id: { in: rows.map((x) => x.userId) } } });
-      const firstGoals = await prisma.goal.findMany({ where: { membership: { flowId, userId: { in: rows.map((x) => x.userId) } } }, select: { category: true, sort: true, membership: { select: { userId: true } } }, orderBy: { sort: 'asc' } });
-      const catBy = new Map<string, string>();
-      for (const g of firstGoals) if (!catBy.has(g.membership.userId.toString())) catBy.set(g.membership.userId.toString(), g.category);
-      const byId = new Map(users.map((u) => [u.id.toString(), u]));
-      const flow = await prisma.flow.findUnique({ where: { id: flowId } });
-      return jsonSafe({
-        flow: flow ? { id: flow.id, title: flow.title } : null,
-        rules: await getSetting('prize.rulesText'),
-        me: req.user!.id.toString(),
-        rows: rows.map((x) => {
-          const u = byId.get(x.userId.toString());
-          const hidden = u?.visibility === 'hidden' && x.userId !== req.user!.id;
-          return {
-            userId: x.userId.toString(),
-            name: hidden ? 'Участник' : u ? u.displayName || [u.firstName, u.lastName].filter(Boolean).join(' ') : 'Участник',
-            photoUrl: hidden ? null : u?.photoUrl ?? null,
-            city: hidden ? null : u?.city ?? null,
-            category: catBy.get(x.userId.toString()) ?? null,
-            reportDays: x.reportDays,
-            rank: x.rank,
-            percent: Math.round(x.ratio * 100),
-            successfulDays: x.successfulDays,
-            missedReports: x.missedReports,
-            perfect: x.perfectSoFar,
-          };
-        }),
-      });
+    // Рейтинг S26 (ТЗ 02.11): недельный рейтинг дисциплины для всего клуба (пн–вс), история — ?week=YYYY-MM-DD
+    r.get<{ Querystring: { week?: string } }>('/api/leaderboard', async (req) => {
+      const week = req.query.week && /^\d{4}-\d{2}-\d{2}$/.test(req.query.week) ? req.query.week : undefined;
+      await track({ userId: req.user!.id, eventName: 'leaderboard_open', screenId: 'S26', metadata: { week: week ?? 'current' } });
+      const { weeklyLeaderboard } = await import('../modules/rating');
+      return jsonSafe(await weeklyLeaderboard(req.user!.id, week));
     });
 
     // Клуб S27, созвоны S28, чаты S18

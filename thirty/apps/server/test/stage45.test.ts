@@ -245,10 +245,18 @@ describe('лента, участники, рейтинг', () => {
     expect(byFlow.body.items.map((x: { id: string }) => x.id)).toEqual(['10']);
     expect((await api('GET', '/api/participants?flowStart=2026-12-01', 11)).body.items).toHaveLength(0);
 
+    // недельный рейтинг: в топе — после 7 дней участия, свой результат виден сразу
     const lb = await api('GET', '/api/leaderboard', 10);
-    expect(lb.body.rows).toHaveLength(2);
-    expect(lb.body.rows.find((r: { userId: string }) => r.userId === '11').name).toBe('Участник');
-    expect(lb.body.rules).toContain('тай-брейк');
+    expect(lb.body.rows).toHaveLength(0);
+    expect(lb.body.me).toMatchObject({ eligible: false, daysLeft: 7, done: 1 });
+    clock.set('2026-11-08T09:00:00Z');
+    const lb2 = await api('GET', '/api/leaderboard', 10);
+    expect(lb2.body.week).toMatchObject({ from: '2026-11-02', to: '2026-11-08' });
+    expect(lb2.body.rows).toHaveLength(2);
+    expect(lb2.body.rows.find((r: { userId: string }) => r.userId === '11').name).toBe('Участник');
+    expect(lb2.body.me.eligible).toBe(true);
+    // история: прошлая неделя доступна
+    expect((await api('GET', '/api/leaderboard?week=2026-10-26', 10)).body.week).toMatchObject({ from: '2026-10-26', to: '2026-11-01' });
   });
 });
 
