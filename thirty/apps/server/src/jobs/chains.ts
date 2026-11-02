@@ -177,7 +177,9 @@ export async function runFlowChains(now = clock.now(), send: Send = sendTemplate
     const endsOn = flowBounds(startsOn).endsOn;
     const today = localDate(now, flow.timezone);
     const hour = DateTime.fromJSDate(now, { zone: flow.timezone }).hour;
-    const members = await prisma.flowMembership.findMany({ where: { flowId: flow.id, status: { in: ['active', 'finished'] } } });
+    // Наблюдателям (организаторам) напоминания и карточки участниц не шлём
+    const observers = await (await import('../modules/observers')).observerIds();
+    const members = (await prisma.flowMembership.findMany({ where: { flowId: flow.id, status: { in: ['active', 'finished'] } } })).filter((m) => !observers.has(m.userId.toString()));
     if (today >= startsOn && today <= endsOn) {
       const dayNum = flowDayNumber(startsOn, today);
       const hoursLeft = (dayDeadline(today, flow.timezone).getTime() - now.getTime()) / 3600_000;

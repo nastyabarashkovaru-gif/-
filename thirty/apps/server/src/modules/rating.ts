@@ -54,10 +54,11 @@ export interface LeaderRow {
  */
 export async function computeLeaderboard(flowId: string, now = clock.now()): Promise<LeaderRow[]> {
   const flow = await prisma.flow.findUniqueOrThrow({ where: { id: flowId } });
-  const members = await prisma.flowMembership.findMany({
+  const observers = await (await import('./observers')).observerIds();
+  const members = (await prisma.flowMembership.findMany({
     where: { flowId, status: { in: ['active', 'finished', 'registered'] } },
     include: { user: true, _count: { select: { goals: true } } },
-  });
+  })).filter((m) => !observers.has(m.userId.toString()));
   const ids = members.map((m) => m.id);
   const [occ, reports] = await Promise.all([
     prisma.taskOccurrence.findMany({ where: { membershipId: { in: ids } }, select: { membershipId: true, windowStart: true, windowEnd: true, status: true } }),

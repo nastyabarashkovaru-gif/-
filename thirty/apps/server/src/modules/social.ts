@@ -102,8 +102,10 @@ export async function participants(viewerId: bigint, q: { q?: string; flowStart?
   const membershipFilter: Prisma.FlowMembershipWhereInput = { status: { in: ['registered', 'active', 'finished'] } };
   if (q.flowStart && /^\d{4}-\d{2}-\d{2}$/.test(q.flowStart)) membershipFilter.flow = { startsOn: new Date(`${q.flowStart}T00:00:00Z`) };
   if (q.category) membershipFilter.goals = { some: { category: q.category as never, isPublic: true } };
+  const observers = [...(await (await import('./observers')).observerIds())].map((x) => BigInt(x));
   const where: Prisma.UserWhereInput = {
     deletedAt: null,
+    ...(observers.length ? { id: { notIn: observers } } : {}),
     memberships: { some: membershipFilter },
     OR: [{ visibility: 'public' }, { visibility: 'members', memberships: { some: { flowId: { in: viewerFlows } } } }],
   };

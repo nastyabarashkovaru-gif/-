@@ -96,6 +96,14 @@ export function UserDetail({ canEdit, canStartOver = false }: { canEdit: boolean
             <div>Интересы: {u.user.interests.join(', ') || '—'} · видимость: {u.user.visibility}</div>
             <div>Бот: {u.user.allowsWrite ? 'может писать' : 'не может писать'}{u.user.botBlocked ? ' · заблокировал бота' : ''} · реклама: {u.user.marketingOptIn ? 'да' : 'нет'}</div>
             <div>Этап: {u.user.onboardingStage} · последний экран: {u.user.lastScreen ?? '—'}</div>
+            {canEdit && (u.observer ? (
+              <button className="btn light" style={{ marginTop: 8 }} onClick={async () => { if (!confirm('Убрать из потока? Доступ наблюдателя закроется.')) return; await api(`/admin-api/users/${u.user.id}/observer/remove`, { body: {} }); s.reload(); }}>👀 Наблюдатель в потоке · убрать</button>
+            ) : (
+              <button className="btn light" style={{ marginTop: 8 }} onClick={async () => {
+                if (!confirm('Добавить в текущий поток наблюдателем?\n\nОткроется всё, что видят участницы: главная, лента, чаты, сообщество. В пару бадди не ставим, в рейтинге и списке участниц не показываем, анкету заполнять не нужно. Оплата не нужна и в выручку не идёт.')) return;
+                try { const r = await api(`/admin-api/users/${u.user.id}/observer`, { body: {} }); alert(`Готово: поток «${r.flow}». Открой приложение «30 дней» в Telegram.`); s.reload(); } catch (e) { alert((e as Error).message); }
+              }}>👀 Добавить в поток наблюдателем</button>
+            ))}
             <div>Бадди: {u.buddy ? <Link to={`/users/${u.buddy.id}`}>{u.buddy.name}{u.buddy.username ? ` (@${u.buddy.username})` : ''}</Link> : 'нет'}</div>
             {u.buddy && canEdit && (
               <button className="btn light" style={{ marginTop: 8 }} onClick={async () => {

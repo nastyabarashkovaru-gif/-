@@ -250,3 +250,29 @@ describe('заменить бадди самой участницей', () => {
     expect(await prisma.buddyReplacement.findFirst({ where: { requesterId: me } })).toMatchObject({ reason: 'no_contact', comment: 'молчит' });
   });
 });
+
+describe('организатор в потоке наблюдателем', () => {
+  it('видит поток изнутри, но без бадди, рейтинга и списка участниц; в выручку не идёт', async () => {
+    clock.set('2026-11-02T09:00:00Z');
+    for (const id of [751, 752]) await grantMembership(id, '2026-11-01');
+    await prisma.user.create({ data: { id: 760n, firstName: 'Настя' } });
+    const { addObserver, removeObserver } = await import('../src/modules/observers');
+    const r = await addObserver(760n);
+    expect(r.flow).toBeTruthy();
+    const flow = await prisma.flow.findFirstOrThrow({ where: { startsOn: new Date('2026-11-01T00:00:00Z') } });
+    expect(await prisma.flowMembership.findFirstOrThrow({ where: { userId: 760n, flowId: flow.id } })).toMatchObject({ status: 'active' });
+    const { autoMatch, buddyOf } = await import('../src/modules/buddy');
+    await autoMatch(flow.id);
+    expect(await buddyOf(760n, flow.id)).toBeNull();
+    expect((await buddyOf(751n, flow.id))!.otherId).toBe(752n);
+    const me = (await api('GET', '/api/me', 760)).body;
+    expect(me.membership.status).toBe('active');
+    expect((await api('GET', '/api/home', 760)).status).toBe(200);
+    expect((await api('GET', '/api/club', 760)).status).toBe(200);
+    const { computeLeaderboard } = await import('../src/modules/rating');
+    expect((await computeLeaderboard(flow.id)).some((x) => x.userId === 760n)).toBe(false);
+    expect(await prisma.subscription.findFirstOrThrow({ where: { userId: 760n } })).toMatchObject({ test: true, autoRenew: false });
+    await removeObserver(760n);
+    expect(await prisma.flowMembership.findFirstOrThrow({ where: { userId: 760n, flowId: flow.id } })).toMatchObject({ status: 'revoked' });
+  });
+});

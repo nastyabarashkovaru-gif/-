@@ -125,6 +125,8 @@ export const DEFAULT_SETTINGS = {
   /** Ссылка в QR-коде карточки результатов: бот с продающей цепочкой (метка stories — для аналитики переходов) */
   'stories.botLink': 'https://t.me/Dney30_bot?start=stories',
   /** Ссылка для оплативших до запуска приложения: месяц участия без оплаты (код создаётся при запуске сервера) */
+  /** Наблюдатели (организаторы): видят поток изнутри, но без бадди, рейтинга и списка участниц — Telegram ID */
+  'flow.observers': [] as string[],
   'legacy.invite': { code: '', maxUses: 200, expiresAt: '2026-11-07', enabled: true },
 };
 

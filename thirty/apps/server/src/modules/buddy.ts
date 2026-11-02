@@ -53,6 +53,8 @@ export async function acceptInvite(userId: bigint, token: string) {
 /** Предложение стать парой конкретному участнику: пуш в боте и запрос в приложении */
 export async function proposeBuddy(userId: bigint, flowId: string, targetId: bigint) {
   if (userId === targetId) throw badRequest('self_invite', 'Нельзя пригласить самого себя');
+  const observers = await (await import('./observers')).observerIds();
+  if (observers.has(String(userId)) || observers.has(String(targetId))) throw forbidden('observer', 'Организатор не участвует в подборе бадди');
   const [mine, theirs] = await Promise.all([membershipIn(userId, flowId), membershipIn(targetId, flowId)]);
   if (!mine) throw forbidden('no_membership', 'Предложить пару можно участнику своего потока');
   if (!theirs) throw conflict('other_flow', 'Этот участник в другом потоке — пару можно составить только внутри одного потока');
@@ -109,7 +111,9 @@ async function onMatched(flowId: string, users: bigint[]) {
  * повторный запуск ничего не меняет. Пары по приглашению не перераспределяются.
  */
 export async function autoMatch(flowId: string) {
-  const members = await prisma.flowMembership.findMany({ where: { flowId, status: { in: [...ELIGIBLE] } }, include: { user: true } });
+  const { observerIds } = await import('./observers');
+  const observers = await observerIds();
+  const members = (await prisma.flowMembership.findMany({ where: { flowId, status: { in: [...ELIGIBLE] } }, include: { user: true } })).filter((m) => !observers.has(m.userId.toString()));
   const assigned = new Set((await prisma.buddyAssignment.findMany({ where: { flowId } })).map((a) => a.userId.toString()));
   const pool = members
     .filter((m) => !assigned.has(m.userId.toString()))
@@ -208,7 +212,8 @@ export async function adminReplaceBuddy(userId: bigint) {
   const past = await prisma.buddyPair.findMany({ where: { flowId, status: 'dissolved', OR: [{ userA: userId }, { userB: userId }] }, select: { userA: true, userB: true } });
   const exes = new Set(past.map((p) => (p.userA === userId ? p.userB : p.userA).toString()));
   const assigned = new Set((await prisma.buddyAssignment.findMany({ where: { flowId } })).map((x) => x.userId.toString()));
-  const free = await prisma.flowMembership.findMany({ where: { flowId, status: { in: [...ELIGIBLE] } }, include: { user: true } });
+  const observers = await (await import('./observers')).observerIds();
+  const free = (await prisma.flowMembership.findMany({ where: { flowId, status: { in: [...ELIGIBLE] } }, include: { user: true } })).filter((m) => !observers.has(m.userId.toString()));
   const pool = free
     .filter((m) => m.userId === userId || (!assigned.has(m.userId.toString()) && !exes.has(m.userId.toString())))
     .map((m) => ({ userId: m.userId.toString(), interests: m.user.interests, city: m.user.city, timezone: m.user.timezone }));

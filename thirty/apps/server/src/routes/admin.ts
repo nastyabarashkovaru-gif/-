@@ -289,6 +289,19 @@ export async function adminRoutes(app: FastifyInstance) {
       return r;
     });
 
+    // Организатор в потоке наблюдателем: всё видит, но без бадди, рейтинга и списка участниц
+    r.post<{ Params: { id: string } }>('/admin-api/users/:id/observer', perm('users'), async (req) => {
+      const { addObserver } = await import('../modules/observers');
+      const res = await addObserver(BigInt(req.params.id));
+      await audit(req, 'flow.observer.add', 'user', req.params.id, { after: res });
+      return res;
+    });
+    r.post<{ Params: { id: string } }>('/admin-api/users/:id/observer/remove', perm('users'), async (req) => {
+      const { removeObserver } = await import('../modules/observers');
+      await audit(req, 'flow.observer.remove', 'user', req.params.id);
+      return removeObserver(BigInt(req.params.id));
+    });
+
     /** Карточка пользователя: воронка, экраны, клики по тарифам, оплаты, подписка, потоки, отчёты, согласия, модерация */
     r.post<{ Params: { id: string } }>('/admin-api/users/:id/reset-offer', perm('payments'), async (req) => {
       const r = await prisma.priceOffer.deleteMany({ where: { userId: BigInt(req.params.id), consumedAt: null } });
@@ -371,6 +384,7 @@ export async function adminRoutes(app: FastifyInstance) {
         offers: await prisma.priceOffer.findMany({ where: { userId: id }, orderBy: { startedAt: 'desc' } }),
         promos: await prisma.promoRedemption.findMany({ where: { userId: id }, include: { promo: true }, orderBy: { appliedAt: 'desc' } }),
         stories: await prisma.storyRequest.findMany({ where: { userId: id }, orderBy: { createdAt: 'desc' } }),
+        observer: (await getSetting('flow.observers')).includes(req.params.id),
         buddy: await (async () => {
           const a = await prisma.buddyAssignment.findFirst({ where: { userId: id, pair: { status: 'active' } }, include: { pair: true }, orderBy: { pair: { createdAt: 'desc' } } });
           if (!a) return null;
