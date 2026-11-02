@@ -458,7 +458,10 @@ img { max-width: 100%; display: block; }
 .demo-links button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 11px; font: inherit; font-size: 13px; color: var(--accent-ink); cursor: pointer; }
 .story-loading { color: #b7b2c8; font-size: 14px; }
 /* Вкладки ленты остаются наверху при прокрутке чата */
-.feed-tabs { position: sticky; top: var(--safe-top, 0px); z-index: 25; background: var(--bg); box-shadow: 0 -12px 0 var(--bg), 0 6px 12px -8px rgba(33, 28, 53, 0.18); }
+/* Вкладки ленты: заметная плашка, активная вкладка — фиолетовая (просьба владельца 02.11) */
+.feed-tabs { position: sticky; top: var(--safe-top, 0px); z-index: 25; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 4px; gap: 4px; box-shadow: 0 -16px 0 var(--bg), 0 8px 18px -10px rgba(33, 28, 53, 0.28); }
+.feed-tabs button { color: var(--ink-2); font-weight: 600; min-height: 40px; transition: background 0.15s, color 0.15s; }
+.feed-tabs button.on { background: var(--accent); color: #fff; box-shadow: 0 4px 12px -4px rgba(108, 81, 223, 0.55); }
 .hero-btn { background: #fff; color: var(--accent-ink); font-weight: 700; min-height: 50px; margin-top: 6px; }
 
 /* ───────── Цвет месяца: каждый новый поток участника — своя тема ───────── */
