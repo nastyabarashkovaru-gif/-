@@ -58,7 +58,7 @@ export function Club() {
           ))}
           <div className="panel" style={{ gap: 6, padding: 16 }}>
             <span className="row" style={{ gap: 8, color: 'var(--accent-ink)', fontWeight: 600, fontSize: 17 }}><CalendarDays size={19} />Созвоны с лидерами</span>
-            <span className="muted">Анонсы и расписание всех созвонов публикуются в тематических чатах.</span>
+            <span className="muted">Анонсы и расписание всех созвонов публикуются в информационном канале.</span>
           </div>
         </>
       )}
