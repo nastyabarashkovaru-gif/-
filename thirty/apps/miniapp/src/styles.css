@@ -633,3 +633,10 @@ img { max-width: 100%; display: block; }
 @keyframes bounce-in { 0% { transform: translateY(10px) scale(0.6); opacity: 0; } 60% { transform: translateY(-6px) scale(1.15); opacity: 1; } 100% { transform: none; } }
 @keyframes wait-pulse { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Анкета: «Когда начнём?» и «Как найти бадди?» */
+.start-choice { flex-direction: row; align-items: center; gap: 14px; text-align: left; padding: 18px; border: 2px solid var(--line); }
+.start-choice.on { border-color: var(--accent); background: var(--accent-soft-2); }
+.start-ic { font-size: 30px; line-height: 1; flex: none; }
+.start-choice b { display: block; font-size: 17px; }
+.start-choice .grow span { display: block; color: var(--muted); font-size: 14px; margin-top: 2px; }

@@ -34,10 +34,11 @@ export function validateSchedule(s: TaskSchedule): string | null {
  * n_per_week: недели с понедельника, обрезанные границами месяца;
  * в неполной неделе норма = ⌈n × дней / 7⌉ (но не больше дней в ней).
  */
-export function generateOccurrences(task: TaskSchedule, flowStart: ISODate): OccurrenceWindow[] {
+export function generateOccurrences(task: TaskSchedule, flowStart: ISODate, bounds?: { startsOn: ISODate; endsOn: ISODate }): OccurrenceWindow[] {
   const err = validateSchedule(task);
   if (err) throw new Error(err);
-  const { startsOn, endsOn } = flowBounds(flowStart);
+  // Личный челлендж — свои 30 дней; без bounds — календарный месяц потока (как раньше)
+  const { startsOn, endsOn } = bounds ?? flowBounds(flowStart);
   const out: OccurrenceWindow[] = [];
   if (task.frequency === 'daily') {
     for (const day of eachDay(startsOn, endsOn)) out.push({ windowStart: day, windowEnd: day, slot: 0 });

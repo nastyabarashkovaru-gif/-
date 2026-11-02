@@ -64,7 +64,8 @@ async function serialize(rows: Row[], me: bigint) {
 export async function listChat(userId: bigint, q: { before?: string; after?: string; limit?: number }) {
   const m = await chatFlow(userId);
   const limit = Math.min(q.limit ?? 30, 100);
-  const where: Prisma.FeedMessageWhereInput = { flowId: m.flowId };
+  // Один общий чат отчётов на весь клуб: у всех свои даты старта (ТЗ 02.11)
+  const where: Prisma.FeedMessageWhereInput = {};
   // Курсор — пара (время, id): сообщения с одинаковым временем не теряются
   if (q.after) {
     const a = await prisma.feedMessage.findUnique({ where: { id: q.after } });
@@ -90,7 +91,7 @@ export async function postChat(userId: bigint, input: z.infer<typeof chatMessage
   const m = await chatFlow(userId);
   if (input.replyToId) {
     const parent = await prisma.feedMessage.findUnique({ where: { id: input.replyToId } });
-    if (!parent || parent.flowId !== m.flowId) throw notFound('message_not_found');
+    if (!parent) throw notFound('message_not_found');
   }
   const row = await prisma.feedMessage.create({ data: { flowId: m.flowId, userId, text: input.text, replyToId: input.replyToId ?? null, createdAt: clock.now() }, include });
   if (row.replyTo && row.replyTo.userId !== userId) {

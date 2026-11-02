@@ -498,3 +498,30 @@ describe('профиль участницы', () => {
     expect(p.body.goals[0]).toMatchObject({ title: 'Привычка', tasks: [{ title: 'Сделать', schedule: 'Ежедневно' }] });
   });
 });
+
+describe('личные даты старта (ТЗ 02.11)', () => {
+  it('дата в прошлом нельзя; ожидание до старта; в дату старта — активна и бот поздравляет; ровно 30 дней', async () => {
+    clock.set('2026-11-05T09:00:00Z');
+    await paidUser(940, '2026-12-01');
+    expect((await api('POST', '/api/membership/start', 940, { date: '2026-11-04' })).status).toBe(400);
+    expect((await api('POST', '/api/membership/start', 940, { date: '2026-11-10' })).body).toEqual({ startsOn: '2026-11-10', endsOn: '2026-12-09' });
+    await fixDaily(940);
+    const h0 = await api('GET', '/api/home', 940);
+    expect(h0.body.state).toBe('waiting');
+    expect(h0.body.flow).toMatchObject({ startsOn: '2026-11-10', endsOn: '2026-12-09', days: 30, day: 0 });
+    // дата старта: активна, бот поздравляет
+    clock.set('2026-11-10T08:00:00Z');
+    calls = [];
+    await refreshFlowStatuses();
+    expect((await prisma.flowMembership.findFirstOrThrow({ where: { userId: 940n } })).status).toBe('active');
+    expect(calls.some((c) => String(c.body.text ?? c.body.caption).includes('Твой челлендж начался'))).toBe(true);
+    const h1 = await api('GET', '/api/home', 940);
+    expect(h1.body).toMatchObject({ state: 'active', flow: { day: 1 }, stats: { dayNumber: 1 } });
+    // 30-й день — 9 декабря, 10-го — завершён
+    clock.set('2026-12-09T08:00:00Z');
+    expect((await api('GET', '/api/home', 940)).body.flow.day).toBe(30);
+    clock.set('2026-12-10T08:00:00Z');
+    await refreshFlowStatuses();
+    expect((await prisma.flowMembership.findFirstOrThrow({ where: { userId: 940n } })).status).toBe('finished');
+  });
+});

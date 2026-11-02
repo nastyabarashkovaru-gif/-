@@ -1,4 +1,4 @@
-import { flowBounds, flowPhase, fromDbDate, localDate, toDbDate, type ISODate } from '@thirty/domain';
+import { addDays, addMonths, challengeBounds, challengeDay, challengePhase, flowBounds, flowPhase, fromDbDate, localDate, toDbDate, type ISODate } from '@thirty/domain';
 import type { Flow, FlowMembership } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma, type Tx } from '../db';
@@ -27,23 +27,43 @@ export function flowInfo(flow: Flow, now = clock.now()) {
 }
 
 /**
- * Текущее членство пользователя: активный поток, иначе ближайший оплаченный предстоящий,
- * иначе последний завершённый (для финала и архива).
+ * Окно личного челленджа (ТЗ 02.11): 30 дней от личной даты старта. Дата ещё не выбрана — ориентир:
+ * не раньше сегодняшнего дня и не раньше месяца, к которому относится участие (челлендж пока не начался).
+ */
+export function memberWindow(m: { startsOn: Date | null; flow: Flow }, now = clock.now()) {
+  const today = flowToday(m.flow, now);
+  const chosen = m.startsOn ? fromDbDate(m.startsOn) : null;
+  const flowStart = fromDbDate(m.flow.startsOn);
+  const start = chosen ?? (flowStart > today ? flowStart : today);
+  const b = challengeBounds(start);
+  // не выбранная дата: челлендж считается ещё не начавшимся
+  const phase = chosen ? challengePhase(b.startsOn, b.endsOn, today) : ('upcoming' as const);
+  return { start: b.startsOn, end: b.endsOn, days: b.days, today, phase, day: chosen ? challengeDay(b.startsOn, b.endsOn, today) : 0, chosen: Boolean(chosen) };
+}
+
+/** Сведения о челлендже для клиента: те же поля, что у потока (startsOn/endsOn/days/phase), но личные */
+export function challengeInfo(m: { startsOn: Date | null; flow: Flow }, now = clock.now()) {
+  const w = memberWindow(m, now);
+  return { id: m.flow.id, startsOn: w.start, endsOn: w.end, days: w.days, title: m.flow.title, timezone: m.flow.timezone, today: w.today, phase: w.phase, day: w.day, chosen: w.chosen };
+}
+
+/**
+ * Текущее участие: идущий челлендж, иначе ближайший предстоящий (сразу после финала — завершённый,
+ * пока не подведены итоги), иначе последний завершённый (для финала и архива).
  */
 export async function currentMembership(userId: bigint): Promise<(FlowMembership & { flow: Flow }) | null> {
   const list = await prisma.flowMembership.findMany({
     where: { userId, status: { not: 'revoked' } },
     include: { flow: true },
-    orderBy: { flow: { startsOn: 'asc' } },
+    orderBy: [{ startsOn: 'asc' }, { flow: { startsOn: 'asc' } }],
   });
   if (!list.length) return null;
   const now = clock.now();
-  const active = list.find((m) => flowInfo(m.flow, now).phase === 'active');
+  const active = list.find((m) => memberWindow(m, now).phase === 'active');
   if (active) return active;
-  const upcoming = list.find((m) => flowInfo(m.flow, now).phase === 'upcoming');
+  const upcoming = list.filter((m) => memberWindow(m, now).phase === 'upcoming').sort((a, b) => (memberWindow(a, now).start < memberWindow(b, now).start ? -1 : 1))[0];
   if (upcoming) {
-    // Сразу после финала показываем завершённый поток, пока не начался следующий
-    const finished = [...list].reverse().find((m) => flowInfo(m.flow, now).phase === 'finished');
+    const finished = [...list].reverse().find((m) => memberWindow(m, now).phase === 'finished');
     if (finished && !finished.finalSubmittedAt) return finished;
     return upcoming;
   }
@@ -57,13 +77,35 @@ export async function currentMembership(userId: bigint): Promise<(FlowMembership
 export async function planningMembership(userId: bigint): Promise<(FlowMembership & { flow: Flow }) | null> {
   const m = await currentMembership(userId);
   if (!m || !m.goalsLockedAt || !['active', 'finished'].includes(m.status)) return m;
-  if (flowToday(m.flow) < flowBounds(fromDbDate(m.flow.startsOn)).endsOn) return m;
+  const w = memberWindow(m);
+  if (w.today < w.end) return m;
   const next = await prisma.flowMembership.findFirst({
-    where: { userId, status: { in: ['reserved', 'registered'] }, flow: { startsOn: { gt: m.flow.startsOn } } },
+    where: { userId, id: { not: m.id }, status: { in: ['reserved', 'registered'] }, goalsLockedAt: null },
     include: { flow: true },
     orderBy: { flow: { startsOn: 'asc' } },
   });
-  return next ?? m;
+  if (next) return next;
+  // «Поставить новую цель» (ТЗ 02.11): подписка действует — следующий личный челлендж создаётся сразу
+  return (await createNextChallenge(userId, m, w.end)) ?? m;
+}
+
+/** Следующий 30-дневный челлендж при действующей подписке: «контейнер» — месяц, следующий за окончанием текущего */
+async function createNextChallenge(userId: bigint, m: FlowMembership & { flow: Flow }, currentEnd: ISODate) {
+  const { LIVE_STATUSES } = await import('./billing');
+  const sub = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } }, orderBy: { createdAt: 'desc' } });
+  if (!sub) return null;
+  let month = `${addDays(currentEnd, 1).slice(0, 7)}-01`;
+  for (let i = 0; i < 3; i++) {
+    const flow = await ensureFlow(month);
+    const taken = await prisma.flowMembership.findUnique({ where: { userId_flowId: { userId, flowId: flow.id } } });
+    if (!taken) {
+      const created = await prisma.flowMembership.create({ data: { userId, flowId: flow.id, subscriptionId: sub.id, tariffId: sub.tariffId, buddyMode: m.buddyMode } });
+      return prisma.flowMembership.findUniqueOrThrow({ where: { id: created.id }, include: { flow: true } });
+    }
+    if (taken.status === 'reserved' && !taken.goalsLockedAt) return prisma.flowMembership.findUniqueOrThrow({ where: { id: taken.id }, include: { flow: true } });
+    month = addMonths(month, 1);
+  }
+  return null;
 }
 
 /**
@@ -73,11 +115,12 @@ export async function planningMembership(userId: bigint): Promise<(FlowMembershi
 export async function homeMembership(userId: bigint): Promise<(FlowMembership & { flow: Flow }) | null> {
   const m = await currentMembership(userId);
   if (!m || !m.finalSubmittedAt || !['active', 'finished'].includes(m.status)) return m;
-  if (flowToday(m.flow) < flowBounds(fromDbDate(m.flow.startsOn)).endsOn) return m;
+  const w = memberWindow(m);
+  if (w.today < w.end) return m;
   const next = await prisma.flowMembership.findFirst({
-    where: { userId, status: 'registered', goalsLockedAt: { not: null }, flow: { startsOn: { gt: m.flow.startsOn } } },
+    where: { userId, id: { not: m.id }, status: 'registered', goalsLockedAt: { not: null } },
     include: { flow: true },
-    orderBy: { flow: { startsOn: 'asc' } },
+    orderBy: { startsOn: 'asc' },
   });
   return next ?? m;
 }
@@ -102,21 +145,28 @@ export async function refreshFlowStatuses(now = clock.now()) {
   for (const flow of flows) {
     const info = flowInfo(flow, now);
     if (info.phase === flow.status) continue;
+    // Поток — только «контейнер» месяца (чаты, архив); статусы участий — по личным датам (ниже)
     await prisma.flow.update({ where: { id: flow.id }, data: { status: info.phase } });
-    if (info.phase === 'active') {
-      // Старт: зафиксированные анкеты блокируются, участники становятся активными
-      await prisma.flowMembership.updateMany({
-        where: { flowId: flow.id, status: 'registered' },
-        data: { status: 'active', goalsLockedAt: now },
-      });
-      for (const m of await prisma.flowMembership.findMany({ where: { flowId: flow.id, status: 'active' }, select: { id: true, userId: true } })) {
-        await track({ userId: m.userId, eventName: 'challenge_started', flowId: flow.id, dedupeKey: `challenge_started:${m.id}` });
-      }
-    }
-    if (info.phase === 'finished') {
-      const finishing = await prisma.flowMembership.findMany({ where: { flowId: flow.id, status: 'active' }, select: { id: true, userId: true } });
-      await prisma.flowMembership.updateMany({ where: { flowId: flow.id, status: 'active' }, data: { status: 'finished' } });
-      for (const m of finishing) await track({ userId: m.userId, eventName: 'challenge_completed', flowId: flow.id, dedupeKey: `challenge_completed:${m.id}` });
+  }
+  await refreshChallengeStatuses(now);
+}
+
+/**
+ * Личные челленджи: в дату старта анкета блокируется и участница становится активной (бот поздравляет),
+ * через 30 дней — завершённой. Идемпотентно.
+ */
+export async function refreshChallengeStatuses(now = clock.now()) {
+  const list = await prisma.flowMembership.findMany({ where: { status: { in: ['registered', 'active'] }, startsOn: { not: null } }, include: { flow: true } });
+  for (const m of list) {
+    const w = memberWindow(m, now);
+    if (m.status === 'registered' && w.phase !== 'upcoming') {
+      await prisma.flowMembership.update({ where: { id: m.id }, data: { status: w.phase === 'finished' ? 'finished' : 'active', goalsLockedAt: m.goalsLockedAt ?? now } });
+      await track({ userId: m.userId, eventName: 'challenge_started', flowId: m.flowId, dedupeKey: `challenge_started:${m.id}` });
+      const { notify } = await import('./notify');
+      await notify(m.userId, 'challenge_started', { day_count: w.days }, `challenge_started:${m.id}`).catch(() => undefined);
+    } else if (m.status === 'active' && w.phase === 'finished') {
+      await prisma.flowMembership.update({ where: { id: m.id }, data: { status: 'finished' } });
+      await track({ userId: m.userId, eventName: 'challenge_completed', flowId: m.flowId, dedupeKey: `challenge_completed:${m.id}` });
     }
   }
 }

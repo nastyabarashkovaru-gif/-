@@ -4,18 +4,20 @@ import { displayName } from './users';
 import type { Flow } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma } from '../db';
-import { flowToday } from './flows';
+import { flowToday, memberWindow } from './flows';
 
 /** Факты участника из БД → доменный расчёт. Отклонённые модерацией отчёты не засчитываются. */
 export async function loadFacts(membershipId: string, flow: Flow, now = clock.now()) {
-  const [occ, reports] = await Promise.all([
+  const [occ, reports, m] = await Promise.all([
     prisma.taskOccurrence.findMany({ where: { membershipId }, select: { windowStart: true, windowEnd: true, status: true, taskId: true } }),
     prisma.dailyReport.findMany({ where: { membershipId, status: 'accepted' }, select: { date: true } }),
+    prisma.flowMembership.findUnique({ where: { id: membershipId }, select: { startsOn: true } }),
   ]);
-  const startsOn = fromDbDate(flow.startsOn);
+  // Личный челлендж: 30 дней от личной даты старта
+  const w = memberWindow({ startsOn: m?.startsOn ?? null, flow }, now);
   return {
-    flowStart: startsOn,
-    flowEnd: flowBounds(startsOn).endsOn,
+    flowStart: w.start,
+    flowEnd: w.end,
     today: flowToday(flow, now),
     occurrences: occ.map((o) => ({ windowStart: fromDbDate(o.windowStart), windowEnd: fromDbDate(o.windowEnd), done: o.status === 'done', taskId: o.taskId })),
     reportDates: reports.map((r) => fromDbDate(r.date)),
@@ -158,9 +160,9 @@ export async function selectPrizeCandidates(flowId: string, now = clock.now()) {
 // ───────────── Недельный рейтинг дисциплины (ТЗ 02.11) ─────────────
 
 /** Окно личного челленджа участника (пока — даты потока; с личными стартами — своя дата и 30 дней) */
-export function challengeWindow(m: { flow: Flow }) {
-  const start = fromDbDate(m.flow.startsOn);
-  return { start, end: flowBounds(start).endsOn };
+export function challengeWindow(m: { flow: Flow; startsOn?: Date | null }) {
+  const w = memberWindow({ startsOn: m.startsOn ?? null, flow: m.flow });
+  return { start: w.start, end: w.end };
 }
 
 /** Сколько дней участия нужно, чтобы попасть в основной рейтинг недели */

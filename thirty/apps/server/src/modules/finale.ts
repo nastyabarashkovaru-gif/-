@@ -4,7 +4,7 @@ import { clock } from '../clock';
 import { prisma } from '../db';
 import { badRequest, forbidden, notFound } from '../http';
 import { signedMediaUrl } from '../lib/storage';
-import { flowToday } from './flows';
+import { flowToday, memberWindow } from './flows';
 import { memberStats } from './rating';
 import { track } from './analytics';
 
@@ -24,8 +24,9 @@ export async function submitFinal(userId: bigint, membershipId: string, input: z
   if (!m || m.userId !== userId) throw notFound();
   if (m.finalSubmittedAt) throw forbidden('already_submitted', 'Итоговая анкета уже отправлена');
   if (!['active', 'finished'].includes(m.status)) throw forbidden('not_member');
-  const today = flowToday(m.flow);
-  const endsOn = flowBounds(fromDbDate(m.flow.startsOn)).endsOn;
+  const w = memberWindow(m);
+  const today = w.today;
+  const endsOn = w.end;
   if (today < endsOn || today > addDays(endsOn, FINAL_WINDOW_DAYS)) throw forbidden('final_closed', `Итоговая анкета доступна с последнего дня потока в течение ${FINAL_WINDOW_DAYS} дней`);
   const ids = new Set(m.goals.map((g) => g.id));
   if (input.goals.length !== m.goals.length || input.goals.some((g) => !ids.has(g.goalId))) throw badRequest('all_goals_required', 'Ответьте по каждой цели');

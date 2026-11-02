@@ -11,23 +11,34 @@ import { pushNotification } from './notifications';
 
 const ELIGIBLE = ['reserved', 'registered', 'active'] as const;
 
+/** Участие в клубе: сначала в этом месяце, иначе любое действующее (личные старты — пары по всему клубу, ТЗ 02.11) */
 async function membershipIn(userId: bigint, flowId: string, db: Tx | typeof prisma = prisma) {
-  return db.flowMembership.findFirst({ where: { userId, flowId, status: { in: [...ELIGIBLE] } } });
+  return (
+    (await db.flowMembership.findFirst({ where: { userId, flowId, status: { in: [...ELIGIBLE] } } })) ??
+    (await db.flowMembership.findFirst({ where: { userId, status: { in: [...ELIGIBLE] } }, orderBy: [{ startsOn: 'asc' }, { createdAt: 'asc' }] }))
+  );
+}
+
+/** Есть ли у человека активная пара (в любом месяце) */
+async function pairedUsers(ids: bigint[], db: Tx | typeof prisma = prisma) {
+  return (await db.buddyAssignment.findMany({ where: { userId: { in: ids }, pair: { status: 'active' } }, select: { userId: true } })).map((a) => a.userId);
 }
 
 /** Создать пару транзакционно: первичный ключ BuddyAssignment(flowId, userId) не даст назначить второго бадди */
-async function createPair(tx: Tx, flowId: string, a: bigint, b: bigint, source: string, matchReason?: string) {
+async function createPair(tx: Tx, flowId: string, a: bigint, b: bigint, source: string, matchReason?: string, flowB = flowId) {
+  // один человек — одна активная пара во всём клубе
+  if ((await pairedUsers([a, b], tx)).length) throw conflict('already_paired', 'У кого-то из вас уже есть бадди');
   const pair = await tx.buddyPair.create({ data: { flowId, userA: a, userB: b, source, matchReason } });
-  await tx.buddyAssignment.createMany({ data: [{ flowId, userId: a, pairId: pair.id }, { flowId, userId: b, pairId: pair.id }] });
+  await tx.buddyAssignment.createMany({ data: [{ flowId, userId: a, pairId: pair.id }, { flowId: flowB, userId: b, pairId: pair.id }] });
   // Пара есть: остальные ожидающие предложения обоих недействительны, из очереди автоподбора оба выходят
   await tx.buddyInvite.updateMany({ where: { status: 'pending', toUserId: { not: null }, OR: [{ fromUserId: { in: [a, b] } }, { toUserId: { in: [a, b] } }] }, data: { status: 'expired' } });
-  await tx.flowMembership.updateMany({ where: { flowId, userId: { in: [a, b] } }, data: { buddyQueuedAt: null } });
+  await tx.flowMembership.updateMany({ where: { userId: { in: [a, b] } }, data: { buddyQueuedAt: null } });
   return pair;
 }
 
 export async function createInvite(userId: bigint, flowId: string) {
   if (!(await membershipIn(userId, flowId))) throw forbidden('no_membership');
-  if (await prisma.buddyAssignment.findUnique({ where: { flowId_userId: { flowId, userId } } })) throw conflict('already_paired', 'У вас уже есть бадди');
+  if ((await pairedUsers([userId])).length) throw conflict('already_paired', 'У вас уже есть бадди');
   const existing = await prisma.buddyInvite.findFirst({ where: { flowId, fromUserId: userId, status: 'pending' } });
   const invite = existing ?? (await prisma.buddyInvite.create({ data: { flowId, fromUserId: userId, token: randomBytes(9).toString('base64url') } }));
   await track({ userId, eventName: 'buddy_invite_sent', screenId: 'S16', flowId });
@@ -43,9 +54,8 @@ export async function acceptInvite(userId: bigint, token: string) {
     const [mine, theirs] = await Promise.all([membershipIn(userId, invite.flowId, tx), membershipIn(invite.fromUserId, invite.flowId, tx)]);
     if (!mine) throw forbidden('no_membership', 'Чтобы стать бадди, нужно участие в этом же потоке');
     if (!theirs) throw conflict('inviter_inactive');
-    const taken = await tx.buddyAssignment.findMany({ where: { flowId: invite.flowId, userId: { in: [userId, invite.fromUserId] } } });
-    if (taken.length) throw conflict('already_paired', 'У кого-то из вас уже есть бадди');
-    const p = await createPair(tx, invite.flowId, invite.fromUserId, userId, 'invite');
+    if ((await pairedUsers([userId, invite.fromUserId], tx)).length) throw conflict('already_paired', 'У кого-то из вас уже есть бадди');
+    const p = await createPair(tx, theirs.flowId, invite.fromUserId, userId, 'invite', undefined, mine.flowId);
     await tx.buddyInvite.update({ where: { id: invite.id }, data: { status: 'accepted', toUserId: userId } });
     return p;
   });
@@ -60,13 +70,13 @@ export async function proposeBuddy(userId: bigint, flowId: string, targetId: big
   if (observers.has(String(userId)) || observers.has(String(targetId))) throw forbidden('observer', 'Организатор не участвует в подборе бадди');
   const [mine, theirs] = await Promise.all([membershipIn(userId, flowId), membershipIn(targetId, flowId)]);
   if (!mine) throw forbidden('no_membership', 'Предложить пару можно участнику своего потока');
-  if (!theirs) throw conflict('other_flow', 'Этот участник в другом потоке — пару можно составить только внутри одного потока');
-  const taken = await prisma.buddyAssignment.findMany({ where: { flowId, userId: { in: [userId, targetId] } } });
+  if (!theirs) throw conflict('other_flow', 'Этот участник сейчас не в клубе');
+  const taken = (await pairedUsers([userId, targetId])).map((u) => ({ userId: u }));
   if (taken.some((t) => t.userId === userId)) throw conflict('already_paired', 'У тебя уже есть бадди');
   if (taken.length) throw conflict('target_paired', 'У этого участника уже есть бадди');
-  const counter = await prisma.buddyInvite.findFirst({ where: { flowId, fromUserId: targetId, toUserId: userId, status: 'pending' } });
+  const counter = await prisma.buddyInvite.findFirst({ where: { fromUserId: targetId, toUserId: userId, status: 'pending' } });
   if (counter) return { ...(await acceptInvite(userId, counter.token)), matched: true };
-  const existing = await prisma.buddyInvite.findFirst({ where: { flowId, fromUserId: userId, toUserId: targetId, status: 'pending' } });
+  const existing = await prisma.buddyInvite.findFirst({ where: { fromUserId: userId, toUserId: targetId, status: 'pending' } });
   if (existing) return { proposalId: existing.id, matched: false };
   const inv = await prisma.buddyInvite.create({ data: { flowId, fromUserId: userId, toUserId: targetId, token: randomBytes(9).toString('base64url') } });
   const me = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
@@ -93,8 +103,8 @@ export async function respondProposal(userId: bigint, proposalId: string, accept
 /** Входящие и исходящие предложения для экрана «Мой бадди» */
 export async function proposals(userId: bigint, flowId: string) {
   const [incoming, outgoing] = await Promise.all([
-    prisma.buddyInvite.findMany({ where: { flowId, toUserId: userId, status: 'pending' }, orderBy: { createdAt: 'desc' } }),
-    prisma.buddyInvite.findMany({ where: { flowId, fromUserId: userId, toUserId: { not: null }, status: 'pending' }, orderBy: { createdAt: 'desc' } }),
+    prisma.buddyInvite.findMany({ where: { toUserId: userId, status: 'pending' }, orderBy: { createdAt: 'desc' } }),
+    prisma.buddyInvite.findMany({ where: { fromUserId: userId, toUserId: { not: null }, status: 'pending' }, orderBy: { createdAt: 'desc' } }),
   ]);
   const ids = [...incoming.map((i) => i.fromUserId), ...outgoing.map((i) => i.toUserId!)];
   const users = await prisma.user.findMany({ where: { id: { in: ids } } });
@@ -146,7 +156,9 @@ export async function autoMatch(flowId: string) {
 }
 
 export async function buddyOf(userId: bigint, flowId: string) {
-  const a = await prisma.buddyAssignment.findUnique({ where: { flowId_userId: { flowId, userId } }, include: { pair: true } });
+  // активная пара в любом месяце (личные старты — пары по всему клубу)
+  const a = (await prisma.buddyAssignment.findUnique({ where: { flowId_userId: { flowId, userId } }, include: { pair: true } })) ??
+    (await prisma.buddyAssignment.findFirst({ where: { userId, pair: { status: 'active' } }, include: { pair: true } }));
   if (!a) return null;
   const otherId = a.pair.userA === userId ? a.pair.userB : a.pair.userA;
   return { pair: a.pair, otherId };
@@ -208,7 +220,7 @@ export async function dissolvePair(pairId: string, replacementStatus = 'approved
     prisma.buddyAssignment.deleteMany({ where: { pairId } }),
     prisma.buddyPair.update({ where: { id: pairId }, data: { status: 'dissolved', dissolvedAt: now } }),
     prisma.buddyReplacement.updateMany({ where: { pairId, status: 'open' }, data: { status: replacementStatus, decidedBy } }),
-    prisma.flowMembership.updateMany({ where: { flowId: pair.flowId, userId: { in: [pair.userA, pair.userB] }, OR: [{ buddyMode: null }, { buddyMode: 'auto' }] }, data: { buddyMode: 'auto', buddyQueuedAt: now } }),
+    prisma.flowMembership.updateMany({ where: { userId: { in: [pair.userA, pair.userB] }, status: { in: [...ELIGIBLE] }, OR: [{ buddyMode: null }, { buddyMode: 'auto' }] }, data: { buddyMode: 'auto', buddyQueuedAt: now } }),
   ]);
 }
 
@@ -223,7 +235,7 @@ export async function adminReplaceBuddy(userId: bigint) {
   const otherId = a.pair.userA === userId ? a.pair.userB : a.pair.userA;
   await dissolvePair(a.pair.id, 'approved');
   // та, кого меняли, — первой в очереди автоподбора (бывших вместе не ставим)
-  await prisma.flowMembership.updateMany({ where: { flowId, userId }, data: { buddyMode: 'auto', buddyQueuedAt: new Date(0) } });
+  await prisma.flowMembership.updateMany({ where: { userId, status: { in: [...ELIGIBLE] } }, data: { buddyMode: 'auto', buddyQueuedAt: new Date(0) } });
   await runBuddyQueue();
   const name = async (u: bigint) => {
     const b = await buddyOf(u, flowId);
@@ -259,41 +271,39 @@ export async function memberReplaceBuddy(userId: bigint, flowId: string, reason:
 export async function runBuddyQueue() {
   const observers = await (await import('./observers')).observerIds();
   const queued = await prisma.flowMembership.findMany({
-    where: { buddyMode: 'auto', buddyQueuedAt: { not: null }, status: { in: [...ELIGIBLE] }, flow: { status: { not: 'finished' } } },
+    where: { buddyMode: 'auto', buddyQueuedAt: { not: null }, status: { in: [...ELIGIBLE] } },
     orderBy: { buddyQueuedAt: 'asc' },
   });
-  const assigned = new Set((await prisma.buddyAssignment.findMany({ where: { userId: { in: queued.map((m) => m.userId) } } })).map((x) => `${x.flowId}:${x.userId}`));
-  let created = 0;
-  const byFlow = new Map<string, typeof queued>();
+  // Личные старты (ТЗ 02.11): пары по всему клубу, один человек — одна запись в очереди
+  const paired = new Set((await pairedUsers(queued.map((m) => m.userId))).map(String));
+  const seen = new Set<string>();
+  const list: typeof queued = [];
   for (const m of queued) {
-    if (observers.has(m.userId.toString())) continue;
-    if (assigned.has(`${m.flowId}:${m.userId}`)) {
-      await prisma.flowMembership.update({ where: { id: m.id }, data: { buddyQueuedAt: null } });
+    const key = m.userId.toString();
+    if (observers.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    if (paired.has(key)) {
+      await prisma.flowMembership.updateMany({ where: { userId: m.userId }, data: { buddyQueuedAt: null } });
       continue;
     }
-    byFlow.set(m.flowId, [...(byFlow.get(m.flowId) ?? []), m]);
+    list.push(m);
   }
-  for (const [flowId, list] of byFlow) {
-    const past = await prisma.buddyPair.findMany({ where: { flowId, status: 'dissolved' }, select: { userA: true, userB: true } });
-    const avoid = new Set(past.flatMap((p) => [`${p.userA}:${p.userB}`, `${p.userB}:${p.userA}`]));
-    const rest = [...list];
-    while (rest.length >= 2) {
-      const first = rest.shift()!;
-      const k = rest.findIndex((x) => !avoid.has(`${first.userId}:${x.userId}`));
-      if (k < 0) continue;
-      const [second] = rest.splice(k, 1);
-      try {
-        await serializable(async (tx) => {
-          const taken = await tx.buddyAssignment.findMany({ where: { flowId, userId: { in: [first.userId, second.userId] } } });
-          if (taken.length) throw conflict('already_paired');
-          await createPair(tx, flowId, first.userId, second.userId, 'auto', 'queue');
-        });
-        created++;
-        await onMatched(flowId, [first.userId, second.userId]);
-      } catch (e) {
-        // гонка с ручным выбором — этих двоих пропускаем, следующий проход разберётся
-        if (!(e instanceof Error)) throw e;
-      }
+  const past = await prisma.buddyPair.findMany({ where: { status: 'dissolved', OR: [{ userA: { in: list.map((m) => m.userId) } }, { userB: { in: list.map((m) => m.userId) } }] }, select: { userA: true, userB: true } });
+  const avoid = new Set(past.flatMap((p) => [`${p.userA}:${p.userB}`, `${p.userB}:${p.userA}`]));
+  let created = 0;
+  const rest = [...list];
+  while (rest.length >= 2) {
+    const first = rest.shift()!;
+    const k = rest.findIndex((x) => !avoid.has(`${first.userId}:${x.userId}`));
+    if (k < 0) continue;
+    const [second] = rest.splice(k, 1);
+    try {
+      await serializable((tx) => createPair(tx, first.flowId, first.userId, second.userId, 'auto', 'queue', second.flowId));
+      created++;
+      await onMatched(first.flowId, [first.userId, second.userId]);
+    } catch (e) {
+      // гонка с ручным выбором — этих двоих пропускаем, следующий проход разберётся
+      if (!(e instanceof Error)) throw e;
     }
   }
   return { created };
@@ -319,21 +329,27 @@ export async function freeParticipants(userId: bigint, q?: string) {
   const m = await currentMembership(userId);
   if (!m) throw forbidden('no_membership');
   const observers = [...(await (await import('./observers')).observerIds())].map((x) => BigInt(x));
-  const paired = (await prisma.buddyAssignment.findMany({ where: { flowId: m.flowId }, select: { userId: true } })).map((a) => a.userId);
+  // по всему клубу: у кого сейчас нет активной пары (личные старты, ТЗ 02.11)
+  const paired = (await prisma.buddyAssignment.findMany({ where: { pair: { status: 'active' } }, select: { userId: true } })).map((a) => a.userId);
   const term = q?.trim().replace(/^@+/, '');
   const members = await prisma.flowMembership.findMany({
     where: {
-      flowId: m.flowId,
       status: { in: [...ELIGIBLE] },
       userId: { notIn: [userId, ...paired, ...observers] },
       user: { deletedAt: null, ...(term ? { OR: [{ firstName: { contains: term, mode: 'insensitive' } }, { lastName: { contains: term, mode: 'insensitive' } }, { displayName: { contains: term, mode: 'insensitive' } }, { username: { contains: term, mode: 'insensitive' } }] } : {}) },
     },
     include: { user: true, goals: { select: { title: true } } },
-    orderBy: { createdAt: 'asc' },
-    take: 100,
+    orderBy: [{ createdAt: 'asc' }],
+    take: 300,
   });
-  const sent = new Set((await prisma.buddyInvite.findMany({ where: { flowId: m.flowId, fromUserId: userId, status: 'pending', toUserId: { not: null } } })).map((i) => i.toUserId!.toString()));
-  return members.map((x) => ({
+  const byUser = new Map<string, (typeof members)[number]>();
+  for (const x of members) {
+    const prev = byUser.get(x.userId.toString());
+    // у человека несколько оплаченных месяцев — берём участие с целями
+    if (!prev || (!prev.goals.length && x.goals.length)) byUser.set(x.userId.toString(), x);
+  }
+  const sent = new Set((await prisma.buddyInvite.findMany({ where: { fromUserId: userId, status: 'pending', toUserId: { not: null } } })).map((i) => i.toUserId!.toString()));
+  return [...byUser.values()].slice(0, 100).map((x) => ({
     id: x.userId.toString(),
     name: displayName(x.user),
     username: x.user.username,

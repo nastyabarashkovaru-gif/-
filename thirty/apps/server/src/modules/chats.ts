@@ -1,4 +1,5 @@
 import { TOPIC_CHATS, fromDbDate, addDays, flowBounds, localDate } from '@thirty/domain';
+import { memberWindow } from './flows';
 import type { TelegramChat } from '@prisma/client';
 import { clock } from '../clock';
 import { config } from '../config';
@@ -21,7 +22,7 @@ export async function accessibleChats(userId: bigint, now = clock.now()): Promis
   const today = localDate(now, tz);
   const memberships = await prisma.flowMembership.findMany({ where: { userId, status: { not: 'revoked' } }, include: { flow: true } });
   const flowIds = memberships
-    .filter((m) => addDays(flowBounds(fromDbDate(m.flow.startsOn)).endsOn, FLOW_CHAT_GRACE_DAYS) >= today)
+    .filter((m) => addDays(memberWindow(m, now).end, FLOW_CHAT_GRACE_DAYS) >= today)
     .map((m) => m.flowId);
   const live = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
   // Тематические чаты — только по категориям целей участника (решение владельца 24.10)

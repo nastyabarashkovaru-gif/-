@@ -9,7 +9,7 @@ import { clock } from '../clock';
 import { prisma, isUniqueViolation } from '../db';
 import { forbidden, notFound } from '../http';
 import { appLink } from '../lib/telegram';
-import { flowToday } from './flows';
+import { flowToday, memberWindow } from './flows';
 import { loadFacts } from './rating';
 import { computeStats } from '@thirty/domain';
 import { track } from './analytics';
@@ -41,11 +41,11 @@ export async function cardStats(membershipId: string, week: number) {
 /** Какие карточки уже доступны: каждые 7 дней от старта (7/14/21/28) и итоговая после финала */
 export async function availableCards(membershipId: string) {
   const m = await prisma.flowMembership.findUniqueOrThrow({ where: { id: membershipId }, include: { flow: true } });
-  const startsOn = fromDbDate(m.flow.startsOn);
-  const today = flowToday(m.flow);
-  const day = flowDayNumber(startsOn, today);
+  const w = memberWindow(m);
+  const today = w.today;
+  const day = w.day;
   const weeks = [1, 2, 3, 4].filter((w) => day >= w * 7);
-  if (today > flowBounds(startsOn).endsOn) weeks.push(5);
+  if (today > w.end) weeks.push(5);
   return weeks;
 }
 
@@ -64,7 +64,7 @@ export async function generateCard(userId: bigint, membershipId: string, week: n
     delta: w.delta,
     percent: Math.round(stats.ratio * 100),
     streak: stats.currentStreak,
-    totalDays: flowBounds(fromDbDate(m.flow.startsOn)).days,
+    totalDays: memberWindow(m).days,
     flowTitle: m.flow.title,
   };
   const card = await prisma.shareCard.upsert({

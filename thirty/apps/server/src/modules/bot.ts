@@ -142,6 +142,17 @@ export async function seedTemplates() {
     if (d) await prisma.botMessageTemplate.update({ where: { key: 'buddy_matched' }, data: { text: d.text, buttons: d.buttons as object, approved: true } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v19, value: { at: new Date().toISOString() } } });
   }
+  // Разово (02.11): личные даты старта — без обещаний общего старта; сообщения 10–11 («до старта потока») выключены
+  const v20 = 'maintenance.personalStartV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v20 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT } }).catch(() => undefined);
+    for (const k of ['reg_goals', 'flow_start_soon', 'flow_finished']) {
+      const d = DEFAULT_TEMPLATES.find((x) => x.key === k);
+      if (d) await prisma.botMessageTemplate.update({ where: { key: k }, data: { text: d.text } }).catch(() => undefined);
+    }
+    await prisma.botMessageTemplate.updateMany({ where: { key: { in: ['chain_10', 'chain_11'] } }, data: { enabled: false } });
+    await prisma.setting.create({ data: { key: v20, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {

@@ -8,7 +8,7 @@ import { api } from '../../lib/api';
 import { track } from '../../lib/analytics';
 import { haptic, openTelegram, requestWriteAccess } from '../../lib/telegram';
 import { useMe } from '../../state';
-import { BrandBar, Cta, Empty, ErrorState, Loading, Screen, errorText, humanDate, toast } from '../../ui';
+import { BrandBar, Cta, Empty, ErrorState, Loading, Screen, errorText, humanDate, toast, useLoad } from '../../ui';
 import { useMembership, type MembershipView } from './Registration';
 
 /** Категории целей анкеты (решение владельца 24.10) */
@@ -103,6 +103,101 @@ function Gate({ q, id, children }: { q: ReturnType<typeof useMembership>; id: st
     return <Navigate to="/" replace />;
   }
   return <>{children(q.data)}</>;
+}
+
+/* ───────────── Шаг 0: когда начнём (личный старт, ТЗ 02.11) ───────────── */
+
+const isoToday = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+const plusDays = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+
+export function StartStep() {
+  const q = useQuestionnaire('/reg/start');
+  return <Gate q={q} id="S11a">{(m) => <StartForm m={m} />}</Gate>;
+}
+
+function StartForm({ m }: { m: MembershipView }) {
+  const nav = useNavigate();
+  const { refresh } = useMe();
+  const today = m.flow.today || isoToday();
+  const chosen = (m.flow as { chosen?: boolean }).chosen ? m.flow.startsOn : null;
+  const [mode, setMode] = useState<'today' | 'date' | null>(chosen ? (chosen === today ? 'today' : 'date') : null);
+  const [date, setDate] = useState(chosen && chosen !== today ? chosen : plusDays(today, 1));
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api('/api/membership/start', { body: { date: mode === 'today' ? today : date } });
+      await refresh();
+      haptic('success');
+      nav('/reg/buddy-mode');
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Screen id="S11a">
+      <BrandBar />
+      <div className="col" style={{ gap: 8 }}>
+        <h1 className="hero" style={{ textAlign: 'left' }}>Когда начнём твой челлендж? 🚀</h1>
+        <p className="lead" style={{ textAlign: 'left' }}>Выбери день, с которого начнёшь двигаться к своей цели.</p>
+      </div>
+      <button className={`card card-link start-choice ${mode === 'today' ? 'on' : ''}`} onClick={() => setMode('today')}>
+        <span className="start-ic">🔥</span><span className="grow"><b>Начать сегодня</b><span>{humanDate(today)} — первый день из 30</span></span>
+      </button>
+      <button className={`card card-link start-choice ${mode === 'date' ? 'on' : ''}`} onClick={() => setMode('date')}>
+        <span className="start-ic">📅</span><span className="grow"><b>Выбрать дату</b><span>Начнёшь с удобного тебе дня</span></span>
+      </button>
+      {mode === 'date' && (
+        <label className="field"><span className="muted" style={{ fontWeight: 400, fontSize: 14 }}>Дата старта</span>
+          <input className="input" type="date" value={date} min={today} max={plusDays(today, 90)} onChange={(e) => setDate(e.target.value)} />
+        </label>
+      )}
+      {mode && <div className="panel small" style={{ padding: 12 }}>Твои 30 дней: {humanDate(mode === 'today' ? today : date)} — {humanDate(plusDays(mode === 'today' ? today : date, 29))}</div>}
+      <div className="spacer" />
+      <Cta disabled={!mode || busy || (mode === 'date' && (!date || date < today))} onClick={save}>Продолжить</Cta>
+    </Screen>
+  );
+}
+
+/* ───────────── Шаг 0б: как найти бадди ───────────── */
+
+export function BuddyModeStep() {
+  const nav = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const { data } = useLoad(() => api<{ state: string }>('/api/buddy'));
+  useEffect(() => {
+    // пара уже есть (например, следующий челлендж с прежним бадди) — шаг пропускаем
+    if (data?.state === 'paired') nav('/reg/about', { replace: true });
+  }, [data?.state]);
+  const choose = async (mode: 'auto' | 'self') => {
+    setBusy(true);
+    try {
+      await api('/api/buddy/mode', { body: { mode } });
+      haptic('success');
+      nav('/reg/about');
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Screen id="S11b">
+      <BrandBar />
+      <div className="col" style={{ gap: 8 }}>
+        <h1 className="hero" style={{ textAlign: 'left' }}>Как хочешь найти своего бадди?</h1>
+        <p className="lead" style={{ textAlign: 'left' }}>Каждому участнику доступен личный бадди — напарник, с которым вы поддерживаете друг друга и вместе идёте к своим целям. Ты можешь выбрать его самостоятельно или доверить подбор нам.</p>
+      </div>
+      <button className="card card-link start-choice" disabled={busy} onClick={() => choose('auto')}>
+        <span className="start-ic">🤝</span><span className="grow"><b>Подобрать автоматически</b><span>Мы найдём тебе напарника среди участников клуба</span></span>
+      </button>
+      <button className="card card-link start-choice" disabled={busy} onClick={() => choose('self')}>
+        <span className="start-ic">💜</span><span className="grow"><b>Выбрать самостоятельно</b><span>Выбери участника, с которым хочешь проходить челлендж вместе</span></span>
+      </button>
+    </Screen>
+  );
 }
 
 /* ───────────── Шаг 1: знакомство ───────────── */

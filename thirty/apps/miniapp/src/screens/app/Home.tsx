@@ -89,8 +89,8 @@ export function Home() {
       <AppBar />
       <span className="month-pill">{monthPill(data.month ?? 1)}</span>
       <div>
-        <h1 className="h2" style={{ fontSize: 24 }}>{before ? 'Ты уже в команде! 💜' : data.state === 'finished' ? 'Челлендж завершён! 🎉' : 'Твой путь к результату 🚀'}</h1>
-        <p className="sub" style={{ fontSize: 15 }}>{before ? 'Твои цели сохранены. Совсем скоро начинаем!' : 'Каждый день приближает тебя к результату.'}</p>
+        <h1 className="h2" style={{ fontSize: 24 }}>{before ? `Твой челлендж начинается ${humanDate(flow.startsOn)}! 💜` : data.state === 'finished' ? 'Челлендж завершён! 🎉' : `Сегодня твой ${day}-й день из ${flow.days} 💜`}</h1>
+        <p className="sub" style={{ fontSize: 15 }}>{before ? 'Скоро начнутся твои 30 дней. А пока — бадди, чаты и материалы клуба уже доступны.' : 'Каждый день приближает тебя к результату.'}</p>
       </div>
 
       <div className="hero-card">

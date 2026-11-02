@@ -146,15 +146,12 @@ export function PaymentWait() {
           <p className="lead">Ты сделал первый шаг к большим изменениям. Впереди — новые люди, поддержка и 30 дней движения к своей цели!</p>
         </div>
         {st.needsRefund && <div className="banner warn">У тебя уже была действующая подписка — повторный платёж вернём, двойного списания не будет.</div>}
-        {flow && (
-          <div className="card center" style={{ alignItems: 'center', gap: 6 }}>
-            <span className="row muted" style={{ gap: 8, fontSize: 14 }}><CalendarHeart size={16} color="var(--accent)" />{flow.phase === 'upcoming' ? 'Твой челлендж начинается' : 'Твой челлендж уже идёт'}</span>
-            <div style={{ color: 'var(--accent-2)', fontSize: 28, fontWeight: 700 }}>{flow.phase === 'upcoming' ? humanDate(flow.startsOn) : `с ${humanDate(flow.startsOn)}`}</div>
-            <span className="muted" style={{ fontSize: 12 }}>А пока давай познакомимся и подготовим твою цель!</span>
-          </div>
-        )}
+        <div className="card center" style={{ alignItems: 'center', gap: 6 }}>
+          <span className="row muted" style={{ gap: 8, fontSize: 14 }}><CalendarHeart size={16} color="var(--accent)" />Свой челлендж ты начнёшь тогда, когда удобно</span>
+          <span className="muted" style={{ fontSize: 13 }}>Сегодня или в любой выбранный день — а пока давай познакомимся и подготовим твою цель!</span>
+        </div>
         <div className="spacer" />
-        <Cta onClick={() => nav('/reg/about')}>Приступить к заполнению целей</Cta>
+        <Cta onClick={() => nav('/reg/start')}>Приступить к заполнению анкеты</Cta>
       </Screen>
     );
   }

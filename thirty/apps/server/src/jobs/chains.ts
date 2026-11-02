@@ -2,6 +2,7 @@ import { addMonths, addDays, flowBounds, fromDbDate, localDate, humanDate, quote
 import { DateTime } from 'luxon';
 import { clock } from '../clock';
 import { prisma } from '../db';
+import { memberWindow } from '../modules/flows';
 import { pushNotification } from '../modules/notifications';
 import { getSetting, feature } from '../settings';
 import { sendTemplate } from '../modules/bot';
@@ -150,13 +151,16 @@ export async function runPostPurchaseChains(now = clock.now(), send: Send = send
       const key = profileDone ? 'reg_goals' : 'reg_profile';
       if (paidAt < minutesAgo(now, tpl.get(key)?.delayMinutes ?? 120)) await send(uid, key, {}, `${key}:${m.id}:${today}`);
     } else {
-      const hasBuddy = await prisma.buddyAssignment.findUnique({ where: { flowId_userId: { flowId: m.flowId, userId: uid } } });
-      const invited = await prisma.buddyInvite.findFirst({ where: { flowId: m.flowId, fromUserId: uid } });
+      const hasBuddy = await prisma.buddyAssignment.findFirst({ where: { userId: uid, pair: { status: 'active' } } });
+      const invited = await prisma.buddyInvite.findFirst({ where: { fromUserId: uid, status: 'pending' } });
       if (!hasBuddy && !invited && m.registeredAt && m.registeredAt < minutesAgo(now, tpl.get('reg_buddy')?.delayMinutes ?? 240)) await send(uid, 'reg_buddy', {}, `reg_buddy:${m.id}`);
     }
-    const startsOn = fromDbDate(m.flow.startsOn);
-    for (const daysBefore of [3, 1]) {
-      if (addDays(startsOn, -daysBefore) === today) await send(uid, 'flow_start_soon', { flow: m.flow.title, date: humanDate(startsOn) }, `flow_start_soon:${m.id}:${daysBefore}`);
+    // Напоминание о личном старте — только когда дата выбрана и анкета отправлена
+    if (m.status === 'registered' && m.startsOn) {
+      const startsOn = fromDbDate(m.startsOn);
+      for (const daysBefore of [3, 1]) {
+        if (addDays(startsOn, -daysBefore) === today) await send(uid, 'flow_start_soon', { flow: m.flow.title, date: humanDate(startsOn) }, `flow_start_soon:${m.id}:${daysBefore}`);
+      }
     }
   }
   const ending = await prisma.subscription.findMany({ where: { status: 'canceled_at_period_end' } });
@@ -171,44 +175,40 @@ export async function runPostPurchaseChains(now = clock.now(), send: Send = send
  * карточки 7/14/21/28 дня (в полдень), отзыв на 14-й день, финал.
  */
 export async function runFlowChains(now = clock.now(), send: Send = sendTemplate) {
-  const flows = await prisma.flow.findMany({ where: { status: { in: ['active', 'finished'] }, finalizedAt: null } });
-  for (const flow of flows) {
-    const startsOn = fromDbDate(flow.startsOn);
-    const endsOn = flowBounds(startsOn).endsOn;
-    const today = localDate(now, flow.timezone);
-    const hour = DateTime.fromJSDate(now, { zone: flow.timezone }).hour;
-    // Наблюдателям (организаторам) напоминания и карточки участниц не шлём
-    const observers = await (await import('../modules/observers')).observerIds();
-    const members = (await prisma.flowMembership.findMany({ where: { flowId: flow.id, status: { in: ['active', 'finished'] } } })).filter((m) => !observers.has(m.userId.toString()));
-    if (today >= startsOn && today <= endsOn) {
-      const dayNum = flowDayNumber(startsOn, today);
-      const hoursLeft = (dayDeadline(today, flow.timezone).getTime() - now.getTime()) / 3600_000;
-      for (const m of members) {
-        const report = await prisma.dailyReport.findUnique({ where: { membershipId_date: { membershipId: m.id, date: new Date(`${today}T00:00:00Z`) } } });
-        if (!report && hoursLeft <= 3 && hoursLeft > 0.25) {
-          await send(m.userId, 'report_reminder', { hours: Math.ceil(hoursLeft) }, `report_reminder:${m.id}:${today}`);
-          await pushNotification(m.userId, 'report_due', { title: 'Пора сдать отчёт!', body: `До конца дня ${Math.ceil(hoursLeft)} ч. Отметь действия и прикрепи фото.`, link: '/?report=1' }, `report_due:${m.id}:${today}`);
-        }
-        if (hour >= 10 && today > startsOn) {
-          const yesterday = addDays(today, -1);
-          const y = await prisma.dailyReport.findUnique({ where: { membershipId_date: { membershipId: m.id, date: new Date(`${yesterday}T00:00:00Z`) } } });
-          if (!y && !report) await send(m.userId, 'report_missed_comeback', {}, `comeback:${m.id}:${yesterday}`);
-        }
-        const week = cardForFlowDay(dayNum);
-        if (week && hour >= 12) {
-          const card = await generateCard(m.userId, m.id, week).catch(() => null);
-          if (card) await send(m.userId, 'weekly_card', { week, days: card.stats.successfulDays }, `weekly_card:${m.id}:${week}`);
-        }
-        // День 14: предложение получить трекеры за отзыв (кому подарок ещё не выдан и отзыв не на проверке)
-        if (dayNum === 14 && hour >= 19 && (await trackerOfferDue(m.userId))) await send(m.userId, 'trackers_offer', {}, `trackers_offer:${m.id}`);
+  // Личные челленджи (ТЗ 02.11): у каждой участницы свои 30 дней — день и дедлайны считаем по её дате старта
+  const observers = await (await import('../modules/observers')).observerIds();
+  const all = (await prisma.flowMembership.findMany({ where: { status: { in: ['active', 'finished'] }, startsOn: { not: null } }, include: { flow: true } }))
+    .filter((m) => !observers.has(m.userId.toString()));
+  for (const m of all) {
+    const w = memberWindow(m, now);
+    const tz = m.flow.timezone;
+    const today = w.today;
+    const hour = DateTime.fromJSDate(now, { zone: tz }).hour;
+    if (w.phase === 'active') {
+      const dayNum = w.day;
+      const hoursLeft = (dayDeadline(today, tz).getTime() - now.getTime()) / 3600_000;
+      const report = await prisma.dailyReport.findUnique({ where: { membershipId_date: { membershipId: m.id, date: new Date(`${today}T00:00:00Z`) } } });
+      if (!report && hoursLeft <= 3 && hoursLeft > 0.25) {
+        await send(m.userId, 'report_reminder', { hours: Math.ceil(hoursLeft) }, `report_reminder:${m.id}:${today}`);
+        await pushNotification(m.userId, 'report_due', { title: 'Пора сдать отчёт!', body: `До конца дня ${Math.ceil(hoursLeft)} ч. Отметь действия и прикрепи фото.`, link: '/?report=1' }, `report_due:${m.id}:${today}`);
       }
+      if (hour >= 10 && today > w.start) {
+        const yesterday = addDays(today, -1);
+        const y = await prisma.dailyReport.findUnique({ where: { membershipId_date: { membershipId: m.id, date: new Date(`${yesterday}T00:00:00Z`) } } });
+        if (!y && !report) await send(m.userId, 'report_missed_comeback', {}, `comeback:${m.id}:${yesterday}`);
+      }
+      const week = cardForFlowDay(dayNum);
+      if (week && hour >= 12) {
+        const card = await generateCard(m.userId, m.id, week).catch(() => null);
+        if (card) await send(m.userId, 'weekly_card', { week, days: card.stats.successfulDays }, `weekly_card:${m.id}:${week}`);
+      }
+      // День 14: предложение получить трекеры за отзыв (кому подарок ещё не выдан и отзыв не на проверке)
+      if (dayNum === 14 && hour >= 19 && (await trackerOfferDue(m.userId))) await send(m.userId, 'trackers_offer', {}, `trackers_offer:${m.id}`);
     }
-    if (today === addDays(endsOn, 1) && hour >= 10) {
-      for (const m of members) {
-        await generateCard(m.userId, m.id, 5).catch(() => null);
-        await send(m.userId, 'flow_finished', { flow: flow.title }, `flow_finished:${m.id}`);
-        await send(m.userId, 'review_request', {}, `review_final:${m.id}`);
-      }
+    if (today === addDays(w.end, 1) && hour >= 10) {
+      await generateCard(m.userId, m.id, 5).catch(() => null);
+      await send(m.userId, 'flow_finished', { flow: 'твоих 30 дней' }, `flow_finished:${m.id}`);
+      await send(m.userId, 'review_request', {}, `review_final:${m.id}`);
     }
   }
 }

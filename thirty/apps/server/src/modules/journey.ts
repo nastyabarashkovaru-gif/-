@@ -6,7 +6,7 @@ import { config } from '../config';
 import { prisma } from '../db';
 import { badRequest, conflict, forbidden, notFound } from '../http';
 import { getSetting } from '../settings';
-import { currentMembership, flowToday, planningMembership } from './flows';
+import { currentMembership, memberWindow, planningMembership } from './flows';
 import { goalStats, memberStats } from './rating';
 import { serializeGoal } from './goals';
 import { notify } from './notify';
@@ -27,11 +27,10 @@ export const COMEBACK_MINUTES = 60;
 
 type MembershipWithFlow = NonNullable<Awaited<ReturnType<typeof currentMembership>>>;
 
+/** Личные 30 дней участницы (ТЗ 02.11) */
 function flowDays(m: MembershipWithFlow, now = clock.now()) {
-  const startsOn = fromDbDate(m.flow.startsOn);
-  const { endsOn, days } = flowBounds(startsOn);
-  const today = flowToday(m.flow, now);
-  return { startsOn, endsOn, days, today, day: flowDayNumber(startsOn, today) };
+  const w = memberWindow(m, now);
+  return { startsOn: w.start, endsOn: w.end, days: w.days, today: w.today, day: w.day };
 }
 
 // ───────────── 1. Ожидания от клуба ─────────────
@@ -46,8 +45,8 @@ export async function setExpectation(userId: bigint, input: z.infer<typeof expec
   return { ok: true };
 }
 
-async function nextMembership(userId: bigint, after: Date) {
-  return prisma.flowMembership.findFirst({ where: { userId, status: { in: ['reserved', 'registered', 'active'] }, flow: { startsOn: { gt: after } } }, include: { flow: true }, orderBy: { flow: { startsOn: 'asc' } } });
+async function nextMembership(userId: bigint, current: { id: string }) {
+  return prisma.flowMembership.findFirst({ where: { userId, id: { not: current.id }, status: { in: ['reserved', 'registered', 'active'] }, OR: [{ goalsLockedAt: null }, { status: 'registered' }] }, include: { flow: true }, orderBy: [{ startsOn: 'asc' }, { flow: { startsOn: 'asc' } }] });
 }
 
 // ───────────── Подсказки на главной ─────────────
@@ -178,8 +177,8 @@ export async function saveFinale(userId: bigint, input: z.infer<typeof finaleInp
  * debt — продление не прошло, нужно оплатить долг; comeback — подписка закончилась (час по прежней цене).
  */
 async function nextStep(userId: bigint, m: MembershipWithFlow): Promise<{ kind: 'goals' | 'debt' | 'comeback'; flowStartsOn?: string }> {
-  const next = await nextMembership(userId, m.flow.startsOn);
-  if (next) return { kind: 'goals', flowStartsOn: fromDbDate(next.flow.startsOn) };
+  const next = await nextMembership(userId, m);
+  if (next) return { kind: 'goals', flowStartsOn: next.startsOn ? fromDbDate(next.startsOn) : undefined };
   const sub = await prisma.subscription.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } });
   if (sub?.status === 'past_due') return { kind: 'debt' };
   if (sub && ['prestart', 'active'].includes(sub.status) && sub.autoRenew) return { kind: 'goals' };

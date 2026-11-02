@@ -1,11 +1,11 @@
-import { plural, canAddGoal, isNumericGoal, metricUnit, goalProgressPercent, flowPhase, fromDbDate, generateOccurrences, toDbDate, dayOfMonth, type ISODate } from '@thirty/domain';
+import { addDays, humanDate, plural, canAddGoal, isNumericGoal, metricUnit, goalProgressPercent, flowPhase, fromDbDate, generateOccurrences, toDbDate, dayOfMonth, type ISODate } from '@thirty/domain';
 import type { FlowMembership, Flow, Goal, Task } from '@prisma/client';
 import { z } from 'zod';
 import { clock } from '../clock';
 import { prisma } from '../db';
 import { badRequest, conflict, forbidden, notFound } from '../http';
 import { getSetting } from '../settings';
-import { flowToday } from './flows';
+import { flowToday, memberWindow } from './flows';
 import { track } from './analytics';
 
 export const CONFIRM_METHODS = ['screenshot', 'photo_video', 'document', 'daily_reports', 'other'] as const;
@@ -38,16 +38,10 @@ type MembershipFull = FlowMembership & { flow: Flow };
  * Можно ли менять цели и задачи: до старта потока — да; после старта — только если анкета ещё не зафиксирована
  * и идёт окно позднего входа (первый день потока по умолчанию).
  */
-export async function canEditGoals(m: MembershipFull, now = clock.now()): Promise<boolean> {
+export async function canEditGoals(m: MembershipFull, _now = clock.now()): Promise<boolean> {
   if (m.status === 'revoked' || m.status === 'finished') return false;
-  // После отправки анкеты («Это твоё обещание себе») цели и план менять нельзя
-  if (m.goalsLockedAt) return false;
-  const today = flowToday(m.flow, now);
-  const startsOn = fromDbDate(m.flow.startsOn);
-  if (today < startsOn) return true;
-  if (m.goalsLockedAt) return false;
-  const lateJoinUntilDay = await getSetting('flow.lateJoinUntilDay');
-  return flowPhase(startsOn, today) === 'active' && dayOfMonth(today) <= lateJoinUntilDay;
+  // После отправки анкеты («Это твоё обещание себе») цели и план менять нельзя; до этого — можно (личные старты, ТЗ 02.11)
+  return !m.goalsLockedAt;
 }
 
 async function loadOwnMembership(userId: bigint, membershipId: string): Promise<MembershipFull> {
@@ -123,8 +117,9 @@ export async function createTask(userId: bigint, goalId: string, input: z.infer<
 function checkDueDate(m: MembershipFull, frequency: string, dueDate: string | null | undefined): Date | null {
   if (frequency !== 'once') return null;
   if (!dueDate) throw badRequest('due_date_required', 'Выбери дату, до которой выполнишь задачу');
-  const { startsOn, endsOn } = { startsOn: fromDbDate(m.flow.startsOn), endsOn: fromDbDate(m.flow.endsOn) };
-  if (dueDate < startsOn || dueDate > endsOn) throw badRequest('due_date_out_of_flow', 'Дата должна быть внутри месяца челленджа');
+  const w = memberWindow(m);
+  const from = w.start > w.today ? w.start : w.today;
+  if (dueDate < from || dueDate > w.end) throw badRequest('due_date_out_of_flow', 'Дата должна быть внутри твоих 30 дней челленджа');
   return toDbDate(dueDate);
 }
 
@@ -181,12 +176,19 @@ export async function fixGoals(userId: bigint, membershipId: string) {
   if (empty) throw badRequest('goal_without_tasks', `Добавь действия к цели «${empty.title}»`);
   const noPoints = goals.find((g) => !g.pointA || !g.pointB || !g.confirmMethod);
   if (noPoints) throw badRequest('goal_without_points', `Заполни точку А, точку Б и способ подтверждения для цели «${noPoints.title}»`);
-  const startsOn = fromDbDate(m.flow.startsOn);
   const now = clock.now();
-  const started = flowToday(m.flow, now) >= startsOn;
+  // Дату старта не выбрали — начинаем с начала месяца участия или сегодня, если он уже идёт
+  if (!m.startsOn) {
+    const auto = memberWindow(m, now).start;
+    m.startsOn = toDbDate(auto);
+    await prisma.flowMembership.update({ where: { id: m.id }, data: { startsOn: m.startsOn } });
+  }
+  const w = memberWindow(m, now);
+  const startsOn = w.start;
+  const started = w.phase !== 'upcoming';
   const rows = goals.flatMap((g) =>
     g.tasks.flatMap((t) =>
-      generateOccurrences({ frequency: t.frequency, n: t.n, dueDate: t.dueDate ? fromDbDate(t.dueDate) : null }, startsOn).map((o) => ({
+      generateOccurrences({ frequency: t.frequency, n: t.n, dueDate: t.dueDate ? fromDbDate(t.dueDate) : null }, startsOn, { startsOn: w.start, endsOn: w.end }).map((o) => ({
         taskId: t.id,
         membershipId,
         windowStart: toDbDate(o.windowStart),
@@ -256,7 +258,8 @@ export async function changeWeeklyCount(userId: bigint, taskId: string, n: numbe
   if (task.frequency !== 'n_per_week') throw badRequest('not_weekly', 'Менять можно только действия «X раз в неделю»');
   if (await canEditGoals(m)) return updateTask(userId, taskId, { n });
   const today = flowToday(m.flow, clock.now());
-  const plan = generateOccurrences({ frequency: 'n_per_week', n }, fromDbDate(m.flow.startsOn)).filter((o) => o.windowEnd >= today);
+  const w = memberWindow(m);
+  const plan = generateOccurrences({ frequency: 'n_per_week', n }, w.start, { startsOn: w.start, endsOn: w.end }).filter((o) => o.windowEnd >= today);
   const byWeek = new Map<string, { windowStart: ISODate; windowEnd: ISODate; need: number }>();
   for (const o of plan) {
     const w = byWeek.get(o.windowStart) ?? { windowStart: o.windowStart, windowEnd: o.windowEnd, need: 0 };
@@ -279,4 +282,24 @@ export async function changeWeeklyCount(userId: bigint, taskId: string, n: numbe
     await tx.task.update({ where: { id: taskId }, data: { n } });
   });
   return { ok: true, n };
+}
+
+/**
+ * «Когда начнём твой челлендж?» (ТЗ 02.11): сегодня или дата в будущем. Пока анкета не отправлена — можно поменять.
+ * Новый челлендж не может начаться раньше, чем закончится текущий.
+ */
+export async function setChallengeStart(userId: bigint, membershipId: string, date: ISODate) {
+  const m = await loadOwnMembership(userId, membershipId);
+  if (m.goalsLockedAt) throw forbidden('goals_locked', 'Анкета уже отправлена — дату старта поменять нельзя');
+  const today = flowToday(m.flow);
+  if (date < today) throw badRequest('start_in_past', 'Нельзя выбрать дату в прошлом');
+  if (date > addDays(today, 90)) throw badRequest('start_too_far', 'Выбери дату в ближайшие 3 месяца');
+  const others = await prisma.flowMembership.findMany({ where: { userId, id: { not: m.id }, status: { in: ['registered', 'active'] }, startsOn: { not: null } }, include: { flow: true } });
+  for (const o of others) {
+    const ow = memberWindow(o);
+    if (date <= ow.end && addDays(date, 29) >= ow.start) throw conflict('start_overlap', `Твой текущий челлендж идёт до ${humanDate(ow.end)} — новый можно начать с ${humanDate(addDays(ow.end, 1))}`);
+  }
+  await prisma.flowMembership.update({ where: { id: m.id }, data: { startsOn: toDbDate(date) } });
+  await track({ userId, eventName: 'challenge_start_selected', flowId: m.flowId, metadata: { date, today: date === today } });
+  return { startsOn: date, endsOn: addDays(date, 29) };
 }

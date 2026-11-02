@@ -11,3 +11,4 @@ export * from './prize';
 export * from './funnel';
 export * from './copy';
 export * from './progress';
+export * from './challenge';

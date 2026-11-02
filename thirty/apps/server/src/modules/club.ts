@@ -52,7 +52,7 @@ export async function clubOverview(userId: bigint) {
     // Информационный канал: доступен оплатившим; null — канала нет или нет доступа (тогда показываем замок, если канал привязан)
     channel: (() => { const c = chats.find((x) => x.kind === 'channel'); return c ? { id: c.id, title: c.title } : null; })(),
     channelExists: channelExists,
-    flow: membership ? { startsOn: fromDbDate(membership.flow.startsOn), title: membership.flow.title } : null,
+    flow: membership ? { startsOn: (await import('./flows')).memberWindow(membership).start, title: membership.flow.title } : null,
     topicChats: TOPIC_CHATS.map((t) => {
       const c = chats.find((x) => x.kind === 'topic' && x.topic === t.id);
       return { topic: t.id, title: t.title, emoji: t.emoji, id: c?.id ?? null, available: Boolean(c) };

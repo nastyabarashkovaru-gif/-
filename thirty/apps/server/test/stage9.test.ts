@@ -129,7 +129,7 @@ describe('итоги потока и «Поставить новую цель»'
     await grantMembership(U, '2026-12-01', 'm1');
     await day(30);
     const s = await api('POST', '/api/finale', U, { outcomes: [{ goalId, outcome: 'full' }], result: 'Минус 3 кг' });
-    expect(s.body.next).toMatchObject({ kind: 'goals', flowStartsOn: '2026-12-01' });
+    expect(s.body.next).toMatchObject({ kind: 'goals' }); // дату старта следующего челленджа участница выберет сама
     expect((await api('PUT', '/api/membership/expectation', U, { expectation: 'Продолжить' })).status).toBe(200);
     const all = await prisma.flowMembership.findMany({ where: { userId: BigInt(U) }, include: { flow: true }, orderBy: { flow: { startsOn: 'asc' } } });
     expect(all.map((m) => m.expectation)).toEqual([null, 'Продолжить']);

@@ -207,17 +207,18 @@ async function buddyState(viewerId: bigint, targetId: bigint) {
   if (viewerId === targetId) return { state: 'self' as const };
   const m = await currentMembership(viewerId);
   if (!m) return { state: 'unavailable' as const };
-  const theirs = await prisma.flowMembership.findFirst({ where: { userId: targetId, flowId: m.flowId, status: { in: ['reserved', 'registered', 'active'] } } });
+  // Личные старты (ТЗ 02.11): пары — по всему клубу
+  const theirs = await prisma.flowMembership.findFirst({ where: { userId: targetId, status: { in: ['reserved', 'registered', 'active'] } } });
   if (!theirs) return { state: 'other_flow' as const };
-  const assigned = await prisma.buddyAssignment.findMany({ where: { flowId: m.flowId, userId: { in: [viewerId, targetId] } } });
+  const assigned = await prisma.buddyAssignment.findMany({ where: { userId: { in: [viewerId, targetId] }, pair: { status: 'active' } } });
   const mine = assigned.find((a) => a.userId === viewerId);
   const their = assigned.find((a) => a.userId === targetId);
   if (mine && their && mine.pairId === their.pairId) return { state: 'paired' as const };
   if (mine) return { state: 'viewer_paired' as const };
   if (their) return { state: 'taken' as const };
-  const incoming = await prisma.buddyInvite.findFirst({ where: { flowId: m.flowId, fromUserId: targetId, toUserId: viewerId, status: 'pending' } });
+  const incoming = await prisma.buddyInvite.findFirst({ where: { fromUserId: targetId, toUserId: viewerId, status: 'pending' } });
   if (incoming) return { state: 'incoming' as const, proposalId: incoming.id };
-  const sent = await prisma.buddyInvite.findFirst({ where: { flowId: m.flowId, fromUserId: viewerId, toUserId: targetId, status: 'pending' } });
+  const sent = await prisma.buddyInvite.findFirst({ where: { fromUserId: viewerId, toUserId: targetId, status: 'pending' } });
   if (sent) return { state: 'sent' as const };
   return { state: 'can_propose' as const };
 }

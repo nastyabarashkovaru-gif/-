@@ -7,7 +7,7 @@ import { prisma } from '../db';
 import { forbidden, jsonSafe, notFound } from '../http';
 import { parse } from '../lib/validate';
 import { signedMediaUrl } from '../lib/storage';
-import { currentMembership, flowInfo, homeMembership, monthNumber, planningMembership, previousMembership } from '../modules/flows';
+import { challengeInfo, currentMembership, flowInfo, homeMembership, monthNumber, planningMembership, previousMembership } from '../modules/flows';
 import { homePrompts } from '../modules/journey';
 import { canEditGoals, createGoal, createTask, deleteGoal, deleteTask, fixGoals, goalInput, goalLimitFor, goalPatch, scheduleLabel, serializeGoal, taskInput, updateGoal, updateTask } from '../modules/goals';
 import { goalStats, memberStats } from '../modules/rating';
@@ -33,7 +33,7 @@ export async function memberRoutes(app: FastifyInstance) {
         canEdit: await canEditGoals(m),
         registeredAt: m.registeredAt,
         expectation: m.expectation,
-        flow: flowInfo(m.flow),
+        flow: challengeInfo(m),
         goals: goals.map((g) => ({ ...serializeGoal(g), tasks: g.tasks.map((t) => ({ ...serializeGoal({ ...g, tasks: [t] }).tasks[0], schedule: scheduleLabel(t) })) })),
         before: before ? { text: before.text, metrics: before.metrics, media: before.mediaIds.map((id) => ({ id, url: signedMediaUrl(id) })) } : null,
       },
@@ -60,6 +60,15 @@ export async function memberRoutes(app: FastifyInstance) {
   app.delete<{ Params: { id: string } }>('/api/tasks/:id', async (req) => {
     await deleteTask(req.user!.id, req.params.id);
     return { ok: true };
+  });
+
+  // «Когда начнём твой челлендж?»: сегодня или выбранная дата (личный старт, ТЗ 02.11)
+  app.post('/api/membership/start', async (req) => {
+    const m = await planningMembership(req.user!.id);
+    if (!m) throw forbidden('no_membership');
+    const { date } = parse(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }), req.body);
+    const { setChallengeStart } = await import('../modules/goals');
+    return setChallengeStart(req.user!.id, m.id, date);
   });
 
   app.post('/api/membership/fix', async (req) => {
@@ -98,7 +107,8 @@ export async function memberRoutes(app: FastifyInstance) {
     const user = req.user!;
     const m = await homeMembership(user.id);
     if (!m) return { state: 'no_membership' };
-    const info = flowInfo(m.flow);
+    // Личный челлендж: даты, день и фаза — от личной даты старта
+    const info = challengeInfo(m);
     const goals = await prisma.goal.findMany({ where: { membershipId: m.id }, include: { tasks: true }, orderBy: { sort: 'asc' } });
     const stats = await memberStats(m.id, m.flow);
     const prev = await previousMembership(user.id, m.flow.startsOn);
@@ -119,7 +129,7 @@ export async function memberRoutes(app: FastifyInstance) {
         missedReports: stats.missedReports,
         currentStreak: stats.currentStreak,
         longestStreak: stats.longestStreak,
-        dayNumber: info.phase === 'active' ? stats.days.findIndex((d) => d.date === info.today) + 1 : null,
+        dayNumber: info.phase === 'active' ? info.day : null,
         days: stats.days,
       },
       // Сравниваем с тем же днём прошлого месяца: «на N дней больше, чем в предыдущем месяце»

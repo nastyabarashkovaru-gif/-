@@ -190,6 +190,8 @@ describe('дожимная цепочка до оплаты', () => {
 
   it('/stop прекращает цепочку; 10–11 — за 2 и 1 день до старта, не задним числом; СТАРТ возвращает акционные цены', async () => {
     clock.set('2026-10-20T09:00:00Z');
+    // 10–11 «до старта потока» по умолчанию выключены (личные старты); механизм работает, если включить их в админке
+    await prisma.botMessageTemplate.updateMany({ where: { key: { in: ['chain_10', 'chain_11'] } }, data: { enabled: true } });
     await start(400);
     await start(401);
     await start(402);
@@ -319,7 +321,7 @@ describe('дожимная цепочка до оплаты', () => {
       expect((await api('GET', '/api/me', 777)).body.subscription).toBeNull();
       await new Promise((r) => setTimeout(r, 10_500));
       const texts = sent();
-      expect(texts.length).toBe(10); // 09 «вернуть скидку» выключено
+      expect(texts.length).toBe(8); // 09 «вернуть скидку» и 10–11 «до старта потока» выключены
       expect(texts[1]).toContain('получилось посмотреть');
       // Обычное расписание владельцу ничего не дублирует
       calls = [];

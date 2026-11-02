@@ -5,7 +5,7 @@ import { prisma } from '../db';
 import { badRequest, conflict, forbidden, notFound } from '../http';
 import { getSetting } from '../settings';
 import { signedMediaUrl } from '../lib/storage';
-import { flowToday } from './flows';
+import { flowToday, memberWindow } from './flows';
 import { track } from './analytics';
 import { buddyOf } from './buddy';
 import { pushNotification } from './notifications';
@@ -38,10 +38,11 @@ export const reportInput = z.object({
 export async function submitReport(userId: bigint, membershipId: string, input: z.infer<typeof reportInput>) {
   const m = await prisma.flowMembership.findUnique({ where: { id: membershipId }, include: { flow: true } });
   if (!m || m.userId !== userId) throw notFound('membership_not_found');
-  if (m.status !== 'active') throw forbidden('not_active', 'Отчёты принимаются после отправки анкеты во время потока');
+  if (m.status !== 'active') throw forbidden('not_active', 'Отчёты принимаются после отправки анкеты, в дни твоего челленджа');
   const now = clock.now();
   const today = flowToday(m.flow, now);
-  if (flowPhase(fromDbDate(m.flow.startsOn), today) !== 'active') throw forbidden('flow_not_active', 'Поток не идёт');
+  // Личный челлендж: отчёт — только за сегодня и только в его 30 дней
+  if (memberWindow(m, now).phase !== 'active') throw forbidden('flow_not_active', 'Твой челлендж сейчас не идёт');
   const date = toDbDate(today);
 
   const taskIds = [...new Set(input.items.map((i) => i.taskId))];
