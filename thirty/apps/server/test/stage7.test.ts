@@ -277,7 +277,9 @@ describe('дожимная цепочка до оплаты', () => {
     calls = [];
     const p1 = await api('POST', '/api/buddy/propose/802', 801);
     expect(p1.body).toMatchObject({ matched: false });
-    expect(sent().at(-1)).toContain('предлагает тебе стать парой');
+    expect(sent().at(-1)).toContain('предлагает тебе стать бадди');
+    // «Принять / Отклонить» прямо в боте
+    expect(calls.at(-1)!.body.reply_markup.inline_keyboard[0].map((b: { text: string }) => b.text)).toEqual(['Принять', 'Отклонить']);
     expect((await api('GET', '/api/participants/802', 801)).body.buddy.state).toBe('sent');
     const prof = await api('GET', '/api/participants/801', 802);
     expect(prof.body.buddy).toMatchObject({ state: 'incoming' });
@@ -294,6 +296,14 @@ describe('дожимная цепочка до оплаты', () => {
     expect((await api('POST', `/api/buddy/proposals/${p2.body.proposalId}`, 804, { accept: false })).body).toEqual({ accepted: false });
     const n = await api('GET', '/api/notifications', 803);
     expect(n.body.items[0].title).toContain('отклонено');
+    expect(sent().some((t) => t.includes('пока не готова стать парой'))).toBe(true);
+    // ответ кнопкой в боте
+    await grantMembership(805, '2026-11-01', 'm1');
+    const p3 = await api('POST', '/api/buddy/propose/805', 803);
+    const app = await getApp();
+    await app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { callback_query: { id: 'q9', from: { id: 805 }, data: `bp:a:${p3.body.proposalId}`, message: { chat: { id: 805 } } } } });
+    expect((await api('GET', '/api/buddy', 803)).body.state).toBe('paired');
+    expect(sent().some((t) => t.includes('Ура! Мы нашли тебе бадди'))).toBe(true);
   });
 
   it('режим проверки цепочки: /start сбрасывает покупку и присылает 02–11 подряд', async () => {

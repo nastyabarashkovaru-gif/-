@@ -18,12 +18,12 @@ import { track } from './analytics';
 /**
  * Путь участника вокруг финала потока (ТЗ владельца 27.10):
  * ожидания от клуба (анкета, шаг 1), обратная связь на предпоследний день, итоги на последний день,
- * «Поставить новую цель» / «Вернуться по прежней цене» (40 минут), отзыв за трекеры (раз в 14 дней), карточка результатов.
+ * «Поставить новую цель» / «Вернуться по прежней цене» (час), отзыв за трекеры (раз в 14 дней), карточка результатов.
  */
 
 const TRACKER_PROMPT_EVERY_DAYS = 14;
 const TRACKER_FIRST_DAY = 14;
-export const COMEBACK_MINUTES = 40;
+export const COMEBACK_MINUTES = 60;
 
 type MembershipWithFlow = NonNullable<Awaited<ReturnType<typeof currentMembership>>>;
 
@@ -175,7 +175,7 @@ export async function saveFinale(userId: bigint, input: z.infer<typeof finaleInp
 /**
  * Куда ведёт «Поставить новую цель»:
  * goals — оплачен следующий поток (анкета для него, старые цели не трогаем);
- * debt — продление не прошло, нужно оплатить долг; comeback — подписка закончилась (40 минут по прежней цене).
+ * debt — продление не прошло, нужно оплатить долг; comeback — подписка закончилась (час по прежней цене).
  */
 async function nextStep(userId: bigint, m: MembershipWithFlow): Promise<{ kind: 'goals' | 'debt' | 'comeback'; flowStartsOn?: string }> {
   const next = await nextMembership(userId, m.flow.startsOn);
@@ -194,7 +194,7 @@ async function endedSubscription(userId: bigint) {
   return null;
 }
 
-/** Предложение «Вернуться по прежней цене»: таймер 40 минут хранится на сервере и запускается один раз */
+/** Предложение «Вернуться по прежней цене»: таймер на час хранится на сервере; закончился — при новом открытии запускается заново (02.11) */
 export async function comebackOffer(userId: bigint, start: boolean) {
   const sub = await endedSubscription(userId);
   if (!sub) return { available: false as const };
@@ -205,6 +205,8 @@ export async function comebackOffer(userId: bigint, start: boolean) {
     offer = await prisma.priceOffer
       .create({ data: { userId, kind, startedAt: now, expiresAt: new Date(now.getTime() + COMEBACK_MINUTES * 60_000), tariffId: sub.tariffId, amount: sub.renewalPrice } })
       .catch(async () => prisma.priceOffer.findUniqueOrThrow({ where: { userId_kind: { userId, kind } } }));
+  } else if (offer && start && !offer.consumedAt && offer.expiresAt <= now) {
+    offer = await prisma.priceOffer.update({ where: { id: offer.id }, data: { startedAt: now, expiresAt: new Date(now.getTime() + COMEBACK_MINUTES * 60_000) } });
   }
   const msLeft = offer && !offer.consumedAt ? Math.max(0, offer.expiresAt.getTime() - now.getTime()) : 0;
   const tariffs = await prisma.tariff.findMany({ where: { active: true }, orderBy: { months: 'asc' } });

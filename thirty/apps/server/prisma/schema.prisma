@@ -314,6 +314,10 @@ model FlowMembership {
   expectation      String?
   /// Итоги потока: «Какого результата тебе удалось добиться?»
   finalResult      String?
+  /// Как найти бадди: auto — очередь автоподбора, self — выбор самой (null — ещё не выбрано)
+  buddyMode        String?
+  /// Когда встала в очередь автоподбора (раньше — раньше получит пару)
+  buddyQueuedAt    DateTime?
   createdAt        DateTime         @default(now())
 
   goals       Goal[]
@@ -325,6 +329,7 @@ model FlowMembership {
 
   @@unique([userId, flowId])
   @@index([flowId, status])
+  @@index([buddyMode, buddyQueuedAt])
 }
 
 enum GoalCategory {

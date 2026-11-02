@@ -1,7 +1,7 @@
 import { clock } from '../clock';
 import { prisma } from '../db';
 import { deactivateAtProvider, LIVE_STATUSES } from './billing';
-import { autoMatch, dissolvePair } from './buddy';
+import { dissolvePair, runBuddyQueue } from './buddy';
 import { removeExpiredMembers } from './chats';
 
 /**
@@ -34,7 +34,7 @@ export async function removeMember(userId: bigint, opts: { closeSubscription: bo
   }
   // Бывший партнёр — снова в подборе (в окно автоподбора это сделает и расписание, здесь — сразу)
   const rematched = [];
-  for (const p of pairs) rematched.push(await autoMatch(p.flowId).catch(() => null));
+  if (pairs.length) rematched.push(await runBuddyQueue().catch(() => null));
   await removeExpiredMembers().catch((e) => console.warn('[remove-member] chats', (e as Error).message));
   return { flows: memberships.map((m) => m.flow.title), pairsDissolved: pairs.length, subscriptionsClosed: subscriptions, rematched: rematched.filter(Boolean).length };
 }

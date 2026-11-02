@@ -20,7 +20,7 @@ import { cancelAutoRenew, markRefunded } from '../modules/billing';
 import { bindChat } from '../modules/chats';
 import { ensureFlow, flowInfo } from '../modules/flows';
 import { computeLeaderboard, loadFacts, memberStats } from '../modules/rating';
-import { adminReplaceBuddy, autoMatch, dissolvePair } from '../modules/buddy';
+import { adminReplaceBuddy, dissolvePair, runBuddyQueue } from '../modules/buddy';
 import { displayName } from '../modules/users';
 import { track } from '../modules/analytics';
 import { notify } from '../modules/notify';
@@ -605,7 +605,7 @@ export async function adminRoutes(app: FastifyInstance) {
       await dissolvePair(req.params.id, 'approved', req.admin!.id);
       await audit(req, 'buddy.dissolve', 'buddy_pair', req.params.id, { reason });
       // сразу подбираем обоим новых (бывших друг с другом не ставим)
-      await autoMatch(pair.flowId);
+      await runBuddyQueue();
       return { ok: true };
     });
 

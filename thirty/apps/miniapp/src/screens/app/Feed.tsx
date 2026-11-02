@@ -230,14 +230,20 @@ function People() {
   const [flowStart, setFlowStart] = useState(me?.membership?.flow.startsOn ?? '');
   const [city, setCity] = useState('');
   const [category, setCategory] = useState('');
+  const [buddy, setBuddy] = useState<'' | 'free' | 'paired'>('');
+  const [q, setQ] = useState('');
   const flows = useLoad(() => api<{ flows: { id: string; title: string; startsOn: string }[] }>('/api/flows'));
   const cities = useLoad(() => api<{ cities: string[] }>('/api/participants-cities'));
-  const qs = new URLSearchParams({ ...(flowStart ? { flowStart } : {}), ...(city ? { city } : {}), ...(category ? { category } : {}) }).toString();
+  const qs = new URLSearchParams({ ...(flowStart ? { flowStart } : {}), ...(city ? { city } : {}), ...(category ? { category } : {}), ...(buddy ? { buddy } : {}), ...(q.trim() ? { q: q.trim() } : {}) }).toString();
   const list = useLoad(() => api<{ items: Person[] }>(`/api/participants?${qs}`), [qs]);
   return (
     <>
       <div className="card" style={{ gap: 10 }}>
         <span className="row h3" style={{ gap: 8 }}><SlidersHorizontal size={18} color="var(--accent)" />Фильтры участников</span>
+        <input className="input" type="search" autoCapitalize="none" autoCorrect="off" placeholder="Имя или @ник" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="seg" role="tablist">
+          {([['', 'Все участники'], ['free', 'Без пары'], ['paired', 'С бадди']] as const).map(([k, l]) => <button key={k} className={buddy === k ? 'on' : ''} onClick={() => setBuddy(k)}>{l}</button>)}
+        </div>
         <label className="field"><span className="muted" style={{ fontWeight: 400, fontSize: 14 }}>Дата старта потока</span>
           <select className="select pill-select" value={flowStart} onChange={(e) => setFlowStart(e.target.value)}>
             <option value="">Все потоки</option>
@@ -341,7 +347,7 @@ export function ParticipantScreen() {
           {data.goals && data.goals.length > 0 && (
             <div className="card"><div className="h3">Цели</div>{data.goals.map((g) => <div className="list-item" key={g.title}><span className="pill">{catTitle(g.category).split(' ')[0]}</span><div className="grow">{g.title}</div></div>)}</div>
           )}
-          {data.buddy?.state === 'can_propose' && <button className="btn btn-primary" disabled={busy} onClick={propose}><HeartHandshake size={18} />Пригласить стать парой</button>}
+          {data.buddy?.state === 'can_propose' && <button className="btn btn-primary" disabled={busy} onClick={propose}><HeartHandshake size={18} />Стать бадди 💜</button>}
           {data.buddy?.state === 'sent' && <div className="banner warn center">Предложение стать парой отправлено — ждём ответа</div>}
           {data.buddy?.state === 'incoming' && (
             <div className="card" style={{ gap: 10, borderColor: 'var(--accent)' }}>

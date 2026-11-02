@@ -122,6 +122,8 @@ describe('удалить участника', () => {
     await autoMatch(flow.id);
     const pair = await prisma.buddyPair.findFirstOrThrow({ where: { flowId: flow.id, status: 'active' } });
     const waiting = [701n, 702n, 703n].find((u) => u !== pair.userA && u !== pair.userB)!;
+    // ожидающая — в очереди автоподбора
+    await prisma.flowMembership.updateMany({ where: { userId: { in: [waiting] } }, data: { buddyMode: 'auto', buddyQueuedAt: new Date() } });
 
     const res = await removeMember(pair.userA, { closeSubscription: true });
     expect(res).toMatchObject({ pairsDissolved: 1 });
@@ -218,6 +220,7 @@ describe('заменить бадди', () => {
     expect([725n, 726n]).toContain((await buddyOf(before, flow.id))!.otherId);
     // замена при свободной участнице: сразу новый бадди
     await grantMembership(727, '2026-11-01');
+    await prisma.flowMembership.updateMany({ where: { userId: { in: [727n] } }, data: { buddyMode: 'auto', buddyQueuedAt: new Date() } });
     const r = await adminReplaceBuddy(721n);
     expect(r.newBuddy).not.toBeNull();
     expect((await buddyOf(721n, flow.id))!.otherId).toBe(727n);
@@ -243,6 +246,7 @@ describe('заменить бадди самой участницей', () => {
     const me = (await Promise.all(paired.map(async (u) => ((await buddyOf(u, flow.id)) ? u : null)))).find(Boolean)!;
     const before = (await buddyOf(me, flow.id))!.otherId;
     const free = paired.find((u) => u !== me && u !== before)!;
+    await prisma.flowMembership.updateMany({ where: { userId: { in: [free] } }, data: { buddyMode: 'auto', buddyQueuedAt: new Date() } });
     const r = await api('POST', '/api/buddy/replace', Number(me), { reason: 'no_contact', comment: 'молчит' });
     expect(r.status).toBe(200);
     expect(r.body.state).toBe('rematched');

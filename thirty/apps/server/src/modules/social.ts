@@ -97,7 +97,7 @@ export async function reportDetails(id: string) {
  * Поиск участников всех потоков с учётом видимости: hidden — не в поиске;
  * members — только для участников того же потока. Фильтр по дате старта потока, городу, категории цели.
  */
-export async function participants(viewerId: bigint, q: { q?: string; flowStart?: string; city?: string; category?: string; cursor?: string }) {
+export async function participants(viewerId: bigint, q: { q?: string; flowStart?: string; city?: string; category?: string; cursor?: string; buddy?: string }) {
   const viewerFlows = (await prisma.flowMembership.findMany({ where: { userId: viewerId, status: { not: 'revoked' } }, select: { flowId: true } })).map((m) => m.flowId);
   const membershipFilter: Prisma.FlowMembershipWhereInput = { status: { in: ['registered', 'active', 'finished'] } };
   if (q.flowStart && /^\d{4}-\d{2}-\d{2}$/.test(q.flowStart)) membershipFilter.flow = { startsOn: new Date(`${q.flowStart}T00:00:00Z`) };
@@ -110,6 +110,12 @@ export async function participants(viewerId: bigint, q: { q?: string; flowStart?
     OR: [{ visibility: 'public' }, { visibility: 'members', memberships: { some: { flowId: { in: viewerFlows } } } }],
   };
   const and: Prisma.UserWhereInput[] = [];
+  // Фильтр по бадди: без пары / с бадди (активная пара в любом потоке)
+  if (q.buddy === 'free' || q.buddy === 'paired') {
+    const pairedIds = [...new Set((await prisma.buddyAssignment.findMany({ select: { userId: true } })).map((a) => a.userId))];
+    and.push(q.buddy === 'free' ? { id: { notIn: pairedIds } } : { id: { in: pairedIds } });
+  }
+  if (q.q) q.q = q.q.trim().replace(/^@+/, '');
   if (q.q) and.push({ OR: [{ firstName: { contains: q.q, mode: 'insensitive' } }, { lastName: { contains: q.q, mode: 'insensitive' } }, { displayName: { contains: q.q, mode: 'insensitive' } }, { username: { contains: q.q, mode: 'insensitive' } }] });
   if (q.city) and.push({ city: { equals: q.city, mode: 'insensitive' } });
   if (and.length) where.AND = and;

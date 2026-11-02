@@ -135,6 +135,13 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.updateMany({ where: { key: 'chain_09' }, data: { enabled: false } });
     await prisma.setting.create({ data: { key: v18, value: { at: new Date().toISOString() } } });
   }
+  // Разово (02.11): «Ура! Мы нашли тебе бадди!» с ником и кнопкой «Написать бадди»
+  const v19 = 'maintenance.buddyMatchedV2';
+  if (!(await prisma.setting.findUnique({ where: { key: v19 } }))) {
+    const d = DEFAULT_TEMPLATES.find((x) => x.key === 'buddy_matched');
+    if (d) await prisma.botMessageTemplate.update({ where: { key: 'buddy_matched' }, data: { text: d.text, buttons: d.buttons as object, approved: true } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v19, value: { at: new Date().toISOString() } } });
+  }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
   const marker = 'maintenance.chainV1';
   if (!(await prisma.setting.findUnique({ where: { key: marker } }))) {
@@ -304,6 +311,19 @@ export async function handleUpdate(update: TgUpdate) {
       await handleCancelChoice(BigInt(q.from.id), q.data === 'cancel_sub', q.message?.chat.id ?? q.from.id);
       return;
     }
+    // «Принять / Отклонить» предложение стать бадди
+    const bp = /^bp:(a|d):([0-9a-f-]{36})$/.exec(q.data ?? '');
+    if (bp) {
+      const chatId = q.message?.chat.id ?? q.from.id;
+      try {
+        const { respondProposal } = await import('./buddy');
+        const r = await respondProposal(BigInt(q.from.id), bp[2], bp[1] === 'a');
+        if (!r.accepted) await tg('sendMessage', { chat_id: chatId, text: 'Хорошо, предложение отклонено 💜' });
+      } catch (e) {
+        await tg('sendMessage', { chat_id: chatId, text: (e as Error).message || 'Предложение уже неактуально' }).catch(() => undefined);
+      }
+      return;
+    }
     if (q.data === 'how_to_join') {
       const userId = BigInt(q.from.id);
       await track({ userId, eventName: 'bot_how_to_join_click', dedupeKey: `how_to_join:${userId}` });
@@ -450,4 +470,28 @@ async function handleCancelChoice(userId: bigint, confirm: boolean, chatId: numb
   } catch {
     await tg('sendMessage', { chat_id: chatId, text: 'У тебя сейчас нет активной подписки — списаний не будет 💜' });
   }
+}
+
+/** Предложение стать бадди: сообщение с кнопками «Принять» / «Отклонить» прямо в боте */
+export async function sendBuddyProposal(targetId: bigint, proposalId: string, from: { name: string; username: string | null }) {
+  const u = await prisma.user.findUnique({ where: { id: targetId } });
+  if (!u || u.botBlocked || !u.allowsWrite || u.deletedAt) return;
+  const who = from.username ? `@${from.username}` : escHtml(from.name);
+  await tg('sendMessage', {
+    chat_id: Number(targetId),
+    parse_mode: 'HTML',
+    text: `<b>${who} предлагает тебе стать бадди 💜</b>\n\nБадди — напарник, с которым вы поддерживаете друг друга и вместе идёте к своим целям.`,
+    reply_markup: { inline_keyboard: [[{ text: 'Принять', callback_data: `bp:a:${proposalId}` }, { text: 'Отклонить', callback_data: `bp:d:${proposalId}` }]] },
+  }).catch((e) => console.warn('[bot] buddy proposal', (e as Error).message));
+}
+
+/** Отказ: отправитель узнаёт и может выбрать другого или доверить подбор */
+export async function sendBuddyDeclined(toUserId: bigint, byName: string) {
+  const u = await prisma.user.findUnique({ where: { id: toUserId } });
+  if (!u || u.botBlocked || !u.allowsWrite || u.deletedAt) return;
+  await tg('sendMessage', {
+    chat_id: Number(toUserId),
+    text: `${byName} пока не готова стать парой. Выбери другого участника или доверь подбор нам 💜`,
+    reply_markup: { inline_keyboard: [[openAppButton('Найти бадди 💜', 'm_00000000000000000000000000000000_buddy')]] },
+  }).catch((e) => console.warn('[bot] buddy declined', (e as Error).message));
 }

@@ -150,6 +150,15 @@ export async function socialRoutes(app: FastifyInstance) {
       const { appLink } = await import('../lib/telegram');
       return { ...inv, url: appLink(inv.startParam) };
     });
+    // Способ поиска бадди и свободные участники для самостоятельного выбора
+    r.post('/api/buddy/mode', async (req) => {
+      const { setBuddyMode } = await import('../modules/buddy');
+      return jsonSafe(await setBuddyMode(req.user!.id, parse(z.object({ mode: z.enum(['auto', 'self']) }), req.body).mode));
+    });
+    r.get<{ Querystring: { q?: string } }>('/api/buddy/free', async (req) => {
+      const { freeParticipants } = await import('../modules/buddy');
+      return { items: await freeParticipants(req.user!.id, req.query.q?.slice(0, 60)) };
+    });
     r.get('/api/buddy/proposals', async (req) => {
       const m = await currentMembership(req.user!.id);
       return m ? proposals(req.user!.id, m.flowId) : { incoming: [], outgoing: [] };

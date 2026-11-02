@@ -183,16 +183,16 @@ export function Home() {
               <div className="divider" />
               <button className="link-accent" style={{ alignSelf: 'flex-start', padding: 0, fontWeight: 500, color: 'var(--muted)' }} onClick={() => nav('/buddy?replace=1')}>Заменить бадди</button>
             </>
+          ) : (data.buddy as { mode?: string | null }).mode === 'auto' ? (
+            <>
+              <div className="muted">Ищем тебе бадди 💜</div>
+              <button className="link-accent" style={{ alignSelf: 'flex-start', padding: 0, fontWeight: 500 }} onClick={() => nav('/buddy')}>Подробнее</button>
+            </>
           ) : (
-            <div className="muted">{before ? `Откроется ${humanDate(flow.startsOn)}` : 'Подбираем бадди'}</div>
+            <button className="btn btn-primary" style={{ minHeight: 42, fontSize: 15 }} onClick={() => nav('/buddy')}>Найти бадди 💜</button>
           )}
           <div className="spacer" />
-          {before && data.buddy.state !== 'paired' && (
-            <>
-              <div className="divider" />
-              <button className="link-accent" style={{ alignSelf: 'flex-start', padding: 0, fontWeight: 500, textDecoration: 'underline', textUnderlineOffset: 3 }} onClick={() => nav('/reg/buddy')}>Выбрать бадди заранее</button>
-            </>
-          )}
+
         </div>
         <button className="card card-link" style={{ gap: 8, textAlign: 'left' }} onClick={() => nav('/club')}>
           <span className="row h3" style={{ gap: 8 }}><MessagesSquare size={20} color="var(--accent)" />Моё сообщество</span>

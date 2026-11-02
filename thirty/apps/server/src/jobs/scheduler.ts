@@ -4,7 +4,7 @@ import { prisma } from '../db';
 import { getSetting } from '../settings';
 import { ensureFlow, refreshFlowStatuses } from '../modules/flows';
 import { refreshSubscriptionStatuses, syncChargeDate } from '../modules/billing';
-import { autoMatch } from '../modules/buddy';
+import { runBuddyQueue } from '../modules/buddy';
 import { computeLeaderboard, selectPrizeCandidates } from '../modules/rating';
 import { removeExpiredMembers } from '../modules/chats';
 import { FINAL_WINDOW_DAYS } from '../modules/finale';
@@ -18,7 +18,7 @@ export const TASKS: Task[] = [
   { name: 'flows', everyMin: 1, run: maintainFlows },
   { name: 'subscriptions', everyMin: 30, run: refreshSubscriptionStatuses },
   { name: 'charge-date-sync', everyMin: 60, run: retryChargeDateSync },
-  { name: 'buddy', everyMin: 15, run: buddyMatching },
+  { name: 'buddy', everyMin: 5, run: buddyMatching },
   { name: 'leaderboard', everyMin: 10, run: leaderboards },
   { name: 'finalize', everyMin: 30, run: finalizeFlows },
   { name: 'chats-cleanup', everyMin: 60, run: removeExpiredMembers },
@@ -36,14 +36,9 @@ export async function maintainFlows() {
   await refreshFlowStatuses();
 }
 
-/** Автоподбор бадди: за сутки до старта и в первые дни потока (для поздних участников) */
+/** Очередь автоподбора бадди (ТЗ 02.11): без учёта целей, кто раньше встал — раньше получает пару */
 export async function buddyMatching() {
-  const flows = await prisma.flow.findMany({ where: { status: { not: 'finished' } } });
-  for (const f of flows) {
-    const startsOn = fromDbDate(f.startsOn);
-    const today = localDate(clock.now(), f.timezone);
-    if (today >= addDays(startsOn, -1) && today <= addDays(startsOn, 2)) await autoMatch(f.id);
-  }
+  await runBuddyQueue();
 }
 
 async function leaderboards() {

@@ -102,7 +102,7 @@ export async function checkoutPreview(userId: bigint, tariffId: string, comeback
   const back = comeback ? await activeComeback(userId) : null;
   const backPrice = back ? await comebackPrice(back, tariffId) : null;
   if (back && backPrice) {
-    // Прежние условия закончившейся подписки — на время таймера 40 минут
+    // Прежние условия закончившейся подписки — на время таймера (час)
     view = { ...view, price: backPrice.price, renewalPrice: backPrice.price, variant: 'comeback' as never };
     offer = { active: true, msLeft: Math.max(0, back.expiresAt.getTime() - clock.now().getTime()) };
   }

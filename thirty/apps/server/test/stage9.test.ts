@@ -89,7 +89,7 @@ describe('итоги потока и «Поставить новую цель»'
     expect((await (await getApp()).inject({ method: 'GET', url: `/api/public/result-card.png?c=${token.slice(0, -2)}xx` })).statusCode).toBe(404);
   });
 
-  it('40 минут по прежней цене: таймер на сервере, не перезапускается, после — обычные тарифы', async () => {
+  it('час по прежней цене: таймер на сервере, пока идёт — не сбрасывается; после конца новое открытие запускает заново', async () => {
     await member();
     const sub = await prisma.subscription.create({
       data: { userId: BigInt(U), tariffId: 'm1', status: 'expired', autoRenew: false, renewalPrice: 999, priceVariant: 'promo', paidFromFlow: new Date('2026-11-01'), paidThroughFlow: new Date('2026-11-01') },
@@ -98,11 +98,11 @@ describe('итоги потока и «Поставить новую цель»'
     expect((await api('GET', '/api/comeback', U)).body).toMatchObject({ available: true, started: false, active: false });
     const first = (await api('GET', '/api/comeback?start=1', U)).body;
     expect(first).toMatchObject({ active: true, price: 999, tariff: { id: 'm1' } });
-    expect(first.msLeft).toBe(40 * 60_000);
+    expect(first.msLeft).toBe(60 * 60_000);
     clock.set(new Date(clock.now().getTime() + 10 * 60_000).toISOString());
     const again = (await api('GET', '/api/comeback?start=1', U)).body;
     expect(again.expiresAt).toBe(first.expiresAt);
-    expect(again.msLeft).toBe(30 * 60_000);
+    expect(again.msLeft).toBe(50 * 60_000);
     // Прежняя цена — только для того же тарифа и только пока идёт таймер
     await api('POST', '/api/consents', U, { kinds: ['offer', 'personal_data'] });
     const preview = await api('GET', '/api/checkout/preview?tariff=m1&comeback=1', U);
@@ -112,9 +112,12 @@ describe('итоги потока и «Поставить новую цель»'
     // Другие тарифы — по тем же (акционным) условиям, что и закончившаяся подписка
     expect((await api('GET', '/api/comeback', U)).body.tariffs.map((t: any) => [t.id, t.price])).toEqual([['m1', 999], ['m3', 2990], ['m6', 3990]]);
     expect((await api('GET', '/api/checkout/preview?tariff=m6&comeback=1', U)).body.tariff.price).toBe(3990);
-    clock.set(new Date(clock.now().getTime() + 31 * 60_000).toISOString());
-    expect((await api('GET', '/api/comeback?start=1', U)).body).toMatchObject({ active: false, msLeft: 0 });
+    clock.set(new Date(clock.now().getTime() + 51 * 60_000).toISOString());
+    expect((await api('GET', '/api/comeback', U)).body).toMatchObject({ active: false, msLeft: 0 });
     expect((await api('POST', '/api/checkout', U, { tariffId: 'm1', idempotencyKey: 'comeback-3', comeback: true })).body.code).toBe('comeback_expired');
+    // новое открытие экрана — снова час
+    expect((await api('GET', '/api/comeback?start=1', U)).body).toMatchObject({ active: true, msLeft: 60 * 60_000 });
+    clock.set(new Date(clock.now().getTime() + 61 * 60_000).toISOString());
     // Обычная покупка после таймера — по актуальной цене (условия старой подписки не трогаем)
     const regular = await api('POST', '/api/checkout', U, { tariffId: 'm1', idempotencyKey: 'regular-1' });
     expect(regular.body.amount).toBeGreaterThan(999);

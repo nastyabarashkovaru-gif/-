@@ -334,7 +334,7 @@ export function ResultCardScreen() {
   );
 }
 
-/* ───────────── Подписка закончилась: 40 минут по прежней цене ───────────── */
+/* ───────────── Подписка закончилась: час по прежней цене ───────────── */
 
 interface ComebackTariff { id: string; title: string; months: number; badge: string | null; price: number; comparison: number; savingsPercent: number; current: boolean }
 interface Comeback { available: boolean; active?: boolean; msLeft?: number; tariff?: { id: string; title: string; months: number }; price?: number; tariffs?: ComebackTariff[] }
@@ -371,7 +371,7 @@ export function ComebackScreen() {
         <span className="finale-badge" style={{ background: '#fdecef' }}>💔</span>
         <h1 className="hero" style={{ fontSize: 27 }}>К сожалению, твоя подписка закончилась 💔</h1>
         {data.available && active ? (
-          <p className="lead" style={{ fontSize: 16 }}>Но у тебя есть 40 минут, чтобы вернуться в клуб по той же цене, что и раньше!</p>
+          <p className="lead" style={{ fontSize: 16 }}>Но у тебя есть час, чтобы вернуться в клуб по той же цене, что и раньше!</p>
         ) : (
           <p className="lead" style={{ fontSize: 16 }}>{data.available ? 'Время предложения по прежней цене закончилось. Но вернуться можно по актуальным тарифам клуба 💜' : 'Вернуться в клуб можно по актуальным тарифам 💜'}</p>
         )}

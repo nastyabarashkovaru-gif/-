@@ -208,6 +208,9 @@ describe('бадди (критерий №8)', () => {
     expect((await api('POST', '/api/buddy/replace', 1, { reason: 'mutual' })).body.state).toBe('waiting_partner');
     const res = await api('POST', '/api/buddy/replace', 3, { reason: 'mutual' });
     expect(['rematched', 'waiting_pool']).toContain(res.body.state);
+    // бывшие в очереди автоподбора, вместе их не ставим; 4 выбирает автоподбор — получает пару сразу
+    expect((await prisma.flowMembership.findFirstOrThrow({ where: { userId: 1n } })).buddyMode).toBe('auto');
+    expect((await api('POST', '/api/buddy/mode', 4, { mode: 'auto' })).body.state).toBe('paired');
     expect(await prisma.buddyAssignment.count({ where: { userId: { in: [1n, 3n, 4n] } } })).toBe(2);
     // по отсутствию связи — не раньше 5 дней
     expect((await api('POST', '/api/buddy/replace', 2, { reason: 'no_contact_5d' })).status).toBe(403);
@@ -438,5 +441,35 @@ describe('отмена подписки по ссылке t.me/<бот>?start=ca
     expect(m.body.reply_markup.inline_keyboard[0][0]).toEqual({ text: 'Отменить автопродление', callback_data: 'cancel_sub' });
     await hook({ callback_query: { id: 'c1', from: { id: 895 }, data: 'cancel_sub', message: { chat: { id: 895 } } } });
     expect(await prisma.subscription.findFirstOrThrow({ where: { userId: 895n } })).toMatchObject({ autoRenew: false, status: 'canceled_at_period_end' });
+  });
+});
+
+describe('бадди: автоподбор по очереди и самостоятельный выбор (ТЗ 02.11)', () => {
+  it('первая ждёт, вторая с автоподбором — сразу пара; цели не важны; свободные и фильтры', async () => {
+    clock.set('2026-11-02T09:00:00Z');
+    await paidUser(901, NOV, 'm1', ['money']);
+    await paidUser(902, NOV, 'm1', ['english']);
+    await paidUser(903, NOV, 'm1', ['money']);
+    // самостоятельный выбор: свободные — все, кроме себя
+    expect((await api('POST', '/api/buddy/mode', 903, { mode: 'self' })).body).toMatchObject({ state: 'waiting', mode: 'self' });
+    await prisma.user.update({ where: { id: 903n }, data: { username: 'katya_fit' } });
+    const free = await api('GET', '/api/buddy/free', 902);
+    expect(free.body.items.map((x: { id: string }) => x.id).sort()).toEqual(['901', '903']);
+    expect((await api('GET', '/api/buddy/free?q=@katya', 902)).body.items.map((x: { id: string }) => x.id)).toEqual(['903']);
+    // автоподбор: Маша ждёт, Катя (другая цель) приходит — пара
+    expect((await api('POST', '/api/buddy/mode', 901, { mode: 'auto' })).body).toMatchObject({ state: 'waiting', mode: 'auto' });
+    calls = [];
+    expect((await api('POST', '/api/buddy/mode', 902, { mode: 'auto' })).body.state).toBe('paired');
+    const note = calls.find((c) => c.method === 'sendMessage' && String(c.body.text).includes('Ура! Мы нашли тебе бадди'));
+    expect(note).toBeTruthy();
+    // уже в паре — снова выбрать нельзя; пара исчезает из свободных
+    expect((await api('POST', '/api/buddy/mode', 901, { mode: 'self' })).status).toBe(409);
+    expect((await api('GET', '/api/buddy/free', 903)).body.items).toEqual([]);
+    // фильтр участников: без пары / с бадди
+    await prisma.user.updateMany({ where: { id: { in: [901n, 902n, 903n] } }, data: { visibility: 'public' } });
+    await prisma.flowMembership.updateMany({ where: { userId: { in: [901n, 902n, 903n] } }, data: { status: 'active' } });
+    const ids = async (f: string) => (await api('GET', `/api/participants?buddy=${f}`, 903)).body.items.map((x: { id: string }) => x.id).sort();
+    expect(await ids('paired')).toEqual(['901', '902']);
+    expect(await ids('free')).toEqual(['903']);
   });
 });

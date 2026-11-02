@@ -23,9 +23,9 @@ export async function addObserver(userId: bigint) {
   // если уже стоит в паре — пару распускаем, партнёрше подбираем новую
   const a = await prisma.buddyAssignment.findUnique({ where: { flowId_userId: { flowId: flow.id, userId } } });
   if (a) {
-    const { dissolvePair, autoMatch } = await import('./buddy');
+    const { dissolvePair, runBuddyQueue } = await import('./buddy');
     await dissolvePair(a.pairId, 'approved');
-    await autoMatch(flow.id);
+    await runBuddyQueue();
   }
   const existing = await prisma.flowMembership.findUnique({ where: { userId_flowId: { userId, flowId: flow.id } } });
   if (existing) {
