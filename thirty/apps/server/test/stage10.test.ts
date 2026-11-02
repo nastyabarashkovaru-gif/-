@@ -270,7 +270,7 @@ describe('организатор в потоке наблюдателем', () =
     expect((await api('GET', '/api/home', 760)).status).toBe(200);
     expect((await api('GET', '/api/club', 760)).status).toBe(200);
     const { computeLeaderboard } = await import('../src/modules/rating');
-    expect((await computeLeaderboard(flow.id)).some((x) => x.userId === 760n)).toBe(false);
+    expect((await computeLeaderboard(flow.id)).some((x) => String(x.userId) === '760')).toBe(false);
     expect(await prisma.subscription.findFirstOrThrow({ where: { userId: 760n } })).toMatchObject({ test: true, autoRenew: false });
     await removeObserver(760n);
     expect(await prisma.flowMembership.findFirstOrThrow({ where: { userId: 760n, flowId: flow.id } })).toMatchObject({ status: 'revoked' });
