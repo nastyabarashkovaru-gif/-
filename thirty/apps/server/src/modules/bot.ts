@@ -136,7 +136,8 @@ export async function seedTemplates() {
     await prisma.setting.create({ data: { key: v21, value: { at: new Date().toISOString() } } });
   }
   // Разово (03.11): новые тексты владельца — приветствие, «как вступить», дожим 02–08 (новые 12–14 создаются выше)
-  const v22 = 'maintenance.chainV3';
+  // ключ уникальный: «chainV3» уже был занят 26.10, из-за этого обновление 03.11 пропустилось
+  const v22 = 'maintenance.ownerTexts0311';
   if (!(await prisma.setting.findUnique({ where: { key: v22 } }))) {
     await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT } }).catch(() => undefined);
     await prisma.botMessageTemplate.update({ where: { key: 'how_to_join' }, data: { text: HOW_TO_JOIN_TEXT } }).catch(() => undefined);
