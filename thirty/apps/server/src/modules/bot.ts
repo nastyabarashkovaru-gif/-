@@ -152,6 +152,14 @@ export async function seedTemplates() {
     if (w) await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: w.text.replaceAll('https://youtu.be/eOpKSb9-jA4', 'https://youtu.be/IqQb4Ld2dlc') } });
     await prisma.setting.create({ data: { key: v23, value: { at: new Date().toISOString() } } });
   }
+  // Разово (03.11): после окончания акции — каждые сутки: 08 через 1 день, 12 через 2, 13 через 3, 14 через 4
+  const v24 = 'maintenance.afterDailyV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v24 } }))) {
+    for (const t of CHAIN_TEMPLATES.filter((x) => ['chain_08', 'chain_12', 'chain_13', 'chain_14'].includes(x.key))) {
+      await prisma.botMessageTemplate.update({ where: { key: t.key }, data: { delayMinutes: t.delayMinutes, title: t.title } }).catch(() => undefined);
+    }
+    await prisma.setting.create({ data: { key: v24, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {

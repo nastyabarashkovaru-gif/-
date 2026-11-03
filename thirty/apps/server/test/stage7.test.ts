@@ -125,21 +125,21 @@ describe('дожимная цепочка до оплаты', () => {
     // кнопки ведут на тарифы
     expect(calls.at(-1)!.body.reply_markup.inline_keyboard[0][0].web_app.url).toMatch(/startapp=m_[0-9a-f]{32}_tariffs/);
 
-    await runPrePurchaseChains(at(180 + 2 * 24 * 60 + 1));
+    await runPrePurchaseChains(at(180 + 1 * 24 * 60 + 1));
     expect(sent().at(-1)).toContain('спишь?');
     // «вернуть скидку через сторис» выключено (02.11): скидка и так возвращается при новом заходе
-    await runPrePurchaseChains(at(180 + 4 * 24 * 60 + 1));
+    await runPrePurchaseChains(at(180 + 2 * 24 * 60 + 1));
     expect(sent().join('\n')).not.toContain('ВЕРНУТЬ СКИДКУ');
-    // 03.11: ещё три коротких — через 4, 5 и 6 дней после окончания акции
+    // 03.11: ещё три коротких — каждые сутки после «спишь?»
     expect(sent().at(-1)).toContain('Ты опять это сделал');
-    await runPrePurchaseChains(at(180 + 5 * 24 * 60 + 1));
+    await runPrePurchaseChains(at(180 + 3 * 24 * 60 + 1));
     expect(sent().at(-1)).toContain('Я все еще жду тебя');
-    clock.set(at(180 + 6 * 24 * 60 + 1).toISOString());
-    await runPrePurchaseChains(at(180 + 6 * 24 * 60 + 1));
+    clock.set(at(180 + 4 * 24 * 60 + 1).toISOString());
+    await runPrePurchaseChains(at(180 + 4 * 24 * 60 + 1));
     expect(sent().at(-1)).toContain('Неожиданно');
     expect(await prisma.botMessageLog.count({ where: { userId: 300n, templateKey: { startsWith: 'chain_' }, status: 'sent' } })).toBe(9);
     // статистика в админке: оплата после «Неожиданно…» засчитывается этому сообщению
-    await prisma.payment.create({ data: { userId: 300n, kind: 'initial', status: 'paid', amount: 999, paidAt: at(180 + 6 * 24 * 60 + 30), idempotencyKey: 'bot-stat-300' } });
+    await prisma.payment.create({ data: { userId: 300n, kind: 'initial', status: 'paid', amount: 999, paidAt: at(180 + 4 * 24 * 60 + 30), idempotencyKey: 'bot-stat-300' } });
     const { homeBot } = await import('../src/modules/adminHome');
     const stat = await homeBot({ from: '2026-10-20', to: '2026-10-31' } as never);
     expect(stat.top[0]).toMatchObject({ key: 'chain_14', paid: 1 });
