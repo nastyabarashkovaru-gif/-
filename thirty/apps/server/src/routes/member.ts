@@ -63,6 +63,15 @@ export async function memberRoutes(app: FastifyInstance) {
   });
 
   // «Когда начнём твой челлендж?»: сегодня или выбранная дата (личный старт, ТЗ 02.11)
+  // «Начать челлендж раньше» — только для оплативших до личных дат старта со стартом 1 декабря
+  app.post('/api/membership/early-start', async (req) => {
+    const { currentMembership } = await import('../modules/flows');
+    const m = await currentMembership(req.user!.id);
+    if (!m) throw forbidden('no_membership');
+    const { date } = parse(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }), req.body);
+    const { startEarly } = await import('../modules/goals');
+    return startEarly(req.user!.id, m.id, date as never);
+  });
   app.post('/api/membership/start', async (req) => {
     const m = await planningMembership(req.user!.id);
     if (!m) throw forbidden('no_membership');

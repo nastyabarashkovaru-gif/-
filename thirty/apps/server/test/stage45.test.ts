@@ -525,3 +525,32 @@ describe('личные даты старта (ТЗ 02.11)', () => {
     expect((await prisma.flowMembership.findFirstOrThrow({ where: { userId: 940n } })).status).toBe('finished');
   });
 });
+
+describe('«Начать челлендж раньше» (03.11)', () => {
+  it('только у оплативших до личных дат со стартом 1 декабря: переносит старт и план на новые 30 дней', async () => {
+    clock.set('2026-11-02T10:00:00Z');
+    await paidUser(950, '2026-12-01');
+    await fixDaily(950);
+    // участие создано до выкладки личных дат (createdAt ставит база по реальному времени)
+    await prisma.flowMembership.updateMany({ where: { userId: 950n }, data: { createdAt: new Date('2026-11-02T10:00:00Z') } });
+    clock.set('2026-11-03T09:00:00Z');
+    await paidUser(951, '2026-12-01');
+    await api('POST', '/api/membership/start', 951, { date: '2026-12-01' });
+    await fixDaily(951);
+    expect((await api('GET', '/api/me', 950)).body.membership.canStartEarly).toBe(true);
+    // вступила после обновления и сама выбрала 1 декабря — кнопки нет
+    expect((await api('GET', '/api/me', 951)).body.membership.canStartEarly).toBe(false);
+    expect((await api('POST', '/api/membership/early-start', 951, { date: '2026-11-03' })).status).toBe(403);
+    expect((await api('POST', '/api/membership/early-start', 950, { date: '2026-12-01' })).status).toBe(400);
+    calls = [];
+    expect((await api('POST', '/api/membership/early-start', 950, { date: '2026-11-03' })).body).toEqual({ startsOn: '2026-11-03', endsOn: '2026-12-02' });
+    const m = await prisma.flowMembership.findFirstOrThrow({ where: { userId: 950n } });
+    expect(m.status).toBe('active');
+    expect(await prisma.taskOccurrence.count({ where: { membershipId: m.id } })).toBe(30);
+    expect((await prisma.taskOccurrence.findFirstOrThrow({ where: { membershipId: m.id }, orderBy: { windowStart: 'asc' } })).windowStart.toISOString().slice(0, 10)).toBe('2026-11-03');
+    expect(calls.some((c) => String(c.body.text ?? c.body.caption).includes('Твой челлендж начался'))).toBe(true);
+    expect((await api('GET', '/api/home', 950)).body).toMatchObject({ state: 'active', flow: { day: 1 } });
+    // второй раз — уже нельзя
+    expect((await api('GET', '/api/me', 950)).body.membership.canStartEarly).toBe(false);
+  });
+});

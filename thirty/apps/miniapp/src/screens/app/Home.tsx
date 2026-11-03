@@ -9,6 +9,8 @@ import { catTitle } from '../reg/Registration';
 import { ReportForm } from './Report';
 import { BuddyRoulette } from './Buddy';
 import { FeedbackPopup, TrackersPopup } from './Journey';
+import { useMe } from '../../state';
+import { haptic } from '../../lib/telegram';
 
 interface HomeGoal {
   id: string;
@@ -69,6 +71,8 @@ export function Home() {
   const [share, setShare] = useState(false);
   const [reportOpen, setReportOpen] = useState(() => new URLSearchParams(loc.search).get('report') === '1');
   const [roulette, setRoulette] = useState(false);
+  const [early, setEarly] = useState(false);
+  const { me, refresh } = useMe();
   const p = data?.prompts;
   const [feedbackOpen, closeFeedback] = useOncePerDay(data ? `feedback.${data.membership.id}` : null, Boolean(p?.feedbackPopup));
   // Окно трекеров не накладывается на окно обратной связи
@@ -102,6 +106,8 @@ export function Home() {
           <>
             <StartCountdown startsOn={flow.startsOn} serverNow={data.serverNow} />
             <div style={{ opacity: 0.9 }}>Старт {humanDate(flow.startsOn)}. Твоё обещание себе уже зафиксировано ✨</div>
+            {/* Только для оплативших до личных дат старта со стартом 1 декабря (просьба владельца 03.11) */}
+            {me?.membership?.canStartEarly && <button className="btn hero-btn" onClick={() => setEarly(true)}>🚀 Начать челлендж раньше</button>}
           </>
         ) : p?.finale ? (
           <>
@@ -148,6 +154,7 @@ export function Home() {
       )}
       {before && <button className="link-accent story-link" onClick={() => setShare(true)}><Instagram size={17} />А пока поделись в сторис, что ты идёшь на наш челлендж! 😍</button>}
       <StorySheet open={share} onClose={() => setShare(false)} />
+      {early && <EarlyStartSheet today={flow.today} onClose={() => setEarly(false)} onDone={async () => { setEarly(false); await refresh(); reload(); }} />}
       {data.state === 'active' && (
         <div className="card" style={{ gap: 10 }}>
           <div className="row between">
@@ -326,6 +333,39 @@ function StartCountdown({ startsOn, serverNow }: { startsOn: string; serverNow?:
 }
 
 /** Карточка для сторис «Я иду на челлендж»: скопировать ссылку, скачать, поделиться */
+const isoPlus = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+
+/** «Начать челлендж раньше»: выбор даты до 1 декабря, план действий переносится на новые 30 дней */
+function EarlyStartSheet({ today, onClose, onDone }: { today: string; onClose: () => void; onDone: () => Promise<void> }) {
+  const [date, setDate] = useState(today);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api('/api/membership/early-start', { body: { date } });
+      haptic('success');
+      toast(date === today ? 'Твой челлендж начался! 🔥' : `Готово! Старт ${humanDate(date)} 💜`);
+      await onDone();
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet open onClose={onClose}>
+      <div className="col" style={{ gap: 12 }}>
+        <h2 className="h2" style={{ fontSize: 22 }}>Начать челлендж раньше 🚀</h2>
+        <label className="field"><span className="row" style={{ gap: 8, fontWeight: 600 }}>📅 Выбери дату старта</span>
+          <input className="input" type="date" value={date} min={today} max="2026-11-30" onChange={(e) => setDate(e.target.value)} />
+        </label>
+        {date && <div className="panel small" style={{ padding: 12 }}>Твои 30 дней: {humanDate(date)} — {humanDate(isoPlus(date, 29))}{date === today ? ' · начинаешь сегодня 🔥' : ''}</div>}
+        <button className="btn btn-primary" disabled={busy || !date || date < today || date > '2026-11-30'} onClick={save}>Начать</button>
+      </div>
+    </Sheet>
+  );
+}
+
 export function StorySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [card, setCard] = useState<{ imageUrl: string; account: string } | null>(null);
   const [link, setLink] = useState<string | null>(null);

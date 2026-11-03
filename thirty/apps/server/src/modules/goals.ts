@@ -303,3 +303,45 @@ export async function setChallengeStart(userId: bigint, membershipId: string, da
   await track({ userId, eventName: 'challenge_start_selected', flowId: m.flowId, metadata: { date, today: date === today } });
   return { startsOn: date, endsOn: addDays(date, 29) };
 }
+
+/**
+ * «Начать челлендж раньше» (просьба владельца 03.11) — разово для тех, кто оплатил после 1 ноября,
+ * но до появления личных дат старта, и потому получил старт 1 декабря. Новым участницам кнопка не показывается.
+ */
+export const EARLY_START_FROM = '2026-12-01' as ISODate;
+/** Момент выкладки личных дат старта: участия, созданные позже, выбирали дату сами */
+export const EARLY_START_CREATED_BEFORE = new Date('2026-11-02T15:00:00Z');
+
+export async function canStartEarly(m: FlowMembership & { flow: Flow }) {
+  if (m.status !== 'registered' || !m.goalsLockedAt || !m.startsOn) return false;
+  if (fromDbDate(m.startsOn) !== EARLY_START_FROM || m.createdAt >= EARLY_START_CREATED_BEFORE) return false;
+  if (flowToday(m.flow) >= EARLY_START_FROM) return false;
+  // Только первый челлендж: у продливших с ноября декабрь идёт следом за ноябрём
+  const earlier = await prisma.flowMembership.count({ where: { userId: m.userId, id: { not: m.id }, status: { in: ['registered', 'active', 'finished'] }, startsOn: { lt: m.startsOn } } });
+  return earlier === 0;
+}
+
+export async function startEarly(userId: bigint, membershipId: string, date: ISODate) {
+  const m = await loadOwnMembership(userId, membershipId);
+  if (!(await canStartEarly(m))) throw forbidden('early_start_unavailable', 'Перенести старт уже нельзя — напиши в поддержку, поможем');
+  const today = flowToday(m.flow);
+  if (date < today) throw badRequest('start_in_past', 'Нельзя выбрать дату в прошлом');
+  if (date >= EARLY_START_FROM) throw badRequest('start_not_earlier', 'Выбери дату раньше 1 декабря');
+  const start = toDbDate(date);
+  const w = memberWindow({ ...m, startsOn: start });
+  const tasks = await prisma.task.findMany({ where: { goal: { membershipId } } });
+  const rows = tasks.flatMap((t) =>
+    generateOccurrences({ frequency: t.frequency, n: t.n, dueDate: t.dueDate ? fromDbDate(t.dueDate) : null }, w.start, { startsOn: w.start, endsOn: w.end }).map((o) => ({
+      taskId: t.id, membershipId, windowStart: toDbDate(o.windowStart), windowEnd: toDbDate(o.windowEnd), slot: o.slot,
+    })),
+  );
+  await prisma.$transaction([
+    prisma.taskOccurrence.deleteMany({ where: { membershipId } }),
+    prisma.taskOccurrence.createMany({ data: rows }),
+    prisma.flowMembership.update({ where: { id: membershipId }, data: { startsOn: start } }),
+  ]);
+  await track({ userId, eventName: 'challenge_start_early', flowId: m.flowId, metadata: { date } });
+  // Старт сегодня — челлендж начинается сразу (с поздравлением в боте)
+  if (date === today) await (await import('./flows')).refreshChallengeStatuses();
+  return { startsOn: date, endsOn: w.end };
+}
