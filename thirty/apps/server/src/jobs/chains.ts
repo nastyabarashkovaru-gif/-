@@ -46,7 +46,7 @@ async function payers(): Promise<Set<string>> {
 }
 
 const OFFER_STAGES = ['chain_02', 'chain_03', 'chain_04', 'chain_05', 'chain_06', 'chain_07'];
-const AFTER_STAGES = ['chain_08', 'chain_09'];
+const AFTER_STAGES = ['chain_08', 'chain_09', 'chain_12', 'chain_13', 'chain_14'];
 /** Сколько можно опоздать с сообщением (если сервер был недоступен): старое не досылаем */
 const LATE_OFFER_MIN = 20;
 const LATE_AFTER_MIN = 12 * 60;

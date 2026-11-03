@@ -15,7 +15,7 @@ import { normalizeCode } from '../modules/promos';
 import { decideStoryRequest } from '../modules/stories';
 import { DEFAULT_SETTINGS, getSetting, setSetting, youtubeVideo, type SettingKey } from '../settings';
 import { dashboard, funnel, retention, screens, toCsv } from '../modules/adminAnalytics';
-import { homeFunnel, homeInsights, homeMembers, homeMoney, homeRetention, resolveRange } from '../modules/adminHome';
+import { homeFunnel, homeInsights, homeMembers, homeMoney, homeRetention, homeBot, resolveRange } from '../modules/adminHome';
 import { cancelAutoRenew, markRefunded } from '../modules/billing';
 import { bindChat } from '../modules/chats';
 import { ensureFlow, flowInfo } from '../modules/flows';
@@ -93,6 +93,7 @@ export async function adminRoutes(app: FastifyInstance) {
     r.get<HomeQ>('/admin-api/home/funnel', perm('dashboard'), async (req) => jsonSafe(await homeFunnel(await resolveRange(req.query))));
     r.get<HomeQ>('/admin-api/home/money', perm('dashboard'), async (req) => jsonSafe(await homeMoney(await resolveRange(req.query))));
     r.get<HomeQ>('/admin-api/home/retention', perm('dashboard'), async (req) => jsonSafe(await homeRetention(await resolveRange(req.query))));
+    r.get<HomeQ>('/admin-api/home/bot', perm('dashboard'), async (req) => jsonSafe(await homeBot(await resolveRange(req.query))));
     r.get<HomeQ>('/admin-api/home/members', perm('dashboard'), async (req) => jsonSafe(await homeMembers(req.query.flowId)));
     r.get('/admin-api/home/insights', perm('dashboard'), async () => jsonSafe(await homeInsights()));
     r.get<{ Querystring: Record<string, string> }>('/admin-api/analytics/funnel', perm('analytics'), async (req) =>

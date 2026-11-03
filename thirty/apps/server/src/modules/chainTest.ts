@@ -9,7 +9,7 @@ import { sendTemplate } from './bot';
  * Для них /start сбрасывает покупку («будто не купила») и присылает сообщения 02–11 подряд с паузой CHAIN_TEST_STEP_SEC (по умолчанию 3 с).
  * Убрать переменную — и всё работает как обычно.
  */
-const STAGES = ['chain_02', 'chain_03', 'chain_04', 'chain_05', 'chain_06', 'chain_07', 'chain_08', 'chain_09', 'chain_10', 'chain_11'];
+const STAGES = ['chain_02', 'chain_03', 'chain_04', 'chain_05', 'chain_06', 'chain_07', 'chain_08', 'chain_09', 'chain_12', 'chain_13', 'chain_14', 'chain_10', 'chain_11'];
 
 export async function chainTestUsers(): Promise<Set<string>> {
   const v = (process.env.CHAIN_TEST ?? '').trim();

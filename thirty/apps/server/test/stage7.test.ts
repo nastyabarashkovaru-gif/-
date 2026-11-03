@@ -130,7 +130,21 @@ describe('дожимная цепочка до оплаты', () => {
     // «вернуть скидку через сторис» выключено (02.11): скидка и так возвращается при новом заходе
     await runPrePurchaseChains(at(180 + 4 * 24 * 60 + 1));
     expect(sent().join('\n')).not.toContain('ВЕРНУТЬ СКИДКУ');
-    expect(await prisma.botMessageLog.count({ where: { userId: 300n, templateKey: { startsWith: 'chain_' }, status: 'sent' } })).toBe(6);
+    // 03.11: ещё три коротких — через 4, 5 и 6 дней после окончания акции
+    expect(sent().at(-1)).toContain('Ты опять это сделал');
+    await runPrePurchaseChains(at(180 + 5 * 24 * 60 + 1));
+    expect(sent().at(-1)).toContain('Я все еще жду тебя');
+    clock.set(at(180 + 6 * 24 * 60 + 1).toISOString());
+    await runPrePurchaseChains(at(180 + 6 * 24 * 60 + 1));
+    expect(sent().at(-1)).toContain('Неожиданно');
+    expect(await prisma.botMessageLog.count({ where: { userId: 300n, templateKey: { startsWith: 'chain_' }, status: 'sent' } })).toBe(9);
+    // статистика в админке: оплата после «Неожиданно…» засчитывается этому сообщению
+    await prisma.payment.create({ data: { userId: 300n, kind: 'initial', status: 'paid', amount: 999, paidAt: at(180 + 6 * 24 * 60 + 30), idempotencyKey: 'bot-stat-300' } });
+    const { homeBot } = await import('../src/modules/adminHome');
+    const stat = await homeBot({ from: '2026-10-20', to: '2026-10-31' } as never);
+    expect(stat.top[0]).toMatchObject({ key: 'chain_14', paid: 1 });
+    expect(stat.all.find((x) => x.key === 'chain_02')).toMatchObject({ sent: 1, paid: 0 });
+    await prisma.payment.deleteMany({ where: { idempotencyKey: 'bot-stat-300' } });
 
     // тестовая оплата (проверка владелицы после «Начать путь заново») покупкой не считается — цепочка идёт
     clock.set('2026-10-21T09:00:00Z');
@@ -319,9 +333,9 @@ describe('дожимная цепочка до оплаты', () => {
       calls = [];
       await start(777);
       expect((await api('GET', '/api/me', 777)).body.subscription).toBeNull();
-      await new Promise((r) => setTimeout(r, 10_500));
+      await new Promise((r) => setTimeout(r, 13_500));
       const texts = sent();
-      expect(texts.length).toBe(8); // 09 «вернуть скидку» и 10–11 «до старта потока» выключены
+      expect(texts.length).toBe(11); // 09 «вернуть скидку» и 10–11 «до старта потока» выключены; 12–14 добавлены 03.11
       expect(texts[1]).toContain('получилось посмотреть');
       // Обычное расписание владельцу ничего не дублирует
       calls = [];
@@ -336,6 +350,6 @@ describe('дожимная цепочка до оплаты', () => {
       delete process.env.CHAIN_TEST;
       delete process.env.CHAIN_TEST_STEP_SEC;
     }
-  }, 20_000);
+  }, 25_000);
 });
 

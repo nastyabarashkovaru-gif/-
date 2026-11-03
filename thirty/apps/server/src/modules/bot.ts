@@ -135,6 +135,16 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v21, value: { at: new Date().toISOString() } } });
   }
+  // Разово (03.11): новые тексты владельца — приветствие, «как вступить», дожим 02–08 (новые 12–14 создаются выше)
+  const v22 = 'maintenance.chainV3';
+  if (!(await prisma.setting.findUnique({ where: { key: v22 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT } }).catch(() => undefined);
+    await prisma.botMessageTemplate.update({ where: { key: 'how_to_join' }, data: { text: HOW_TO_JOIN_TEXT } }).catch(() => undefined);
+    for (const t of CHAIN_TEMPLATES.filter((x) => ['chain_02', 'chain_03', 'chain_04', 'chain_05', 'chain_06', 'chain_07', 'chain_08'].includes(x.key))) {
+      await prisma.botMessageTemplate.update({ where: { key: t.key }, data: { text: t.text, enabled: true } }).catch(() => undefined);
+    }
+    await prisma.setting.create({ data: { key: v22, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
@@ -344,6 +354,9 @@ export async function handleUpdate(update: TgUpdate) {
     if (q.data === 'how_to_join') {
       const userId = BigInt(q.from.id);
       await track({ userId, eventName: 'bot_how_to_join_click', dedupeKey: `how_to_join:${userId}` });
+      // клик по кнопке приветствия — в статистику сообщений
+      const w = await prisma.botMessageLog.findFirst({ where: { userId, templateKey: 'welcome', status: 'sent' }, orderBy: { sentAt: 'desc' } });
+      if (w && !w.clickedAt) await prisma.botMessageLog.update({ where: { id: w.id }, data: { clickedAt: clock.now() } });
       await sendTemplate(userId, 'how_to_join', {}, `how_to_join:${userId}:${clock.now().getTime()}`);
     }
     return;

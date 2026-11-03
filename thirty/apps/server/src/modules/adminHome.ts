@@ -469,3 +469,38 @@ export async function homeInsights() {
     referral,
   };
 }
+
+/**
+ * Сообщения бота (просьба владельца 03.11): какие сообщения и кнопки приводят к оплате.
+ * Отправлено и клики — за период по дате отправки. «Привело к оплате» — оплата за период, перед которой это сообщение
+ * было последним сообщением бота (не дольше 72 часов до оплаты). Клик: кнопка, открывшая приложение, или «как вступить».
+ */
+export async function homeBot(r: DayRange) {
+  const zone = await tz();
+  const from = startOfLocalDay(r.from, zone), to = startOfLocalDay(addDays(r.to, 1), zone);
+  const templates = await prisma.botMessageTemplate.findMany({ where: { OR: [{ key: { in: ['welcome', 'how_to_join'] } }, { key: { startsWith: 'chain_' } }] }, select: { key: true, title: true, enabled: true, text: true } });
+  const keys = templates.map((t) => t.key);
+  const logs = await prisma.botMessageLog.groupBy({ by: ['templateKey'], where: { templateKey: { in: keys }, status: 'sent', sentAt: { gte: from, lt: to } }, _count: { _all: true } });
+  const clicks = await prisma.botMessageLog.groupBy({ by: ['templateKey'], where: { templateKey: { in: keys }, status: 'sent', sentAt: { gte: from, lt: to }, clickedAt: { not: null } }, _count: { _all: true } });
+  const pays = await prisma.payment.findMany({ where: { kind: 'initial', status: 'paid', test: false, paidAt: { gte: from, lt: to } }, select: { userId: true, paidAt: true } });
+  const users = [...new Set(pays.map((p) => p.userId))];
+  const userLogs = users.length
+    ? await prisma.botMessageLog.findMany({ where: { userId: { in: users }, templateKey: { in: keys }, status: 'sent', sentAt: { gte: new Date(from.getTime() - 72 * 3600_000), lt: to } }, select: { userId: true, templateKey: true, sentAt: true }, orderBy: { sentAt: 'asc' } })
+    : [];
+  const paid = new Map<string, number>();
+  for (const p of pays) {
+    const last = userLogs.filter((l) => l.userId === p.userId && l.sentAt < p.paidAt! && l.sentAt.getTime() > p.paidAt!.getTime() - 72 * 3600_000).at(-1);
+    if (last) paid.set(last.templateKey, (paid.get(last.templateKey) ?? 0) + 1);
+  }
+  const order = (k: string) => (k === 'welcome' ? 0 : k === 'how_to_join' ? 1 : 2);
+  const rows = templates
+    .map((t) => {
+      const sent = logs.find((l) => l.templateKey === t.key)?._count._all ?? 0;
+      const clicked = clicks.find((l) => l.templateKey === t.key)?._count._all ?? 0;
+      const preview = t.text.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
+      return { key: t.key, title: t.title, preview, enabled: t.enabled, sent, clicks: clicked, clickPct: pct(clicked, sent), paid: paid.get(t.key) ?? 0 };
+    })
+    .filter((x) => x.sent > 0 || x.paid > 0)
+    .sort((a, b) => b.paid - a.paid || b.clicks - a.clicks || order(a.key) - order(b.key) || a.key.localeCompare(b.key));
+  return { top: rows.filter((x) => x.paid > 0 || x.clicks > 0).slice(0, 3), all: rows, payments: pays.length, attributed: [...paid.values()].reduce((a, b) => a + b, 0) };
+}

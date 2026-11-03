@@ -301,6 +301,37 @@ function TariffsBlock({ d }: { d: any }) {
   );
 }
 
+/* ───────── Сообщения бота: какие приводят к оплате (просьба владельца 03.11) ───────── */
+
+function BotRow({ m, rank }: { m: any; rank?: number }) {
+  return (
+    <div className="legend-row" style={{ alignItems: 'flex-start' }}>
+      <span style={{ fontSize: 20, width: 26, flex: 'none' }}>{rank !== undefined ? ['🥇', '🥈', '🥉'][rank] : '•'}</span>
+      <span className="grow">
+        <b>{m.title}</b>
+        <em style={{ display: 'block' }}>{m.preview}</em>
+        <em style={{ display: 'block', marginTop: 4 }}>Отправлено {num(m.sent)} · кликнули {num(m.clicks)}{m.clickPct !== null ? ` (${pctf(m.clickPct)})` : ''} · <b>оплатили {num(m.paid)}</b>{!m.enabled ? ' · выключено' : ''}</em>
+      </span>
+    </div>
+  );
+}
+
+function BotBlock({ d }: { d: any }) {
+  const [all, setAll] = useState(false);
+  return (
+    <section className="block">
+      <h2>Какие сообщения бота продают</h2>
+      <p className="muted">«Оплатили» — после этого сообщения человек оплатил (оно было последним от бота, не раньше чем за 72 часа). Клики — по кнопке, открывающей приложение, и по «Ознакомился, как вступить?».</p>
+      {d.top.length === 0 ? <div className="empty">За период по сообщениям бота ещё никто не кликнул и не оплатил</div> : (
+        <div className="legend">{d.top.map((m: any, i: number) => <BotRow key={m.key} m={m} rank={i} />)}</div>
+      )}
+      {d.payments > 0 && <p className="muted">Оплат за период: {num(d.payments)}, из них после сообщений бота: {num(d.attributed)}</p>}
+      {d.all.length > 0 && <button className="btn light" onClick={() => setAll(!all)}>{all ? 'Скрыть' : `Все сообщения (${d.all.length})`}</button>}
+      {all && <div className="legend">{d.all.map((m: any) => <BotRow key={m.key} m={m} />)}</div>}
+    </section>
+  );
+}
+
 /* ───────── 6. Удержание ───────── */
 
 function Retention({ d }: { d: any }) {
@@ -405,6 +436,7 @@ export function Home() {
   const funnel = useLoad(() => api(`/admin-api/home/funnel?${q}`), [q]);
   const money = useLoad(() => api(`/admin-api/home/money?${q}`), [q]);
   const ret = useLoad(() => api(`/admin-api/home/retention?${q}`), [q]);
+  const bot = useLoad(() => api(`/admin-api/home/bot?${q}`), [q]);
   return (
     <div className="home">
       <h1 className="page-title">Аналитика клуба</h1>
@@ -422,6 +454,7 @@ export function Home() {
       <Block s={funnel} h={260}>{(d: any) => <Dynamics d={d} />}</Block>
       <Block s={money} h={420}>{(d: any) => <Money d={d} />}</Block>
       <Block s={money} h={300}>{(d: any) => <TariffsBlock d={d} />}</Block>
+      <Block s={bot} h={300}>{(d: any) => <BotBlock d={d} />}</Block>
       <Block s={ret} h={300}>{(d: any) => <Retention d={d} />}</Block>
       <Members />
       <div className="foot-links">
