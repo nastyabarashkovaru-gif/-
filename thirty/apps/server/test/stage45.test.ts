@@ -54,7 +54,7 @@ describe('бот', () => {
     expect(msg.body.photo).toMatch(/\/img\/bot-welcome-v3\.jpg$/);
     expect(msg.body).toMatchObject({ parse_mode: 'HTML' });
     expect(msg.body.caption).toContain('<b>ОТКРЫВАЙ ВИДЕО</b>');
-    expect(msg.body.caption).toContain('https://youtu.be/eOpKSb9-jA4');
+    expect(msg.body.caption).toContain('https://youtu.be/IqQb4Ld2dlc');
     // как в прежнем боте: «как вступить» — следующее сообщение, вопрос — поддержка, частые вопросы — лендинг
     expect(msg.body.reply_markup.inline_keyboard.map((r: { text: string }[]) => r[0])).toEqual([
       { text: 'Ознакомился, как вступить? 🔥', callback_data: 'how_to_join' },

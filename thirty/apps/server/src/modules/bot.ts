@@ -145,6 +145,13 @@ export async function seedTemplates() {
     }
     await prisma.setting.create({ data: { key: v22, value: { at: new Date().toISOString() } } });
   }
+  // Разово (03.11): новая ссылка на видео в приветствии (меняем только ссылку — правки текста в админке сохраняются)
+  const v23 = 'maintenance.welcomeVideoV2';
+  if (!(await prisma.setting.findUnique({ where: { key: v23 } }))) {
+    const w = await prisma.botMessageTemplate.findUnique({ where: { key: 'welcome' } });
+    if (w) await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: w.text.replaceAll('https://youtu.be/eOpKSb9-jA4', 'https://youtu.be/IqQb4Ld2dlc') } });
+    await prisma.setting.create({ data: { key: v23, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
