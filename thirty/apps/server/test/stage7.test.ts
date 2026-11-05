@@ -353,3 +353,42 @@ describe('дожимная цепочка до оплаты', () => {
   }, 25_000);
 });
 
+
+describe('повышение тарифа из анкеты (05.11)', () => {
+  it('1 месяц → 3 месяца: доплата разницы, автопродление по цене 3 месяцев, старая подписка закрывается только после оплаты', async () => {
+    const { mockCalls } = await import('../src/payments/mock');
+    clock.set('2026-11-05T09:00:00Z');
+    await start(970);
+    await api('POST', '/api/offer/start', 970);
+    const paid = await buy(970);
+    expect(paid).toBe(999);
+    const g = await api('POST', '/api/goals', 970, { category: 'habits', title: 'Первая цель', pointA: 'а', pointB: 'б' });
+    expect(g.status).toBe(200);
+    // вторую цель на 1 месяце не добавить
+    expect((await api('POST', '/api/goals', 970, { category: 'blog', title: 'Вторая цель', pointA: 'а', pointB: 'б' })).status).toBe(409);
+    const offer = (await api('GET', '/api/upgrade', 970)).body;
+    expect(offer).toMatchObject({ available: true, amount: 1991, paid: 999, price: 2990, to: { goalLimit: 3 }, renewal: { amount: 2990, date: '2027-02-28', months: 3 } });
+    const co = await api('POST', '/api/upgrade/checkout', 970, { idempotencyKey: 'upgrade-970-1' });
+    expect(co.body.amount).toBe(1991);
+    // пока не оплачено — прежняя подписка жива
+    const before = await prisma.subscription.findFirstOrThrow({ where: { userId: 970n } });
+    expect(before.status).not.toBe('expired');
+    mockCalls.length = 0;
+    const data = { order_num: co.body.paymentId, order_id: `pd-${co.body.paymentId}`, sum: '1991.00', payment_status: 'success', customer_extra: 'tg:970', subscription_id: 'pd-sub-up' };
+    expect(await handleWebhook(paymentProvider().parseWebhook({ sign: signMock(data) }, data), JSON.stringify(data))).toMatchObject({ upgraded: true });
+    const subs = await prisma.subscription.findMany({ where: { userId: 970n }, orderBy: { createdAt: 'asc' } });
+    expect(subs).toHaveLength(2);
+    expect(subs[0]).toMatchObject({ status: 'expired', autoRenew: false, cancelReason: 'upgraded' });
+    expect(subs[1]).toMatchObject({ tariffId: 'm3', renewalPrice: 2990, autoRenew: true, providerSubscriptionId: 'pd-sub-up' });
+    expect(subs[1].paidThroughFlow.toISOString().slice(0, 10)).toBe('2027-02-01'); // куплен декабрь → декабрь–февраль
+    expect(subs[1].nextChargeDate!.toISOString().slice(0, 10)).toBe('2027-02-28');
+    // автопродление прежней подписки выключено у провайдера
+    expect(mockCalls.some((c) => c.method === 'setActive' && c.arg === false)).toBe(true);
+    // теперь можно до 3 целей; оплачены три месяца
+    expect((await api('GET', '/api/membership', 970)).body.membership.goalLimit).toBe(3);
+    expect((await api('POST', '/api/goals', 970, { category: 'blog', title: 'Вторая цель', pointA: 'а', pointB: 'б' })).status).toBe(200);
+    expect(await prisma.flowMembership.count({ where: { userId: 970n, tariffId: 'm3' } })).toBe(3);
+    expect((await api('GET', '/api/upgrade', 970)).body.available).toBe(false);
+    expect((await api('GET', `/api/payments/${co.body.paymentId}`, 970)).body).toMatchObject({ kind: 'upgrade', status: 'paid' });
+  });
+});

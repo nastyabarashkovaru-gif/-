@@ -266,6 +266,7 @@ async function handlePaymentEvent(p: ParsedWebhook, eventId: string) {
       return { disputed: 'amount_mismatch' };
     }
     if (payment.kind === 'debt') return markDebtPaid(payment, p);
+    if (payment.kind === 'upgrade') return (await import('./upgrade')).markUpgradePaid(payment, p);
     if (payment.kind === 'upsell') {
       await prisma.payment.update({ where: { id: payment.id }, data: { status: 'paid', paidAt: clock.now(), providerOrderId: p.providerOrderId, test: Boolean(p.test) } });
       await track({ userId: payment.userId, eventName: 'upsell_purchase', metadata: { code: payment.upsellCode } });

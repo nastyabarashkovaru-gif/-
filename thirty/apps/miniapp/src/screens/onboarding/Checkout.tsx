@@ -109,14 +109,14 @@ export function PaymentWait() {
   const { paymentId = '' } = useParams();
   const nav = useNavigate();
   const { me, refresh } = useMe();
-  const [st, setSt] = useState<{ status: string; waitingTooLong: boolean; needsRefund: boolean } | null>(null);
+  const [st, setSt] = useState<{ status: string; kind?: string; waitingTooLong: boolean; needsRefund: boolean } | null>(null);
   const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
     let stop = false;
     const poll = async () => {
       try {
-        const s = await api<{ status: string; waitingTooLong: boolean; needsRefund: boolean }>(`/api/payments/${paymentId}`);
+        const s = await api<{ status: string; kind?: string; waitingTooLong: boolean; needsRefund: boolean }>(`/api/payments/${paymentId}`);
         if (stop) return;
         setSt(s);
         if (s.status === 'paid') {
@@ -135,6 +135,20 @@ export function PaymentWait() {
 
   if (error) return <Screen id="S10"><ErrorState error={error} retry={() => location.reload()} /></Screen>;
   if (!st) return <Screen id="S09"><Loading lines={1} /></Screen>;
+  if (st.status === 'paid' && st.kind === 'upgrade') {
+    return (
+      <Screen id="S09">
+        <BrandBar right={<span className="badge-ok"><CircleCheck size={13} />Тариф повышен</span>} />
+        <img src="/img/success.png" alt="" style={{ width: '62%', maxWidth: 240, alignSelf: 'center', marginTop: 16 }} />
+        <div className="col" style={{ gap: 10 }}>
+          <h1 className="hero">Готово! Теперь у тебя <em>до 3 целей</em> 🎉</h1>
+          <p className="lead">Тариф «3 месяца» подключён, прежняя подписка отменена. Возвращайся к анкете и добавь новые цели.</p>
+        </div>
+        <div className="spacer" />
+        <Cta onClick={() => nav('/reg/goals', { replace: true })}>Вернуться к анкете</Cta>
+      </Screen>
+    );
+  }
   if (st.status === 'paid') {
     const flow = me?.membership?.flow;
     return (
@@ -165,7 +179,7 @@ export function PaymentWait() {
           <p className="muted">Деньги не списаны. Попробуйте ещё раз или выберите другую карту.</p>
         </div>
         <div className="spacer" />
-        <button className="btn btn-primary" onClick={() => nav('/tariffs')}>Попробовать ещё раз</button>
+        <button className="btn btn-primary" onClick={() => nav(st.kind === 'upgrade' ? '/reg/goals' : '/tariffs')}>Попробовать ещё раз</button>
       </Screen>
     );
   }

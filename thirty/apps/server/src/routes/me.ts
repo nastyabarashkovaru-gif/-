@@ -42,7 +42,7 @@ export async function meRoutes(app: FastifyInstance) {
         support: `https://t.me/${await getSetting('support.username')}`,
         // Организатор-наблюдатель: может посмотреть окна отмены, ничего не отменяя
         observer: (await getSetting('flow.observers')).includes(String(u.id)),
-        membership: m ? { id: m.id, status: m.status, tariffId: m.tariffId, flow: challengeInfo(m), registeredAt: m.registeredAt, startChosen: Boolean(m.startsOn), goalsLocked: Boolean(m.goalsLockedAt), canStartEarly: await (await import('../modules/goals')).canStartEarly(m) } : null,
+        membership: m ? { id: m.id, status: m.status, tariffId: m.tariffId, flow: challengeInfo(m), registeredAt: m.registeredAt, startChosen: Boolean(m.startsOn), goalsLocked: Boolean(m.goalsLockedAt), canChangeStart: (await import('../modules/goals')).canChangeStart(m) } : null,
         // Какой по счёту месяц участия — цвет темы приложения
         month: m ? await monthNumber(u.id, (await homeMembership(u.id)) ?? m) : 1,
         subscription: sub ? { id: sub.id, status: sub.status, tariffId: sub.tariffId, tariffTitle: sub.tariff.title, autoRenew: sub.autoRenew } : null,

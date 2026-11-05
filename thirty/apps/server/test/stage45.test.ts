@@ -526,31 +526,35 @@ describe('личные даты старта (ТЗ 02.11)', () => {
   });
 });
 
-describe('«Начать челлендж раньше» (03.11)', () => {
-  it('только у оплативших до личных дат со стартом 1 декабря: переносит старт и план на новые 30 дней', async () => {
-    clock.set('2026-11-02T10:00:00Z');
-    await paidUser(950, '2026-12-01');
-    await fixDaily(950);
-    // участие создано до выкладки личных дат (createdAt ставит база по реальному времени)
-    await prisma.flowMembership.updateMany({ where: { userId: 950n }, data: { createdAt: new Date('2026-11-02T10:00:00Z') } });
+describe('смена даты старта в любой момент (05.11)', () => {
+  it('до старта — перенос; посреди челленджа — заново с новой даты; анкету можно заполнить заново', async () => {
     clock.set('2026-11-03T09:00:00Z');
-    await paidUser(951, '2026-12-01');
-    await api('POST', '/api/membership/start', 951, { date: '2026-12-01' });
-    await fixDaily(951);
-    expect((await api('GET', '/api/me', 950)).body.membership.canStartEarly).toBe(true);
-    // вступила после обновления и сама выбрала 1 декабря — кнопки нет
-    expect((await api('GET', '/api/me', 951)).body.membership.canStartEarly).toBe(false);
-    expect((await api('POST', '/api/membership/early-start', 951, { date: '2026-11-03' })).status).toBe(403);
-    expect((await api('POST', '/api/membership/early-start', 950, { date: '2026-12-01' })).status).toBe(400);
+    await paidUser(950, '2026-12-01');
+    expect((await api('GET', '/api/me', 950)).body.membership.canChangeStart).toBe(false); // анкета ещё не отправлена
+    await fixDaily(950);
+    expect((await api('GET', '/api/me', 950)).body.membership.canChangeStart).toBe(true);
+    expect((await api('POST', '/api/membership/change-start', 950, { date: '2026-11-02' })).status).toBe(400);
     calls = [];
-    expect((await api('POST', '/api/membership/early-start', 950, { date: '2026-11-03' })).body).toEqual({ startsOn: '2026-11-03', endsOn: '2026-12-02' });
+    expect((await api('POST', '/api/membership/change-start', 950, { date: '2026-11-03' })).body).toEqual({ startsOn: '2026-11-03', endsOn: '2026-12-02' });
     const m = await prisma.flowMembership.findFirstOrThrow({ where: { userId: 950n } });
     expect(m.status).toBe('active');
     expect(await prisma.taskOccurrence.count({ where: { membershipId: m.id } })).toBe(30);
-    expect((await prisma.taskOccurrence.findFirstOrThrow({ where: { membershipId: m.id }, orderBy: { windowStart: 'asc' } })).windowStart.toISOString().slice(0, 10)).toBe('2026-11-03');
     expect(calls.some((c) => String(c.body.text ?? c.body.caption).includes('Твой челлендж начался'))).toBe(true);
-    expect((await api('GET', '/api/home', 950)).body).toMatchObject({ state: 'active', flow: { day: 1 } });
-    // второй раз — уже нельзя
-    expect((await api('GET', '/api/me', 950)).body.membership.canStartEarly).toBe(false);
+    // идёт 5-й день, много пропустила — начинает заново с 10-го
+    clock.set('2026-11-07T09:00:00Z');
+    expect((await api('GET', '/api/home', 950)).body.flow.day).toBe(5);
+    expect((await api('POST', '/api/membership/change-start', 950, { date: '2026-11-10' })).body).toEqual({ startsOn: '2026-11-10', endsOn: '2026-12-09' });
+    expect((await api('GET', '/api/home', 950)).body).toMatchObject({ state: 'waiting', flow: { startsOn: '2026-11-10' } });
+    const occ = await prisma.taskOccurrence.findFirstOrThrow({ where: { membershipId: m.id }, orderBy: { windowStart: 'asc' } });
+    expect(occ.windowStart.toISOString().slice(0, 10)).toBe('2026-11-10');
+    // заполнить анкету заново: цели снова можно менять, дата — в конце анкеты
+    expect((await api('POST', '/api/membership/refill', 950)).body).toEqual({ ok: true });
+    const mm = (await api('GET', '/api/membership', 950)).body.membership;
+    expect(mm).toMatchObject({ status: 'reserved', canEdit: true });
+    expect(mm.goals).toHaveLength(1);
+    expect((await api('GET', '/api/home', 950)).body.state).toBe('registration');
+    await api('POST', '/api/membership/start', 950, { date: '2026-11-08' });
+    expect((await api('POST', '/api/membership/fix', 950)).status).toBe(200);
+    expect((await prisma.flowMembership.findFirstOrThrow({ where: { userId: 950n } })).startsOn!.toISOString().slice(0, 10)).toBe('2026-11-08');
   });
 });

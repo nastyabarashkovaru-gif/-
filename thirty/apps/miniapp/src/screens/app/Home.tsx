@@ -71,7 +71,7 @@ export function Home() {
   const [share, setShare] = useState(false);
   const [reportOpen, setReportOpen] = useState(() => new URLSearchParams(loc.search).get('report') === '1');
   const [roulette, setRoulette] = useState(false);
-  const [early, setEarly] = useState(false);
+  const [startSheet, setStartSheet] = useState(() => new URLSearchParams(loc.search).get('start') === '1');
   const { me, refresh } = useMe();
   const p = data?.prompts;
   const [feedbackOpen, closeFeedback] = useOncePerDay(data ? `feedback.${data.membership.id}` : null, Boolean(p?.feedbackPopup));
@@ -106,8 +106,7 @@ export function Home() {
           <>
             <StartCountdown startsOn={flow.startsOn} serverNow={data.serverNow} />
             <div style={{ opacity: 0.9 }}>Старт {humanDate(flow.startsOn)}. Твоё обещание себе уже зафиксировано ✨</div>
-            {/* Только для оплативших до личных дат старта со стартом 1 декабря (просьба владельца 03.11) */}
-            {me?.membership?.canStartEarly && <button className="btn hero-btn" onClick={() => setEarly(true)}>🚀 Начать челлендж раньше</button>}
+            {me?.membership?.canChangeStart && <button className="btn hero-btn" onClick={() => setStartSheet(true)}>📅 Изменить дату старта</button>}
           </>
         ) : p?.finale ? (
           <>
@@ -126,6 +125,9 @@ export function Home() {
         )}
       </div>
 
+      {!before && data.state === 'active' && !p?.finale && me?.membership?.canChangeStart && (
+        <button className="link-accent" style={{ alignSelf: 'center' }} onClick={() => setStartSheet(true)}>🔄 Начать заново или изменить дату старта</button>
+      )}
       {p?.feedback && (
         <button className="home-cta-card feedback-cta" onClick={() => nav('/feedback')}>
           <span className="em">🥹</span>
@@ -154,7 +156,10 @@ export function Home() {
       )}
       {before && <button className="link-accent story-link" onClick={() => setShare(true)}><Instagram size={17} />А пока поделись в сторис, что ты идёшь на наш челлендж! 😍</button>}
       <StorySheet open={share} onClose={() => setShare(false)} />
-      {early && <EarlyStartSheet today={flow.today} onClose={() => setEarly(false)} onDone={async () => { setEarly(false); await refresh(); reload(); }} />}
+      {startSheet && me?.membership?.canChangeStart && (
+        <ChangeStartSheet today={flow.today} active={!before} onClose={() => setStartSheet(false)}
+          onDone={async (refill) => { setStartSheet(false); await refresh(); if (refill) nav('/reg/goals'); else reload(); }} />
+      )}
       {data.state === 'active' && (
         <div className="card" style={{ gap: 10 }}>
           <div className="row between">
@@ -335,17 +340,31 @@ function StartCountdown({ startsOn, serverNow }: { startsOn: string; serverNow?:
 /** Карточка для сторис «Я иду на челлендж»: скопировать ссылку, скачать, поделиться */
 const isoPlus = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
-/** «Начать челлендж раньше»: выбор даты до 1 декабря, план действий переносится на новые 30 дней */
-function EarlyStartSheet({ today, onClose, onDone }: { today: string; onClose: () => void; onDone: () => Promise<void> }) {
-  const [date, setDate] = useState(today);
+/** Смена даты старта в любой момент (05.11): перенос, «начать заново» посреди челленджа или новая анкета */
+function ChangeStartSheet({ today, active, onClose, onDone }: { today: string; active: boolean; onClose: () => void; onDone: (refill: boolean) => Promise<void> }) {
+  // посреди челленджа сегодняшний отчёт часто уже сдан — по умолчанию завтра
+  const [date, setDate] = useState(active ? isoPlus(today, 1) : today);
   const [busy, setBusy] = useState(false);
+  const max = isoPlus(today, 90);
   const save = async () => {
     setBusy(true);
     try {
-      await api('/api/membership/early-start', { body: { date } });
+      await api('/api/membership/change-start', { body: { date } });
       haptic('success');
       toast(date === today ? 'Твой челлендж начался! 🔥' : `Готово! Старт ${humanDate(date)} 💜`);
-      await onDone();
+      await onDone(false);
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const refill = async () => {
+    if (!window.confirm('Заполнить анкету заново? Цели и план можно будет поменять, дату старта выберешь в конце анкеты.')) return;
+    setBusy(true);
+    try {
+      await api('/api/membership/refill', { body: {} });
+      await onDone(true);
     } catch (e) {
       toast(errorText(e));
     } finally {
@@ -355,12 +374,14 @@ function EarlyStartSheet({ today, onClose, onDone }: { today: string; onClose: (
   return (
     <Sheet open onClose={onClose}>
       <div className="col" style={{ gap: 12 }}>
-        <h2 className="h2" style={{ fontSize: 22 }}>Начать челлендж раньше 🚀</h2>
+        <h2 className="h2" style={{ fontSize: 22 }}>{active ? 'Начать челлендж заново 🔄' : 'Изменить дату старта 📅'}</h2>
+        {active && <div className="panel small" style={{ padding: 12 }}>Выбери новую дату — твои 30 дней начнутся с неё. Прогресс за прошедшие дни обнулится, отчёты останутся в ленте.</div>}
         <label className="field"><span className="row" style={{ gap: 8, fontWeight: 600 }}>📅 Выбери дату старта</span>
-          <input className="input" type="date" value={date} min={today} max="2026-11-30" onChange={(e) => setDate(e.target.value)} />
+          <input className="input" type="date" value={date} min={today} max={max} onChange={(e) => setDate(e.target.value)} />
         </label>
         {date && <div className="panel small" style={{ padding: 12 }}>Твои 30 дней: {humanDate(date)} — {humanDate(isoPlus(date, 29))}{date === today ? ' · начинаешь сегодня 🔥' : ''}</div>}
-        <button className="btn btn-primary" disabled={busy || !date || date < today || date > '2026-11-30'} onClick={save}>Начать</button>
+        <button className="btn btn-primary" disabled={busy || !date || date < today || date > max} onClick={save}>Сохранить</button>
+        <button className="link-btn" disabled={busy} onClick={refill}>Хочу заполнить анкету заново</button>
       </div>
     </Sheet>
   );

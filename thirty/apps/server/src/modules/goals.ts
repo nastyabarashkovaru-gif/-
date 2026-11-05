@@ -305,28 +305,32 @@ export async function setChallengeStart(userId: bigint, membershipId: string, da
 }
 
 /**
- * «Начать челлендж раньше» (просьба владельца 03.11) — разово для тех, кто оплатил после 1 ноября,
- * но до появления личных дат старта, и потому получил старт 1 декабря. Новым участницам кнопка не показывается.
+ * Смена даты старта в любой момент (просьба владельца 05.11): до старта — перенос, посреди челленджа — начать заново
+ * с новой даты (прежний прогресс обнуляется, отчёты остаются в ленте). Цели и план остаются; заполнить анкету
+ * заново — restartQuestionnaire. Заменяет разовую кнопку «Начать челлендж раньше» (03.11).
  */
-export const EARLY_START_FROM = '2026-12-01' as ISODate;
-/** Момент выкладки личных дат старта: участия, созданные позже, выбирали дату сами */
-export const EARLY_START_CREATED_BEFORE = new Date('2026-11-02T15:00:00Z');
-
-export async function canStartEarly(m: FlowMembership & { flow: Flow }) {
-  if (m.status !== 'registered' || !m.goalsLockedAt || !m.startsOn) return false;
-  if (fromDbDate(m.startsOn) !== EARLY_START_FROM || m.createdAt >= EARLY_START_CREATED_BEFORE) return false;
-  if (flowToday(m.flow) >= EARLY_START_FROM) return false;
-  // Только первый челлендж: у продливших с ноября декабрь идёт следом за ноябрём
-  const earlier = await prisma.flowMembership.count({ where: { userId: m.userId, id: { not: m.id }, status: { in: ['registered', 'active', 'finished'] }, startsOn: { lt: m.startsOn } } });
-  return earlier === 0;
+export function canChangeStart(m: FlowMembership) {
+  return (m.status === 'registered' || m.status === 'active') && Boolean(m.goalsLockedAt) && Boolean(m.startsOn);
 }
 
-export async function startEarly(userId: bigint, membershipId: string, date: ISODate) {
+async function latestAllowedStart(m: FlowMembership & { flow: Flow }) {
+  // Следующий оплаченный челлендж с уже выбранной датой: новые 30 дней должны закончиться до него
+  const next = await prisma.flowMembership.findMany({ where: { userId: m.userId, id: { not: m.id }, status: { in: ['registered', 'active'] }, startsOn: { gt: m.startsOn ?? new Date(0) } }, include: { flow: true } });
+  const starts = next.map((o) => memberWindow(o).start).sort();
+  return starts.length ? addDays(starts[0], -30) : null;
+}
+
+export async function changeStart(userId: bigint, membershipId: string, date: ISODate) {
   const m = await loadOwnMembership(userId, membershipId);
-  if (!(await canStartEarly(m))) throw forbidden('early_start_unavailable', 'Перенести старт уже нельзя — напиши в поддержку, поможем');
+  if (!canChangeStart(m)) throw forbidden('start_change_unavailable', 'Сейчас дату старта поменять нельзя — напиши в поддержку, поможем');
   const today = flowToday(m.flow);
   if (date < today) throw badRequest('start_in_past', 'Нельзя выбрать дату в прошлом');
-  if (date >= EARLY_START_FROM) throw badRequest('start_not_earlier', 'Выбери дату раньше 1 декабря');
+  if (date > addDays(today, 90)) throw badRequest('start_too_far', 'Выбери дату в ближайшие 3 месяца');
+  if (date === today && (await prisma.dailyReport.findUnique({ where: { membershipId_date: { membershipId, date: toDbDate(today) } } }))) {
+    throw badRequest('reported_today', 'Сегодня ты уже отправила отчёт — начни заново с завтрашнего дня');
+  }
+  const limit = await latestAllowedStart(m);
+  if (limit && date > limit) throw conflict('start_overlap', `Следующий челлендж уже запланирован — выбери дату не позже ${humanDate(limit)}`);
   const start = toDbDate(date);
   const w = memberWindow({ ...m, startsOn: start });
   const tasks = await prisma.task.findMany({ where: { goal: { membershipId } } });
@@ -335,13 +339,26 @@ export async function startEarly(userId: bigint, membershipId: string, date: ISO
       taskId: t.id, membershipId, windowStart: toDbDate(o.windowStart), windowEnd: toDbDate(o.windowEnd), slot: o.slot,
     })),
   );
+  const restart = m.status === 'active';
   await prisma.$transaction([
     prisma.taskOccurrence.deleteMany({ where: { membershipId } }),
     prisma.taskOccurrence.createMany({ data: rows }),
-    prisma.flowMembership.update({ where: { id: membershipId }, data: { startsOn: start } }),
+    prisma.flowMembership.update({ where: { id: membershipId }, data: { startsOn: start, status: 'registered' } }),
   ]);
-  await track({ userId, eventName: 'challenge_start_early', flowId: m.flowId, metadata: { date } });
-  // Старт сегодня — челлендж начинается сразу (с поздравлением в боте)
+  await track({ userId, eventName: 'challenge_start_changed', flowId: m.flowId, metadata: { date, from: fromDbDate(m.startsOn!), restart } });
+  // Старт сегодня — челлендж начинается сразу
   if (date === today) await (await import('./flows')).refreshChallengeStatuses();
   return { startsOn: date, endsOn: w.end };
+}
+
+/** Заполнить анкету заново: цели и план можно поменять, дата старта выбирается в конце анкеты */
+export async function restartQuestionnaire(userId: bigint, membershipId: string) {
+  const m = await loadOwnMembership(userId, membershipId);
+  if (!canChangeStart(m)) throw forbidden('start_change_unavailable', 'Сейчас анкету заполнить заново нельзя — напиши в поддержку, поможем');
+  await prisma.$transaction([
+    prisma.taskOccurrence.deleteMany({ where: { membershipId } }),
+    prisma.flowMembership.update({ where: { id: membershipId }, data: { status: 'reserved', goalsLockedAt: null, registeredAt: null, startsOn: null } }),
+  ]);
+  await track({ userId, eventName: 'challenge_start_changed', flowId: m.flowId, metadata: { refill: true, restart: m.status === 'active' } });
+  return { ok: true };
 }

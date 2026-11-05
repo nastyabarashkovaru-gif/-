@@ -87,9 +87,15 @@ export async function billingRoutes(app: FastifyInstance) {
       if (!p || p.userId !== req.user!.id) throw notFound();
       const pendingWindow = await getSetting('payment.pendingWindowMinutes');
       const waitedMin = (Date.now() - p.createdAt.getTime()) / 60_000;
-      return { id: p.id, status: p.status, amount: p.amount, needsRefund: p.needsRefund, waitingTooLong: p.status === 'pending' && waitedMin > pendingWindow };
+      return { id: p.id, kind: p.kind, status: p.status, amount: p.amount, needsRefund: p.needsRefund, waitingTooLong: p.status === 'pending' && waitedMin > pendingWindow };
     });
 
+    // Повышение тарифа из анкеты: 1 месяц → 3 месяца (05.11)
+    r.get('/api/upgrade', async (req) => jsonSafe(await (await import('../modules/upgrade')).upgradeOffer(req.user!.id)));
+    r.post('/api/upgrade/checkout', async (req) => {
+      const { idempotencyKey } = parse(z.object({ idempotencyKey: z.string().min(8).max(80) }), req.body);
+      return (await import('../modules/upgrade')).createUpgradeCheckout(req.user!.id, idempotencyKey);
+    });
     r.get('/api/subscription', async (req) => jsonSafe(await subscriptionSummary(req.user!.id)));
 
     r.post('/api/subscription/cancel', async (req) => {
@@ -184,6 +190,8 @@ export async function billingRoutes(app: FastifyInstance) {
     if (p.kind === 'initial' && p.coversFromFlow && p.months) {
       const flows = coverage(fromDbDate(p.coversFromFlow), p.months);
       recurrent = { interval: 'Month', period: p.months, amount: p.amount, startDate: `${chargeDateFor(flows[flows.length - 1])}T09:00:00` };
+    } else if (p.kind === 'upgrade') {
+      recurrent = await (await import('../modules/upgrade')).upgradeRecurrent(p);
     } else if (p.kind === 'debt' && p.subscription) {
       const plan = planRenewal(fromDbDate(p.subscription.paidThroughFlow), p.subscription.tariff.months);
       recurrent = { interval: 'Month', period: p.subscription.tariff.months, amount: p.subscription.renewalPrice, startDate: `${plan.nextChargeDate}T09:00:00` };

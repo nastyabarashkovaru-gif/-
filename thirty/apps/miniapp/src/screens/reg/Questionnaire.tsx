@@ -4,11 +4,11 @@ import {
   Target,    CircleCheck,  Plus,    ListChecks, ClipboardCheck,
   CalendarDays, ChevronDown, ChevronUp, Handshake, HeartHandshake, MapPin, Users, Hourglass, CheckCheck, BookOpen, ArrowRight, Pencil,
 } from 'lucide-react';
-import { api } from '../../lib/api';
+import { api, demoKey } from '../../lib/api';
 import { track } from '../../lib/analytics';
-import { haptic, openTelegram, requestWriteAccess } from '../../lib/telegram';
+import { haptic, openExternal, openTelegram, requestWriteAccess } from '../../lib/telegram';
 import { useMe } from '../../state';
-import { BrandBar, Cta, Empty, ErrorState, Loading, Screen, errorText, humanDate, toast, useLoad } from '../../ui';
+import { BrandBar, Cta, Empty, ErrorState, Loading, Screen, Sheet, errorText, humanDate, toast, useLoad } from '../../ui';
 import { useMembership, type MembershipView } from './Registration';
 
 /** Категории целей анкеты (решение владельца 24.10) */
@@ -272,21 +272,73 @@ export function PointsStep() {
 
 const emptyGoal = (): GoalDraft => ({ title: '', pointA: '', pointB: '', category: '' });
 
+interface UpgradeOffer { available: boolean; amount?: number; paid?: number; price?: number; to?: { title: string; goalLimit: number | null; months: number }; renewal?: { amount: number; date: string; months: number } }
+
+/** «Добавить ещё одну цель» на тарифе 1 месяц: повысить до «3 месяца» (до 3 целей) с доплатой разницы (05.11) */
+function UpgradeSheet({ onClose, beforePay }: { onClose: () => void; beforePay: () => Promise<void> }) {
+  const nav = useNavigate();
+  const { me } = useMe();
+  const { data, loading } = useLoad(() => api<UpgradeOffer>('/api/upgrade'));
+  const [busy, setBusy] = useState(false);
+  const [key] = useState(() => `up-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const pay = async () => {
+    setBusy(true);
+    try {
+      await beforePay();
+      const r = await api<{ paymentId: string; url: string }>('/api/upgrade/checkout', { body: { idempotencyKey: key } });
+      haptic('success');
+      if (demoKey()) location.href = r.url;
+      else openExternal(r.url);
+      nav(`/checkout/wait/${r.paymentId}`);
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const rub = (n: number) => `${n.toLocaleString('ru-RU')} ₽`;
+  return (
+    <Sheet open onClose={onClose}>
+      <div className="col" style={{ gap: 12 }}>
+        <h2 className="h2" style={{ fontSize: 22 }}>Твой тариф — ежемесячный</h2>
+        <div className="panel" style={{ padding: 14, gap: 4 }}>
+          <div className="row between"><span className="muted">Количество целей</span><b style={{ fontSize: 18 }}>1</b></div>
+        </div>
+        {loading && !data ? <Loading lines={2} /> : data?.available ? (
+          <>
+            <div className="card" style={{ gap: 6, border: '1.5px solid var(--accent)' }}>
+              <b style={{ fontSize: 17 }}>🚀 Тариф «{data.to!.title}» — до {data.to!.goalLimit} целей</b>
+              <span>Сейчас доплатишь <b>{rub(data.amount!)}</b> — уже оплаченные {rub(data.paid!)} засчитаем.</span>
+              <span className="muted small">Дальше — {rub(data.renewal!.amount)} раз в {data.renewal!.months} месяца, первое продление {humanDate(data.renewal!.date)}. Текущая подписка отменится автоматически после оплаты.</span>
+            </div>
+            <button className="btn btn-primary" disabled={busy} onClick={pay}>Повысить тариф до {data.to!.goalLimit} целей</button>
+          </>
+        ) : (
+          <>
+            <p className="muted" style={{ margin: 0 }}>Чтобы добавить ещё цели, напиши нам — поможем перейти на тариф с несколькими целями.</p>
+            <button className="btn btn-primary" onClick={() => me && openTelegram(me.support)}>Написать в поддержку</button>
+          </>
+        )}
+        <button className="link-btn" onClick={onClose}>Оставить одну цель</button>
+      </div>
+    </Sheet>
+  );
+}
+
 function GoalsForm({ m }: { m: MembershipView }) {
   const nav = useNavigate();
   const [drafts, setDrafts] = useState<GoalDraft[]>(() => (m.goals.length
     ? m.goals.map((g) => ({ id: g.id, title: g.title, pointA: g.pointA ?? '', pointB: g.pointB ?? '', category: g.category }))
     : [emptyGoal()]));
   const [busy, setBusy] = useState(false);
+  const [upgrade, setUpgrade] = useState(false);
   const limit = m.goalLimit;
   const single = limit === 1;
   const canAdd = limit === null || drafts.length < limit;
   const valid = drafts.every((d) => d.title.trim().length >= 3 && d.pointA.trim().length >= 2 && d.pointB.trim().length >= 2 && d.category);
   const set = (i: number, patch: Partial<GoalDraft>) => setDrafts(drafts.map((d, j) => (j === i ? { ...d, ...patch } : d)));
 
-  const save = async () => {
-    setBusy(true);
-    try {
+  const persist = async () => {
       const keep = new Set(drafts.map((d) => d.id).filter(Boolean));
       for (const g of m.goals) if (!keep.has(g.id)) await api(`/api/goals/${g.id}`, { method: 'DELETE' });
       for (const d of drafts) {
@@ -296,6 +348,11 @@ function GoalsForm({ m }: { m: MembershipView }) {
           if (prev && (prev.title !== body.title || prev.category !== body.category || prev.pointA !== body.pointA || prev.pointB !== body.pointB)) await api(`/api/goals/${d.id}`, { method: 'PATCH', body });
         } else await api('/api/goals', { body });
       }
+  };
+  const save = async () => {
+    setBusy(true);
+    try {
+      await persist();
       haptic('success');
       nav('/reg/plan/0');
     } catch (e) {
@@ -342,7 +399,9 @@ function GoalsForm({ m }: { m: MembershipView }) {
           </div>
         </div>
       ))}
-      {!single && canAdd && <button className="btn btn-outline" onClick={() => setDrafts([...drafts, emptyGoal()])}><Plus size={17} />Добавить ещё одну цель</button>}
+      {canAdd ? (!single && <button className="btn btn-outline" onClick={() => setDrafts([...drafts, emptyGoal()])}><Plus size={17} />Добавить ещё одну цель</button>)
+        : single && <button className="btn btn-outline" onClick={() => setUpgrade(true)}><Plus size={17} />Добавить ещё одну цель</button>}
+      {upgrade && <UpgradeSheet onClose={() => setUpgrade(false)} beforePay={async () => { if (valid) await persist(); }} />}
       <button className="link-btn" onClick={() => nav('/materials')}>Не знаешь, какую цель поставить?</button>
       <Cta disabled={!valid || busy} onClick={save}>Продолжить</Cta>
     </Screen>

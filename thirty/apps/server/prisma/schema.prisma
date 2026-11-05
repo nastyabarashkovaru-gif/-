@@ -194,6 +194,7 @@ enum PaymentKind {
   renewal
   debt
   upsell
+  upgrade // повышение тарифа: доплата разницы, старая подписка закрывается
 }
 
 model Payment {

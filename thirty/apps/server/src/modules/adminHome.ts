@@ -321,7 +321,7 @@ export async function homeRetention(r: DayRange) {
   const today = localDate(clock.now(), zone);
   const thisMonth = `${today.slice(0, 7)}-01` as ISODate;
   const pays = await prisma.payment.findMany({
-    where: { status: 'paid', test: false, kind: { in: ['initial', 'renewal', 'debt'] }, coversFromFlow: { not: null }, months: { not: null } },
+    where: { status: 'paid', test: false, kind: { in: ['initial', 'renewal', 'debt', 'upgrade'] }, coversFromFlow: { not: null }, months: { not: null } },
     select: { userId: true, coversFromFlow: true, months: true, kind: true },
   });
   const covered = new Map<string, Set<ISODate>>();
