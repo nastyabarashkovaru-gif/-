@@ -308,7 +308,7 @@ function UpgradeSheet({ onClose, beforePay }: { onClose: () => void; beforePay: 
           <>
             <div className="card" style={{ gap: 6, border: '1.5px solid var(--accent)' }}>
               <b style={{ fontSize: 17 }}>🚀 Тариф «{data.to!.title}» — до {data.to!.goalLimit} целей</b>
-              <span>Сейчас доплатишь <b>{rub(data.amount!)}</b> — уже оплаченные {rub(data.paid!)} засчитаем.</span>
+              <span>Вы можете доплатить <b>{rub(data.amount!)}</b> — уже оплаченные {rub(data.paid!)} засчитаем. Доступ к чату и челленджам откроется на {data.to!.months} месяца.</span>
               <span className="muted small">Дальше — {rub(data.renewal!.amount)} раз в {data.renewal!.months} месяца, первое продление {humanDate(data.renewal!.date)}. Текущая подписка отменится автоматически после оплаты.</span>
             </div>
             <button className="btn btn-primary" disabled={busy} onClick={pay}>Повысить тариф до {data.to!.goalLimit} целей</button>
