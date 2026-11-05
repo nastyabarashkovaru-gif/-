@@ -11,14 +11,14 @@ export async function loadFacts(membershipId: string, flow: Flow, now = clock.no
   const [occ, reports, m] = await Promise.all([
     prisma.taskOccurrence.findMany({ where: { membershipId }, select: { windowStart: true, windowEnd: true, status: true, taskId: true } }),
     prisma.dailyReport.findMany({ where: { membershipId, status: 'accepted' }, select: { date: true } }),
-    prisma.flowMembership.findUnique({ where: { id: membershipId }, select: { startsOn: true } }),
+    prisma.flowMembership.findUnique({ where: { id: membershipId }, select: { startsOn: true, timezone: true } }),
   ]);
   // Личный челлендж: 30 дней от личной даты старта
-  const w = memberWindow({ startsOn: m?.startsOn ?? null, flow }, now);
+  const w = memberWindow({ startsOn: m?.startsOn ?? null, flow, timezone: m?.timezone }, now);
   return {
     flowStart: w.start,
     flowEnd: w.end,
-    today: flowToday(flow, now),
+    today: w.today,
     occurrences: occ.map((o) => ({ windowStart: fromDbDate(o.windowStart), windowEnd: fromDbDate(o.windowEnd), done: o.status === 'done', taskId: o.taskId })),
     reportDates: reports.map((r) => fromDbDate(r.date)),
   };
@@ -160,8 +160,8 @@ export async function selectPrizeCandidates(flowId: string, now = clock.now()) {
 // ───────────── Недельный рейтинг дисциплины (ТЗ 02.11) ─────────────
 
 /** Окно личного челленджа участника (пока — даты потока; с личными стартами — своя дата и 30 дней) */
-export function challengeWindow(m: { flow: Flow; startsOn?: Date | null }) {
-  const w = memberWindow({ startsOn: m.startsOn ?? null, flow: m.flow });
+export function challengeWindow(m: { flow: Flow; startsOn?: Date | null; timezone?: string | null }) {
+  const w = memberWindow({ startsOn: m.startsOn ?? null, flow: m.flow, timezone: m.timezone });
   return { start: w.start, end: w.end };
 }
 

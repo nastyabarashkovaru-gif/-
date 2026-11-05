@@ -5,7 +5,7 @@ import { prisma } from '../db';
 import { badRequest, conflict, forbidden, notFound } from '../http';
 import { getSetting } from '../settings';
 import { signedMediaUrl } from '../lib/storage';
-import { flowToday, memberWindow } from './flows';
+import { flowToday, memberToday, memberWindow } from './flows';
 import { track } from './analytics';
 import { buddyOf } from './buddy';
 import { pushNotification } from './notifications';
@@ -40,7 +40,7 @@ export async function submitReport(userId: bigint, membershipId: string, input: 
   if (!m || m.userId !== userId) throw notFound('membership_not_found');
   if (m.status !== 'active') throw forbidden('not_active', 'Отчёты принимаются после отправки анкеты, в дни твоего челленджа');
   const now = clock.now();
-  const today = flowToday(m.flow, now);
+  const today = memberToday(m, now);
   // Личный челлендж: отчёт — только за сегодня и только в его 30 дней
   if (memberWindow(m, now).phase !== 'active') throw forbidden('flow_not_active', 'Твой челлендж сейчас не идёт');
   const date = toDbDate(today);
@@ -96,7 +96,7 @@ export async function submitReport(userId: bigint, membershipId: string, input: 
 /** Что можно отметить сегодня: открытые выполнения по каждой задаче */
 export async function todayChecklist(membershipId: string) {
   const m = await prisma.flowMembership.findUniqueOrThrow({ where: { id: membershipId }, include: { flow: true } });
-  const today = flowToday(m.flow);
+  const today = memberToday(m);
   const date = toDbDate(today);
   const goals = await prisma.goal.findMany({ where: { membershipId }, include: { tasks: true }, orderBy: { sort: 'asc' } });
   const occ = await prisma.taskOccurrence.findMany({ where: { membershipId, windowStart: { lte: date }, windowEnd: { gte: date } } });

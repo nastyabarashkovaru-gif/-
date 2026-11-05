@@ -19,6 +19,14 @@ export function flowToday(flow: Pick<Flow, 'timezone'>, now = clock.now()): ISOD
   return localDate(now, flow.timezone);
 }
 
+/** Часовой пояс участницы (05.11): день и дедлайн отчёта — по её местному времени, без него — время потока */
+export function memberTz(m: { timezone?: string | null; flow: Pick<Flow, 'timezone'> }) {
+  return m.timezone || m.flow.timezone;
+}
+export function memberToday(m: { timezone?: string | null; flow: Pick<Flow, 'timezone'> }, now = clock.now()): ISODate {
+  return localDate(now, memberTz(m));
+}
+
 export function flowInfo(flow: Flow, now = clock.now()) {
   const startsOn = fromDbDate(flow.startsOn);
   const today = flowToday(flow, now);
@@ -30,8 +38,8 @@ export function flowInfo(flow: Flow, now = clock.now()) {
  * Окно личного челленджа (ТЗ 02.11): 30 дней от личной даты старта. Дата ещё не выбрана — ориентир:
  * не раньше сегодняшнего дня и не раньше месяца, к которому относится участие (челлендж пока не начался).
  */
-export function memberWindow(m: { startsOn: Date | null; flow: Flow }, now = clock.now()) {
-  const today = flowToday(m.flow, now);
+export function memberWindow(m: { startsOn: Date | null; flow: Flow; timezone?: string | null }, now = clock.now()) {
+  const today = memberToday(m, now);
   const chosen = m.startsOn ? fromDbDate(m.startsOn) : null;
   const flowStart = fromDbDate(m.flow.startsOn);
   const start = chosen ?? (flowStart > today ? flowStart : today);
@@ -42,9 +50,9 @@ export function memberWindow(m: { startsOn: Date | null; flow: Flow }, now = clo
 }
 
 /** Сведения о челлендже для клиента: те же поля, что у потока (startsOn/endsOn/days/phase), но личные */
-export function challengeInfo(m: { startsOn: Date | null; flow: Flow }, now = clock.now()) {
+export function challengeInfo(m: { startsOn: Date | null; flow: Flow; timezone?: string | null }, now = clock.now()) {
   const w = memberWindow(m, now);
-  return { id: m.flow.id, startsOn: w.start, endsOn: w.end, days: w.days, title: m.flow.title, timezone: m.flow.timezone, today: w.today, phase: w.phase, day: w.day, chosen: w.chosen };
+  return { id: m.flow.id, startsOn: w.start, endsOn: w.end, days: w.days, title: m.flow.title, timezone: memberTz(m), today: w.today, phase: w.phase, day: w.day, chosen: w.chosen };
 }
 
 /**

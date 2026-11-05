@@ -2,7 +2,7 @@ import { addMonths, addDays, flowBounds, fromDbDate, localDate, humanDate, quote
 import { DateTime } from 'luxon';
 import { clock } from '../clock';
 import { prisma } from '../db';
-import { memberWindow } from '../modules/flows';
+import { memberTz, memberWindow } from '../modules/flows';
 import { pushNotification } from '../modules/notifications';
 import { getSetting, feature } from '../settings';
 import { sendTemplate } from '../modules/bot';
@@ -181,7 +181,7 @@ export async function runFlowChains(now = clock.now(), send: Send = sendTemplate
     .filter((m) => !observers.has(m.userId.toString()));
   for (const m of all) {
     const w = memberWindow(m, now);
-    const tz = m.flow.timezone;
+    const tz = memberTz(m);
     const today = w.today;
     const hour = DateTime.fromJSDate(now, { zone: tz }).hour;
     if (w.phase === 'active') {

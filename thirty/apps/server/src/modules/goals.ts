@@ -5,7 +5,7 @@ import { clock } from '../clock';
 import { prisma } from '../db';
 import { badRequest, conflict, forbidden, notFound } from '../http';
 import { getSetting } from '../settings';
-import { flowToday, memberWindow } from './flows';
+import { flowToday, memberToday, memberWindow } from './flows';
 import { track } from './analytics';
 
 export const CONFIRM_METHODS = ['screenshot', 'photo_video', 'document', 'daily_reports', 'other'] as const;
@@ -257,7 +257,7 @@ export async function changeWeeklyCount(userId: bigint, taskId: string, n: numbe
   if (m.status === 'revoked' || m.status === 'finished') throw forbidden('goals_locked', 'Поток уже завершён');
   if (task.frequency !== 'n_per_week') throw badRequest('not_weekly', 'Менять можно только действия «X раз в неделю»');
   if (await canEditGoals(m)) return updateTask(userId, taskId, { n });
-  const today = flowToday(m.flow, clock.now());
+  const today = memberToday(m, clock.now());
   const w = memberWindow(m);
   const plan = generateOccurrences({ frequency: 'n_per_week', n }, w.start, { startsOn: w.start, endsOn: w.end }).filter((o) => o.windowEnd >= today);
   const byWeek = new Map<string, { windowStart: ISODate; windowEnd: ISODate; need: number }>();
@@ -291,7 +291,7 @@ export async function changeWeeklyCount(userId: bigint, taskId: string, n: numbe
 export async function setChallengeStart(userId: bigint, membershipId: string, date: ISODate) {
   const m = await loadOwnMembership(userId, membershipId);
   if (m.goalsLockedAt) throw forbidden('goals_locked', 'Анкета уже отправлена — дату старта поменять нельзя');
-  const today = flowToday(m.flow);
+  const today = memberToday(m);
   if (date < today) throw badRequest('start_in_past', 'Нельзя выбрать дату в прошлом');
   if (date > addDays(today, 90)) throw badRequest('start_too_far', 'Выбери дату в ближайшие 3 месяца');
   const others = await prisma.flowMembership.findMany({ where: { userId, id: { not: m.id }, status: { in: ['registered', 'active'] }, startsOn: { not: null } }, include: { flow: true } });
@@ -323,7 +323,7 @@ async function latestAllowedStart(m: FlowMembership & { flow: Flow }) {
 export async function changeStart(userId: bigint, membershipId: string, date: ISODate) {
   const m = await loadOwnMembership(userId, membershipId);
   if (!canChangeStart(m)) throw forbidden('start_change_unavailable', 'Сейчас дату старта поменять нельзя — напиши в поддержку, поможем');
-  const today = flowToday(m.flow);
+  const today = memberToday(m);
   if (date < today) throw badRequest('start_in_past', 'Нельзя выбрать дату в прошлом');
   if (date > addDays(today, 90)) throw badRequest('start_too_far', 'Выбери дату в ближайшие 3 месяца');
   if (date === today && (await prisma.dailyReport.findUnique({ where: { membershipId_date: { membershipId, date: toDbDate(today) } } }))) {

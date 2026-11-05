@@ -17,6 +17,9 @@ export async function meRoutes(app: FastifyInstance) {
     r.get('/api/me', async (req) => {
       const u = req.user!;
       const m = await currentMembership(u.id);
+      // Новые челленджи (следующий месяц, повторная покупка) получают часовой пояс участницы при первом открытии
+      await prisma.flowMembership.updateMany({ where: { userId: u.id, status: { in: ['reserved', 'registered', 'active'] }, OR: [{ timezone: null }, { timezone: { not: u.timezone } }] }, data: { timezone: u.timezone } });
+      if (m && ['reserved', 'registered', 'active'].includes(m.status)) m.timezone = u.timezone;
       const sub = await prisma.subscription.findFirst({
         where: { userId: u.id, status: { in: ['prestart', 'active', 'past_due', 'canceled_at_period_end'] } },
         include: { tariff: true },
@@ -52,6 +55,8 @@ export async function meRoutes(app: FastifyInstance) {
     r.patch('/api/me', async (req) => {
       const body = parse(profileInput, req.body);
       const u = await prisma.user.update({ where: { id: req.user!.id }, data: body });
+      // Часовой пояс с телефона — и в текущие челленджи: день и дедлайн отчёта по местному времени (05.11)
+      if (body.timezone) await prisma.flowMembership.updateMany({ where: { userId: u.id, status: { in: ['reserved', 'registered', 'active'] } }, data: { timezone: body.timezone } });
       return jsonSafe({ user: publicUser(u) });
     });
 

@@ -66,6 +66,11 @@ export function App() {
   const refresh = useCallback(async () => {
     const m = await api<Me>('/api/me');
     setMe(m);
+    // Часовой пояс с телефона: «сегодня» и дедлайн отчёта — по местному времени участницы (05.11)
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz && m.user.timezone !== tz) void api('/api/me', { method: 'PATCH', body: { timezone: tz } }).catch(() => undefined);
+    } catch { /* старый браузер без Intl — остаётся время потока */ }
     applyTheme(m.month ?? 1);
     ctx.flowId = m.membership?.flow.id;
     return m;

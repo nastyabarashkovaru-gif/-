@@ -558,3 +558,27 @@ describe('смена даты старта в любой момент (05.11)', 
     expect((await prisma.flowMembership.findFirstOrThrow({ where: { userId: 950n } })).startsOn!.toISOString().slice(0, 10)).toBe('2026-11-08');
   });
 });
+
+describe('местное время участницы (05.11)', () => {
+  it('Киев: в 23:09 по Киеву (00:09 по Москве) идёт ещё прежний день — отчёт за него принимается', async () => {
+    clock.set('2026-11-03T09:00:00Z');
+    await paidUser(990, '2026-12-01');
+    await api('POST', '/api/membership/start', 990, { date: '2026-11-03' });
+    const { taskId } = await fixDaily(990);
+    expect((await api('PATCH', '/api/me', 990, { timezone: 'Europe/Kyiv' })).status).toBe(200);
+    // 4 ноября, 23:09 по Киеву = 00:09 5 ноября по Москве
+    clock.set('2026-11-04T21:09:00Z');
+    const h = (await api('GET', '/api/home', 990)).body;
+    expect(h.flow).toMatchObject({ today: '2026-11-04', day: 2 });
+    const media = await upload(990);
+    const r = await api('POST', '/api/reports', 990, { items: [{ taskId, done: true }], mediaIds: [media.body.id], publicAck: true });
+    expect(r.status).toBe(200);
+    const rep = await prisma.dailyReport.findFirstOrThrow({ where: { membership: { userId: 990n } } });
+    expect(rep.date.toISOString().slice(0, 10)).toBe('2026-11-04');
+    // у участницы из Москвы в это же время уже 5 ноября
+    await paidUser(991, '2026-12-01');
+    await api('POST', '/api/membership/start', 991, { date: '2026-11-05' });
+    await fixDaily(991);
+    expect((await api('GET', '/api/home', 991)).body.flow).toMatchObject({ today: '2026-11-05', day: 1 });
+  });
+});
