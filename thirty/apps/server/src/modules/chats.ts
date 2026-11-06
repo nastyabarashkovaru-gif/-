@@ -79,11 +79,20 @@ export async function inviteLinkFor(userId: bigint, chatId: string) {
   return { url, joined: false };
 }
 
-/** Заявка на вступление: одобряем только при действующем праве на этот чат */
-export async function onJoinRequest(tgChatId: number, tgUserId: number) {
+/** id нашего бота — первая часть токена */
+const ourBotId = () => Number((config.BOT_TOKEN ?? '').split(':')[0]) || null;
+
+/**
+ * Заявка на вступление: одобряем только при действующем праве на этот чат.
+ * В чатах может быть второй бот-администратор (Tribute, 06.11): заявки по чужим ссылкам не трогаем —
+ * их одобряет тот, кто выдал ссылку. Наш бот решает только по своим личным ссылкам.
+ */
+export async function onJoinRequest(tgChatId: number, tgUserId: number, link?: { invite_link: string; creator?: { id: number } }) {
   const chat = await prisma.telegramChat.findUnique({ where: { telegramChatId: BigInt(tgChatId) } });
   const userId = BigInt(tgUserId);
   if (!chat || !chat.active) return;
+  const mine = ourBotId();
+  if (!link?.creator || !mine || link.creator.id !== mine) return;
   const allowed = (await accessibleChats(userId)).some((c) => c.id === chat.id);
   try {
     await tg(allowed ? 'approveChatJoinRequest' : 'declineChatJoinRequest', { chat_id: tgChatId, user_id: tgUserId });

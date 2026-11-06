@@ -298,7 +298,7 @@ export async function registerBotConversion(userId: bigint) {
 
 interface TgUpdate {
   message?: { message_id: number; chat: { id: number; type: string; title?: string }; from?: { id: number; first_name?: string; username?: string }; text?: string };
-  chat_join_request?: { chat: { id: number; title?: string }; from: { id: number; first_name?: string }; invite_link?: { invite_link: string; name?: string } };
+  chat_join_request?: { chat: { id: number; title?: string }; from: { id: number; first_name?: string }; invite_link?: { invite_link: string; name?: string; creator?: { id: number; is_bot?: boolean } } };
   my_chat_member?: { chat: { id: number; type: string; title?: string }; new_chat_member: { status: string } };
   chat_member?: { chat: { id: number }; new_chat_member: { user: { id: number }; status: string } };
   callback_query?: { id: string; from: { id: number }; data?: string; message?: { chat: { id: number } } };
@@ -379,7 +379,7 @@ export async function handleUpdate(update: TgUpdate) {
   }
   if (update.chat_join_request) {
     const { onJoinRequest } = await import('./chats');
-    return onJoinRequest(update.chat_join_request.chat.id, update.chat_join_request.from.id);
+    return onJoinRequest(update.chat_join_request.chat.id, update.chat_join_request.from.id, update.chat_join_request.invite_link);
   }
   if (update.chat_member) {
     const { onChatMemberUpdate } = await import('./chats');

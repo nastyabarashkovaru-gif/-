@@ -132,12 +132,16 @@ describe('чаты (критерий №7)', () => {
     expect((await api('POST', `/api/chats/${ch.id}/invite`, 11)).status).toBe(200);
     expect((await api('POST', `/api/chats/${ch.id}/invite`, 12)).status).toBe(403);
     const app = await getApp();
-    const join = (user: number) => app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { chat_join_request: { chat: { id: -1007 }, from: { id: user } } } });
+    const join = (user: number) => app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { chat_join_request: { chat: { id: -1007 }, from: { id: user }, invite_link: { invite_link: 'https://t.me/+ours', creator: { id: 123456, is_bot: true } } } } });
     calls = [];
     await join(11);
     await join(12);
     expect(calls.filter((c) => c.method === 'approveChatJoinRequest').map((c) => c.body.user_id)).toEqual([11]);
     expect(calls.filter((c) => c.method === 'declineChatJoinRequest').map((c) => c.body.user_id)).toEqual([12]);
+    // заявка по ссылке другого бота (Tribute) — не одобряем и не отклоняем
+    calls = [];
+    await app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { chat_join_request: { chat: { id: -1007 }, from: { id: 12 }, invite_link: { invite_link: 'https://t.me/+tribute', creator: { id: 999, is_bot: true } } } } });
+    expect(calls.filter((c) => /ChatJoinRequest/.test(c.method))).toEqual([]);
   });
 
   it('чат потока — только его участникам; тематические — только по категориям целей; вступление через проверку заявки', async () => {
@@ -168,7 +172,7 @@ describe('чаты (критерий №7)', () => {
 
     const app = await getApp();
     const join = (chat: number, user: number) =>
-      app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { chat_join_request: { chat: { id: chat }, from: { id: user } } } });
+      app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { chat_join_request: { chat: { id: chat }, from: { id: user }, invite_link: { invite_link: 'https://t.me/+ours', creator: { id: 123456, is_bot: true } } } } });
     await join(-1001, 1);
     await join(-1001, 2); // переслали ссылку участнику другого потока
     expect(calls.filter((c) => c.method === 'approveChatJoinRequest').map((c) => c.body.user_id)).toEqual([1]);
