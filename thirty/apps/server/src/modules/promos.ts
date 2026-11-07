@@ -32,6 +32,18 @@ export function nextMarketingStart(today: ISODate): ISODate {
   return addDays(MARKETING_START_ANCHOR, Math.ceil(days / MARKETING_START_EVERY) * MARKETING_START_EVERY);
 }
 
+/** Свой старт человека в боте: ближайший после дня, когда он пришёл в бот (на него — «послезавтра/завтра/сегодня») */
+export function userMarketingStart(arrivedOn: ISODate): ISODate {
+  return nextMarketingStart(addDays(arrivedOn, 1));
+}
+
+/** «через 4 дня», «через 1 день» — для приветствия */
+export function daysLeftText(n: number) {
+  const m10 = n % 10, m100 = n % 100;
+  const w = m10 === 1 && m100 !== 11 ? 'ДЕНЬ' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'ДНЯ' : 'ДНЕЙ';
+  return `${n} ${w}`;
+}
+
 export async function promoWindow(p: Promo, now = clock.now()): Promise<{ from: Date; to: Date } | null> {
   if (!p.active) return null;
   if (p.window === 'flow_start') {

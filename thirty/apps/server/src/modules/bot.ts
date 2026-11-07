@@ -169,6 +169,13 @@ export async function seedTemplates() {
     }
     await prisma.setting.create({ data: { key: v25, value: { at: new Date().toISOString() } } });
   }
+  // Разово (07.11): в приветствии вместо «через 3 дня» — свой ближайший старт и дни до закрытия входа (правки текста в админке сохраняются)
+  const v26 = 'maintenance.welcomeStartV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v26 } }))) {
+    const w = await prisma.botMessageTemplate.findUnique({ where: { key: 'welcome' } });
+    if (w) await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: w.text.replace('ВХОД ЗАКРОЕТСЯ ЧЕРЕЗ 3 ДНЯ ‼️', 'СТАРТ УЖЕ {start_date} — УСПЕВАЙ! ВХОД ЗАКРОЕТСЯ ЧЕРЕЗ {days_left} ‼️') } });
+    await prisma.setting.create({ data: { key: v26, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
@@ -207,8 +214,8 @@ const MARKETING_DAILY_CAP = 2;
 const escHtml = (t: string) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
 
 /** Шаблоны — в HTML-разметке Telegram (<b>, <i>); подставляемые значения экранируются */
-function render(text: string, vars: Record<string, string | number>) {
-  return text.replace(/\{(\w+)\}/g, (_m, k) => (vars[k] === undefined ? '' : escHtml(String(vars[k]))));
+function render(text: string, vars: Record<string, string | number>, keepUnknown = false) {
+  return text.replace(/\{(\w+)\}/g, (m, k) => (vars[k] === undefined ? (keepUnknown ? m : '') : escHtml(String(vars[k]))));
 }
 
 export function imageUrlOf(url: string | null | undefined) {
@@ -457,7 +464,17 @@ export async function handleUpdate(update: TgUpdate) {
     });
     const image = imageUrlOf(tpl?.imageUrl);
     const markup = welcomeMarkup(tpl?.buttons, await linkVars(), safe);
-    const text = tpl?.text ?? WELCOME_TEXT;
+    // Старт в приветствии (07.11): свой ближайший старт и сколько дней до закрытия входа — на день нажатия /start
+    const { userMarketingStart, daysLeftText } = await import('./promos');
+    const { getSetting } = await import('../settings');
+    const { humanDate, localDate } = await import('@thirty/domain');
+    const tz = await getSetting('flow.timezone');
+    const arrived = localDate((await prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } }))?.createdAt ?? clock.now(), tz);
+    const today = localDate(clock.now(), tz);
+    let myStart = userMarketingStart(arrived);
+    if (myStart <= today) myStart = userMarketingStart(today);
+    const left = Math.round((Date.parse(`${myStart}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+    const text = render(tpl?.text ?? WELCOME_TEXT, { start_date: humanDate(myStart).toUpperCase(), days_left: daysLeftText(left) }, true);
     if (image && text.length <= 1024) await tg('sendPhoto', { chat_id: msg.chat.id, photo: image, caption: text, parse_mode: 'HTML', reply_markup: markup });
     else {
       if (image) await tg('sendPhoto', { chat_id: msg.chat.id, photo: image });

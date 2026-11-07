@@ -207,6 +207,7 @@ describe('дожимная цепочка до оплаты', () => {
     expect(['2026-11-07', '2026-11-11', '2026-11-12', '2026-11-15', '2026-11-16'].map((d) => nextMarketingStart(d as never))).toEqual(['2026-11-11', '2026-11-11', '2026-11-15', '2026-11-15', '2026-11-19']);
     clock.set('2026-11-01T09:00:00Z');
     await start(400);
+    expect(String(calls.at(-1)!.body.caption ?? calls.at(-1)!.body.text)).toContain('СТАРТ УЖЕ 11 НОЯБРЯ — УСПЕВАЙ! ВХОД ЗАКРОЕТСЯ ЧЕРЕЗ 10 ДНЕЙ');
     await start(401);
     await start(402);
     const app = await getApp();
@@ -242,12 +243,15 @@ describe('дожимная цепочка до оплаты', () => {
     clock.set('2026-11-12T09:00:00Z');
     expect((await api('POST', '/api/promo/apply', 401, { code: 'СТАРТ' })).body.code).toBe('promo_expired');
     expect((await api('POST', '/api/promo/apply', 401, { code: 'НЕТТАКОГО' })).body.code).toBe('promo_not_found');
-    // следующий старт — 15.11: снова «послезавтра» 13-го
+    // не успела к своему старту — про следующие старты (15.11) уже не пишем; новичок 12.11 получает свой 15.11
+    clock.set('2026-11-12T09:00:00Z');
+    await start(404);
+    expect(String(calls.at(-1)!.body.caption ?? calls.at(-1)!.body.text)).toContain('СТАРТ УЖЕ 15 НОЯБРЯ — УСПЕВАЙ! ВХОД ЗАКРОЕТСЯ ЧЕРЕЗ 3 ДНЯ');
     calls = [];
     await runPrePurchaseChains(new Date('2026-11-12T09:30:00Z'));
     expect(to('ПОСЛЕЗАВТРА')).toEqual([]);
     await runPrePurchaseChains(new Date('2026-11-13T09:30:00Z'));
-    expect(to('СТАРТ УЖЕ ПОСЛЕЗАВТРА — 15 ноября')).toEqual([401, 403]);
+    expect(to('СТАРТ УЖЕ ПОСЛЕЗАВТРА — 15 ноября')).toEqual([404]);
   });
 
   it('«Вернуть скидку»: заявка на сторис → проверка → одноразовый персональный промокод', async () => {

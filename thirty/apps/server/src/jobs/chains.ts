@@ -8,7 +8,7 @@ import { getSetting, feature } from '../settings';
 import { sendTemplate } from '../modules/bot';
 import { LIVE_STATUSES, startOffer } from '../modules/billing';
 import { generateCard } from '../modules/cards';
-import { nextMarketingStart, promoWindow } from '../modules/promos';
+import { nextMarketingStart, promoWindow, userMarketingStart } from '../modules/promos';
 import { memberStats } from '../modules/rating';
 import { chainTestUsers } from '../modules/chainTest';
 import { trackerOfferDue } from '../modules/journey';
@@ -125,10 +125,12 @@ export async function runPrePurchaseChains(now = clock.now(), send: Send = sendT
     // Только те, кто пришёл в бот до дня отправки; в разгар личного таймера не мешаем цепочке 02–07
     const users = await prisma.user.findMany({
       where: { allowsWrite: true, botBlocked: false, marketingOptIn: true, deletedAt: null, createdAt: { lt: startOfLocalDay(sendDay, tz) } },
-      select: { id: true },
+      select: { id: true, createdAt: true },
     });
     for (const u of users) {
       if (paid.has(u.id.toString())) continue;
+      // Только свой старт — ближайший после прихода в бот; не успела — дальше только основные дожимные (07.11)
+      if (userMarketingStart(localDate(u.createdAt, tz)) !== nextStart) continue;
       const running = await prisma.priceOffer.findFirst({ where: { userId: u.id, kind: 'intro', consumedAt: null, expiresAt: { gt: now } } });
       if (running) continue;
       await send(u.id, key, startVars, `${key}:${nextStart}:${u.id}`);
