@@ -8,7 +8,7 @@ import { getSetting, feature } from '../settings';
 import { sendTemplate } from '../modules/bot';
 import { LIVE_STATUSES, startOffer } from '../modules/billing';
 import { generateCard } from '../modules/cards';
-import { promoWindow } from '../modules/promos';
+import { nextMarketingStart, promoWindow } from '../modules/promos';
 import { memberStats } from '../modules/rating';
 import { chainTestUsers } from '../modules/chainTest';
 import { trackerOfferDue } from '../modules/journey';
@@ -108,12 +108,14 @@ export async function runPrePurchaseChains(now = clock.now(), send: Send = sendT
   const today = localDate(now, tz);
   const hour = DateTime.fromJSDate(now, { zone: tz }).hour;
   if (hour < FLOW_EVE_HOUR) return;
-  const nextStart = addMonths(`${today.slice(0, 7)}-01`, 1);
-  for (const key of ['chain_10', 'chain_11']) {
+  // Маркетинговые старты в боте: 11.11, дальше каждые 4 дня (07.11). 10 — послезавтра, 11 — завтра + СТАРТ, 15 — сегодня
+  const nextStart = nextMarketingStart(today);
+  const startVars = { ...vars, start_date: humanDate(nextStart) };
+  for (const key of ['chain_10', 'chain_11', 'chain_15']) {
     if (!on(key)) continue;
     const sendDay = addDays(nextStart, -Math.round(tpl.get(key)!.delayMinutes / (24 * 60)));
     if (sendDay !== today) continue;
-    if (key === 'chain_11') {
+    if (key === 'chain_11' || key === 'chain_15') {
       const start = await prisma.promo.findUnique({ where: { code: 'СТАРТ' } });
       if (!start || !(await promoWindow(start, now))) {
         console.warn('[chain] сообщение 11 пропущено: промокод СТАРТ сейчас не действует');
@@ -129,7 +131,7 @@ export async function runPrePurchaseChains(now = clock.now(), send: Send = sendT
       if (paid.has(u.id.toString())) continue;
       const running = await prisma.priceOffer.findFirst({ where: { userId: u.id, kind: 'intro', consumedAt: null, expiresAt: { gt: now } } });
       if (running) continue;
-      await send(u.id, key, vars, `${key}:${nextStart}:${u.id}`);
+      await send(u.id, key, startVars, `${key}:${nextStart}:${u.id}`);
     }
   }
 }

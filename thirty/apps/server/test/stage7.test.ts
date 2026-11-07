@@ -202,30 +202,32 @@ describe('дожимная цепочка до оплаты', () => {
     expect((await prisma.priceOffer.findFirstOrThrow({ where: { userId: 310n, kind: 'intro' } })).startedAt).toEqual(at(10));
   });
 
-  it('/stop прекращает цепочку; 10–11 — за 2 и 1 день до старта, не задним числом; СТАРТ возвращает акционные цены', async () => {
-    clock.set('2026-10-20T09:00:00Z');
-    // 10–11 «до старта потока» по умолчанию выключены (личные старты); механизм работает, если включить их в админке
-    await prisma.botMessageTemplate.updateMany({ where: { key: { in: ['chain_10', 'chain_11'] } }, data: { enabled: true } });
+  it('/stop прекращает цепочку; старты в боте 11.11 и дальше каждые 4 дня: послезавтра, завтра + СТАРТ, сегодня', async () => {
+    const { nextMarketingStart } = await import('../src/modules/promos');
+    expect(['2026-11-07', '2026-11-11', '2026-11-12', '2026-11-15', '2026-11-16'].map((d) => nextMarketingStart(d as never))).toEqual(['2026-11-11', '2026-11-11', '2026-11-15', '2026-11-15', '2026-11-19']);
+    clock.set('2026-11-01T09:00:00Z');
     await start(400);
     await start(401);
     await start(402);
     const app = await getApp();
     await app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { message: { message_id: 2, chat: { id: 402, type: 'private' }, from: { id: 402 }, text: '/stop' } } });
-    clock.set('2026-10-30T08:00:00Z');
-    await start(403); // пришёл в день отправки — сообщение 10 ему не положено
+    clock.set('2026-11-09T08:00:00Z');
+    await start(403); // пришёл в день отправки — «послезавтра» ему не положено
+    const to = (needle: string) => calls.filter((c) => String(c.body.text ?? c.body.caption).includes(needle)).map((c) => Number(c.body.chat_id)).sort();
     calls = [];
-    await runPrePurchaseChains(new Date('2026-10-30T08:30:00Z')); // 11:30 МСК — ещё рано
-    expect(sent()).toHaveLength(0);
-    await runPrePurchaseChains(new Date('2026-10-30T09:30:00Z'));
-    await runPrePurchaseChains(new Date('2026-10-30T10:30:00Z'));
-    expect(calls.filter((c) => sent().length && String(c.body.text).includes('ОСТАЛОСЬ ВСЕГО 2 ДНЯ')).map((c) => c.body.chat_id).sort()).toEqual([400, 401]);
+    await runPrePurchaseChains(new Date('2026-11-09T08:30:00Z')); // 11:30 МСК — ещё рано
+    expect(to('СТАРТ УЖЕ ПОСЛЕЗАВТРА')).toEqual([]);
+    await runPrePurchaseChains(new Date('2026-11-09T09:30:00Z'));
+    await runPrePurchaseChains(new Date('2026-11-09T10:30:00Z'));
+    expect(to('СТАРТ УЖЕ ПОСЛЕЗАВТРА — 11 ноября')).toEqual([400, 401]);
     calls = [];
-    await runPrePurchaseChains(new Date('2026-10-31T09:30:00Z'));
-    expect(sent()).toHaveLength(3); // 400, 401, 403
-    expect(sent()[0]).toContain('1 месяц: 2 990 ₽ → 999 ₽');
+    await runPrePurchaseChains(new Date('2026-11-10T09:30:00Z'));
+    expect(to('ЗАВТРА, 11 ноября, СТАРТУЕМ')).toEqual([400, 401, 403]);
+    expect(to('ВЕРНУЛА ТВОЮ СКИДКУ')).toEqual([400, 401, 403]);
+    expect(sent().join(' ')).toContain('1 месяц: 2 990 ₽ → 999 ₽');
 
-    // промокод СТАРТ: действует с 31.10 до конца 1.11, только акционная цена
-    clock.set('2026-10-31T12:00:00Z');
+    // промокод СТАРТ: действует с 10.11 до конца 11.11, только акционная цена
+    clock.set('2026-11-10T12:00:00Z');
     expect((await api('POST', '/api/promo/apply', 400, { code: ' старт ' })).body).toMatchObject({ ok: true, code: 'СТАРТ' });
     const st = await api('GET', '/api/offer', 400);
     expect(st.body.offer).toMatchObject({ active: true, kind: 'promo', promoCode: 'СТАРТ' });
@@ -233,9 +235,19 @@ describe('дожимная цепочка до оплаты', () => {
     expect(await buy(400)).toBe(999);
     const red = await prisma.promoRedemption.findFirstOrThrow({ where: { userId: 400n } });
     expect(red.paymentId).not.toBeNull();
-    clock.set('2026-11-02T09:00:00Z');
+    // день старта: «Сегодня старт» — всем, кто ещё не купил
+    calls = [];
+    await runPrePurchaseChains(new Date('2026-11-11T09:30:00Z'));
+    expect(to('СЕГОДНЯ СТАРТ — 11 ноября')).toEqual([401, 403]);
+    clock.set('2026-11-12T09:00:00Z');
     expect((await api('POST', '/api/promo/apply', 401, { code: 'СТАРТ' })).body.code).toBe('promo_expired');
     expect((await api('POST', '/api/promo/apply', 401, { code: 'НЕТТАКОГО' })).body.code).toBe('promo_not_found');
+    // следующий старт — 15.11: снова «послезавтра» 13-го
+    calls = [];
+    await runPrePurchaseChains(new Date('2026-11-12T09:30:00Z'));
+    expect(to('ПОСЛЕЗАВТРА')).toEqual([]);
+    await runPrePurchaseChains(new Date('2026-11-13T09:30:00Z'));
+    expect(to('СТАРТ УЖЕ ПОСЛЕЗАВТРА — 15 ноября')).toEqual([401, 403]);
   });
 
   it('«Вернуть скидку»: заявка на сторис → проверка → одноразовый персональный промокод', async () => {
@@ -333,9 +345,9 @@ describe('дожимная цепочка до оплаты', () => {
       calls = [];
       await start(777);
       expect((await api('GET', '/api/me', 777)).body.subscription).toBeNull();
-      await new Promise((r) => setTimeout(r, 13_500));
+      await new Promise((r) => setTimeout(r, 16_500));
       const texts = sent();
-      expect(texts.length).toBe(11); // 09 «вернуть скидку» и 10–11 «до старта потока» выключены; 12–14 добавлены 03.11
+      expect(texts.length).toBe(14); // 09 «вернуть скидку» выключено; 12–14 (03.11), 10–11 и 15 — старты каждые 4 дня (07.11)
       expect(texts[1]).toContain('получилось посмотреть');
       // Обычное расписание владельцу ничего не дублирует
       calls = [];
@@ -350,7 +362,7 @@ describe('дожимная цепочка до оплаты', () => {
       delete process.env.CHAIN_TEST;
       delete process.env.CHAIN_TEST_STEP_SEC;
     }
-  }, 25_000);
+  }, 30_000);
 });
 
 

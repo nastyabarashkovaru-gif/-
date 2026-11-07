@@ -1,4 +1,4 @@
-import { addDays, localDate, startOfLocalDay, dayDeadline, addMonths } from '@thirty/domain';
+import { addDays, localDate, startOfLocalDay, dayDeadline, addMonths, type ISODate } from '@thirty/domain';
 import type { Prisma, Promo } from '@prisma/client';
 import { randomInt } from 'node:crypto';
 import { clock } from '../clock';
@@ -20,13 +20,25 @@ export function normalizeCode(raw: string): string {
 }
 
 /** Окно действия промокода, в которое попадает момент now; null — сейчас не действует */
+/**
+ * Маркетинговые старты в боте (07.11): первый — 11 ноября, дальше каждые 4 дня (15, 19, 23…).
+ * Только для сообщений бота и промокода СТАРТ; в приложении дата старта у каждой своя.
+ */
+export const MARKETING_START_ANCHOR = '2026-11-11' as ISODate;
+export const MARKETING_START_EVERY = 4;
+export function nextMarketingStart(today: ISODate): ISODate {
+  if (today <= MARKETING_START_ANCHOR) return MARKETING_START_ANCHOR;
+  const days = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${MARKETING_START_ANCHOR}T00:00:00Z`)) / 86_400_000);
+  return addDays(MARKETING_START_ANCHOR, Math.ceil(days / MARKETING_START_EVERY) * MARKETING_START_EVERY);
+}
+
 export async function promoWindow(p: Promo, now = clock.now()): Promise<{ from: Date; to: Date } | null> {
   if (!p.active) return null;
   if (p.window === 'flow_start') {
     const tz = await getSetting('flow.timezone');
     const today = localDate(now, tz);
-    // Ближайшие старты потоков: 1-е число текущего и следующего месяца
-    for (const start of [`${today.slice(0, 7)}-01`, addMonths(`${today.slice(0, 7)}-01`, 1)]) {
+    // Ближайший маркетинговый старт (каждые 4 дня с 11.11), как в сообщениях бота
+    for (const start of [nextMarketingStart(today)]) {
       const from = startOfLocalDay(addDays(start, -p.daysBefore), tz);
       const to = dayDeadline(addDays(start, p.daysAfter), tz);
       if (now >= from && now < to) return { from, to };

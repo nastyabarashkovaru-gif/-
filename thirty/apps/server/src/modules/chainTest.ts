@@ -9,7 +9,7 @@ import { sendTemplate } from './bot';
  * Для них /start сбрасывает покупку («будто не купила») и присылает сообщения 02–11 подряд с паузой CHAIN_TEST_STEP_SEC (по умолчанию 3 с).
  * Убрать переменную — и всё работает как обычно.
  */
-const STAGES = ['chain_02', 'chain_03', 'chain_04', 'chain_05', 'chain_06', 'chain_07', 'chain_08', 'chain_09', 'chain_12', 'chain_13', 'chain_14', 'chain_10', 'chain_11'];
+const STAGES = ['chain_02', 'chain_03', 'chain_04', 'chain_05', 'chain_06', 'chain_07', 'chain_08', 'chain_09', 'chain_12', 'chain_13', 'chain_14', 'chain_10', 'chain_11', 'chain_15'];
 
 export async function chainTestUsers(): Promise<Set<string>> {
   const v = (process.env.CHAIN_TEST ?? '').trim();
@@ -49,7 +49,9 @@ export function runChainTest(userId: bigint) {
   running.add(userId.toString());
   const step = Math.max(1, Number(process.env.CHAIN_TEST_STEP_SEC ?? 3)) * 1000;
   void (async () => {
-    const vars = await priceVars();
+    const { nextMarketingStart } = await import('./promos');
+    const { humanDate, localDate } = await import('@thirty/domain');
+    const vars = { ...(await priceVars()), start_date: humanDate(nextMarketingStart(localDate(clock.now(), 'Europe/Moscow'))) };
     for (const key of STAGES) {
       await new Promise((r) => setTimeout(r, step));
       const res = await sendTemplate(userId, key, vars, `test:${key}:${userId}:${clock.now().getTime()}`).catch(() => 'failed');

@@ -161,6 +161,14 @@ export async function seedTemplates() {
     }
     await prisma.setting.create({ data: { key: v24, value: { at: new Date().toISOString() } } });
   }
+  // Разово (07.11): маркетинговые старты в боте — 11.11 и дальше каждые 4 дня: «послезавтра», «завтра + СТАРТ», «сегодня»
+  const v25 = 'maintenance.marketingStartsV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v25 } }))) {
+    for (const t of CHAIN_TEMPLATES.filter((x) => ['chain_10', 'chain_11', 'chain_15'].includes(x.key))) {
+      await prisma.botMessageTemplate.update({ where: { key: t.key }, data: { text: t.text, title: t.title, buttons: t.buttons, delayMinutes: t.delayMinutes, enabled: true, approved: true } }).catch(() => undefined);
+    }
+    await prisma.setting.create({ data: { key: v25, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
@@ -182,7 +190,7 @@ export async function seedTemplates() {
       const d = DEFAULT_TEMPLATES.find((x) => x.key === k);
       if (d) await prisma.botMessageTemplate.update({ where: { key: k }, data: { text: d.text } }).catch(() => undefined);
     }
-    await prisma.botMessageTemplate.updateMany({ where: { key: { in: ['chain_10', 'chain_11'] } }, data: { enabled: false } });
+    // (07.11) 10–11 больше не выключаем: они снова идут к маркетинговым стартам каждые 4 дня
     await prisma.setting.create({ data: { key: v20, value: { at: new Date().toISOString() } } });
   }
   // Разово при переходе на новую цепочку: приветствие владельца, старые предложенные дожимы выключаем
