@@ -24,7 +24,7 @@ async function upgradeContext(userId: bigint) {
   const m = await planningMembership(userId);
   if (!m || m.tariffId !== FROM || !m.subscriptionId) return null;
   const sub = await prisma.subscription.findUnique({ where: { id: m.subscriptionId } });
-  if (!sub || sub.tariffId !== FROM || !['prestart', 'active', 'canceled_at_period_end'].includes(sub.status)) return null;
+  if (!sub || sub.priceVariant === 'tribute' || sub.tariffId !== FROM || !['prestart', 'active', 'canceled_at_period_end'].includes(sub.status)) return null;
   const firstFlow = fromDbDate(m.flow.startsOn);
   // Оплачен только месяц этой анкеты (без уже оплаченного продления) — иначе разница считается иначе, через поддержку
   if (fromDbDate(sub.paidThroughFlow) !== firstFlow) return null;

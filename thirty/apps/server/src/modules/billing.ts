@@ -557,6 +557,7 @@ async function markDebtPaid(payment: Payment, p: ParsedWebhook) {
 export async function cancelAutoRenew(userId: bigint, reason: string | undefined) {
   const sub = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } }, include: { tariff: true } });
   if (!sub) throw notFound('no_subscription');
+  if (sub.priceVariant === 'tribute') throw badRequest('tribute_subscription', 'Подписка оформлена через Tribute — отменить её можно в боте Tribute');
   if (!sub.autoRenew) return { alreadyCanceled: true, paidUntil: addMonths(fromDbDate(sub.paidThroughFlow), 1) };
   await prisma.$transaction([
     prisma.subscription.update({ where: { id: sub.id }, data: { autoRenew: false, status: 'canceled_at_period_end', canceledAt: clock.now(), cancelReason: reason?.slice(0, 500) } }),
@@ -669,6 +670,8 @@ export async function subscriptionSummary(userId: bigint) {
           paidFrom: fromDbDate(sub.paidFromFlow),
           paidUntil: addMonths(fromDbDate(sub.paidThroughFlow), 1),
           nextCharge: sub.autoRenew && sub.nextChargeDate ? { date: fromDbDate(sub.nextChargeDate), amount: sub.renewalPrice } : null,
+          // Оплачено через Tribute: продление и отмена — в Tribute, доступ — пока человек в чате клуба
+          viaTribute: sub.priceVariant === 'tribute',
           canResume: sub.status === 'canceled_at_period_end' && !sub.cancelReason?.startsWith('refund') && paymentProvider().name !== 'cloudpayments',
         }
       : null,

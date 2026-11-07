@@ -90,6 +90,12 @@ export async function billingRoutes(app: FastifyInstance) {
       return { id: p.id, kind: p.kind, status: p.status, amount: p.amount, needsRefund: p.needsRefund, waitingTooLong: p.status === 'pending' && waitedMin > pendingWindow };
     });
 
+    // Вход по ссылке Tribute (07.11): проверка членства в чате клуба и выбор оплаченного тарифа
+    r.get('/api/tribute/status', async (req) => (await import('../modules/tribute')).tributeStatus(req.user!.id));
+    r.post('/api/tribute/activate', async (req) => {
+      const { tariffId } = parse(z.object({ tariffId: z.enum(['m1', 'm3', 'm6']) }), req.body);
+      return (await import('../modules/tribute')).activateTribute(req.user!.id, tariffId);
+    });
     // Повышение тарифа из анкеты: 1 месяц → 3 месяца (05.11)
     r.get('/api/upgrade', async (req) => jsonSafe(await (await import('../modules/upgrade')).upgradeOffer(req.user!.id)));
     r.post('/api/upgrade/checkout', async (req) => {

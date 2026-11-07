@@ -3,6 +3,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { CalendarDays, CalendarHeart, CircleCheck, CircleX, Clock } from 'lucide-react';
 import { api, demoKey, rub } from '../../lib/api';
 import { haptic, openExternal } from '../../lib/telegram';
+import { TRIBUTE_PAY_URL } from '../../lib/tribute';
+import { track } from '../../lib/analytics';
 import { useMe } from '../../state';
 import { BrandBar, Cta, ErrorState, Header, Loading, Screen, errorText, humanDate, toast, useLoad } from '../../ui';
 import { countdown, type TariffView } from './Tariffs';
@@ -98,6 +100,8 @@ export function Checkout() {
           </div>
           <p className="muted small" style={{ margin: '0 4px' }}>Оплата проходит на защищённой странице платёжной системы. Доступ откроется после подтверждения платежа.</p>
           <button className="btn btn-primary" disabled={!all || busy} onClick={pay}>{busy ? 'Готовим оплату…' : `Оплатить ${rub(data!.tariff.price)}`}</button>
+          {/* Зарубежные карты — через Tribute (07.11) */}
+          <button className="btn btn-primary" onClick={() => { track('tribute_click', { screen: 'S07' }); openExternal(TRIBUTE_PAY_URL); }}>Оплатить зарубежной картой 🌍</button>
         </>
       )}
     </Screen>

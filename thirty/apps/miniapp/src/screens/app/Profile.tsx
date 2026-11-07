@@ -9,7 +9,7 @@ import { AppBar, Avatar, Empty, ErrorState, Header, Loading, Popup, Screen, erro
 import { catTitle, useMembership } from '../reg/Registration';
 
 interface SubSummary {
-  subscription: { status: string; tariffTitle: string; months: number; goalLimit: number | null; price: number; regularPrice: number; autoRenew: boolean; paidFrom: string; paidUntil: string; nextCharge: { date: string; amount: number } | null; canResume: boolean } | null;
+  subscription: { status: string; tariffTitle: string; months: number; goalLimit: number | null; price: number; regularPrice: number; autoRenew: boolean; paidFrom: string; paidUntil: string; nextCharge: { date: string; amount: number } | null; canResume: boolean; viaTribute?: boolean } | null;
   payments: { id: string; kind: string; amount: number; status: string; paidAt: string | null; createdAt: string }[];
 }
 
@@ -75,10 +75,12 @@ export function MySubscription() {
             <>
               <div className="panel" style={{ gap: 6, padding: 16 }}>
                 <span style={{ color: 'var(--accent-ink)', fontWeight: 700, fontSize: 19 }}>Тариф на {monthsTitle(s.months)}</span>
-                <span style={{ fontWeight: 700, fontSize: 20 }}>{rub(s.price)}</span>
+                {!s.viaTribute && <span style={{ fontWeight: 700, fontSize: 20 }}>{rub(s.price)}</span>}
                 <span className="muted small">{goalsLine(s.goalLimit)}</span>
               </div>
-              {s.nextCharge ? (
+              {s.viaTribute ? (
+                <div className="muted small">Подписка оформлена через Tribute: продление и отмена — в боте Tribute. Доступ к приложению действует, пока ты в чате клуба.</div>
+              ) : s.nextCharge ? (
                 <div className="row between small"><span className="muted">Следующее списание</span><span>{humanDate(s.nextCharge.date, true)} · {rub(s.nextCharge.amount)}</span></div>
               ) : (
                 <div className="muted small">{s.status === 'expired' ? 'Подписка закончилась.' : `Автопродление отключено — доступ сохранится до ${humanDate(s.paidUntil, true)}.`}</div>
@@ -93,7 +95,7 @@ export function MySubscription() {
                   try { await api('/api/subscription/resume', { body: {} }); toast('Автопродление снова включено'); reload(); } catch (e) { toast(errorText(e)); }
                 }}>Включить автопродление</button>
               )}
-              {s.autoRenew && ['active', 'prestart', 'past_due'].includes(s.status) && (
+              {!s.viaTribute && s.autoRenew && ['active', 'prestart', 'past_due'].includes(s.status) && (
                 <button className="btn" style={{ background: '#fff', border: '1px solid #dedbe6', color: 'var(--ink-2)', fontWeight: 500, minHeight: 50 }} onClick={() => setCancel(true)}>Отменить подписку</button>
               )}
               {me?.observer && !(s.autoRenew && ['active', 'prestart', 'past_due'].includes(s.status)) && (

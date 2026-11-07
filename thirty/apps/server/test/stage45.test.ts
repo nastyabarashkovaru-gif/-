@@ -22,6 +22,8 @@ beforeEach(async () => {
     calls.push({ method, body });
     if (method === 'createChatInviteLink') return { invite_link: `https://t.me/+inv${calls.length}` } as never;
     if (method === 'getMe') return { id: 999, username: 'thirty_test_bot' } as never;
+    // участницы Tribute (990–999): в чате или нет
+    if (method === 'getChatMember' && Number(body.user_id) >= 990 && Number(body.user_id) < 1000) return { status: inChat.has(Number(body.user_id)) ? 'member' : 'left' } as never;
     if (method === 'getChatMember') return { status: 'administrator', can_invite_users: true, can_restrict_members: true } as never;
     if (method === 'sendMessage' && body.chat_id === 666) throw Object.assign(new Error('blocked'), { code: 403, description: 'Forbidden: bot was blocked by the user' });
     return { message_id: 1 } as never;
@@ -42,6 +44,8 @@ async function fixDaily(id: number) {
   await api('POST', '/api/membership/fix', id);
   return { goalId: g.body.id as string, taskId: t.body.id as string };
 }
+
+const inChat = new Set<number>();
 
 describe('бот', () => {
   it('/start отвечает кнопкой web_app и разрешает писать; webhook проверяет секрет', async () => {
@@ -584,5 +588,35 @@ describe('местное время участницы (05.11)', () => {
     await api('POST', '/api/membership/start', 991, { date: '2026-11-05' });
     await fixDaily(991);
     expect((await api('GET', '/api/home', 991)).body.flow).toMatchObject({ today: '2026-11-05', day: 1 });
+  });
+});
+
+describe('оплата через Tribute (07.11)', () => {
+  it('вход по ссылке: не в чате — отказ; в чате — выбор тарифа и анкета; вышла из чата — доступ закрыт', async () => {
+    clock.set('2026-11-07T09:00:00Z');
+    const flow = await prisma.flow.create({ data: { startsOn: new Date('2026-11-01T00:00:00Z'), endsOn: new Date('2026-11-30T00:00:00Z'), title: 'Ноябрь 2026' } });
+    await prisma.telegramChat.create({ data: { kind: 'flow', flowId: flow.id, telegramChatId: -1005n, title: 'Общий чат клуба' } });
+    await api('GET', '/api/me', 995);
+    expect((await api('GET', '/api/tribute/status', 995)).body).toMatchObject({ hasAccess: false, inChat: false });
+    expect((await api('POST', '/api/tribute/activate', 995, { tariffId: 'm3' })).status).toBe(403);
+    inChat.add(995); // Tribute добавил в чат после оплаты
+    expect((await api('POST', '/api/tribute/activate', 995, { tariffId: 'm3' })).body).toEqual({ ok: true });
+    const me = (await api('GET', '/api/me', 995)).body;
+    expect(me.membership).toMatchObject({ status: 'reserved', tariffId: 'm3' });
+    expect((await api('GET', '/api/membership', 995)).body.membership.goalLimit).toBe(3);
+    expect((await api('GET', '/api/tribute/status', 995)).body).toMatchObject({ hasAccess: true, viaTribute: true });
+    // отменить в приложении нельзя — только в Tribute
+    expect((await api('POST', '/api/subscription/cancel', 995, {})).status).toBe(400);
+    // в следующем месяце всё ещё в чате — доступ продлевается
+    clock.set('2026-12-02T09:00:00Z');
+    const { syncTribute } = await import('../src/modules/tribute');
+    expect(await syncTribute()).toEqual({ extended: 1, ended: 0 });
+    // Tribute удалил из чата — доступ закрыт
+    inChat.delete(995);
+    const app = await getApp();
+    await app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { chat_member: { chat: { id: -1005 }, new_chat_member: { user: { id: 995 }, status: 'kicked' } } } });
+    const sub = await prisma.subscription.findFirstOrThrow({ where: { userId: 995n } });
+    expect(sub).toMatchObject({ status: 'expired', cancelReason: 'tribute_ended' });
+    expect((await api('GET', '/api/tribute/status', 995)).body.hasAccess).toBe(false);
   });
 });

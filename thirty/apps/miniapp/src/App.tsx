@@ -11,6 +11,7 @@ import { DocScreen } from './screens/onboarding/Docs';
 import { RestoreDiscount } from './screens/onboarding/Restore';
 import { Tariffs } from './screens/onboarding/Tariffs';
 import { Checkout, PaymentWait } from './screens/onboarding/Checkout';
+import { TributeEntry } from './screens/onboarding/Tribute';
 import { RegProfile, RegFlow, RegTasks, RegBefore, RegBuddy, RegChats, RegWaiting } from './screens/reg/Registration';
 import { StartStep, BuddyModeStep, AboutStep, GoalsStep, PointsStep, PlanStep, ConfirmStep, ReadyScreen } from './screens/reg/Questionnaire';
 import { Notifications } from './screens/app/Notifications';
@@ -39,6 +40,8 @@ function applyTheme(month: number) {
 function initialRoute(me: Me): string {
   const sp = startParam();
   if (sp?.startsWith('pay_')) return `/checkout/wait/${sp.slice(4)}`;
+  // Оплатившие через Tribute: своя ссылка; кто уже участвует — экран сам вернёт на главную
+  if (sp === 'tribute') return '/tribute';
   if (sp?.startsWith('bd_')) {
     sessionStorage.setItem('thirty.buddyToken', sp.slice(3));
     if (me.membership) return '/buddy';
@@ -137,6 +140,7 @@ export function App() {
         <Route path="/tariffs" element={<Tariffs />} />
         <Route path="/checkout/:tariff" element={<Checkout />} />
         <Route path="/checkout/wait/:paymentId" element={<PaymentWait />} />
+        <Route path="/tribute" element={<TributeEntry />} />
         <Route path="/reg/profile" element={<RegProfile />} />
         <Route path="/reg/flow" element={<RegFlow />} />
         <Route path="/reg/start" element={<StartStep />} />

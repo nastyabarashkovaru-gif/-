@@ -115,6 +115,8 @@ export async function onChatMemberUpdate(tgChatId: number, tgUserId: number, sta
   if (!chat) return;
   if (status === 'left' || status === 'kicked') {
     await prisma.chatMembership.updateMany({ where: { chatId: chat.id, userId: BigInt(tgUserId) }, data: { status: 'removed', removedAt: clock.now() } });
+    // Вышел из общего чата клуба: доступ по Tribute закрывается (07.11)
+    if (chat.kind === 'flow') await (await import('./tribute')).onClubChatLeft(BigInt(tgUserId));
   }
 }
 

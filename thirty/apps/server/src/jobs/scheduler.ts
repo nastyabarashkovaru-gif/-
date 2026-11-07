@@ -16,6 +16,8 @@ type Task = { name: string; everyMin: number; run: () => Promise<unknown> };
 
 export const TASKS: Task[] = [
   { name: 'flows', everyMin: 1, run: maintainFlows },
+  // Tribute: продление по членству в чате — до проверки статусов подписок
+  { name: 'tribute', everyMin: 180, run: async () => (await import('../modules/tribute')).syncTribute() },
   { name: 'subscriptions', everyMin: 30, run: refreshSubscriptionStatuses },
   { name: 'charge-date-sync', everyMin: 60, run: retryChargeDateSync },
   { name: 'buddy', everyMin: 5, run: buddyMatching },
