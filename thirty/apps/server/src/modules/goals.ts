@@ -167,6 +167,28 @@ async function unfixIfNeeded(membershipId: string) {
  * Отправка анкеты: у каждой цели есть точки А/Б, способ подтверждения и действия; генерируется план
  * обязательных выполнений на весь месяц, анкета блокируется (решение владельца: после отправки менять нельзя).
  */
+/**
+ * Дата старта по умолчанию (07.11). Первый челлендж — ближайший старт из бота (11.11, дальше каждые 4 дня) по дню покупки,
+ * а если он уже прошёл — следующий; раньше можно кнопкой «Хочу начать раньше» на главной.
+ * Продление и анкеты до 07.11 — как раньше: с начала оплаченного месяца или сегодня.
+ */
+export async function autoStart(m: MembershipFull, now = clock.now()): Promise<ISODate> {
+  const earlier = await prisma.flowMembership.count({ where: { userId: m.userId, id: { not: m.id }, startsOn: { not: null }, status: { in: ['registered', 'active', 'finished'] } } });
+  const today = memberToday(m, now);
+  if (earlier || today < '2026-11-07') return memberWindow(m, now).start;
+  const { nextMarketingStart } = await import('./promos');
+  const bought = nextMarketingStart(memberToday(m, m.createdAt));
+  return bought >= today ? bought : nextMarketingStart(today);
+}
+
+/** Анкета началась: дата старта назначается сразу, чтобы план действий считался от неё */
+export async function ensureStart(m: MembershipFull) {
+  if (m.startsOn || m.goalsLockedAt || m.status !== 'reserved') return m;
+  const startsOn = toDbDate(await autoStart(m));
+  await prisma.flowMembership.update({ where: { id: m.id }, data: { startsOn } });
+  return { ...m, startsOn };
+}
+
 export async function fixGoals(userId: bigint, membershipId: string) {
   const m = await loadOwnMembership(userId, membershipId);
   await assertEditable(m);
@@ -179,8 +201,7 @@ export async function fixGoals(userId: bigint, membershipId: string) {
   const now = clock.now();
   // Дату старта не выбрали — начинаем с начала месяца участия или сегодня, если он уже идёт
   if (!m.startsOn) {
-    const auto = memberWindow(m, now).start;
-    m.startsOn = toDbDate(auto);
+    m.startsOn = toDbDate(await autoStart(m, now));
     await prisma.flowMembership.update({ where: { id: m.id }, data: { startsOn: m.startsOn } });
   }
   const w = memberWindow(m, now);

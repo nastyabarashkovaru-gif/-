@@ -106,7 +106,7 @@ export function Home() {
           <>
             <StartCountdown startsOn={flow.startsOn} serverNow={data.serverNow} />
             <div style={{ opacity: 0.9 }}>Старт {humanDate(flow.startsOn)}. Твоё обещание себе уже зафиксировано ✨</div>
-            {me?.membership?.canChangeStart && <button className="btn hero-btn" onClick={() => setStartSheet(true)}>📅 Изменить дату старта</button>}
+            {me?.membership?.canChangeStart && <button className="btn hero-btn" onClick={() => setStartSheet(true)}>🚀 Хочу начать раньше</button>}
           </>
         ) : p?.finale ? (
           <>
@@ -374,7 +374,7 @@ function ChangeStartSheet({ today, active, onClose, onDone }: { today: string; a
   return (
     <Sheet open onClose={onClose}>
       <div className="col" style={{ gap: 12 }}>
-        <h2 className="h2" style={{ fontSize: 22 }}>{active ? 'Начать челлендж заново 🔄' : 'Изменить дату старта 📅'}</h2>
+        <h2 className="h2" style={{ fontSize: 22 }}>{active ? 'Начать челлендж заново 🔄' : 'Хочу начать раньше 🚀'}</h2>
         {active && <div className="panel small" style={{ padding: 12 }}>Выбери новую дату — твои 30 дней начнутся с неё. Прогресс за прошедшие дни обнулится, отчёты останутся в ленте.</div>}
         <label className="field"><span className="row" style={{ gap: 8, fontWeight: 600 }}>📅 Выбери дату старта</span>
           <input className="input" type="date" value={date} min={today} max={max} onChange={(e) => setDate(e.target.value)} />

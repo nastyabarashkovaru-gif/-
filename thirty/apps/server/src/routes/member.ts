@@ -20,8 +20,10 @@ export async function memberRoutes(app: FastifyInstance) {
 
   /** Текущее членство с целями и правами на редактирование (S13–S17) */
   app.get('/api/membership', async (req) => {
-    const m = await planningMembership(req.user!.id);
-    if (!m) return { membership: null };
+    const m0 = await planningMembership(req.user!.id);
+    if (!m0) return { membership: null };
+    // Дата старта назначается с началом анкеты (07.11): ближайший старт из бота, раньше — кнопкой на главной
+    const m = await (await import('../modules/goals')).ensureStart(m0);
     const goals = await prisma.goal.findMany({ where: { membershipId: m.id }, include: { tasks: { orderBy: { createdAt: 'asc' } } }, orderBy: { sort: 'asc' } });
     const before = await prisma.beforeAfter.findUnique({ where: { membershipId_phase: { membershipId: m.id, phase: 'before' } } });
     return jsonSafe({

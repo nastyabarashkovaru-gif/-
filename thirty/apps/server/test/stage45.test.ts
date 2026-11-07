@@ -620,3 +620,21 @@ describe('оплата через Tribute (07.11)', () => {
     expect((await api('GET', '/api/tribute/status', 995)).body.hasAccess).toBe(false);
   });
 });
+
+describe('старт по умолчанию — ближайший старт из бота (07.11)', () => {
+  it('купила 8.11 → старт 11.11 без вопроса в анкете; «Хочу начать раньше» — с сегодняшнего дня', async () => {
+    clock.set('2026-11-08T09:00:00Z');
+    await paidUser(980, '2026-12-01');
+    await prisma.flowMembership.updateMany({ where: { userId: 980n }, data: { createdAt: new Date('2026-11-08T08:00:00Z') } });
+    expect((await api('GET', '/api/membership', 980)).body.membership.flow.startsOn).toBe('2026-11-11');
+    await fixDaily(980);
+    expect((await api('GET', '/api/home', 980)).body).toMatchObject({ state: 'waiting', flow: { startsOn: '2026-11-11' } });
+    expect((await api('POST', '/api/membership/change-start', 980, { date: '2026-11-08' })).body.startsOn).toBe('2026-11-08');
+    expect((await api('GET', '/api/home', 980)).body).toMatchObject({ state: 'active', flow: { day: 1 } });
+    // купила 12.11 (старт 11-го прошёл) — следующий, 15.11
+    clock.set('2026-11-12T09:00:00Z');
+    await paidUser(981, '2026-12-01');
+    await prisma.flowMembership.updateMany({ where: { userId: 981n }, data: { createdAt: new Date('2026-11-12T08:00:00Z') } });
+    expect((await api('GET', '/api/membership', 981)).body.membership.flow.startsOn).toBe('2026-11-15');
+  });
+});

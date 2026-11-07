@@ -446,7 +446,8 @@ function PlanForm({ m, i }: { m: MembershipView; i: number }) {
       }
       haptic('success');
       // после плана действий — дата старта, затем бадди и «обещание себе» (решение владельца 03.11)
-      nav(i + 1 < m.goals.length ? `/reg/plan/${i + 1}` : '/reg/start');
+      // Дата старта в анкете больше не спрашивается (07.11): ближайший старт назначается сам, раньше — кнопкой на главной
+      nav(i + 1 < m.goals.length ? `/reg/plan/${i + 1}` : '/reg/buddy-mode');
     } catch (e) {
       toast(errorText(e));
     } finally {
