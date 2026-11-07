@@ -4,12 +4,12 @@ import { api } from '../../lib/api';
 import { haptic, openExternal } from '../../lib/telegram';
 import { TRIBUTE_PAY_URL } from '../../lib/tribute';
 import { useMe } from '../../state';
-import { BrandBar, ErrorState, Loading, Screen, errorText, toast, useLoad } from '../../ui';
+import { BrandBar, ErrorState, Loading, Screen, Sheet, errorText, toast, useLoad } from '../../ui';
 
 const TARIFFS = [
-  ['m1', '1 месяц', '1 цель'],
-  ['m3', '3 месяца', 'до 3 целей'],
-  ['m6', '6 месяцев', 'без лимита целей'],
+  ['m1', '1 месяц'],
+  ['m3', '3 месяца'],
+  ['m6', '6 месяцев'],
 ] as const;
 
 /**
@@ -55,18 +55,18 @@ export function TributeEntry() {
     );
   }
 
+  // Выбор тарифа — всплывающим окном, без пояснений (просьба владельца 07.11)
   return (
     <Screen id="TR">
       <BrandBar />
-      <div className="col" style={{ gap: 10, marginTop: 12 }}>
-        <h1 className="hero" style={{ textAlign: 'left' }}>Какой тариф ты оплатила? 😍</h1>
-        <p className="lead" style={{ textAlign: 'left' }}>Выбери тариф, который ты оплатила в Tribute — от него зависит, сколько целей можно поставить.</p>
-      </div>
-      {TARIFFS.map(([id, title, goals]) => (
-        <button key={id} className="card card-link start-choice" disabled={busy} onClick={() => choose(id)}>
-          <span className="grow" style={{ textAlign: 'left' }}><b style={{ display: 'block', fontSize: 18 }}>{title}</b><span className="muted">{goals}</span></span>
-        </button>
-      ))}
+      <Sheet open onClose={() => undefined}>
+        <div className="col" style={{ gap: 12 }}>
+          <h2 className="h2" style={{ fontSize: 22, textAlign: 'center' }}>Нажми на свой тариф</h2>
+          {TARIFFS.map(([id, title]) => (
+            <button key={id} className="btn btn-ghost" disabled={busy} onClick={() => choose(id)}>{title}</button>
+          ))}
+        </div>
+      </Sheet>
     </Screen>
   );
 }

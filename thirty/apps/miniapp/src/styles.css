@@ -110,6 +110,8 @@ img { max-width: 100%; display: block; }
 .btn-outline { background: var(--accent-soft-2); color: var(--accent); border: 1px solid #ddd5fa; min-height: 48px; }
 .btn-ghost { background: transparent; color: var(--muted); font-weight: 500; min-height: 44px; }
 .btn-light { background: var(--cell); color: var(--ink); }
+/* Белая с фиолетовой обводкой — «Оплатить зарубежной картой» (07.11) */
+.btn-ghost { background: #fff; color: var(--accent); border: 1.5px solid var(--accent); min-height: 54px; font-weight: 700; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 .btn-sm { min-height: 40px; padding: 8px 14px; font-size: 14px; border-radius: 12px; width: auto; }
 .link-btn { border: 0; background: none; color: var(--muted-2); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 6px; align-self: center; }

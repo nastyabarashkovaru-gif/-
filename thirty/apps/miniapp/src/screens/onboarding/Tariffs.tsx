@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, CircleCheck, Clock, Gift, Lock, Unlock, MessageCircle } from 'lucide-react';
 import { api, rub } from '../../lib/api';
 import { ctx, track } from '../../lib/analytics';
-import { haptic, openTelegram } from '../../lib/telegram';
+import { haptic, openExternal, openTelegram } from '../../lib/telegram';
+import { TRIBUTE_PAY_URL } from '../../lib/tribute';
 import { useMe } from '../../state';
 import { BrandBar, Cta, ErrorState, Loading, Screen, errorText, toast } from '../../ui';
 import { useTicker } from './Onboarding';
@@ -197,6 +198,8 @@ export function Tariffs() {
       >
         Присоединиться за {chosen ? rub(chosen.price) : ''} 😍
       </Cta>
+      {/* Зарубежные карты — через Tribute (07.11) */}
+      <button className="btn btn-ghost" onClick={() => { track('tribute_click', { screen: 'S06', tariff: chosen?.id }); openExternal(TRIBUTE_PAY_URL); }}>Оплатить зарубежной картой 🌍</button>
       {me?.support && <button className="btn btn-secondary ask-btn" onClick={() => openTelegram(me.support)}><MessageCircle size={20} />Задать вопрос</button>}
       <PromoField applied={state.offer.kind === 'promo'} onApplied={load} />
     </Screen>

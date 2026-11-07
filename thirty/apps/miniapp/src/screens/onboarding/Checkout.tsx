@@ -101,7 +101,7 @@ export function Checkout() {
           <p className="muted small" style={{ margin: '0 4px' }}>Оплата проходит на защищённой странице платёжной системы. Доступ откроется после подтверждения платежа.</p>
           <button className="btn btn-primary" disabled={!all || busy} onClick={pay}>{busy ? 'Готовим оплату…' : `Оплатить ${rub(data!.tariff.price)}`}</button>
           {/* Зарубежные карты — через Tribute (07.11) */}
-          <button className="btn btn-primary" onClick={() => { track('tribute_click', { screen: 'S07' }); openExternal(TRIBUTE_PAY_URL); }}>Оплатить зарубежной картой 🌍</button>
+          <button className="btn btn-ghost" onClick={() => { track('tribute_click', { screen: 'S07' }); openExternal(TRIBUTE_PAY_URL); }}>Оплатить зарубежной картой 🌍</button>
         </>
       )}
     </Screen>
