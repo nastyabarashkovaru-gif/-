@@ -17,16 +17,24 @@ import { track } from './analytics';
 export const TRIBUTE = 'tribute';
 const MEMBER = ['creator', 'administrator', 'member'];
 
-/** Состоит ли человек в общем чате клуба. null — Telegram не ответил (не делаем выводов) */
+/**
+ * Состоит ли человек в чате клуба (куда пускает Tribute). Проверяем все привязанные группы клуба (кроме канала):
+ * общий чат и тематические. null — Telegram не ответил (не делаем выводов). Каждый ответ пишем в лог для разбора.
+ */
 export async function inClubChat(userId: bigint): Promise<boolean | null> {
-  const chats = await prisma.telegramChat.findMany({ where: { kind: 'flow', active: true, telegramChatId: { not: null } } });
-  if (!chats.length) return null;
+  const chats = await prisma.telegramChat.findMany({ where: { kind: { in: ['flow', 'topic'] }, active: true, telegramChatId: { not: null } } });
+  if (!chats.length) {
+    console.warn(`[tribute] ${userId}: нет привязанных чатов клуба`);
+    return null;
+  }
   let unknown = false;
   for (const c of chats) {
     try {
       const r = await tg<{ status: string; is_member?: boolean }>('getChatMember', { chat_id: Number(c.telegramChatId), user_id: Number(userId) });
+      console.log(`[tribute] ${userId} в «${c.title}» (${c.kind} ${c.telegramChatId}): ${r.status}${r.is_member !== undefined ? ` is_member=${r.is_member}` : ''}`);
       if (MEMBER.includes(r.status) || (r.status === 'restricted' && r.is_member)) return true;
     } catch (e) {
+      console.warn(`[tribute] ${userId} в «${c.title}» (${c.kind} ${c.telegramChatId}): ошибка ${(e as Error).message}`);
       if (!/not found|PARTICIPANT|user not found/i.test((e as Error).message)) unknown = true;
     }
   }

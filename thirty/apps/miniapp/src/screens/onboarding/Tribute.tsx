@@ -50,7 +50,18 @@ export function TributeEntry() {
         </div>
         <div className="spacer" />
         <button className="btn btn-primary" onClick={() => openExternal(TRIBUTE_PAY_URL)}>Оплатить в Tribute</button>
-        <button className="btn btn-secondary" onClick={reload}>Я уже в чате — проверить</button>
+        <button className="btn btn-secondary" disabled={busy} onClick={async () => {
+          setBusy(true);
+          try {
+            const r = await api<{ hasAccess: boolean; inChat: boolean | null }>('/api/tribute/status');
+            if (r.inChat === true || r.hasAccess) reload();
+            else toast(r.inChat === null ? 'Не получилось проверить — попробуй через минуту' : 'Пока не видим тебя в чате клуба. Если ты уже в чате — напиши в поддержку');
+          } catch (e) {
+            toast(errorText(e));
+          } finally {
+            setBusy(false);
+          }
+        }}>{busy ? 'Проверяем…' : 'Я уже в чате — проверить'}</button>
       </Screen>
     );
   }
