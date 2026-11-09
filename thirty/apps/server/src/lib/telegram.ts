@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { config } from '../config';
 
 export class TelegramError extends Error {
-  constructor(public method: string, public code: number, public description: string, public retryAfter?: number) {
+  constructor(public method: string, public code: number, public description: string, public retryAfter?: number, public migrateTo?: number) {
     super(`${method}: ${code} ${description}`);
   }
 }
@@ -27,8 +27,8 @@ async function rawCall<T>(method: string, body: Record<string, unknown>): Promis
     init = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(15_000) };
   }
   const res = await fetch(`https://api.telegram.org/bot${config.BOT_TOKEN}/${method}`, init);
-  const data = (await res.json()) as { ok: boolean; result: T; error_code?: number; description?: string; parameters?: { retry_after?: number } };
-  if (!data.ok) throw new TelegramError(method, data.error_code ?? res.status, data.description ?? '', data.parameters?.retry_after);
+  const data = (await res.json()) as { ok: boolean; result: T; error_code?: number; description?: string; parameters?: { retry_after?: number; migrate_to_chat_id?: number } };
+  if (!data.ok) throw new TelegramError(method, data.error_code ?? res.status, data.description ?? '', data.parameters?.retry_after, data.parameters?.migrate_to_chat_id);
   return data.result;
 }
 
@@ -60,7 +60,39 @@ let impl: TgCall = async <T>(method: string, body: Record<string, unknown>): Pro
   return p;
 };
 
-export const tg: TgCall = (method, body) => impl(method, body);
+export const tg: TgCall = async <T>(method: string, body: Record<string, unknown>): Promise<T> => {
+  try {
+    return await impl<T>(method, body);
+  } catch (e) {
+    // Группу перевели в супергруппу — у неё новый номер: запоминаем его и повторяем запрос (09.11)
+    if (e instanceof TelegramError && e.migrateTo && body.chat_id !== undefined) {
+      await chatMigrated(Number(body.chat_id), e.migrateTo);
+      return impl<T>(method, { ...body, chat_id: e.migrateTo });
+    }
+    throw e;
+  }
+};
+
+/** Группа стала супергруппой: в привязанных чатах меняем старый номер на новый */
+export async function chatMigrated(oldId: number, newId: number) {
+  const { prisma } = await import('../db');
+  const r = await prisma.telegramChat.updateMany({ where: { telegramChatId: BigInt(oldId) }, data: { telegramChatId: BigInt(newId) } }).catch((err) => {
+    console.warn('[telegram] chat migrate', (err as Error).message);
+    return { count: 0 };
+  });
+  if (r.count) console.log(`[telegram] чат ${oldId} стал супергруппой ${newId} — номер обновлён`);
+}
+
+/** При запуске: проверяем привязанные группы со старыми номерами — Telegram сообщит новый номер */
+export async function fixMigratedChats() {
+  const { prisma } = await import('../db');
+  const chats = await prisma.telegramChat.findMany({ where: { active: true, telegramChatId: { not: null } } });
+  for (const c of chats) {
+    const id = Number(c.telegramChatId);
+    if (String(id).startsWith('-100')) continue;
+    await tg('getChat', { chat_id: id }).catch((e) => console.warn(`[telegram] getChat ${c.title}: ${(e as Error).message}`));
+  }
+}
 
 /** Для тестов: подмена транспорта */
 export function setTelegramTransport(fn: TgCall) {

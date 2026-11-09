@@ -16,6 +16,8 @@ async function main() {
   const app = await buildApp({ logger: true });
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   await setupBot();
+  // Группы, ставшие супергруппами, получают новый номер (иначе ссылки, заявки и проверки чата не работают)
+  void import('./lib/telegram').then((m) => m.fixMigratedChats()).catch((e) => console.warn('[telegram] migrate', e));
   await setupAdminBot();
   if (process.env.CHAIN_TEST) {
     const { chainTestUsers } = await import('./modules/chainTest');

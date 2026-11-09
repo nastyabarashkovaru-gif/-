@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { api, clock, getApp, grantMembership, prisma, resetDb, upload } from './helpers';
-import { setTelegramTransport, webhookSecret } from '../src/lib/telegram';
+import { setTelegramTransport, webhookSecret, TelegramError } from '../src/lib/telegram';
 import { seedTemplates, sendTemplate } from '../src/modules/bot';
 import { autoMatch } from '../src/modules/buddy';
 import { refreshFlowStatuses } from '../src/modules/flows';
@@ -22,6 +22,8 @@ beforeEach(async () => {
     calls.push({ method, body });
     if (method === 'createChatInviteLink') return { invite_link: `https://t.me/+inv${calls.length}` } as never;
     if (method === 'getMe') return { id: 999, username: 'thirty_test_bot' } as never;
+    // группа -1006 стала супергруппой -1001006: Telegram отвечает ошибкой с новым номером
+    if (Number(body.chat_id) === -1006) throw new TelegramError(method, 400, 'Bad Request: group chat was upgraded to a supergroup chat', undefined, -1001006);
     // участницы Tribute (990–999): в чате или нет
     if (method === 'getChatMember' && Number(body.user_id) >= 990 && Number(body.user_id) < 1000) return { status: inChat.has(Number(body.user_id)) ? 'member' : 'left' } as never;
     if (method === 'getChatMember') return { status: 'administrator', can_invite_users: true, can_restrict_members: true } as never;
@@ -636,5 +638,18 @@ describe('старт по умолчанию — ближайший старт �
     await paidUser(981, '2026-12-01');
     await prisma.flowMembership.updateMany({ where: { userId: 981n }, data: { createdAt: new Date('2026-11-12T08:00:00Z') } });
     expect((await api('GET', '/api/membership', 981)).body.membership.flow.startsOn).toBe('2026-11-15');
+  });
+});
+
+describe('группа стала супергруппой (09.11)', () => {
+  it('новый номер подхватывается сам, вход по Tribute проходит', async () => {
+    clock.set('2026-11-09T09:00:00Z');
+    const flow = await prisma.flow.create({ data: { startsOn: new Date('2026-11-01T00:00:00Z'), endsOn: new Date('2026-11-30T00:00:00Z'), title: 'Ноябрь 2026' } });
+    const chat = await prisma.telegramChat.create({ data: { kind: 'flow', flowId: flow.id, telegramChatId: -1006n, title: '30 дней ЧАТ' } });
+    await api('GET', '/api/me', 996);
+    inChat.add(996);
+    expect((await api('GET', '/api/tribute/status', 996)).body).toMatchObject({ inChat: true });
+    expect((await prisma.telegramChat.findUniqueOrThrow({ where: { id: chat.id } })).telegramChatId).toBe(-1001006n);
+    expect((await api('POST', '/api/tribute/activate', 996, { tariffId: 'm1' })).body).toEqual({ ok: true });
   });
 });

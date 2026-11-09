@@ -312,7 +312,7 @@ export async function registerBotConversion(userId: bigint) {
 // ───────────── Входящие обновления ─────────────
 
 interface TgUpdate {
-  message?: { message_id: number; chat: { id: number; type: string; title?: string }; from?: { id: number; first_name?: string; username?: string }; text?: string };
+  message?: { message_id: number; chat: { id: number; type: string; title?: string }; from?: { id: number; first_name?: string; username?: string }; text?: string; migrate_to_chat_id?: number };
   chat_join_request?: { chat: { id: number; title?: string }; from: { id: number; first_name?: string }; invite_link?: { invite_link: string; name?: string; creator?: { id: number; is_bot?: boolean } } };
   my_chat_member?: { chat: { id: number; type: string; title?: string }; new_chat_member: { status: string } };
   chat_member?: { chat: { id: number }; new_chat_member: { user: { id: number }; status: string } };
@@ -391,6 +391,11 @@ export async function handleUpdate(update: TgUpdate) {
       await sendTemplate(userId, 'how_to_join', {}, `how_to_join:${userId}:${clock.now().getTime()}`);
     }
     return;
+  }
+  // Группу перевели в супергруппу — Telegram присылает новый номер, запоминаем его (09.11)
+  if (update.message?.migrate_to_chat_id) {
+    const { chatMigrated } = await import('../lib/telegram');
+    return chatMigrated(update.message.chat.id, update.message.migrate_to_chat_id);
   }
   if (update.chat_join_request) {
     const { onJoinRequest } = await import('./chats');
