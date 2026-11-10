@@ -82,8 +82,9 @@ export function Checkout() {
             {data!.offer.active && <div className="pill" style={{ alignSelf: 'flex-start' }}><Clock size={16} /> Цена действует ещё {countdown(data!.offer.msLeft)}</div>}
             <div className="divider" />
             <div className="row" style={{ alignItems: 'flex-start' }}><CalendarDays size={20} color="var(--orange)" /><div className="grow">
-              <div style={{ fontWeight: 600 }}>Старт — {humanDate(data!.startsOn, true)}</div>
-              <div className="muted small">Оплачено на {data!.tariff.title.toLowerCase()}. Доступ к чатам, комьюнити и подготовке — сразу после оплаты.</div>
+              {/* Дата старта на оплате не показывается (10.11) */}
+              <div style={{ fontWeight: 600 }}>Оплачено на {data!.tariff.title.toLowerCase()}</div>
+              <div className="muted small">Доступ к чатам, комьюнити и подготовке — сразу после оплаты.</div>
             </div></div>
           </div>
           <div className="card">
