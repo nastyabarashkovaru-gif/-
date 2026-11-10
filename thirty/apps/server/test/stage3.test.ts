@@ -79,6 +79,8 @@ describe('оплата и права доступа', () => {
     expect(pv.body.flows.map((f: { startsOn: string }) => f.startsOn)).toEqual(['2026-11-01', '2026-12-01', '2027-01-01']);
     expect(pv.body.nextCharge).toMatchObject({ date: '2027-01-28', amount: 2990 });
     expect(pv.body.text.renewal).toContain('28 января 2027');
+    // старт на экране оплаты — ближайший старт из бота (11.11), а не начало оплаченного месяца
+    expect(pv.body.startsOn).toBe('2026-11-11');
   });
 
   it('критерий №2: webhook даёт 3 потока, следующий платёж 28.01, без списаний 28.11 и 28.12', async () => {

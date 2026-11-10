@@ -106,11 +106,16 @@ export async function checkoutPreview(userId: bigint, tariffId: string, comeback
     view = { ...view, price: backPrice.price, renewalPrice: backPrice.price, variant: 'comeback' as never };
     offer = { active: true, msLeft: Math.max(0, back.expiresAt.getTime() - clock.now().getTime()) };
   }
+  // Дата старта на экране оплаты — как в боте и в приложении после покупки (10.11): у новенькой ближайший старт
+  // (11.11, дальше каждые 4 дня), у продлевающей — начало оплаченного месяца
+  const before = await prisma.flowMembership.count({ where: { userId, startsOn: { not: null }, status: { in: ['registered', 'active', 'finished'] } } });
+  const { nextMarketingStart } = await import('./promos');
+  const challengeStart = before ? plan.firstFlow : nextMarketingStart(localDate(clock.now(), tz));
   return {
     tariff: view,
     offer,
     flows: plan.flows.map((f) => ({ startsOn: f, title: monthName(f) })),
-    startsOn: plan.firstFlow,
+    startsOn: challengeStart,
     paidUntil: fromDbDateEnd(plan.lastFlow),
     nextCharge: { date: plan.chargeDate, amount: view.price, covers: plan.renewalFlows.map(monthName) },
     text: {
