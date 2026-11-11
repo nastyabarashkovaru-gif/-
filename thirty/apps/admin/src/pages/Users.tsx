@@ -151,6 +151,15 @@ export function UserDetail({ canEdit, canStartOver = false }: { canEdit: boolean
             {s.autoRenew && ['prestart', 'active', 'past_due'].includes(s.status) && (
               <button className="btn light" style={{ padding: '2px 8px', marginLeft: 6 }} onClick={async () => { if (await withReason('Отменить автопродление по обращению', (reason) => api(`/admin-api/users/${u.user.id}/cancel-subscription`, { body: { reason } }))) location.reload(); }}>отменить автопродление</button>
             )}</div>)}
+          {!u.subscriptions.some((s: any) => ['prestart', 'active', 'past_due', 'canceled_at_period_end'].includes(s.status)) && (
+            <button className="btn light" style={{ margin: '6px 0' }} onClick={async () => {
+              const t = prompt('Выдать доступ без оплаты. Тариф: 1 — «1 месяц» (1 цель), 3 — «3 месяца» (до 3 целей), 6 — «6 месяцев» (без лимита)', '3');
+              if (!t || !['1', '3', '6'].includes(t.trim())) return;
+              const m = prompt('На сколько месяцев?', t.trim());
+              if (!m || !/^\d+$/.test(m.trim())) return;
+              if (await withReason('Выдать доступ', (reason) => api(`/admin-api/users/${u.user.id}/grant`, { body: { tariffId: `m${t.trim()}`, months: Number(m.trim()), reason } }))) location.reload();
+            }}>🎁 Выдать доступ</button>
+          )}
           <table><thead><tr><th>Дата</th><th>Вид</th><th>Сумма</th><th>Статус</th></tr></thead><tbody>{u.payments.map((p: any) => <tr key={p.id}><td>{dt(p.createdAt)}</td><td>{p.kind}</td><td>{rub(p.amount)}</td><td><Status v={p.status} /></td></tr>)}</tbody></table>
         </div>
         {u.memberships.map((m: any) => (

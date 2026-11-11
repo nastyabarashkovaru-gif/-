@@ -408,3 +408,21 @@ describe('повышение тарифа из анкеты (05.11)', () => {
     expect((await api('GET', `/api/payments/${co.body.paymentId}`, 970)).body).toMatchObject({ kind: 'upgrade', status: 'paid' });
   });
 });
+
+describe('выдать доступ вручную (11.11)', () => {
+  it('3 месяца без оплаты: подписка без автопродления, участие в текущем месяце, до 3 целей; разово по нику', async () => {
+    clock.set('2026-11-11T09:00:00Z');
+    await start(1970);
+    await prisma.user.update({ where: { id: 1970n }, data: { username: 'Curly_Bob' } });
+    const { grantOnceByUsername } = await import('../src/modules/grant');
+    await grantOnceByUsername('curly_bob', 'm3', 3, 'тест');
+    await grantOnceByUsername('curly_bob', 'm3', 3, 'тест'); // второй раз не выдаётся
+    const subs = await prisma.subscription.findMany({ where: { userId: 1970n } });
+    expect(subs).toHaveLength(1);
+    expect(subs[0]).toMatchObject({ tariffId: 'm3', autoRenew: false, renewalPrice: 0, cancelReason: 'gift', status: 'canceled_at_period_end' });
+    expect(subs[0].paidThroughFlow.toISOString().slice(0, 10)).toBe('2027-01-01');
+    const me = (await api('GET', '/api/me', 1970)).body;
+    expect(me.membership).toMatchObject({ status: 'reserved', tariffId: 'm3' });
+    expect((await api('GET', '/api/membership', 1970)).body.membership.goalLimit).toBe(3);
+  });
+});

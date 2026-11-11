@@ -75,7 +75,7 @@ export function MySubscription() {
             <>
               <div className="panel" style={{ gap: 6, padding: 16 }}>
                 <span style={{ color: 'var(--accent-ink)', fontWeight: 700, fontSize: 19 }}>Тариф на {monthsTitle(s.months)}</span>
-                {!s.viaTribute && <span style={{ fontWeight: 700, fontSize: 20 }}>{rub(s.price)}</span>}
+                {!s.viaTribute && s.price > 0 && <span style={{ fontWeight: 700, fontSize: 20 }}>{rub(s.price)}</span>}
                 <span className="muted small">{goalsLine(s.goalLimit)}</span>
               </div>
               {s.viaTribute ? (

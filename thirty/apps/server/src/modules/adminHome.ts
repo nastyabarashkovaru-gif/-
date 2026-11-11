@@ -374,7 +374,8 @@ export async function homeRetention(r: DayRange) {
   const pastDue = await prisma.subscription.count({ where: { status: 'past_due', test: false } });
   // Перенесённые из прошлых потоков (ссылка legacy) оплачивали вне приложения: автопродления у них не было —
   // их не считаем «отменившими», а показываем отдельно
-  const notLegacy = { OR: [{ cancelReason: null }, { cancelReason: { not: LEGACY_REASON } }] };
+  // и выданные вручную (подарок, 11.11) — у них тоже нет автопродления
+  const notLegacy = { OR: [{ cancelReason: null }, { cancelReason: { notIn: [LEGACY_REASON, 'gift'] } }] };
   const canceling = await prisma.subscription.count({ where: { status: 'canceled_at_period_end', test: false, ...notLegacy } });
   const legacyLive = await prisma.subscription.count({ where: { status: { in: [...LIVE_STATUSES] }, test: false, cancelReason: LEGACY_REASON } });
   return {

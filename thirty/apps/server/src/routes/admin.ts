@@ -341,6 +341,13 @@ export async function adminRoutes(app: FastifyInstance) {
       await audit(req, 'user.start_over', 'user', req.params.id, { after: res });
       return jsonSafe(res);
     });
+    // Выдать доступ вручную (11.11): тариф и срок, без оплаты и автопродления
+    r.post<{ Params: { id: string } }>('/admin-api/users/:id/grant', perm('payments'), async (req) => {
+      const { tariffId, months, reason } = parse(z.object({ tariffId: z.enum(['m1', 'm3', 'm6']), months: z.number().int().min(1).max(12), reason: z.string().trim().min(3).max(500) }), req.body);
+      const r = await (await import('../modules/grant')).grantAccess(BigInt(req.params.id), tariffId, months, reason);
+      await audit(req, 'access.grant', 'user', req.params.id, { after: { tariffId, months }, reason });
+      return jsonSafe(r);
+    });
     r.post<{ Params: { id: string } }>('/admin-api/users/:id/cancel-subscription', perm('payments'), async (req) => {
       const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(500) }), req.body);
       const r = await cancelAutoRenew(BigInt(req.params.id), `support: ${reason}`);
