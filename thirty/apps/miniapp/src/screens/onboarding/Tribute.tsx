@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { haptic, openExternal } from '../../lib/telegram';
 import { TRIBUTE_PAY_URL } from '../../lib/tribute';
 import { useMe } from '../../state';
-import { BrandBar, ErrorState, Loading, Screen, Sheet, errorText, toast, useLoad } from '../../ui';
+import { BrandBar, Cta, Empty, ErrorState, Loading, Screen, Sheet, errorText, humanDate, toast, useLoad } from '../../ui';
 
 const TARIFFS = [
   ['m1', '1 месяц'],
@@ -78,6 +79,32 @@ export function TributeEntry() {
           ))}
         </div>
       </Sheet>
+    </Screen>
+  );
+}
+
+/** Подарочная ссылка (11.11): доступ открывается сразу, без оплаты */
+export function GiftEntry() {
+  const { code = '' } = useParams();
+  const nav = useNavigate();
+  const { refresh } = useMe();
+  const [state, setState] = useState<{ until?: string; error?: string } | null>(null);
+  useEffect(() => {
+    void api<{ until?: string }>('/api/gift/redeem', { body: { code } })
+      .then(async (r) => { await refresh(); setState({ until: r.until }); haptic('success'); })
+      .catch((e) => setState({ error: errorText(e) }));
+  }, [code]);
+  if (!state) return <Screen id="GF"><Loading /></Screen>;
+  if (state.error) return <Screen id="GF"><BrandBar /><Empty title="Не получилось открыть доступ" text={state.error} /></Screen>;
+  return (
+    <Screen id="GF">
+      <BrandBar />
+      <div className="col" style={{ gap: 10, marginTop: 12 }}>
+        <h1 className="hero" style={{ textAlign: 'left' }}>Доступ открыт! 🎁</h1>
+        <p className="lead" style={{ textAlign: 'left' }}>Добро пожаловать в «30 дней» 💜{state.until ? ` Доступ действует до ${humanDate(state.until)}.` : ''}</p>
+      </div>
+      <div className="spacer" />
+      <Cta onClick={() => nav('/', { replace: true })}>Перейти в приложение</Cta>
     </Screen>
   );
 }

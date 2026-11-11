@@ -1,9 +1,10 @@
-import { addMonths, localDate, subscriptionStatusOn, toDbDate, type ISODate } from '@thirty/domain';
+import { randomBytes } from 'node:crypto';
+import { addMonths, chargeDateFor, fromDbDate, localDate, subscriptionStatusOn, toDbDate, type ISODate } from '@thirty/domain';
 import { clock } from '../clock';
 import { prisma } from '../db';
-import { badRequest, conflict, notFound } from '../http';
+import { badRequest, conflict, forbidden, notFound } from '../http';
 import { getSetting } from '../settings';
-import { LIVE_STATUSES, reviveMembership } from './billing';
+import { LIVE_STATUSES, reviveMembership, syncChargeDate } from './billing';
 import { ensureFlow } from './flows';
 import { track } from './analytics';
 
@@ -63,4 +64,74 @@ export async function grantOnceByUsername(username: string, tariffId: string, mo
     console.warn(`[grant] @${username}: ${(e as Error).message}`);
   }
   await prisma.setting.create({ data: { key, value: { at: new Date().toISOString() } } });
+}
+
+// ───────────── Подарочная ссылка (11.11) ─────────────
+
+const RANK: Record<string, number> = { m1: 1, m3: 2, m6: 3 };
+
+/**
+ * Продлить действующую подписку: доступ не меньше чем на N месяцев с текущего, тариф — не ниже подарочного.
+ * Автопродление (CloudPayments) сдвигается на 28-е последнего оплаченного месяца; у Tribute срок ведёт Tribute — меняем только тариф.
+ */
+async function extendAccess(subId: string, tariffId: string, months: number) {
+  const sub = await prisma.subscription.findUniqueOrThrow({ where: { id: subId } });
+  const tariff = (RANK[tariffId] ?? 0) > (RANK[sub.tariffId] ?? 0) ? tariffId : sub.tariffId;
+  const tz = await getSetting('flow.timezone');
+  const month = `${localDate(clock.now(), tz).slice(0, 7)}-01` as ISODate;
+  const want = addMonths(month, months - 1);
+  const through = sub.priceVariant === 'tribute' ? fromDbDate(sub.paidThroughFlow) : (fromDbDate(sub.paidThroughFlow) > want ? fromDbDate(sub.paidThroughFlow) : want);
+  const charge = sub.autoRenew && sub.priceVariant !== 'tribute' ? chargeDateFor(through) : null;
+  await prisma.$transaction(async (tx) => {
+    await tx.subscription.update({ where: { id: sub.id }, data: { tariffId: tariff, paidThroughFlow: toDbDate(through), ...(charge ? { nextChargeDate: toDbDate(charge) } : {}) } });
+    await tx.flowMembership.updateMany({ where: { subscriptionId: sub.id, status: { not: 'revoked' } }, data: { tariffId: tariff } });
+    if (charge && fromDbDate(sub.paidThroughFlow) !== through) {
+      await tx.billingSchedule.updateMany({ where: { subscriptionId: sub.id, status: { in: ['scheduled', 'synced'] } }, data: { status: 'canceled' } });
+      const months2 = (await tx.tariff.findUniqueOrThrow({ where: { id: tariff } })).months;
+      await tx.billingSchedule.upsert({
+        where: { subscriptionId_coversFromFlow: { subscriptionId: sub.id, coversFromFlow: toDbDate(addMonths(through, 1)) } },
+        create: { subscriptionId: sub.id, dueDate: toDbDate(charge), coversFromFlow: toDbDate(addMonths(through, 1)), months: months2, amount: sub.renewalPrice },
+        update: { dueDate: toDbDate(charge), status: 'scheduled', months: months2, amount: sub.renewalPrice },
+      });
+    }
+  });
+  if (charge) await syncChargeDate(sub.id);
+  return { ok: true, until: addMonths(through, 1), extended: true };
+}
+
+type GiftLink = { tariffId: string; months: number; note: string; usedBy?: string | null; usedAt?: string | null };
+const giftKey = (code: string) => `gift.link.${code}`;
+
+/** Новая одноразовая подарочная ссылка: код хранится в настройках, ссылка — t.me/<бот>/app?startapp=gift_<код> */
+export async function createGiftLink(tariffId: string, months: number, note: string) {
+  const code = randomBytes(9).toString('base64url');
+  await prisma.setting.create({ data: { key: giftKey(code), value: { tariffId, months, note, usedBy: '' } } });
+  return code;
+}
+
+/** Открыла подарочную ссылку: доступ на N месяцев (новый или продление действующего). Ссылка — для одного человека */
+export async function redeemGift(userId: bigint, code: string) {
+  if (!/^[A-Za-z0-9_-]{8,40}$/.test(code)) throw notFound('gift_not_found', 'Ссылка недействительна');
+  const row = await prisma.setting.findUnique({ where: { key: giftKey(code) } });
+  if (!row) throw notFound('gift_not_found', 'Ссылка недействительна');
+  const g = row.value as GiftLink;
+  if (g.usedBy && g.usedBy !== userId.toString()) throw forbidden('gift_used', 'Эта ссылка уже использована');
+  if (g.usedBy === userId.toString()) return { ok: true, already: true };
+  // Сначала занимаем ссылку, чтобы два человека не открыли её одновременно
+  const taken = await prisma.setting.updateMany({ where: { key: giftKey(code), value: { path: ['usedBy'], equals: '' } }, data: { value: { ...g, usedBy: userId.toString(), usedAt: new Date().toISOString() } } });
+  if (!taken.count) throw forbidden('gift_used', 'Эта ссылка уже использована');
+  const live = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
+  const r = live ? await extendAccess(live.id, g.tariffId, g.months) : await grantAccess(userId, g.tariffId, g.months, `подарочная ссылка: ${g.note}`);
+  await track({ userId, eventName: 'access_granted', tariffId: g.tariffId, metadata: { months: g.months, gift: true, extended: Boolean(live) } });
+  return r;
+}
+
+/** Разовая подарочная ссылка по просьбе владелицы — создаётся при запуске один раз, ссылка пишется в лог */
+export async function giftLinkOnce(name: string, tariffId: string, months: number) {
+  const key = `gift.once.${name}`;
+  const done = await prisma.setting.findUnique({ where: { key } });
+  const code = done ? (done.value as { code: string }).code : await createGiftLink(tariffId, months, name);
+  if (!done) await prisma.setting.create({ data: { key, value: { code } } });
+  const { appLink } = await import('../lib/telegram');
+  console.log(`[gift] ${name}: ${appLink(`gift_${code}`)}`);
 }

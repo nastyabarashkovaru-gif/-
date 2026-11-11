@@ -426,3 +426,28 @@ describe('выдать доступ вручную (11.11)', () => {
     expect((await api('GET', '/api/membership', 1970)).body.membership.goalLimit).toBe(3);
   });
 });
+
+describe('подарочная ссылка (11.11)', () => {
+  it('новенькой — 3 месяца; с действующей подпиской на 1 месяц — продление и тариф «3 месяца»; второй раз не работает', async () => {
+    clock.set('2026-11-11T09:00:00Z');
+    const { createGiftLink } = await import('../src/modules/grant');
+    const a = await createGiftLink('m3', 3, 'тест');
+    await start(1980);
+    expect((await api('POST', '/api/gift/redeem', 1980, { code: a })).body).toMatchObject({ ok: true, until: '2027-02-01' });
+    expect((await api('GET', '/api/me', 1980)).body.membership).toMatchObject({ tariffId: 'm3' });
+    await start(1981);
+    expect((await api('POST', '/api/gift/redeem', 1981, { code: a })).status).toBe(403); // уже использована
+    // купила 1 месяц через CloudPayments — продлеваем
+    const b = await createGiftLink('m3', 3, 'тест2');
+    await api('POST', '/api/offer/start', 1981);
+    await buy(1981);
+    const before = await prisma.subscription.findFirstOrThrow({ where: { userId: 1981n } });
+    expect(before.tariffId).toBe('m1');
+    expect((await api('POST', '/api/gift/redeem', 1981, { code: b })).body).toMatchObject({ ok: true, extended: true, until: '2027-02-01' });
+    const after = await prisma.subscription.findUniqueOrThrow({ where: { id: before.id } });
+    expect(after).toMatchObject({ tariffId: 'm3', autoRenew: true });
+    expect(after.paidThroughFlow.toISOString().slice(0, 10)).toBe('2027-01-01');
+    expect(after.nextChargeDate!.toISOString().slice(0, 10)).toBe('2027-01-28');
+    expect((await api('GET', '/api/membership', 1981)).body.membership.goalLimit).toBe(3);
+  });
+});

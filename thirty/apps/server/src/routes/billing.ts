@@ -90,6 +90,11 @@ export async function billingRoutes(app: FastifyInstance) {
       return { id: p.id, kind: p.kind, status: p.status, amount: p.amount, needsRefund: p.needsRefund, waitingTooLong: p.status === 'pending' && waitedMin > pendingWindow };
     });
 
+    // Подарочная ссылка (11.11): доступ без оплаты, одна ссылка — один человек
+    r.post('/api/gift/redeem', async (req) => {
+      const { code } = parse(z.object({ code: z.string().max(60) }), req.body);
+      return jsonSafe(await (await import('../modules/grant')).redeemGift(req.user!.id, code));
+    });
     // Вход по ссылке Tribute (07.11): проверка членства в чате клуба и выбор оплаченного тарифа
     r.get('/api/tribute/status', async (req) => (await import('../modules/tribute')).tributeStatus(req.user!.id));
     r.post('/api/tribute/activate', async (req) => {
