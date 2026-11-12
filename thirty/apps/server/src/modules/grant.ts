@@ -99,13 +99,15 @@ async function extendAccess(subId: string, tariffId: string, months: number) {
   return { ok: true, until: addMonths(through, 1), extended: true };
 }
 
-type GiftLink = { tariffId: string; months: number; note: string; usedBy?: string | null; usedAt?: string | null };
+type GiftLink = { tariffId: string; months: number; note: string; usedBy?: string | null; usedAt?: string | null; multi?: boolean; maxUses?: number; users?: string[] };
 const giftKey = (code: string) => `gift.link.${code}`;
 
 /** Новая одноразовая подарочная ссылка: код хранится в настройках, ссылка — t.me/<бот>/app?startapp=gift_<код> */
-export async function createGiftLink(tariffId: string, months: number, note: string) {
+export async function createGiftLink(tariffId: string, months: number, note: string, maxUses = 1) {
   const code = randomBytes(9).toString('base64url');
-  await prisma.setting.create({ data: { key: giftKey(code), value: { tariffId, months, note, usedBy: '' } } });
+  // maxUses > 1 — общая ссылка (например, переход прошлых участниц): каждая получает доступ один раз
+  const value = maxUses > 1 ? { tariffId, months, note, usedBy: '', multi: true, maxUses, users: [] as string[] } : { tariffId, months, note, usedBy: '' };
+  await prisma.setting.create({ data: { key: giftKey(code), value } });
   return code;
 }
 
@@ -115,6 +117,17 @@ export async function redeemGift(userId: bigint, code: string) {
   const row = await prisma.setting.findUnique({ where: { key: giftKey(code) } });
   if (!row) throw notFound('gift_not_found', 'Ссылка недействительна');
   const g = row.value as GiftLink;
+  if (g.multi) {
+    const uid = userId.toString();
+    if (g.users?.includes(uid)) return { ok: true, already: true };
+    if ((g.users?.length ?? 0) >= (g.maxUses ?? 0)) throw forbidden('gift_limit', 'Места по этой ссылке закончились. Напиши в поддержку — поможем');
+    const live = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
+    const r = live ? await extendAccess(live.id, g.tariffId, g.months) : await grantAccess(userId, g.tariffId, g.months, `общая ссылка: ${g.note}`);
+    const fresh = (await prisma.setting.findUniqueOrThrow({ where: { key: giftKey(code) } })).value as GiftLink;
+    await prisma.setting.update({ where: { key: giftKey(code) }, data: { value: { ...fresh, users: [...new Set([...(fresh.users ?? []), uid])] } } });
+    await track({ userId, eventName: 'access_granted', tariffId: g.tariffId, metadata: { months: g.months, gift: true, multi: true, note: g.note, extended: Boolean(live) } });
+    return r;
+  }
   if (g.usedBy && g.usedBy !== userId.toString()) throw forbidden('gift_used', 'Эта ссылка уже использована');
   if (g.usedBy === userId.toString()) return { ok: true, already: true };
   // Сначала занимаем ссылку, чтобы два человека не открыли её одновременно
@@ -127,10 +140,10 @@ export async function redeemGift(userId: bigint, code: string) {
 }
 
 /** Разовая подарочная ссылка по просьбе владелицы — создаётся при запуске один раз, ссылка пишется в лог */
-export async function giftLinkOnce(name: string, tariffId: string, months: number) {
+export async function giftLinkOnce(name: string, tariffId: string, months: number, maxUses = 1) {
   const key = `gift.once.${name}`;
   const done = await prisma.setting.findUnique({ where: { key } });
-  const code = done ? (done.value as { code: string }).code : await createGiftLink(tariffId, months, name);
+  const code = done ? (done.value as { code: string }).code : await createGiftLink(tariffId, months, name, maxUses);
   if (!done) await prisma.setting.create({ data: { key, value: { code } } });
   const { appLink } = await import('../lib/telegram');
   console.log(`[gift] ${name}: ${appLink(`gift_${code}`)}`);

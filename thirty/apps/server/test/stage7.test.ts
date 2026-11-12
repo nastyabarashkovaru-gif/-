@@ -499,3 +499,17 @@ describe('оплата из бота (12.11)', () => {
     expect((await app.inject({ method: 'GET', url: '/doc/offer' })).body).toContain('Публичная оферта');
   });
 });
+
+describe('общая ссылка перехода на 3 месяца (12.11)', () => {
+  it('несколько человек по одной ссылке, каждая один раз; лимит мест', async () => {
+    clock.set('2026-11-12T09:00:00Z');
+    const { createGiftLink } = await import('../src/modules/grant');
+    const code = await createGiftLink('m3', 3, 'переход', 2);
+    for (const id of [1995, 1996, 1997]) await start(id);
+    expect((await api('POST', '/api/gift/redeem', 1995, { code })).body).toMatchObject({ ok: true, until: '2027-02-01' });
+    expect((await api('POST', '/api/gift/redeem', 1995, { code })).body).toMatchObject({ ok: true, already: true });
+    expect((await api('POST', '/api/gift/redeem', 1996, { code })).body).toMatchObject({ ok: true });
+    expect((await api('POST', '/api/gift/redeem', 1997, { code })).status).toBe(403); // места закончились
+    expect(await prisma.subscription.count({ where: { userId: { in: [1995n, 1996n] }, tariffId: 'm3' } })).toBe(2);
+  });
+});

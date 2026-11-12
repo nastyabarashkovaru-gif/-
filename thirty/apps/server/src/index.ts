@@ -17,7 +17,7 @@ async function main() {
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   await setupBot();
   // Разовые выдачи доступа по просьбе владелицы
-  void import('./modules/grant').then((m) => m.giftLinkOnce('curly_bob', 'm3', 3)).catch((e) => console.warn('[gift]', e));
+  void import('./modules/grant').then(async (m) => (await m.giftLinkOnce('curly_bob', 'm3', 3), m.giftLinkOnce('perehod-3m', 'm3', 3, 500))).catch((e) => console.warn('[gift]', e));
   // Группы, ставшие супергруппами, получают новый номер (иначе ссылки, заявки и проверки чата не работают)
   void import('./lib/telegram').then((m) => m.fixMigratedChats()).catch((e) => console.warn('[telegram] migrate', e));
   await setupAdminBot();
