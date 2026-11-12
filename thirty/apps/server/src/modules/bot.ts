@@ -217,6 +217,12 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.update({ where: { key: 'tariffs_pick' }, data: { text: TARIFFS_PICK_TEXT } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v32, value: { at: new Date().toISOString() } } });
   }
+  // Разово (12.11): ещё правки текста «Выбери свой тариф»
+  const v33 = 'maintenance.tariffsPickV5';
+  if (!(await prisma.setting.findUnique({ where: { key: v33 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'tariffs_pick' }, data: { text: TARIFFS_PICK_TEXT } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v33, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {

@@ -472,7 +472,7 @@ describe('оплата из бота (12.11)', () => {
     expect(String(pick.body.caption)).toContain('(безлимит целей)');
     pick.body.text = pick.body.caption;
     expect(String(pick.body.text).replace(/[\u00a0\u202f]/g, ' ')).toContain('<s>8 970 ₽</s> → <b>2 990 ₽</b>');
-    expect(String(pick.body.text)).toContain('Скидка действует всего 3 часа');
+    expect(String(pick.body.text)).toContain('🔥 3 месяца');
     const kb = (pick.body.reply_markup as { inline_keyboard: { text: string; url?: string }[][] }).inline_keyboard.flat();
     expect(kb.map((b) => b.text)).toEqual(['😍 1 месяц', '😍🔥 3 месяца — ХИТ', '😍 6 месяцев', '🌍 Оплатить зарубежной картой']);
     const m3 = kb[1].url!;
