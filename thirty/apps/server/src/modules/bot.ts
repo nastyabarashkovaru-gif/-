@@ -229,6 +229,12 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.update({ where: { key: 'how_to_join' }, data: { text: HOW_TO_JOIN_TEXT } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v34, value: { at: new Date().toISOString() } } });
   }
+  // Разово (12.11): приветствие — «места, где мы меняемся», «СТАРТ УЖЕ … 🔥‼️»
+  const v35 = 'maintenance.welcomeV8';
+  if (!(await prisma.setting.findUnique({ where: { key: v35 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v35, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
