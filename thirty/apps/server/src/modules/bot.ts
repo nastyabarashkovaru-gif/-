@@ -205,6 +205,12 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.update({ where: { key: 'tariffs_pick' }, data: { text: TARIFFS_PICK_TEXT } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v30, value: { at: new Date().toISOString() } } });
   }
+  // Разово (12.11): горизонтальная картинка сравнения тарифов (утверждена владелицей)
+  const v31 = 'maintenance.tariffsPickImgH';
+  if (!(await prisma.setting.findUnique({ where: { key: v31 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'tariffs_pick' }, data: { imageUrl: '{public_url}/img/tariffs-compare-h.jpg' } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v31, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {

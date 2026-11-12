@@ -467,7 +467,7 @@ describe('оплата из бота (12.11)', () => {
     const pick = calls.find((c) => String(c.body.caption ?? c.body.text).includes('Выбери свой тариф'))!;
     // картинка со сравнением тарифов и цели под каждым тарифом
     expect(pick.method).toBe('sendPhoto');
-    expect(String(pick.body.photo)).toMatch(/\/img\/tariffs-compare\.jpg$/);
+    expect(String(pick.body.photo)).toMatch(/\/img\/tariffs-compare-h\.jpg$/);
     expect(String(pick.body.caption)).toContain('Доступ к коммьюнити, приложению и полезным материалам придет сразу после оплаты');
     expect(String(pick.body.caption)).toContain('(безлимит целей)');
     pick.body.text = pick.body.caption;
