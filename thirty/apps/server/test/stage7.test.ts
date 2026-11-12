@@ -468,9 +468,7 @@ describe('оплата из бота (12.11)', () => {
     // картинка со сравнением тарифов и цели под каждым тарифом
     expect(pick.method).toBe('sendPhoto');
     expect(String(pick.body.photo)).toMatch(/\/img\/tariffs-compare\.jpg$/);
-    expect(String(pick.body.caption)).toContain('(одна цель)');
-    expect(String(pick.body.caption)).toContain('(три цели)');
-    expect(String(pick.body.caption)).toContain('(бесконечно целей)');
+    expect(String(pick.body.caption)).toContain('Доступ к коммьюнити, приложению и полезным материалам придет сразу после оплаты');
     pick.body.text = pick.body.caption;
     expect(String(pick.body.text).replace(/[\u00a0\u202f]/g, ' ')).toContain('<s>8 970 ₽</s> → <b>2 990 ₽</b>');
     expect(String(pick.body.text)).toContain('Скидка действует всего 3 часа');

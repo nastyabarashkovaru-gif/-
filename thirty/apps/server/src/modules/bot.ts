@@ -192,6 +192,12 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.update({ where: { key: 'tariffs_pick' }, data: { text: TARIFFS_PICK_TEXT, imageUrl: '{public_url}/img/tariffs-compare.jpg' } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v28, value: { at: new Date().toISOString() } } });
   }
+  // Разово (12.11): текст «Выбери свой тариф» от владелицы (без строк про цели, с доступом сразу после оплаты)
+  const v29 = 'maintenance.tariffsPickV3';
+  if (!(await prisma.setting.findUnique({ where: { key: v29 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'tariffs_pick' }, data: { text: TARIFFS_PICK_TEXT } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v29, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
@@ -355,7 +361,7 @@ export async function sendRulesPdf(chatId: number) {
     const { config } = await import('../config');
     const dir = config.STATIC_MINIAPP_DIR || path.resolve(process.cwd(), '../miniapp/dist');
     const file = await readFile(path.join(dir, 'docs', RULES_PDF));
-    const r = await tg<{ document?: { file_id: string } }>('sendDocument', { chat_id: chatId, document: { file: file, filename: 'Правила клуба 90 дней.pdf', contentType: 'application/pdf' } });
+    const r = await tg<{ document?: { file_id: string } }>('sendDocument', { chat_id: chatId, document: { file: file, filename: 'Правила клуба 30 дней.pdf', contentType: 'application/pdf' } });
     rulesFileId = r?.document?.file_id ?? null;
   } catch (e) {
     console.error('[bot] rules pdf', (e as Error).message);

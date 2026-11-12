@@ -70,7 +70,7 @@ describe('бот', () => {
     // через секунду — правила клуба файлом
     await new Promise((r) => setTimeout(r, 1300));
     const doc = calls.find((c) => c.method === 'sendDocument')!;
-    expect(doc.body.document).toMatchObject({ filename: 'Правила клуба 90 дней.pdf', contentType: 'application/pdf' });
+    expect(doc.body.document).toMatchObject({ filename: 'Правила клуба 30 дней.pdf', contentType: 'application/pdf' });
 
     // «Ознакомился, как вступить?» → условия с картинкой и кнопкой оплаты (открывает тарифы)
     calls.length = 0;
