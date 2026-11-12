@@ -207,7 +207,7 @@ describe('дожимная цепочка до оплаты', () => {
     expect(['2026-11-07', '2026-11-11', '2026-11-12', '2026-11-15', '2026-11-16'].map((d) => nextMarketingStart(d as never))).toEqual(['2026-11-11', '2026-11-11', '2026-11-15', '2026-11-15', '2026-11-19']);
     clock.set('2026-11-01T09:00:00Z');
     await start(400);
-    expect(String(calls.at(-1)!.body.caption ?? calls.at(-1)!.body.text)).toContain('СТАРТ УЖЕ 11 НОЯБРЯ — УСПЕВАЙ! ВХОД ЗАКРОЕТСЯ ЧЕРЕЗ 10 ДНЕЙ');
+    expect(String(calls.at(-1)!.body.caption ?? calls.at(-1)!.body.text)).toContain('СТАРТ УЖЕ 11 НОЯБРЯ!\nВХОД ЗАКРОЕТСЯ ЧЕРЕЗ 10 ДНЕЙ');
     await start(401);
     await start(402);
     const app = await getApp();
@@ -246,7 +246,7 @@ describe('дожимная цепочка до оплаты', () => {
     // не успела к своему старту — про следующие старты (15.11) уже не пишем; новичок 12.11 получает свой 15.11
     clock.set('2026-11-12T09:00:00Z');
     await start(404);
-    expect(String(calls.at(-1)!.body.caption ?? calls.at(-1)!.body.text)).toContain('СТАРТ УЖЕ 15 НОЯБРЯ — УСПЕВАЙ! ВХОД ЗАКРОЕТСЯ ЧЕРЕЗ 3 ДНЯ');
+    expect(String(calls.at(-1)!.body.caption ?? calls.at(-1)!.body.text)).toContain('СТАРТ УЖЕ 15 НОЯБРЯ!\nВХОД ЗАКРОЕТСЯ ЧЕРЕЗ 3 ДНЯ');
     calls = [];
     await runPrePurchaseChains(new Date('2026-11-12T09:30:00Z'));
     expect(to('ПОСЛЕЗАВТРА')).toEqual([]);
@@ -469,6 +469,7 @@ describe('оплата из бота (12.11)', () => {
     expect(pick.method).toBe('sendPhoto');
     expect(String(pick.body.photo)).toMatch(/\/img\/tariffs-compare\.jpg$/);
     expect(String(pick.body.caption)).toContain('Доступ к коммьюнити, приложению и полезным материалам придет сразу после оплаты');
+    expect(String(pick.body.caption)).toContain('(безлимит целей)');
     pick.body.text = pick.body.caption;
     expect(String(pick.body.text).replace(/[\u00a0\u202f]/g, ' ')).toContain('<s>8 970 ₽</s> → <b>2 990 ₽</b>');
     expect(String(pick.body.text)).toContain('Скидка действует всего 3 часа');
