@@ -31,7 +31,15 @@ export const WELCOME_BUTTONS = [
   { text: WELCOME_BUTTON, callback: 'how_to_join' },
   { text: 'Задать вопрос ❓', url: '{support_url}' },
 ];
-export const HOW_TO_JOIN_BUTTONS = [{ text: 'ХОЧУ ОПЛАТИТЬ ВХОД! 🔥😍', screen: 'tariffs' }, { text: 'Поддержка', url: '{support_url}' }];
+export const HOW_TO_JOIN_BUTTONS = [{ text: 'ХОЧУ ОПЛАТИТЬ ВХОД! 🔥😍', callback: 'choose_tariff' }, { text: 'Поддержка', url: '{support_url}' }];
+/** Выбор тарифа прямо в боте (12.11): кнопки ведут сразу на оплату */
+export const TARIFFS_PICK_TEXT = "🔥 <b>Выбери свой тариф</b>\n\n1 месяц: <s>{r1} ₽</s> → <b>{p1} ₽</b>\n\n3 месяца: <s>{r3} ₽</s> → <b>{p3} ₽</b> — <b>ХИТ</b> 🔥\n\n6 месяцев: <s>{r6} ₽</s> → <b>{p6} ₽</b>\n\n<b>Скидка действует всего 3 часа</b> и фиксируется для тебя на всё время, пока ты в клубе 💜\n\n<i>Нажимая на тариф, ты принимаешь <a href=\"{offer_url}\">оферту</a> (включая автопродление) и даёшь согласие на <a href=\"{privacy_url}\">обработку персональных данных</a>.</i>";
+export const TARIFFS_PICK_BUTTONS = [
+  { text: '😍 1 месяц', url: '{pay_m1}' },
+  { text: '😍🔥 3 месяца — ХИТ', url: '{pay_m3}' },
+  { text: '😍 6 месяцев', url: '{pay_m6}' },
+  { text: '🌍 Оплатить зарубежной картой', url: 'https://web.tribute.tg/s/1bGq' },
+];
 export const HOW_TO_JOIN_TEXT = "<b>Ого, смело! Остался один шаг до нового этапа в жизни! 🥹🚀</b>\nЧтобы вступить в сообщество, подтверди, что ты:\n\n<b>1) Готов работать над своей целью каждый день.\n2) Готов уделить ей все 30-60-90 дней.\n3) Готов быть активистом внутри.</b>\n\n🔥 <b>ВХОД СЕЙЧАС -\nВСЕГО 3.000р ЗА ВСЕ 3 МЕСЯЦА\n(это всего 33р/день)</b>\n\n<b>Знаешь, уж точно лучше, чем снова кальян или вб)</b>\n\n🤝 И если попадешь внутрь - мы будем рады и со всем поможем. Я сама была и часто бываю на твоем месте.\n\n<b>Чтобы купить вход, ЖМИ КНОПКУ НИЖЕ:</b>\n<i>(можно оплатить на месяц)</i>";
 
 const chain = (n: string, title: string, text: string, button: string, screen: string, delayMinutes: number, extra: Partial<TemplateSeed> = {}): TemplateSeed => ({
@@ -60,6 +68,7 @@ export const CHAIN_TEMPLATES: TemplateSeed[] = [
 export const DEFAULT_TEMPLATES: TemplateSeed[] = [
   // B01–B03
   { key: 'welcome', title: 'Цепочка 01. /start — приветствие (один раз)', text: WELCOME_TEXT, imageUrl: WELCOME_IMAGE, buttons: WELCOME_BUTTONS, enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },
+  { key: 'tariffs_pick', title: 'Цепочка 01в. «Хочу оплатить вход» — выбор тарифа в боте', text: TARIFFS_PICK_TEXT, buttons: TARIFFS_PICK_BUTTONS, enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },
   { key: 'how_to_join', title: 'Цепочка 01б. «Ознакомился, как вступить?» — условия и вход', text: HOW_TO_JOIN_TEXT, imageUrl: '{public_url}/img/bot-rules.jpg', buttons: HOW_TO_JOIN_BUTTONS, enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },
   { key: 'abandoned_purchase', title: 'B02 Незавершённая покупка', text: 'Ты остановился в шаге от старта. Твой выбор сохранён — можно продолжить с того же места.', buttons: [{ text: 'Продолжить', screen: 'resume' }], enabled: false, isMarketing: true, delayMinutes: 60, capHours: 24, priority: 60 },
   { key: 'payment_success', title: 'B03 Оплата прошла', text: 'Оплата прошла, ты в клубе! 🎉\n\nСкорее заполняй анкету, чтобы участвовать в нашем челлендже (если не успеешь заполнить до старта — ты не будешь определена в пару), и заходи в наш чат!\n\n{chat_url}\n\nДобро пожаловать! 💜', buttons: [{ text: 'Заполнить анкету 📝', screen: 'reg_profile' }, { text: 'Зайти в чат 💬', url: '{chat_url}' }], enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },

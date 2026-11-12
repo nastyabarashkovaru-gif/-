@@ -185,6 +185,37 @@ export async function billingRoutes(app: FastifyInstance) {
     return reply.send({ code: 0 });
   });
 
+  /**
+   * Оплата из бота (12.11): кнопка тарифа → создаём платёж этого человека и сразу открываем страницу оплаты.
+   * Согласие с офертой и ПДн — нажатием (текст об этом в сообщении с тарифами).
+   */
+  app.get<{ Params: { token: string } }>('/pay/new/:token', async (req, reply) => {
+    const page = (body: string) => reply.header('content-type', 'text/html; charset=utf-8').send(payPageHtml(body));
+    const { readPayToken, markPickClick } = await import('../modules/botPay');
+    const t = readPayToken(req.params.token);
+    if (!t) return page('<h2>Ссылка устарела</h2><p>Вернись в бот и нажми «ХОЧУ ОПЛАТИТЬ ВХОД» ещё раз.</p>');
+    try {
+      const { recordConsents } = await import('../modules/users');
+      await recordConsents(t.userId, { kinds: ['offer', 'personal_data'], granted: true });
+      const r = await createCheckout(t.userId, t.tariffId, `bot-${t.tariffId}-${Math.floor(Date.now() / 3_600_000)}`);
+      await markPickClick(t.userId);
+      await track({ userId: t.userId, eventName: 'bot_pay_click', tariffId: t.tariffId, metadata: { paymentId: r.paymentId } });
+      return reply.redirect(r.url, 302);
+    } catch (e) {
+      const msg = (e as Error).message || 'Не получилось открыть оплату';
+      return page(`<h2>Не получилось открыть оплату</h2><p>${esc(msg)}</p><a class="btn" href="${appUrl('')}">Открыть приложение</a>`);
+    }
+  });
+
+  /** Оферта и политика ПДн страницей — для ссылок из сообщений бота */
+  app.get<{ Params: { kind: string } }>('/doc/:kind', async (req, reply) => {
+    if (req.params.kind !== 'offer' && req.params.kind !== 'privacy') throw notFound();
+    const support = `@${await getSetting('support.username')}`;
+    const text = (req.params.kind === 'offer' ? offerDoc : privacyDoc).replaceAll('{{sellerGenitive}}', await getSetting('legal.sellerGenitive')).replaceAll('{{seller}}', await getSetting('legal.seller')).replaceAll('{{requisites}}', await getSetting('legal.requisites')).replaceAll('{{support}}', support);
+    const html = text.split('\n').map((l) => (l.startsWith('# ') ? `<h2>${esc(l.slice(2))}</h2>` : l.startsWith('## ') ? `<h3>${esc(l.slice(3))}</h3>` : l.trim() ? `<p style="text-align:left">${esc(l)}</p>` : '')).join('');
+    return reply.header('content-type', 'text/html; charset=utf-8').send(payPageHtml(html));
+  });
+
   /** Страница оплаты CloudPayments: виджет с суммой и подпиской из нашей базы (не из ссылки) */
   app.get<{ Params: { id: string }; Querystring: { e?: string; s?: string } }>('/pay/:id', async (req, reply) => {
     const exp = Number(req.query.e ?? 0);

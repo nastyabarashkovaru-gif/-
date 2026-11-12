@@ -451,3 +451,35 @@ describe('подарочная ссылка (11.11)', () => {
     expect((await api('GET', '/api/membership', 1981)).body.membership.goalLimit).toBe(3);
   });
 });
+
+describe('оплата из бота (12.11)', () => {
+  it('«ХОЧУ ОПЛАТИТЬ ВХОД» → «Выбери свой тариф» с ценами → кнопка тарифа сразу открывает оплату', async () => {
+    clock.set('2026-11-12T09:00:00Z');
+    await start(1990);
+    const app = await getApp();
+    const cb = (data: string) => app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { callback_query: { id: 'q1', from: { id: 1990 }, message: { chat: { id: 1990 } }, data } } });
+    calls = [];
+    await cb('how_to_join');
+    const how = calls.find((c) => String(c.body.text ?? c.body.caption).includes('Ого, смело'))!;
+    expect(JSON.stringify(how.body.reply_markup)).toContain('choose_tariff');
+    calls = [];
+    await cb('choose_tariff');
+    const pick = calls.find((c) => String(c.body.text).includes('Выбери свой тариф'))!;
+    expect(String(pick.body.text).replace(/[\u00a0\u202f]/g, ' ')).toContain('<s>8 970 ₽</s> → <b>2 990 ₽</b>');
+    expect(String(pick.body.text)).toContain('Скидка действует всего 3 часа');
+    const kb = (pick.body.reply_markup as { inline_keyboard: { text: string; url?: string }[][] }).inline_keyboard.flat();
+    expect(kb.map((b) => b.text)).toEqual(['😍 1 месяц', '😍🔥 3 месяца — ХИТ', '😍 6 месяцев', '🌍 Оплатить зарубежной картой']);
+    const m3 = kb[1].url!;
+    expect(m3).toMatch(/\/pay\/new\/1990\.m3\.\d+\.[A-Za-z0-9_-]{22}$/);
+    const path = new URL(m3).pathname;
+    const r = await app.inject({ method: 'GET', url: path });
+    expect(r.statusCode).toBe(302);
+    const p = await prisma.payment.findFirstOrThrow({ where: { userId: 1990n } });
+    expect(p).toMatchObject({ tariffId: 'm3', amount: 2990, kind: 'initial' });
+    expect(r.headers.location).toContain(p.id);
+    // подделка токена и чужой тариф не проходят
+    expect((await app.inject({ method: 'GET', url: path.replace('.m3.', '.m6.') })).body).toContain('Ссылка устарела');
+    // оферта открывается страницей
+    expect((await app.inject({ method: 'GET', url: '/doc/offer' })).body).toContain('Публичная оферта');
+  });
+});

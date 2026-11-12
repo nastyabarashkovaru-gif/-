@@ -82,7 +82,7 @@ describe('бот', () => {
     expect(how.body.caption).toContain('Чтобы вступить в сообщество');
     const kb = how.body.reply_markup.inline_keyboard.map((r: { text: string }[]) => r[0]);
     expect(kb[0].text).toBe('ХОЧУ ОПЛАТИТЬ ВХОД! 🔥😍');
-    expect(kb[0].web_app.url).toMatch(/_tariffs$/);
+    expect(kb[0].callback_data).toBe('choose_tariff'); // 12.11: выбор тарифа прямо в боте
     expect(kb).toHaveLength(2);
     expect(kb[1]).toEqual({ text: 'Поддержка', url: 'https://t.me/barashkova_a' });
   });

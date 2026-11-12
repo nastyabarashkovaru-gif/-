@@ -176,6 +176,16 @@ export async function seedTemplates() {
     if (w) await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: w.text.replace('ВХОД ЗАКРОЕТСЯ ЧЕРЕЗ 3 ДНЯ ‼️', 'СТАРТ УЖЕ {start_date} — УСПЕВАЙ! ВХОД ЗАКРОЕТСЯ ЧЕРЕЗ {days_left} ‼️') } });
     await prisma.setting.create({ data: { key: v26, value: { at: new Date().toISOString() } } });
   }
+  // Разово (12.11): «ХОЧУ ОПЛАТИТЬ ВХОД» — выбор тарифа в боте, а не в приложении (текст «как вступить» не трогаем)
+  const v27 = 'maintenance.botPayV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v27 } }))) {
+    const h = await prisma.botMessageTemplate.findUnique({ where: { key: 'how_to_join' } });
+    if (h) {
+      const btns = (h.buttons as { text: string; screen?: string; url?: string; callback?: string }[]).map((b) => (b.screen === 'tariffs' ? { text: b.text, callback: 'choose_tariff' } : b));
+      await prisma.botMessageTemplate.update({ where: { key: 'how_to_join' }, data: { buttons: btns } });
+    }
+    await prisma.setting.create({ data: { key: v27, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
@@ -380,6 +390,12 @@ export async function handleUpdate(update: TgUpdate) {
       } catch (e) {
         await tg('sendMessage', { chat_id: chatId, text: (e as Error).message || 'Предложение уже неактуально' }).catch(() => undefined);
       }
+      return;
+    }
+    // «ХОЧУ ОПЛАТИТЬ ВХОД»: выбор тарифа прямо в боте (12.11)
+    if (q.data === 'choose_tariff') {
+      const { sendTariffPicker } = await import('./botPay');
+      await sendTariffPicker(BigInt(q.from.id));
       return;
     }
     if (q.data === 'how_to_join') {
