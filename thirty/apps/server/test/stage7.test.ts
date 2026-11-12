@@ -464,7 +464,14 @@ describe('оплата из бота (12.11)', () => {
     expect(JSON.stringify(how.body.reply_markup)).toContain('choose_tariff');
     calls = [];
     await cb('choose_tariff');
-    const pick = calls.find((c) => String(c.body.text).includes('Выбери свой тариф'))!;
+    const pick = calls.find((c) => String(c.body.caption ?? c.body.text).includes('Выбери свой тариф'))!;
+    // картинка со сравнением тарифов и цели под каждым тарифом
+    expect(pick.method).toBe('sendPhoto');
+    expect(String(pick.body.photo)).toMatch(/\/img\/tariffs-compare\.jpg$/);
+    expect(String(pick.body.caption)).toContain('(одна цель)');
+    expect(String(pick.body.caption)).toContain('(три цели)');
+    expect(String(pick.body.caption)).toContain('(бесконечно целей)');
+    pick.body.text = pick.body.caption;
     expect(String(pick.body.text).replace(/[\u00a0\u202f]/g, ' ')).toContain('<s>8 970 ₽</s> → <b>2 990 ₽</b>');
     expect(String(pick.body.text)).toContain('Скидка действует всего 3 часа');
     const kb = (pick.body.reply_markup as { inline_keyboard: { text: string; url?: string }[][] }).inline_keyboard.flat();

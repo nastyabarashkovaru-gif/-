@@ -3,7 +3,7 @@ import type { BotMessageTemplate } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma, isUniqueViolation } from '../db';
 import { openAppButton, tg, TelegramError } from '../lib/telegram';
-import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, HOW_TO_JOIN_BUTTONS, HOW_TO_JOIN_TEXT, WELCOME_BUTTONS, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
+import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, HOW_TO_JOIN_BUTTONS, HOW_TO_JOIN_TEXT, TARIFFS_PICK_TEXT, WELCOME_BUTTONS, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
 import { config } from '../config';
 import { setNotifier } from './notify';
 import { track } from './analytics';
@@ -185,6 +185,12 @@ export async function seedTemplates() {
       await prisma.botMessageTemplate.update({ where: { key: 'how_to_join' }, data: { buttons: btns } });
     }
     await prisma.setting.create({ data: { key: v27, value: { at: new Date().toISOString() } } });
+  }
+  // Разово (12.11): в «Выбери свой тариф» — картинка со сравнением тарифов и количество целей под каждым тарифом
+  const v28 = 'maintenance.tariffsPickV2';
+  if (!(await prisma.setting.findUnique({ where: { key: v28 } }))) {
+    await prisma.botMessageTemplate.update({ where: { key: 'tariffs_pick' }, data: { text: TARIFFS_PICK_TEXT, imageUrl: '{public_url}/img/tariffs-compare.jpg' } }).catch(() => undefined);
+    await prisma.setting.create({ data: { key: v28, value: { at: new Date().toISOString() } } });
   }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
