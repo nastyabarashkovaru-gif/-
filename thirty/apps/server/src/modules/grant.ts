@@ -121,11 +121,13 @@ export async function redeemGift(userId: bigint, code: string) {
     const uid = userId.toString();
     if (g.users?.includes(uid)) return { ok: true, already: true };
     if ((g.users?.length ?? 0) >= (g.maxUses ?? 0)) throw forbidden('gift_limit', 'Места по этой ссылке закончились. Напиши в поддержку — поможем');
+    // Общая ссылка (владелица раздаёт сама): только тем, у кого доступа нет; действующую подписку не продлеваем (12.11)
     const live = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
-    const r = live ? await extendAccess(live.id, g.tariffId, g.months) : await grantAccess(userId, g.tariffId, g.months, `общая ссылка: ${g.note}`);
+    if (live) throw conflict('already_subscribed', 'У тебя уже есть доступ к клубу 💜 Если нужно продлить — напиши в поддержку');
+    const r = await grantAccess(userId, g.tariffId, g.months, `общая ссылка: ${g.note}`);
     const fresh = (await prisma.setting.findUniqueOrThrow({ where: { key: giftKey(code) } })).value as GiftLink;
     await prisma.setting.update({ where: { key: giftKey(code) }, data: { value: { ...fresh, users: [...new Set([...(fresh.users ?? []), uid])] } } });
-    await track({ userId, eventName: 'access_granted', tariffId: g.tariffId, metadata: { months: g.months, gift: true, multi: true, note: g.note, extended: Boolean(live) } });
+    await track({ userId, eventName: 'access_granted', tariffId: g.tariffId, metadata: { months: g.months, gift: true, multi: true, note: g.note } });
     return r;
   }
   if (g.usedBy && g.usedBy !== userId.toString()) throw forbidden('gift_used', 'Эта ссылка уже использована');

@@ -511,5 +511,12 @@ describe('общая ссылка перехода на 3 месяца (12.11)',
     expect((await api('POST', '/api/gift/redeem', 1996, { code })).body).toMatchObject({ ok: true });
     expect((await api('POST', '/api/gift/redeem', 1997, { code })).status).toBe(403); // места закончились
     expect(await prisma.subscription.count({ where: { userId: { in: [1995n, 1996n] }, tariffId: 'm3' } })).toBe(2);
+    // у кого доступ уже есть — не продлеваем
+    const code2 = await createGiftLink('m3', 3, 'переход', 10);
+    await api('POST', '/api/offer/start', 1997);
+    await buy(1997);
+    const sub = await prisma.subscription.findFirstOrThrow({ where: { userId: 1997n } });
+    expect((await api('POST', '/api/gift/redeem', 1997, { code: code2 })).status).toBe(409);
+    expect(await prisma.subscription.findUniqueOrThrow({ where: { id: sub.id } })).toMatchObject({ tariffId: 'm1', paidThroughFlow: sub.paidThroughFlow });
   });
 });
