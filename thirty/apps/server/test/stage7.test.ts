@@ -103,6 +103,8 @@ describe('дожимная цепочка до оплаты', () => {
 
     await api('POST', '/api/offer/start', 300); // первый показ предложения: таймер на сервере
     const at = (m: number) => new Date(Date.parse('2026-10-21T09:00:00Z') + m * 60_000);
+    // нажала «Ознакомился, как вступить?» сама — автоматически второе сообщение не приходит
+    await prisma.botMessageLog.create({ data: { userId: 300n, templateKey: 'how_to_join', dedupeKey: 'how_to_join:300:click', status: 'sent', sentAt: at(1) } });
     await runPrePurchaseChains(at(5));
     expect(sent()).toHaveLength(0);
     await runPrePurchaseChains(at(11));
@@ -188,13 +190,19 @@ describe('дожимная цепочка до оплаты', () => {
     const at = (m: number) => new Date(Date.parse('2026-10-21T09:00:00Z') + m * 60_000);
     await runPrePurchaseChains(at(5));
     expect(await prisma.priceOffer.count({ where: { userId: 310n } })).toBe(0);
+    expect(sent()).toHaveLength(0);
+    // 12.11: «Ознакомился, как вступить?» не нажала — через 7 минут «как вступить» приходит само, один раз
+    await runPrePurchaseChains(at(7));
+    await runPrePurchaseChains(at(8));
+    expect(sent()).toHaveLength(1);
+    expect(sent()[0]).toContain('Ого, смело');
     await runPrePurchaseChains(at(10));
     const offer = await prisma.priceOffer.findFirstOrThrow({ where: { userId: 310n, kind: 'intro' } });
     expect(offer.startedAt).toEqual(at(10));
-    expect(sent()).toHaveLength(0);
-    await runPrePurchaseChains(at(21));
     expect(sent()).toHaveLength(1);
-    expect(sent()[0]).toContain('получилось посмотреть');
+    await runPrePurchaseChains(at(21));
+    expect(sent()).toHaveLength(2);
+    expect(sent()[1]).toContain('получилось посмотреть');
     expect(await prisma.priceOffer.count({ where: { userId: 311n } })).toBe(0);
     // открыла тарифы позже — таймер тот же, не сбрасывается
     clock.set(at(40));

@@ -53,6 +53,9 @@ const LATE_AFTER_MIN = 12 * 60;
 const FLOW_EVE_HOUR = 12;
 /** Кто нажал /start, но за это время не дошёл до тарифов — таймер скидки запускается сам, чтобы пошла цепочка 02–09 */
 const AUTO_OFFER_AFTER_MIN = 10;
+/** «Ознакомился, как вступить?» не нажали — второе сообщение приходит само через 7 минут после приветствия */
+const AUTO_HOW_TO_JOIN_MIN = 7;
+const AUTO_HOW_TO_JOIN_WINDOW_MIN = 60;
 /** Давние /start (до появления правила) таймер не получают: им остаются сообщения 10–11 перед стартом потока */
 const AUTO_OFFER_WINDOW_MIN = 24 * 60;
 
@@ -71,6 +74,17 @@ export async function runPrePurchaseChains(now = clock.now(), send: Send = sendT
   const vars = await priceVars();
   // В режиме проверки цепочки владельцу сообщения приходят по /start подряд — расписание их не дублирует
   for (const id of await chainTestUsers()) paid.add(id);
+
+  // «Как вступить» само через 7 минут после приветствия, если человек не нажал «Ознакомился, как вступить?» (12.11).
+  // Окно — час: давним /start при выкладке ничего не досылаем
+  const howTo = await prisma.botMessageLog.findMany({
+    where: {
+      templateKey: 'welcome', sentAt: { gt: minutesAgo(now, AUTO_HOW_TO_JOIN_WINDOW_MIN), lte: minutesAgo(now, AUTO_HOW_TO_JOIN_MIN) },
+      user: { marketingOptIn: true, botLogs: { none: { templateKey: 'how_to_join' } } },
+    },
+    select: { userId: true },
+  });
+  for (const h of howTo) if (!paid.has(h.userId.toString())) await send(h.userId, 'how_to_join', {}, `how_to_join:auto:${h.userId}`);
 
   // Таймер для тех, кто не дошёл до тарифов: от первого /start (приветствие в журнале бота)
   const starters = await prisma.botMessageLog.findMany({
