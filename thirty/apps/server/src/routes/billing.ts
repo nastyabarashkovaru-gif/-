@@ -207,6 +207,14 @@ export async function billingRoutes(app: FastifyInstance) {
     }
   });
 
+  /** «Оплатить зарубежной картой» из бота: считаем нажатие и ведём в Tribute */
+  app.get<{ Params: { token: string } }>('/pay/tribute/:token', async (req, reply) => {
+    const { readPayToken } = await import('../modules/botPay');
+    const t = readPayToken(req.params.token);
+    if (t) await track({ userId: t.userId, eventName: 'tribute_click', screenId: 'bot', dedupeKey: `tribute_click:bot:${t.userId}:${Math.floor(Date.now() / 3_600_000)}` });
+    return reply.redirect('https://web.tribute.tg/s/1bGq', 302);
+  });
+
   /** Оферта и политика ПДн страницей — для ссылок из сообщений бота */
   app.get<{ Params: { kind: string } }>('/doc/:kind', async (req, reply) => {
     if (req.params.kind !== 'offer' && req.params.kind !== 'privacy') throw notFound();
@@ -225,6 +233,8 @@ export async function billingRoutes(app: FastifyInstance) {
     const tariff = p?.tariffId ? await prisma.tariff.findUnique({ where: { id: p.tariffId } }) : null;
     if (!p) return page('<h2>Платёж не найден</h2>');
     const back = appUrl(`pay_${p.id}`);
+    // Воронка бота (13.11): страница оплаты открыта — окно CloudPayments открывается само при загрузке
+    await track({ userId: p.userId, eventName: 'pay_page_view', tariffId: p.tariffId ?? undefined, metadata: { paymentId: p.id }, dedupeKey: `pay_page_view:${p.id}` });
     if (p.status === 'paid') return page(`<h2>Оплата уже прошла ✅</h2><a class="btn" href="${back}">Вернуться в приложение</a>`);
     if (clock.now().getTime() / 1000 > exp) return page('<h2>Ссылка устарела</h2><p>Специальная цена или срок ссылки закончились. Вернись в приложение и открой оплату заново.</p><a class="btn" href="' + back + '">Вернуться в приложение</a>');
     // Подписка: первое автосписание 28-го числа последнего оплаченного месяца, по цене покупки

@@ -25,6 +25,9 @@ export function readPayToken(token: string, now = clock.now()): { userId: bigint
   return { userId: BigInt(m[1]), tariffId: m[2] };
 }
 
+/** Кнопка «Оплатить зарубежной картой» в боте ведёт через наш адрес — нажатие попадает в воронку */
+export const tributeUrl = (userId: bigint) => `${config.PUBLIC_URL.replace(/\/$/, '')}/pay/tribute/${payToken(userId, 'm1')}`;
+
 export const payUrl = (userId: bigint, tariffId: string) => `${config.PUBLIC_URL.replace(/\/$/, '')}/pay/new/${payToken(userId, tariffId)}`;
 
 /** «Выбери свой тариф»: таймер скидки запускается (или идёт дальше), цены — из настроек тарифов */
@@ -37,7 +40,7 @@ export async function sendTariffPicker(userId: bigint) {
   const base = config.PUBLIC_URL.replace(/\/$/, '');
   const vars = {
     ...(await priceVars()),
-    pay_m1: payUrl(userId, 'm1'), pay_m3: payUrl(userId, 'm3'), pay_m6: payUrl(userId, 'm6'),
+    pay_m1: payUrl(userId, 'm1'), pay_m3: payUrl(userId, 'm3'), pay_m6: payUrl(userId, 'm6'), pay_tribute: tributeUrl(userId),
     offer_url: `${base}/doc/offer`, privacy_url: `${base}/doc/privacy`,
   };
   await track({ userId, eventName: 'bot_tariffs_open' });

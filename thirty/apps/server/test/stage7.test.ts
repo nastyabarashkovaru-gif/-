@@ -495,6 +495,18 @@ describe('оплата из бота (12.11)', () => {
     expect(r.headers.location).toContain(p.id);
     // подделка токена и чужой тариф не проходят
     expect((await app.inject({ method: 'GET', url: path.replace('.m3.', '.m6.') })).body).toContain('Ссылка устарела');
+    // воронка бота в админке: зашла → «как вступить» (сама нажала) → «хочу оплатить» → тариф 3 месяца → открыла оплату
+    const { payPageSig } = await import('../src/payments/cloudpayments');
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    await app.inject({ method: 'GET', url: `/pay/${p.id}?e=${exp}&s=${payPageSig(p.id, exp)}` });
+    const { homeBotFunnel } = await import('../src/modules/adminHome');
+    const f = await homeBotFunnel({ from: '2026-11-12', to: '2026-11-12' } as never);
+    expect(f.current!.steps.map((x: { count: number }) => x.count)).toEqual([1, 1, 1, 1, 1, 0]);
+    expect(f.current!.steps[3].note).toContain('3 месяца — 1');
+    // «Оплатить зарубежной картой» — через наш адрес, нажатие считается
+    const tr = await app.inject({ method: 'GET', url: new URL(kb[3].url!).pathname });
+    expect(tr.headers.location).toBe('https://web.tribute.tg/s/1bGq');
+    expect((await homeBotFunnel({ from: '2026-11-12', to: '2026-11-12' } as never)).current!.side.tribute).toBe(1);
     // оферта открывается страницей
     expect((await app.inject({ method: 'GET', url: '/doc/offer' })).body).toContain('Публичная оферта');
   });

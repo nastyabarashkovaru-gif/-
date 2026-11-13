@@ -235,6 +235,16 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT } }).catch(() => undefined);
     await prisma.setting.create({ data: { key: v35, value: { at: new Date().toISOString() } } });
   }
+  // Разово (13.11): кнопка «Оплатить зарубежной картой» в «Выбери свой тариф» — через наш адрес (считаем нажатия)
+  const v36 = 'maintenance.tariffsPickTribute';
+  if (!(await prisma.setting.findUnique({ where: { key: v36 } }))) {
+    const t = await prisma.botMessageTemplate.findUnique({ where: { key: 'tariffs_pick' } });
+    if (t) {
+      const btns = (t.buttons as { text: string; url?: string }[]).map((b) => (b.url === 'https://web.tribute.tg/s/1bGq' ? { ...b, url: '{pay_tribute}' } : b));
+      await prisma.botMessageTemplate.update({ where: { key: 'tariffs_pick' }, data: { buttons: btns } });
+    }
+    await prisma.setting.create({ data: { key: v36, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {

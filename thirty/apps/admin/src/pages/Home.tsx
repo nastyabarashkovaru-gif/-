@@ -301,6 +301,46 @@ function TariffsBlock({ d }: { d: any }) {
   );
 }
 
+/* ───────── Воронка бота по шагам (13.11) ───────── */
+
+function BotFunnel({ d }: { d: any }) {
+  const c = d.current, p = d.previous;
+  if (!c) return <section className="block"><h2>Воронка бота</h2><div className="empty">За период в бот никто не пришёл</div></section>;
+  const max = c.steps[0].count || 1;
+  return (
+    <section className="block">
+      <h2>Воронка бота</h2>
+      <p className="muted">Люди, впервые пришедшие за период, и докуда каждый дошёл. Из бота платят мимо приложения — поэтому шаги приложения ниже отдельно.</p>
+      <div className="col" style={{ gap: 10 }}>
+        {c.steps.map((s: any, i: number) => {
+          const ps = p?.steps?.[i];
+          return (
+            <div key={s.key}>
+              <div className="row between" style={{ alignItems: 'baseline', gap: 8 }}>
+                <b style={{ fontSize: 15 }}>{s.title}</b>
+                <span style={{ whiteSpace: 'nowrap' }}><b style={{ fontSize: 17 }}>{num(s.count)}</b>{s.ofPrev !== null && <span className="muted"> · {pctf(s.ofPrev)} от пред.</span>}</span>
+              </div>
+              <div style={{ height: 10, borderRadius: 6, background: 'var(--track, #eceaf3)', marginTop: 4 }}>
+                <div style={{ width: `${Math.max(2, (s.count / max) * 100)}%`, height: '100%', borderRadius: 6, background: '#6c51df' }} />
+              </div>
+              <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+                {s.ofStart !== null && i > 0 ? `${pctf(s.ofStart)} от пришедших` : ''}{s.note ? `${i > 0 ? ' · ' : ''}${s.note}` : ''}{ps ? ` · прошлый период: ${num(ps.count)}` : ''}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mini-grid" style={{ marginTop: 14 }}>
+        <div><span>Оплата не прошла</span><b>{num(c.side.failed)}</b><em>пытались, но не оплатили</em></div>
+        <div><span>«Оплатить зарубежной картой»</span><b>{num(c.side.tribute)}</b><em>ушли в Tribute (оплаты там не видны)</em></div>
+        <div><span>Приложение</span><b>{num(c.side.appOpen)}</b><em>открыли · тарифы {num(c.side.appTariffs)} · оформление {num(c.side.appCheckout)}</em></div>
+        <div><span>Заблокировали бота</span><b>{num(c.side.blocked)}</b><em>отписались от рассылок (/stop) — {num(c.side.stopped)}</em></div>
+        <div><span>Купили тарифы</span><b>{num(c.side.paidTariffs.m1 + c.side.paidTariffs.m3 + c.side.paidTariffs.m6)}</b><em>1 мес — {c.side.paidTariffs.m1} · 3 мес — {c.side.paidTariffs.m3} · 6 мес — {c.side.paidTariffs.m6}</em></div>
+      </div>
+    </section>
+  );
+}
+
 /* ───────── Сообщения бота: какие приводят к оплате (просьба владельца 03.11) ───────── */
 
 function BotRow({ m, rank }: { m: any; rank?: number }) {
@@ -437,6 +477,7 @@ export function Home() {
   const money = useLoad(() => api(`/admin-api/home/money?${q}`), [q]);
   const ret = useLoad(() => api(`/admin-api/home/retention?${q}`), [q]);
   const bot = useLoad(() => api(`/admin-api/home/bot?${q}`), [q]);
+  const botFunnel = useLoad(() => api(`/admin-api/home/bot-funnel?${q}`), [q]);
   return (
     <div className="home">
       <h1 className="page-title">Аналитика клуба</h1>
@@ -450,6 +491,7 @@ export function Home() {
           <Kpi title="Оплатили" count={d.cards.paid.count} of={d.cards.paid.ofPrev} ofText="от дошедших до тарифов" change={d.cards.paid.change} />
         </div>
       )}</Block>
+      <Block s={botFunnel} h={420}>{(d: any) => <BotFunnel d={d} />}</Block>
       <Block s={funnel} h={420}>{(d: any) => <FunnelBlock d={d} />}</Block>
       <Block s={funnel} h={260}>{(d: any) => <Dynamics d={d} />}</Block>
       <Block s={money} h={420}>{(d: any) => <Money d={d} />}</Block>

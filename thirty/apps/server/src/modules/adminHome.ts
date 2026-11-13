@@ -505,3 +505,69 @@ export async function homeBot(r: DayRange) {
     .sort((a, b) => b.paid - a.paid || b.clicks - a.clicks || order(a.key) - order(b.key) || a.key.localeCompare(b.key));
   return { top: rows.filter((x) => x.paid > 0 || x.clicks > 0).slice(0, 3), all: rows, payments: pays.length, attributed: [...paid.values()].reduce((a, b) => a + b, 0) };
 }
+
+/**
+ * Воронка бота по шагам (13.11): люди, впервые пришедшие за период (как в «Конверсия бот → оплата»), и докуда каждый дошёл.
+ * Оплата из бота идёт мимо приложения, поэтому шаги бота и приложения показаны раздельно.
+ */
+export async function homeBotFunnel(r: DayRange) {
+  const zone = await tz();
+  const touches = await firstTouches();
+  const run = async (range: DayRange) => {
+    const cohort = (await cohortOf(touches, range, zone)).map((c) => c.userId);
+    const ids = cohort.map((c) => c);
+    const n = ids.length;
+    if (!n) return null;
+    const ev = await prisma.analyticsEvent.findMany({
+      where: { userId: { in: ids }, eventName: { in: ['bot_how_to_join_click', 'bot_tariffs_open', 'bot_pay_click', 'pay_page_view', 'payment_start', 'payment_failed', 'tariff_view', 'app_open', 'tribute_click'] } },
+      select: { userId: true, eventName: true, tariffId: true, metadata: true },
+    });
+    const logs = await prisma.botMessageLog.findMany({ where: { userId: { in: ids }, templateKey: 'how_to_join', status: 'sent' }, select: { userId: true, dedupeKey: true } });
+    const users = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, botBlocked: true, marketingOptIn: true } });
+    const pays = await prisma.payment.findMany({ where: { userId: { in: ids }, kind: 'initial', status: { in: ['paid', 'refunded'] }, test: false }, select: { userId: true, tariffId: true, amount: true } });
+    const who = (name: string, f?: (e: (typeof ev)[number]) => boolean) => new Set(ev.filter((e) => e.eventName === name && (!f || f(e))).map((e) => e.userId!.toString()));
+    const paidBy = new Map<string, { tariffId: string | null; amount: number }>();
+    for (const p of pays) if (!paidBy.has(p.userId.toString())) paidBy.set(p.userId.toString(), p);
+    const howTo = new Set(logs.map((l) => l.userId.toString()));
+    const howToAuto = new Set(logs.filter((l) => l.dedupeKey.startsWith('how_to_join:auto:')).map((l) => l.userId.toString()));
+    const clicked = who('bot_how_to_join_click');
+    const tariffsBot = who('bot_tariffs_open');
+    const payClick = who('bot_pay_click');
+    const byTariff = (t: string) => who('bot_pay_click', (e) => e.tariffId === t).size;
+    const pageView = who('pay_page_view');
+    const failed = who('payment_failed');
+    const appOpen = who('app_open');
+    const appTariffs = who('tariff_view');
+    const appCheckout = who('payment_start');
+    const tribute = who('tribute_click');
+    const paid = paidBy.size;
+    const paidFromBot = [...paidBy.keys()].filter((id) => payClick.has(id)).length;
+    const failedNotPaid = [...failed].filter((id) => !paidBy.has(id)).length;
+    const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
+    return {
+      n,
+      steps: [
+        { key: 'start', title: 'Зашли в бота', count: n },
+        { key: 'how', title: 'Получили «как вступить»', count: howTo.size, note: `сами нажали — ${clicked.size}, пришло само через 7 мин — ${howToAuto.size}` },
+        { key: 'want', title: 'Нажали «Хочу оплатить вход»', count: tariffsBot.size },
+        { key: 'tariff', title: 'Нажали тариф', count: payClick.size, note: `1 месяц — ${byTariff('m1')}, 3 месяца — ${byTariff('m3')}, 6 месяцев — ${byTariff('m6')}` },
+        { key: 'page', title: 'Открыли оплату', count: pageView.size, note: 'и из бота, и из приложения' },
+        { key: 'paid', title: 'Оплатили', count: paid, note: `из них после кнопки тарифа в боте — ${paidFromBot}` },
+      ].map((s, i, all) => ({ ...s, ofStart: pct(s.count, n), ofPrev: i ? pct(s.count, all[i - 1].count) : null })),
+      side: {
+        failed: failedNotPaid,
+        tribute: tribute.size,
+        appOpen: appOpen.size,
+        appTariffs: appTariffs.size,
+        appCheckout: appCheckout.size,
+        blocked: users.filter((u) => u.botBlocked).length,
+        stopped: users.filter((u) => !u.marketingOptIn).length,
+        paidTariffs: { m1: [...paidBy.values()].filter((p) => p.tariffId === 'm1').length, m3: [...paidBy.values()].filter((p) => p.tariffId === 'm3').length, m6: [...paidBy.values()].filter((p) => p.tariffId === 'm6').length },
+      },
+    };
+  };
+  const cur = await run(r);
+  const prevR = previousRange(r);
+  const prev = await run(prevR);
+  return { range: r, current: cur, previous: prev ? { range: prevR, ...prev } : null };
+}

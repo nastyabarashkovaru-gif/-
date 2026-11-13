@@ -94,6 +94,7 @@ export async function adminRoutes(app: FastifyInstance) {
     r.get<HomeQ>('/admin-api/home/money', perm('dashboard'), async (req) => jsonSafe(await homeMoney(await resolveRange(req.query))));
     r.get<HomeQ>('/admin-api/home/retention', perm('dashboard'), async (req) => jsonSafe(await homeRetention(await resolveRange(req.query))));
     r.get<HomeQ>('/admin-api/home/bot', perm('dashboard'), async (req) => jsonSafe(await homeBot(await resolveRange(req.query))));
+    r.get<HomeQ>('/admin-api/home/bot-funnel', perm('dashboard'), async (req) => jsonSafe(await (await import('../modules/adminHome')).homeBotFunnel(await resolveRange(req.query))));
     r.get<HomeQ>('/admin-api/home/members', perm('dashboard'), async (req) => jsonSafe(await homeMembers(req.query.flowId)));
     r.get('/admin-api/home/insights', perm('dashboard'), async () => jsonSafe(await homeInsights()));
     r.get<{ Querystring: Record<string, string> }>('/admin-api/analytics/funnel', perm('analytics'), async (req) =>
