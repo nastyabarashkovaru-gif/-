@@ -532,3 +532,31 @@ describe('общая ссылка перехода на 3 месяца (12.11)',
     expect(await prisma.subscription.findUniqueOrThrow({ where: { id: sub.id } })).toMatchObject({ tariffId: 'm1', paidThroughFlow: sub.paidThroughFlow });
   });
 });
+
+describe('оплата не завершилась (14.11)', () => {
+  it('открыла оплату и не оплатила — через 5 минут «Оплатить ещё раз» на тот же тариф; оплатившим не приходит', async () => {
+    clock.set('2026-11-14T09:00:00Z');
+    await start(2001);
+    await start(2002);
+    await api('POST', '/api/offer/start', 2001);
+    await api('POST', '/api/consents', 2001, { kinds: ['offer', 'personal_data'] });
+    expect((await api('POST', '/api/checkout', 2001, { tariffId: 'm3', idempotencyKey: 'retry-2001' })).status).toBe(200);
+    await api('POST', '/api/offer/start', 2002);
+    await buy(2002); // оплатила сразу
+    const at = (m: number) => new Date(Date.parse('2026-11-14T09:00:00Z') + m * 60_000);
+    await prisma.payment.updateMany({ where: { userId: { in: [2001n, 2002n] } }, data: { createdAt: at(0) } });
+    // «как вступить» уже получили, чтобы не мешало
+    for (const id of [2001n, 2002n]) await prisma.botMessageLog.create({ data: { userId: id, templateKey: 'how_to_join', dedupeKey: `how_to_join:${id}:t`, status: 'sent', sentAt: at(0) } });
+    calls = [];
+    await runPrePurchaseChains(at(3));
+    expect(calls.filter((c) => String(c.body.text).includes('оплата не завершилась'))).toHaveLength(0);
+    await runPrePurchaseChains(at(5));
+    await runPrePurchaseChains(at(6));
+    const msgs = calls.filter((c) => String(c.body.text).includes('оплата не завершилась'));
+    expect(msgs.map((c) => Number(c.body.chat_id))).toEqual([2001]);
+    const kb = (msgs[0].body.reply_markup as { inline_keyboard: { text: string; url?: string; callback_data?: string }[][] }).inline_keyboard.flat();
+    expect(kb.map((b) => b.text)).toEqual(['💳 Оплатить ещё раз', '🌍 Оплатить зарубежной картой', 'Выбрать другой тариф', 'Поддержка']);
+    expect(kb[0].url).toMatch(/\/pay\/new\/2001\.m3\./);
+    expect(kb[2].callback_data).toBe('choose_tariff');
+  });
+});

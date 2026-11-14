@@ -86,6 +86,28 @@ export async function runPrePurchaseChains(now = clock.now(), send: Send = sendT
   });
   for (const h of howTo) if (!paid.has(h.userId.toString())) await send(h.userId, 'how_to_join', {}, `how_to_join:auto:${h.userId}`);
 
+  // Оплата не завершилась (14.11): открыла оплату и за 5 минут не оплатила — «Оплатить ещё раз» (тот же тариф),
+  // зарубежная карта, другой тариф, поддержка. Один раз в сутки; окно — час, старые незавершённые не трогаем
+  if (on('pay_retry')) {
+    const delay = tpl.get('pay_retry')!.delayMinutes;
+    const pending = await prisma.payment.findMany({
+      where: { kind: 'initial', status: { in: ['initiated', 'pending'] }, createdAt: { gt: minutesAgo(now, delay + 60), lte: minutesAgo(now, delay) } },
+      orderBy: { createdAt: 'desc' },
+      select: { userId: true, tariffId: true, createdAt: true },
+    });
+    const seen = new Set<string>();
+    const { payUrl, tributeUrl } = await import('../modules/botPay');
+    for (const p of pending) {
+      const uid = p.userId.toString();
+      if (seen.has(uid) || paid.has(uid) || !p.tariffId) continue;
+      seen.add(uid);
+      // после этой попытки была ещё одна (ждём её 5 минут) или оплата прошла — не пишем
+      const later = await prisma.payment.findFirst({ where: { userId: p.userId, kind: 'initial', createdAt: { gt: p.createdAt } } });
+      if (later) continue;
+      await send(p.userId, 'pay_retry', { ...vars, pay_again: payUrl(p.userId, p.tariffId), pay_tribute: tributeUrl(p.userId) }, `pay_retry:${uid}:${localDate(now, 'Europe/Moscow')}`);
+    }
+  }
+
   // Таймер для тех, кто не дошёл до тарифов: от первого /start (приветствие в журнале бота)
   const starters = await prisma.botMessageLog.findMany({
     where: { templateKey: 'welcome', sentAt: { gt: minutesAgo(now, AUTO_OFFER_WINDOW_MIN), lte: minutesAgo(now, AUTO_OFFER_AFTER_MIN) }, user: { offers: { none: { kind: 'intro' } } } },

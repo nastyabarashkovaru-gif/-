@@ -43,6 +43,14 @@ export const TARIFFS_PICK_BUTTONS = [
   { text: '😍 6 месяцев', url: '{pay_m6}' },
   { text: '🌍 Оплатить зарубежной картой', url: '{pay_tribute}' },
 ];
+/** Незавершённая оплата (14.11): через 5 минут после открытия оплаты без успешного платежа */
+export const PAY_RETRY_TEXT = "<b>Вижу, оплата не завершилась 🙈</b>\n\nЕсли что-то не получилось — нажми <b>«Оплатить ещё раз»</b>, это займёт минуту 💳\n\nЕсли у тебя <b>карта не из России</b> — выбирай <b>«Оплатить зарубежной картой» 🌍</b>\n\nНе получается оплатить? <b>Напиши нам</b> — поможем лично 💜";
+export const PAY_RETRY_BUTTONS = [
+  { text: '💳 Оплатить ещё раз', url: '{pay_again}' },
+  { text: '🌍 Оплатить зарубежной картой', url: '{pay_tribute}' },
+  { text: 'Выбрать другой тариф', callback: 'choose_tariff' },
+  { text: 'Поддержка', url: '{support_url}' },
+];
 export const HOW_TO_JOIN_TEXT = "<b>Ого, смело! Остался один шаг до нового этапа в жизни! 🥹🚀</b>\nЧтобы вступить в сообщество, подтверди, что ты <b>ГОТОВ:</b>\n\n<b>1) Работать над своей целью каждый день.\n2) Уделить ей все 30 дней.\n3) Быть активистом внутри.</b>\n\n🔥 <b>ВХОД СЕЙЧАС -\nВСЕГО 33р/день 🤯😍 (999р/мес)</b>\n\n<b>Наш чат — уж точно лучше пару чашек кофе, которых выйдут через час 😂 а чат с коммьюнити останется!</b>\n\n🤝 И если попадешь внутрь — мы будем рады и со всем поможем!\n\n<b>Чтобы купить вход, ЖМИ КНОПКУ НИЖЕ:</b>\n<i>(можно оплатить на месяц)</i>";
 
 const chain = (n: string, title: string, text: string, button: string, screen: string, delayMinutes: number, extra: Partial<TemplateSeed> = {}): TemplateSeed => ({
@@ -71,6 +79,7 @@ export const CHAIN_TEMPLATES: TemplateSeed[] = [
 export const DEFAULT_TEMPLATES: TemplateSeed[] = [
   // B01–B03
   { key: 'welcome', title: 'Цепочка 01. /start — приветствие (один раз)', text: WELCOME_TEXT, imageUrl: WELCOME_IMAGE, buttons: WELCOME_BUTTONS, enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },
+  { key: 'pay_retry', title: 'Цепочка 01г. Оплата не завершилась (через 5 минут)', text: PAY_RETRY_TEXT, buttons: PAY_RETRY_BUTTONS, enabled: true, isMarketing: false, delayMinutes: 5, capHours: 0, priority: 100 },
   { key: 'tariffs_pick', title: 'Цепочка 01в. «Хочу оплатить вход» — выбор тарифа в боте', text: TARIFFS_PICK_TEXT, imageUrl: '{public_url}/img/tariffs-compare-h.jpg', buttons: TARIFFS_PICK_BUTTONS, enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },
   { key: 'how_to_join', title: 'Цепочка 01б. «Ознакомился, как вступить?» — условия и вход', text: HOW_TO_JOIN_TEXT, imageUrl: '{public_url}/img/bot-rules.jpg', buttons: HOW_TO_JOIN_BUTTONS, enabled: true, isMarketing: false, delayMinutes: 0, capHours: 0, priority: 100 },
   { key: 'abandoned_purchase', title: 'B02 Незавершённая покупка', text: 'Ты остановился в шаге от старта. Твой выбор сохранён — можно продолжить с того же места.', buttons: [{ text: 'Продолжить', screen: 'resume' }], enabled: false, isMarketing: true, delayMinutes: 60, capHours: 24, priority: 60 },

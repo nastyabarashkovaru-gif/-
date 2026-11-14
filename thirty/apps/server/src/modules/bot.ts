@@ -258,6 +258,12 @@ export async function seedTemplates() {
     }
     await prisma.setting.create({ data: { key: v37, value: { at: new Date().toISOString() } } });
   }
+  // Разово (14.11): «Оплата не завершилась» — сообщение создаётся сидом; включаем
+  const v38 = 'maintenance.payRetryV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v38 } }))) {
+    await prisma.botMessageTemplate.updateMany({ where: { key: 'pay_retry' }, data: { enabled: true, approved: true } });
+    await prisma.setting.create({ data: { key: v38, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
