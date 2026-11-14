@@ -101,7 +101,8 @@ export async function onJoinRequest(tgChatId: number, tgUserId: number, link?: {
   const allowed = (await accessibleChats(userId)).some((c) => c.id === chat.id);
   // 14.11: Tribute чатами не управляет — оплатившим одобряем заявку по любой ссылке.
   // Без доступа: по нашей личной ссылке — отклоняем, по чужой — оставляем владелице (решит вручную)
-  const action = allowed ? 'approve' : ours ? 'decline' : 'leave';
+  // Канал полезных материалов (14.11): без доступа никого не отклоняем — заявка висит, владелица смотрит сама
+  const action = allowed ? 'approve' : ours && chat.kind !== 'channel' ? 'decline' : 'leave';
   console.log(`[chats] заявка ${tgUserId} в «${chat.title}»: ссылка ${ours ? 'бота' : link?.creator ? `от ${link.creator.id}` : link ? 'без автора' : 'нет'}${link?.name ? ` (${link.name})` : ''} → ${action === 'approve' ? 'одобрена' : action === 'decline' ? 'отклонена (нет доступа)' : 'оставлена (нет доступа, чужая ссылка)'}`);
   if (action === 'leave') return;
   try {
@@ -224,7 +225,7 @@ export async function topicAccess(userId: bigint) {
  * Разово (14.11): одобрить уже висящие заявки тех, у кого есть доступ.
  * Список заявок боту недоступен — пробуем одобрить каждого с доступом во всех его чатах, где он ещё не состоит.
  */
-export async function approvePendingRequests() {
+export async function approvePendingRequests(kinds: string[] = ['flow', 'topic']) {
   const users = await prisma.user.findMany({
     where: { deletedAt: null, OR: [{ subscriptions: { some: { status: { in: [...LIVE_STATUSES] } } } }, { memberships: { some: { status: { not: 'revoked' } } } }] },
     select: { id: true },
@@ -234,7 +235,7 @@ export async function approvePendingRequests() {
   for (const u of users) {
     const chats = await accessibleChats(u.id);
     for (const c of chats) {
-      if (!c.telegramChatId || c.kind === 'channel') continue;
+      if (!c.telegramChatId || !kinds.includes(c.kind)) continue;
       const m = await prisma.chatMembership.findUnique({ where: { chatId_userId: { chatId: c.id, userId: u.id } } });
       if (m?.status === 'joined') continue;
       tried++;
@@ -253,6 +254,6 @@ export async function approvePendingRequests() {
       await new Promise((r) => setTimeout(r, 60));
     }
   }
-  console.log(`[chats] разовое одобрение висящих заявок: проверено ${tried}, одобрено ${approved}`);
+  console.log(`[chats] разовое одобрение висящих заявок (${kinds.join(', ')}): проверено ${tried}, одобрено ${approved}`);
   return { tried, approved };
 }

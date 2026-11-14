@@ -130,7 +130,7 @@ describe('бот', () => {
 });
 
 describe('чаты (критерий №7)', () => {
-  it('информационный канал: всем оплатившим, неоплатившим — отказ; заявки проверяет бот', async () => {
+  it('информационный канал: всем оплатившим; неоплатившим — заявка ждёт владелицу; заявки проверяет бот', async () => {
     clock.set('2026-10-21T09:00:00Z');
     await paidUser(11, NOV);
     await prisma.user.create({ data: { id: 12n, firstName: 'Гостья', allowsWrite: true } });
@@ -145,7 +145,8 @@ describe('чаты (критерий №7)', () => {
     await join(11);
     await join(12);
     expect(calls.filter((c) => c.method === 'approveChatJoinRequest').map((c) => c.body.user_id)).toEqual([11]);
-    expect(calls.filter((c) => c.method === 'declineChatJoinRequest').map((c) => c.body.user_id)).toEqual([12]);
+    // 14.11: в канале материалов без доступа не отклоняем — заявка висит, владелица решит сама
+    expect(calls.filter((c) => c.method === 'declineChatJoinRequest')).toEqual([]);
     // заявка по чужой ссылке без доступа — не одобряем и не отклоняем (решит владелица)
     calls = [];
     const other = (user: number) => app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { chat_join_request: { chat: { id: -1007 }, from: { id: user }, invite_link: { invite_link: 'https://t.me/+tribute', creator: { id: 999, is_bot: true } } } } });

@@ -479,7 +479,11 @@ export function Home() {
   const money = useLoad(() => api(`/admin-api/home/profit?${q}`), [q]);
   return (
     <div className="fm-page">
-      <h1 className="page-title">Аналитика</h1>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1 className="page-title">Аналитика</h1>
+        {/* Данные не обновляются сами — только по этой кнопке или при смене периода */}
+        <button className="chip" onClick={() => { map.reload(); money.reload(); }} disabled={map.loading || money.loading}>{map.loading || money.loading ? 'Обновляю…' : '↻ Обновить'}</button>
+      </div>
       <PeriodPicker value={p} onChange={setP} />
       {map.error ? <div className="fm-empty">Не получилось загрузить карту: {String(map.error)}</div> : !map.data ? <div className="fm-map fm-loading">Собираю карту…</div> : <FunnelMap data={map.data} />}
       {money.data && <MoneyCards m={money.data} />}

@@ -14,12 +14,32 @@ const W = 280;
 const GAP_X = 120;
 const ROW_Y = [0, 560, 1060];
 const ANCHOR = 34;
+const VIEW_KEY = 'thirty.admin.mapView';
 const fmt = (n: number) => n.toLocaleString('ru-RU');
 const pctTxt = (p: number | null) => (p === null ? '' : ` (${String(p).replace('.', ',')}%)`);
 
 export function FunnelMap({ data }: { data: MapData }) {
   const box = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState({ x: 24, y: 40, k: 0.8 });
+  // Положение и масштаб карты помним: даже если страница перерисуется, карта остаётся там, где её оставили
+  const [view, setViewRaw] = useState<{ x: number; y: number; k: number }>(() => {
+    try {
+      const v = JSON.parse(sessionStorage.getItem(VIEW_KEY) ?? '');
+      if (Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.k)) return v;
+    } catch {
+      /* нет сохранённого — начало карты */
+    }
+    return { x: 24, y: 40, k: 0.8 };
+  });
+  const setView = (u: { x: number; y: number; k: number } | ((v: { x: number; y: number; k: number }) => { x: number; y: number; k: number })) =>
+    setViewRaw((v) => {
+      const next = typeof u === 'function' ? u(v) : u;
+      try {
+        sessionStorage.setItem(VIEW_KEY, JSON.stringify(next));
+      } catch {
+        /* без хранилища — просто не запоминаем */
+      }
+      return next;
+    });
   const [open, setOpen] = useState<Node | null>(null);
   const drag = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
   const pts = useRef(new Map<number, { x: number; y: number }>());
@@ -27,8 +47,15 @@ export function FunnelMap({ data }: { data: MapData }) {
   const moved = useRef(false);
 
   useEffect(() => {
-    // на телефоне — мельче, чтобы сразу было видно начало цепочки
-    if (box.current && box.current.clientWidth < 700) setView({ x: 12, y: 30, k: 0.55 });
+    // на телефоне — мельче, чтобы сразу было видно начало цепочки (только при первом открытии)
+    let saved = false;
+    try {
+      saved = Boolean(sessionStorage.getItem(VIEW_KEY));
+    } catch {
+      /* нет хранилища */
+    }
+    if (!saved && box.current && box.current.clientWidth < 700) setView({ x: 12, y: 30, k: 0.55 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const pos = (n: Node) => ({ x: n.col * (W + GAP_X), y: ROW_Y[n.row] ?? n.row * 500 });
@@ -66,10 +93,13 @@ export function FunnelMap({ data }: { data: MapData }) {
       moved.current = true;
       return;
     }
-    if (drag.current) {
-      const dx = e.clientX - drag.current.x, dy = e.clientY - drag.current.y;
+    const d = drag.current;
+    if (d) {
+      const dx = e.clientX - d.x, dy = e.clientY - d.y;
       if (Math.abs(dx) + Math.abs(dy) > 4) moved.current = true;
-      setView((v) => ({ ...v, x: drag.current!.vx + dx, y: drag.current!.vy + dy }));
+      // значения берём сразу: палец могли уже отпустить, пока React применяет обновление
+      const nx = d.vx + dx, ny = d.vy + dy;
+      setView((v) => ({ ...v, x: nx, y: ny }));
     }
   };
   const onUp = (e: React.PointerEvent) => {
