@@ -245,6 +245,19 @@ export async function seedTemplates() {
     }
     await prisma.setting.create({ data: { key: v36, value: { at: new Date().toISOString() } } });
   }
+  // Разово (14.11): новый текст «как вступить»; кнопка «Почитать ОТЗЫВЫ 🔥» второй в приветствии и «как вступить»
+  const v37 = 'maintenance.reviewsButtonV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v37 } }))) {
+    const { REVIEWS_BUTTON } = await import('./templates');
+    for (const key of ['welcome', 'how_to_join']) {
+      const t = await prisma.botMessageTemplate.findUnique({ where: { key } });
+      if (!t) continue;
+      const btns = (t.buttons as { text: string; url?: string }[]).filter((b) => b.url !== REVIEWS_BUTTON.url);
+      btns.splice(1, 0, REVIEWS_BUTTON);
+      await prisma.botMessageTemplate.update({ where: { key }, data: { buttons: btns, ...(key === 'how_to_join' ? { text: HOW_TO_JOIN_TEXT } : {}) } });
+    }
+    await prisma.setting.create({ data: { key: v37, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
