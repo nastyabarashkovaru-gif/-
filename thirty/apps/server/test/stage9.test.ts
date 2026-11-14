@@ -118,9 +118,9 @@ describe('итоги потока и «Поставить новую цель»'
     // новое открытие экрана — снова час
     expect((await api('GET', '/api/comeback?start=1', U)).body).toMatchObject({ active: true, msLeft: 60 * 60_000 });
     clock.set(new Date(clock.now().getTime() + 61 * 60_000).toISOString());
-    // Обычная покупка после таймера — по актуальной цене (условия старой подписки не трогаем)
+    // Обычная покупка после таймера — по обычной цене со скидкой (14.11: скидка действует всегда)
     const regular = await api('POST', '/api/checkout', U, { tariffId: 'm1', idempotencyKey: 'regular-1' });
-    expect(regular.body.amount).toBeGreaterThan(999);
+    expect(regular.body.amount).toBe(999);
     expect(sub.id).toBeTruthy();
   });
 

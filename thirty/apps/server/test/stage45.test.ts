@@ -59,19 +59,19 @@ describe('бот', () => {
     const msg = calls.find((c) => c.method === 'sendPhoto')!; // приветствие — картинка с подписью
     expect(msg.body.photo).toMatch(/\/img\/bot-welcome-v3\.jpg$/);
     expect(msg.body).toMatchObject({ parse_mode: 'HTML' });
-    expect(msg.body.caption).toContain('<b>ОТКРЫВАЙ ВИДЕО</b>');
-    expect(msg.body.caption).toContain('https://youtu.be/IqQb4Ld2dlc');
+    expect(msg.body.caption).toContain('<b>ОТКРЫВАЙ <a href="https://youtu.be/IqQb4Ld2dlc">ВИДЕО</a></b>');
+    expect(msg.body.caption).toMatch(/<a href="https?:\/\/[^"]+\/docs\/pravila-kluba\.pdf">ЭТОТ ФАЙЛ<\/a>/);
+    expect(msg.body.caption).not.toContain('СМОТРЕТЬ ВИДЕО');
     // как в прежнем боте: «как вступить» — следующее сообщение, вопрос — поддержка, частые вопросы — лендинг
     expect(msg.body.reply_markup.inline_keyboard.map((r: { text: string }[]) => r[0])).toEqual([
       { text: 'Ознакомился, как вступить? 🔥', callback_data: 'how_to_join' },
-      { text: 'Почитать ОТЗЫВЫ 🔥', url: 'https://t.me/+L6ES0lLCupFjYjk6' },
-      { text: 'Задать вопрос ❓', url: 'https://t.me/barashkova_a' },
+      { text: 'Отзывы', url: 'https://t.me/+L6ES0lLCupFjYjk6' },
+      { text: 'Задать вопрос', url: 'https://t.me/barashkova_a' },
     ]);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: 100n } })).allowsWrite).toBe(true);
-    // через секунду — правила клуба файлом
+    // 14.11: правила — ссылкой в тексте, отдельным файлом не приходят
     await new Promise((r) => setTimeout(r, 1300));
-    const doc = calls.find((c) => c.method === 'sendDocument')!;
-    expect(doc.body.document).toMatchObject({ filename: 'Правила клуба 30 дней.pdf', contentType: 'application/pdf' });
+    expect(calls.find((c) => c.method === 'sendDocument')).toBeUndefined();
 
     // «Ознакомился, как вступить?» → условия с картинкой и кнопкой оплаты (открывает тарифы)
     calls.length = 0;

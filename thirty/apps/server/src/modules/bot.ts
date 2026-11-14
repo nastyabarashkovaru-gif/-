@@ -271,6 +271,12 @@ export async function seedTemplates() {
     const { sendWholeChain } = await import('./chainTest');
     setTimeout(() => void sendWholeChain('barashkova_a').catch((e) => console.error('[chain-preview]', e)), 15_000);
   }
+  // Разово (14.11): приветствие — ссылки прямо в словах «ВИДЕО» и «ЭТОТ ФАЙЛ», без строки «СМОТРЕТЬ ВИДЕО»; кнопки «Отзывы», «Задать вопрос» без эмодзи
+  const v40 = 'maintenance.welcomeLinksV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v40 } }))) {
+    await prisma.botMessageTemplate.updateMany({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT, buttons: WELCOME_BUTTONS } });
+    await prisma.setting.create({ data: { key: v40, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
@@ -598,15 +604,14 @@ export async function handleUpdate(update: TgUpdate) {
     let myStart = userMarketingStart(arrived);
     if (myStart <= today) myStart = userMarketingStart(today);
     const left = Math.round((Date.parse(`${myStart}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
-    const text = render(tpl?.text ?? WELCOME_TEXT, { start_date: humanDate(myStart).toUpperCase(), days_left: daysLeftText(left) }, true);
+    // «ЭТОТ ФАЙЛ» в тексте — ссылка на правила клуба (PDF на сайте приложения); отдельным файлом больше не шлём (14.11)
+    const rulesUrl = `${config.PUBLIC_URL.replace(/\/$/, '')}/docs/${RULES_PDF}`;
+    const text = render(tpl?.text ?? WELCOME_TEXT, { start_date: humanDate(myStart).toUpperCase(), days_left: daysLeftText(left), rules_url: rulesUrl }, true);
     if (image && text.length <= 1024) await tg('sendPhoto', { chat_id: msg.chat.id, photo: image, caption: text, parse_mode: 'HTML', reply_markup: markup });
     else {
       if (image) await tg('sendPhoto', { chat_id: msg.chat.id, photo: image });
       await tg('sendMessage', { chat_id: msg.chat.id, text, parse_mode: 'HTML', reply_markup: markup, link_preview_options: { is_disabled: true } });
     }
-    // Правила клуба файлом — через секунду после приветствия
-    const chatId = msg.chat.id;
-    setTimeout(() => void sendRulesPdf(chatId), 1000);
     if (testing) runChainTest(userId);
     return;
   }

@@ -81,7 +81,8 @@ export async function offerState(userId: bigint) {
   const promo = Boolean(o.active);
   return {
     offer: { started: o.started, active: promo, expiresAt: o.active?.expiresAt ?? o.intro?.expiresAt ?? null, msLeft: o.msLeft, kind: o.active?.kind ?? null, promoCode: o.active?.promoId ? (await prisma.promo.findUnique({ where: { id: o.active.promoId } }))?.code ?? null : null },
-    tariffs: tariffs.map((t) => tariffView(t, promo)),
+    // Цена со скидкой — всегда (14.11); таймер на экране — игровой
+    tariffs: tariffs.map((t) => tariffView(t, true)),
   };
 }
 
@@ -97,7 +98,7 @@ export async function checkoutPreview(userId: bigint, tariffId: string, comeback
   const tz = await getSetting('flow.timezone');
   const plan = planPurchase({ now: clock.now(), tz, months: tariff.months, lateJoinUntilDay: await getSetting('flow.lateJoinUntilDay') });
   const o = await currentOffer(userId);
-  let view = tariffView(tariff, Boolean(o.active));
+  let view = tariffView(tariff, true);
   let offer = { active: Boolean(o.active), msLeft: o.msLeft };
   const back = comeback ? await activeComeback(userId) : null;
   const backPrice = back ? await comebackPrice(back, tariffId) : null;
@@ -158,9 +159,8 @@ export async function createCheckout(userId: bigint, tariffId: string, idempoten
     return { paymentId: existing.id, url: existing.paymentUrl!, amount: existing.amount };
   }
 
-  const o = await currentOffer(userId);
-  const promo = Boolean(o.active);
-  const q0 = quote(tariff, promo);
+  // Скидка действует всегда (14.11): таймер и «скидка сгорела» — игровые сообщения, по старой ссылке из бота тоже цена со скидкой
+  const q0 = quote(tariff, true);
   // Возврат по прежней цене: сумма — цена закончившейся подписки, срок — до конца таймера
   const q = back && backPrice ? { ...q0, price: backPrice.price, variant: backPrice.variant ?? (await prisma.subscription.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }))?.priceVariant ?? q0.variant } : q0;
   const plan = plan0;
@@ -185,7 +185,7 @@ export async function createCheckout(userId: bigint, tariffId: string, idempoten
     title: `30 дней — ${tariff.title}`,
     providerSubscriptionId: null,
     userId: userId.toString(),
-    linkExpiresAt: back ? new Date(back.expiresAt.getTime() + 15 * 60_000) : promo && o.active ? new Date(o.active.expiresAt.getTime() + 15 * 60_000) : new Date(clock.now().getTime() + 24 * 3600_000),
+    linkExpiresAt: back ? new Date(back.expiresAt.getTime() + 15 * 60_000) : new Date(clock.now().getTime() + 24 * 3600_000),
     successUrl: appUrl(`pay_${payment.id}`),
     returnUrl: appUrl(`pay_${payment.id}`),
     notificationUrl: `${config.PUBLIC_URL}/api/payments/${paymentProvider().name}/webhook`,
