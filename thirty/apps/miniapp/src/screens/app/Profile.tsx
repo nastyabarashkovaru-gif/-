@@ -109,7 +109,7 @@ export function MySubscription() {
           )}
         </div>
       )}
-      {s && <CancelPopups open={cancel} onClose={() => setCancel(false)} sub={s} />}
+      {s && <CancelPopups open={cancel} onClose={() => { setCancel(false); reload(); }} sub={s} />}
     </Screen>
   );
 }
@@ -183,7 +183,8 @@ type HomeLite = { stats?: { percent: number; dayNumber: number | null }; goals?:
 /**
  * Отмена подписки — всплывающие окна без индикатора шагов: человек не знает, сколько их впереди.
  * 1) «Ты точно хочешь остановиться?» 2) «Ты потеряешь больше…» 3) цена повторного вступления без скидки
- * 4) «Может, мы сможем помочь?» → обратная связь → «Хочу остаться» / «Перейти в поддержку для отмены».
+ * 4) «Может, мы сможем помочь?» → обратная связь → «Хочу остаться» / «Отменить подписку окончательно» (сразу, без поддержки)
+ * 5) «Очень жаль, что ты решила покинуть нас! 🥺» — до какого числа сохраняется доступ.
  */
 export function CancelPopups({ open, onClose, sub }: { open: boolean; onClose: () => void; sub: NonNullable<SubSummary['subscription']> }) {
   const nav = useNavigate();
@@ -193,11 +194,13 @@ export function CancelPopups({ open, onClose, sub }: { open: boolean; onClose: (
   const [comment, setComment] = useState('');
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [until, setUntil] = useState<string | null>(null);
   const [home, setHome] = useState<HomeLite | null>(null);
   useEffect(() => {
     if (!open) return;
     setStep(1);
     setSent(false);
+    setUntil(null);
     void api<HomeLite>('/api/home').then(setHome).catch(() => undefined);
   }, [open]);
   useEffect(() => {
@@ -214,6 +217,21 @@ export function CancelPopups({ open, onClose, sub }: { open: boolean; onClose: (
     try {
       await api('/api/subscription/cancel-feedback', { body: { reason, comment: comment.trim() || undefined } });
       setSent(true);
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // «Отменить подписку окончательно» (14.11): автопродление отключается сразу, без перехода в поддержку
+  const cancelNow = async () => {
+    setBusy(true);
+    try {
+      void api('/api/subscription/cancel-step', { body: { step: 4, reason } }).catch(() => undefined);
+      const r = await api<{ paidUntil: string }>('/api/subscription/cancel', { body: { reason: [reason, comment.trim()].filter(Boolean).join(': ') || undefined } });
+      setUntil(String(r.paidUntil).slice(0, 10));
+      setStep(5);
     } catch (e) {
       toast(errorText(e));
     } finally {
@@ -301,12 +319,21 @@ export function CancelPopups({ open, onClose, sub }: { open: boolean; onClose: (
               <div className="banner ok center">Спасибо! Мы прочитаем каждое слово 💜</div>
               <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 14 }}>
                 <span className="row h3" style={{ gap: 8 }}><Headphones size={18} color="var(--accent)" />Наша поддержка на связи</span>
-                <div className="muted small" style={{ marginTop: 6 }}>Команда поможет разобраться с подпиской или оформить отмену.</div>
+                <div className="muted small" style={{ marginTop: 6 }}>Если остались вопросы по подписке — <button className="link-btn" style={{ display: 'inline', padding: 0, fontSize: 'inherit' }} onClick={() => openTelegram(me?.support ?? 'https://t.me/barashkova_a')}>напиши нам</button>, команда поможет.</div>
               </div>
               <button className="btn btn-primary" onClick={stay}>Хочу остаться 💜</button>
-              <button className="link-btn" onClick={() => { void api('/api/subscription/cancel-step', { body: { step: 4, reason } }).catch(() => undefined); openTelegram(me?.support ?? 'https://t.me/barashkova_a'); }}>Перейти в поддержку для отмены</button>
+              <button className="link-btn" disabled={busy} onClick={cancelNow}>{busy ? 'Отменяем…' : 'Отменить подписку окончательно'}</button>
             </>
           )}
+        </>
+      )}
+      {step === 5 && (
+        <>
+          <span className="ic lg" style={{ alignSelf: 'center' }}><HeartHandshake size={30} strokeWidth={1.8} /></span>
+          <h2 className="hero" style={{ fontSize: 22 }}>Очень жаль, что ты решила покинуть нас! 🥺</h2>
+          {until && <p className="lead" style={{ fontSize: 15 }}>Твой доступ сохраняется до <b className="nowrap">{humanDate(until, true)}</b>.</p>}
+          <p className="lead" style={{ fontSize: 15 }}>Мы надеемся, что ты ещё вернёшься! 🥹💓</p>
+          <button className="btn btn-primary" onClick={onClose}>Хорошо</button>
         </>
       )}
     </Popup>
