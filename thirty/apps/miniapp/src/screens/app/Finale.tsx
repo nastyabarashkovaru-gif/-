@@ -4,44 +4,28 @@ import { Camera, Download, Share2, Send, Trophy } from 'lucide-react';
 import { api, uploadImage } from '../../lib/api';
 import { canDownload, canShareStory, downloadImage, shareLink, shareStory } from '../../lib/telegram';
 import { useMe } from '../../state';
-import { Empty, ErrorState, Header, Loading, Screen, errorText, humanDate, plural, toast, useLoad } from '../../ui';
+import { Empty, ErrorState, Header, Loading, Popup, Screen, errorText, humanDate, plural, toast, useLoad } from '../../ui';
 import { useMembership } from '../reg/Registration';
+import { WeekResultView, WeekStoryBuilder, type WeekResult } from './WeekResult';
 
-interface Card { id: string; imageUrl: string; link: string; stats: { week: number; successfulDays: number; previous: number | null; delta: number | null; percent: number; streak: number; from: string; to: string } }
-
-/** S31: еженедельная карточка (7/14/21/28 и итог) с QR и персональной ссылкой */
+/** S31: итоги недель (14.11) — то же окно «Твой прогресс», что всплывает на главной, и конструктор карточки для сторис */
 export function CardScreen() {
-  const weeks = useLoad(() => api<{ weeks: number[] }>('/api/cards'));
+  const nav = useNavigate();
   const [week, setWeek] = useState<number | null>(null);
-  const [card, setCard] = useState<Card | null>(null);
-  const [error, setError] = useState<unknown>(null);
-  useEffect(() => {
-    if (weeks.data?.weeks.length && week === null) setWeek(weeks.data.weeks[weeks.data.weeks.length - 1]);
-  }, [weeks.data, week]);
-  useEffect(() => {
-    if (week === null) return;
-    setCard(null);
-    api<Card>(`/api/cards/${week}`, { body: {} }).then(setCard).catch(setError);
-  }, [week]);
-  const share = (target: 'story' | 'message' | 'download') => void api('/api/share/click', { body: { target, week } }).catch(() => undefined);
-
-  if (weeks.loading) return <Screen id="S31"><Loading /></Screen>;
-  if (weeks.error) return <Screen id="S31"><ErrorState error={weeks.error} retry={weeks.reload} /></Screen>;
-  if (!weeks.data!.weeks.length) return <Screen id="S31"><Header title="Карточки" back /><Empty title="Первая карточка — на 7-й день" text="Каждые 7 дней мы собираем твой прогресс в карточку, которой можно поделиться" /></Screen>;
+  const [story, setStory] = useState(false);
+  const r = useLoad(() => api<WeekResult>(`/api/week-result/${week ?? 'latest'}`), [week]);
+  if (r.loading && !r.data) return <Screen id="S31"><Header title="Итоги недели" back /><Loading /></Screen>;
+  if (r.error && !r.data) return <Screen id="S31"><Header title="Итоги недели" back /><Empty title="Первые итоги — после 7-го дня" text="Каждую неделю мы собираем твой прогресс: выполнение, задачи, дни с отчётами и место в рейтинге — и карточку для сторис" /></Screen>;
+  const d = r.data!;
   return (
     <Screen id="S31">
-      <Header title="Карточка прогресса" back />
-      <div className="seg">{weeks.data!.weeks.map((w) => <button key={w} className={w === week ? 'on' : ''} onClick={() => setWeek(w)}>{w === 5 ? 'Итог' : `Неделя ${w}`}</button>)}</div>
-      {error ? <ErrorState error={error} /> : !card ? <Loading lines={1} /> : (
-        <>
-          <img src={card.imageUrl} alt="Карточка прогресса" style={{ borderRadius: 20, width: '100%', aspectRatio: '9/16', objectFit: 'cover', background: '#fff' }} />
-          <div className="muted small center">{card.stats.week === 5 ? 'Итог месяца' : `${humanDate(card.stats.from)} — ${humanDate(card.stats.to)}: ${card.stats.successfulDays} ${plural(card.stats.successfulDays, 'успешный день', 'успешных дня', 'успешных дней')}`}</div>
-          {canShareStory() && <button className="btn btn-primary" onClick={() => { share('story'); shareStory(card.imageUrl, card.link); }}><Share2 size={18} /> В сторис Telegram</button>}
-          <button className={`btn ${canShareStory() ? 'btn-secondary' : 'btn-primary'}`} onClick={() => { share('message'); shareLink(card.link, `Мой прогресс в «30 днях»: ${card.stats.percent}% обязательств. Присоединяйся к челленджу!`); }}><Send size={18} /> Поделиться ссылкой</button>
-          <button className="btn btn-light" onClick={() => { share('download'); downloadImage(card.imageUrl, `30-dney-${card.stats.week}.png`); }}><Download size={18} /> {canDownload() ? 'Сохранить' : 'Открыть картинку'}</button>
-          <p className="muted small center">На карточке только цифры прогресса — без названий целей и личных данных.</p>
-        </>
-      )}
+      <Header title="Итоги недели" back />
+      <div className="seg">
+        {d.weeks.map((w) => <button key={w} className={w === d.week ? 'on' : ''} onClick={() => setWeek(w)}>Неделя {w}</button>)}
+        {d.weeks.length >= d.of && <button onClick={() => nav('/finale')}>Итог</button>}
+      </div>
+      <div className="card"><WeekResultView r={d} onShare={() => setStory(true)} /></div>
+      <Popup open={story} onClose={() => setStory(false)}><WeekStoryBuilder r={d} /></Popup>
     </Screen>
   );
 }

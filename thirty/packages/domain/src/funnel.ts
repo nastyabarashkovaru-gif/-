@@ -53,6 +53,8 @@ export const EVENT_NAMES = [
   'bot_how_to_join_click', 'buddy_mode_selected', 'challenge_start_selected', 'challenge_start_early', 'challenge_start_changed', 'tribute_activated', 'tribute_ended', 'tribute_click', 'access_granted', 'bot_tariffs_open', 'bot_pay_click', 'pay_page_view', 'onboarding_screen_1_view', 'review_card_view', 'review_original_open', 'onboarding_video_open', 'onboarding_screen_1_continue',
   'onboarding_screen_2_view', 'onboarding_feature_open', 'onboarding_screen_2_continue',
   'onboarding_screen_3_view', 'onboarding_benefit_open', 'onboarding_screen_3_continue', 'tariffs_screen_view',
+  // Итоги недели (14.11)
+  'week_result_seen', 'week_card_built',
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 

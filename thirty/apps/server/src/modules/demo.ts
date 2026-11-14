@@ -331,6 +331,8 @@ async function buildDemoState(ownerId: bigint, ownerName: string, s: DemoState) 
 
   const mine = await enroll(ownerId, ownerName, 'Москва', s.tariff, flow.id, flowStart);
   await fillGoals(ownerId, mine.id, OWNER_GOALS.slice(0, OWNER_GOAL_COUNT[s.tariff]));
+  // Личный старт = начало демо-потока: «День N» в панели совпадает с днём в приложении (14.11)
+  await prisma.flowMembership.update({ where: { id: mine.id }, data: { startsOn: new Date(`${flowStart}T00:00:00Z`) } });
   if (s.buddy === 'paired') {
     const pair = await prisma.buddyPair.create({ data: { flowId: flow.id, userA: ownerId, userB: PEOPLE[0].id, source: 'auto', matchReason: 'Общая цель: блог' } });
     await prisma.buddyAssignment.createMany({ data: [{ flowId: flow.id, userId: ownerId, pairId: pair.id }, { flowId: flow.id, userId: PEOPLE[0].id, pairId: pair.id }] });

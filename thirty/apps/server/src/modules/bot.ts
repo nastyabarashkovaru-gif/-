@@ -3,7 +3,7 @@ import type { BotMessageTemplate } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma, isUniqueViolation } from '../db';
 import { openAppButton, tg, TelegramError } from '../lib/telegram';
-import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, HOW_TO_JOIN_BUTTONS, HOW_TO_JOIN_TEXT, TARIFFS_PICK_TEXT, WELCOME_BUTTONS, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
+import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, HOW_TO_JOIN_BUTTONS, HOW_TO_JOIN_TEXT, REVIEWS_BUTTON, TARIFFS_PICK_TEXT, WELCOME_BUTTONS, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
 import { config } from '../config';
 import { setNotifier } from './notify';
 import { track } from './analytics';
@@ -283,6 +283,15 @@ export async function seedTemplates() {
     const t08 = await prisma.botMessageTemplate.findUnique({ where: { key: 'chain_08' } });
     if (t08) await prisma.botMessageTemplate.update({ where: { key: 'chain_08' }, data: { text: t08.text.replace('👀 спишь?', 'спишь?') } });
     await prisma.setting.create({ data: { key: v41, value: { at: new Date().toISOString() } } });
+  }
+  // Разово (14.11): в день старта — «ВХОД ЗАКРОЕТСЯ СЕГОДНЯ!» («ЧЕРЕЗ» теперь внутри {days_left}); во втором сообщении кнопка «ОТЗЫВЫ»
+  const v42 = 'maintenance.startTodayV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v42 } }))) {
+    const w = await prisma.botMessageTemplate.findUnique({ where: { key: 'welcome' } });
+    if (w) await prisma.botMessageTemplate.update({ where: { key: 'welcome' }, data: { text: w.text.replace('ЗАКРОЕТСЯ ЧЕРЕЗ {days_left}', 'ЗАКРОЕТСЯ {days_left}') } });
+    const h = await prisma.botMessageTemplate.findUnique({ where: { key: 'how_to_join' } });
+    if (h) await prisma.botMessageTemplate.update({ where: { key: 'how_to_join' }, data: { buttons: (h.buttons as { text: string; url?: string }[]).map((b) => (b.url === REVIEWS_BUTTON.url ? { ...b, text: REVIEWS_BUTTON.text } : b)) } });
+    await prisma.setting.create({ data: { key: v42, value: { at: new Date().toISOString() } } });
   }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
@@ -609,7 +618,7 @@ export async function handleUpdate(update: TgUpdate) {
     const arrived = localDate(me?.chainStartedAt ?? me?.createdAt ?? clock.now(), tz);
     const today = localDate(clock.now(), tz);
     let myStart = userMarketingStart(arrived);
-    if (myStart <= today) myStart = userMarketingStart(today);
+    if (myStart < today) myStart = userMarketingStart(today);
     const left = Math.round((Date.parse(`${myStart}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
     // «ЭТОТ ФАЙЛ» в тексте — ссылка на правила клуба (PDF на сайте приложения); отдельным файлом больше не шлём (14.11)
     const rulesUrl = `${config.PUBLIC_URL.replace(/\/$/, '')}/docs/${RULES_PDF}`;

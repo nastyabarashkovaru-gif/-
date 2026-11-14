@@ -243,7 +243,8 @@ export async function runFlowChains(now = clock.now(), send: Send = sendTemplate
         const y = await prisma.dailyReport.findUnique({ where: { membershipId_date: { membershipId: m.id, date: new Date(`${yesterday}T00:00:00Z`) } } });
         if (!y && !report) await send(m.userId, 'report_missed_comeback', {}, `comeback:${m.id}:${yesterday}`);
       }
-      const week = cardForFlowDay(dayNum);
+      // 14.11: карточка — когда неделя закончилась (8, 15, 22, 29-й день), вместе с окном итогов недели в приложении
+      const week = cardForFlowDay(dayNum - 1);
       if (week && hour >= 12) {
         const card = await generateCard(m.userId, m.id, week).catch(() => null);
         if (card) await send(m.userId, 'weekly_card', { week, days: card.stats.successfulDays }, `weekly_card:${m.id}:${week}`);

@@ -297,6 +297,13 @@ describe('дожимная цепочка до оплаты', () => {
     expect(to('ПОСЛЕЗАВТРА')).toEqual([]);
     await runPrePurchaseChains(new Date('2026-11-13T09:30:00Z'));
     expect(to('СТАРТ УЖЕ ПОСЛЕЗАВТРА — 15 ноября')).toEqual([404]);
+    // 14.11: в сам день старта набор ещё идёт — «ВХОД ЗАКРОЕТСЯ СЕГОДНЯ!»; на следующий поток — со следующего дня
+    clock.set('2026-11-15T09:00:00Z');
+    await start(405);
+    expect(String(calls.at(-1)!.body.caption ?? calls.at(-1)!.body.text)).toContain('СТАРТ УЖЕ 15 НОЯБРЯ 🔥‼️\nВХОД ЗАКРОЕТСЯ СЕГОДНЯ!');
+    clock.set('2026-11-16T09:00:00Z');
+    await start(406);
+    expect(String(calls.at(-1)!.body.caption ?? calls.at(-1)!.body.text)).toContain('СТАРТ УЖЕ 19 НОЯБРЯ 🔥‼️\nВХОД ЗАКРОЕТСЯ ЧЕРЕЗ 3 ДНЯ!');
   });
 
   it('«Вернуть скидку»: заявка на сторис → проверка → одноразовый персональный промокод', async () => {

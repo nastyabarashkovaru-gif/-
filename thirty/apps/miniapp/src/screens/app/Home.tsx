@@ -9,6 +9,7 @@ import { catTitle } from '../reg/Registration';
 import { ReportForm } from './Report';
 import { BuddyRoulette } from './Buddy';
 import { FeedbackPopup, TrackersPopup } from './Journey';
+import { WeekResultPopup } from './WeekResult';
 import { useMe } from '../../state';
 import { haptic } from '../../lib/telegram';
 
@@ -37,7 +38,7 @@ interface HomeData {
   buddy: { state: 'paired'; buddy: { id: string; name: string; photoUrl: string | null; percent: number | null; writeUrl: string } } | { state: 'waiting' | 'invited' };
   month?: number;
   serverNow?: string;
-  prompts?: { feedback: boolean; feedbackPopup: boolean; feedbackDone: boolean; finale: boolean; finaleDone: boolean; trackers: boolean; trackersClarify?: boolean };
+  prompts?: { feedback: boolean; feedbackPopup: boolean; feedbackDone: boolean; finale: boolean; finaleDone: boolean; trackers: boolean; trackersClarify?: boolean; weekResult?: number | null };
 }
 
 /** Плашка «какой по счёту месяц дисциплины» — всегда наверху главной */
@@ -76,7 +77,16 @@ export function Home() {
   const p = data?.prompts;
   const [feedbackOpen, closeFeedback] = useOncePerDay(data ? `feedback.${data.membership.id}` : null, Boolean(p?.feedbackPopup));
   // Окно трекеров не накладывается на окно обратной связи
-  const [trackersOpen, closeTrackers] = useOncePerDay(data ? `trackers.${data.membership.id}` : null, Boolean(p?.trackers && !p.feedbackPopup));
+  // Итоги недели (14.11): показываем один раз — сервер отмечает окно просмотренным; в этот заход окно трекеров не накладываем
+  const [week, setWeek] = useState<number | null>(null);
+  const [weekShown, setWeekShown] = useState(false);
+  useEffect(() => {
+    if (p?.weekResult && !p.feedbackPopup) {
+      setWeek(p.weekResult);
+      setWeekShown(true);
+    }
+  }, [p?.weekResult, p?.feedbackPopup]);
+  const [trackersOpen, closeTrackers] = useOncePerDay(data ? `trackers.${data.membership.id}` : null, Boolean(p?.trackers && !p.feedbackPopup && !p.weekResult && !weekShown));
 
   if (loading && !data) return <Screen id="S19" nav><Loading /></Screen>;
   if (error || !data) return <Screen id="S19" nav><ErrorState error={error} retry={reload} /></Screen>;
@@ -151,6 +161,7 @@ export function Home() {
       )}
       <FeedbackPopup open={feedbackOpen} onClose={closeFeedback} />
       <TrackersPopup open={trackersOpen} onClose={closeTrackers} />
+      <WeekResultPopup week={week} onClose={() => setWeek(null)} />
       {!before && !data.comparison.firstMonth && data.comparison.delta > 0 && (
         <div className="growth-note"><TrendingUp size={15} />На {data.comparison.delta} {plural(data.comparison.delta, 'день', 'дня', 'дней')} больше, чем в предыдущем месяце!</div>
       )}

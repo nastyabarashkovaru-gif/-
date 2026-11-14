@@ -28,6 +28,14 @@ export async function journeyRoutes(app: FastifyInstance) {
       const card = await buildResultCard(req.user!.id, parse(resultCardInput, req.body ?? {}));
       return { card, imageUrl: `${config.PUBLIC_URL.replace(/\/$/, '')}/api/public/result-card.png?c=${resultCardToken(card)}` };
     });
+    // Итоги недели (14.11): окно «Твой прогресс» и карточка для сторис
+    r.get<{ Params: { week: string } }>('/api/week-result/:week', async (req) => (await import('../modules/weekResult')).weekResult(req.user!.id, Number(req.params.week) || undefined));
+    r.post<{ Params: { week: string } }>('/api/week-result/:week/seen', async (req) => (await import('../modules/weekResult')).markWeekSeen(req.user!.id, Number(req.params.week)));
+    r.post('/api/week-card', async (req) => {
+      const { buildWeekCard, weekCardInput, weekCardToken } = await import('../modules/weekResult');
+      const card = await buildWeekCard(req.user!.id, parse(weekCardInput, req.body ?? {}));
+      return { card, imageUrl: `${config.PUBLIC_URL.replace(/\/$/, '')}/api/public/week-card.png?c=${weekCardToken(card)}` };
+    });
     r.get<{ Querystring: { start?: string } }>('/api/comeback', async (req) => comebackOffer(req.user!.id, req.query.start === '1'));
     r.get('/api/trackers', async (req) => trackerState(req.user!.id));
     r.post('/api/trackers/prompted', async (req) => trackerPrompted(req.user!.id));
@@ -40,6 +48,14 @@ export async function journeyRoutes(app: FastifyInstance) {
     if (!card) throw notFound();
     const png = renderResultCardPng(card);
     return reply.header('Content-Type', 'image/png').header('Cache-Control', 'public, max-age=86400').header('Content-Disposition', 'inline; filename="30-dney-result.png"').send(png);
+  });
+
+  app.get<{ Querystring: { c?: string } }>('/api/public/week-card.png', async (req, reply) => {
+    const { readWeekCardToken } = await import('../modules/weekResult');
+    const card = readWeekCardToken(String(req.query.c ?? ''));
+    if (!card) throw notFound();
+    const { renderWeekCardPng } = await import('../modules/cards');
+    return reply.header('Content-Type', 'image/png').header('Cache-Control', 'public, max-age=86400').header('Content-Disposition', `inline; filename="30-dney-week-${card.week}.png"`).send(renderWeekCardPng(card));
   });
 
   app.register(async (r) => {

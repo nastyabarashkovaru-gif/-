@@ -44,14 +44,16 @@ export function nextMarketingStart(today: ISODate): ISODate {
 
 /** Свой старт человека в боте: ближайший после дня, когда он пришёл в бот (на него — «послезавтра/завтра/сегодня») */
 export function userMarketingStart(arrivedOn: ISODate): ISODate {
-  return nextMarketingStart(addDays(arrivedOn, 1));
+  // В сам день старта набор ещё идёт («вход закроется сегодня»); на следующий поток — только после окончания дня старта (14.11)
+  return nextMarketingStart(arrivedOn);
 }
 
-/** «через 4 дня», «через 1 день» — для приветствия */
+/** «ЧЕРЕЗ 4 ДНЯ», «ЧЕРЕЗ 1 ДЕНЬ», в день старта — «СЕГОДНЯ» (для приветствия: «ВХОД ЗАКРОЕТСЯ {days_left}!») */
 export function daysLeftText(n: number) {
+  if (n <= 0) return 'СЕГОДНЯ';
   const m10 = n % 10, m100 = n % 100;
   const w = m10 === 1 && m100 !== 11 ? 'ДЕНЬ' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'ДНЯ' : 'ДНЕЙ';
-  return `${n} ${w}`;
+  return `ЧЕРЕЗ ${n} ${w}`;
 }
 
 export async function promoWindow(p: Promo, now = clock.now()): Promise<{ from: Date; to: Date } | null> {

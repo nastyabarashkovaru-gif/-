@@ -192,13 +192,23 @@ export function renderResultCardPng(card: { name?: string; result?: string; days
   if (card.goal) rows.push(card.goal);
   if (card.percent !== undefined) rows.push(`${card.percent}% дисциплины`);
   if (card.rank) rows.push(card.rank);
+  return renderStoryResultPng({ title: 'МОИ 30 ДНЕЙ', name: card.name, result: card.result, resultLabel: 'МОЙ РЕЗУЛЬТАТ', rows, link: card.link });
+}
+
+/** Карточка итогов недели (14.11) — в том же стиле, что итоговая карточка челленджа */
+export function renderWeekCardPng(card: { week: number; name?: string; result?: string; rows: string[]; link: string }): Buffer {
+  return renderStoryResultPng({ title: `НЕДЕЛЯ ${card.week}`, kicker: 'МОИ 30 ДНЕЙ', name: card.name, result: card.result, resultLabel: 'МОЙ РЕЗУЛЬТАТ ЗА НЕДЕЛЮ', rows: card.rows, link: card.link });
+}
+
+function renderStoryResultPng(card: { title: string; kicker?: string; name?: string; result?: string; resultLabel: string; rows: string[]; link: string }): Buffer {
+  const rows = card.rows;
   const result = card.result ? wrap(card.result, 22, 3) : [];
   const D = 'Inter Display';
   const check = (x: number, y: number, r: number) =>
     `<circle cx="${x}" cy="${y}" r="${r}" fill="#2FBF71"/><path d="M${x - r * 0.42} ${y + r * 0.02}l${r * 0.3} ${r * 0.3} ${r * 0.56}-${r * 0.6}" stroke="#0B0A10" stroke-width="${(r * 0.2).toFixed(1)}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
   let y = 690;
   const resultSvg = result.length
-    ? `<text x="120" y="${y}" font-family="Inter" font-weight="300" font-size="26" letter-spacing="6" fill="#8D88A3">МОЙ РЕЗУЛЬТАТ</text>` +
+    ? `<text x="120" y="${y}" font-family="Inter" font-weight="300" font-size="26" letter-spacing="6" fill="#8D88A3">${esc(card.resultLabel)}</text>` +
       result.map((l, i) => `<text x="120" y="${y + 100 + i * 84}" font-family="${D}" font-weight="300" font-size="72" fill="#F6F4FB">${esc(l)}</text>`).join('')
     : '';
   if (result.length) y += 100 + result.length * 84 + 50;
@@ -220,7 +230,8 @@ export function renderResultCardPng(card: { name?: string; result?: string; days
   <rect x="120" y="150" width="76" height="62" rx="18" fill="none" stroke="#B7A6FF" stroke-width="2"/>
   <text x="158" y="193" text-anchor="middle" font-family="Inter" font-weight="400" font-size="32" fill="#E9E4FF">30</text>
   <text x="214" y="193" font-family="Inter" font-weight="300" font-size="32" fill="#E9E4FF">дней</text>
-  <text x="120" y="400" font-family="${D}" font-weight="200" font-size="92" letter-spacing="4" fill="#FFFFFF">МОИ 30 ДНЕЙ</text>
+  ${card.kicker ? `<text x="120" y="306" font-family="Inter" font-weight="300" font-size="26" letter-spacing="6" fill="#B7A6FF">${esc(card.kicker)}</text>` : ''}
+  <text x="120" y="400" font-family="${D}" font-weight="200" font-size="92" letter-spacing="4" fill="#FFFFFF">${esc(card.title)}</text>
   ${check(860, 368, 26)}
   ${card.name ? `<text x="120" y="470" font-family="Inter" font-weight="300" font-size="36" fill="#B7A6FF">${esc(card.name)}</text>` : ''}
   <line x1="120" y1="560" x2="960" y2="560" stroke="#2A2733" stroke-width="2"/>

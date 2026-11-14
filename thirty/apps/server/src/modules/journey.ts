@@ -63,7 +63,8 @@ export async function homePrompts(userId: bigint, m: MembershipWithFlow) {
   const feedbackPopup = feedback && today === addDays(endsOn, -1);
   const lastReview = await prisma.trackerReview.findFirst({ where: { userId, status: { not: 'replaced' } }, orderBy: { createdAt: 'desc' } });
   const trackersClarify = lastReview?.status === 'needs_info';
-  return { feedback, feedbackPopup, feedbackDone, finale, finaleDone: Boolean(m.finalSubmittedAt), trackers, trackersClarify };
+  const weekResult = await (await import('./weekResult')).pendingWeekResult(userId, m);
+  return { feedback, feedbackPopup, feedbackDone, finale, finaleDone: Boolean(m.finalSubmittedAt), trackers, trackersClarify, weekResult };
 }
 
 // ───────────── 2. Обратная связь на предпоследний день ─────────────

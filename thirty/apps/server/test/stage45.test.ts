@@ -85,7 +85,7 @@ describe('бот', () => {
     expect(kb[0].text).toBe('ХОЧУ ОПЛАТИТЬ ВХОД! 🔥😍');
     expect(kb[0].callback_data).toBe('choose_tariff'); // 12.11: выбор тарифа прямо в боте
     expect(kb).toHaveLength(3);
-    expect(kb[1]).toEqual({ text: 'Почитать ОТЗЫВЫ 🔥', url: 'https://t.me/+L6ES0lLCupFjYjk6' });
+    expect(kb[1]).toEqual({ text: 'ОТЗЫВЫ', url: 'https://t.me/+L6ES0lLCupFjYjk6' });
     expect(kb[2]).toEqual({ text: 'Поддержка', url: 'https://t.me/barashkova_a' });
   });
 
@@ -370,10 +370,25 @@ describe('финал, отзывы, карточки', () => {
     expect(png.rawPayload.subarray(1, 4).toString()).toBe('PNG');
     expect((await app.inject({ method: 'GET', url: `/api/cards/img/${card.body.id}.png?s=bad` })).statusCode).toBe(403);
 
-    // цепочка 7-го дня отправляет карточку один раз
+    // 14.11: неделя ещё идёт — итогов нет; карточка от бота — на 8-й день, когда неделя закончилась, один раз
+    expect((await api('GET', '/api/week-result/latest', 20)).status).toBe(404);
+    await runFlowChains();
+    expect(calls.filter((c) => c.method === 'sendMessage' && /Неделя 1/.test(c.body.text))).toHaveLength(0);
+    clock.set('2026-11-08T10:00:00Z');
     await runFlowChains();
     await runFlowChains();
     expect(calls.filter((c) => c.method === 'sendMessage' && /Неделя 1/.test(c.body.text))).toHaveLength(1);
+    // окно «Твой прогресс» на главной — один раз; цифры за неделю; карточка для сторис из конструктора
+    expect((await api('GET', '/api/home', 20)).body.prompts.weekResult).toBe(1);
+    const wr = await api('GET', '/api/week-result/latest', 20);
+    expect(wr.body).toMatchObject({ week: 1, of: 4, weeks: [1], percent: 86, done: 6, total: 7, activeDays: 6, label: 'ТВОЯ ПОБЕДА' });
+    await api('POST', '/api/week-result/1/seen', 20, {});
+    expect((await api('GET', '/api/home', 20)).body.prompts.weekResult).toBeNull();
+    const wc = await api('POST', '/api/week-card', 20, { week: 1, showRank: true, name: 'Аня' });
+    expect(wc.body.card.rows).toEqual(['86% выполнения за неделю', '6 из 7 задач выполнено', '6 из 7 дней с отчётами']);
+    const wpng = await app.inject({ method: 'GET', url: wc.body.imageUrl.replace('https://thirty.example', '') });
+    expect(wpng.headers['content-type']).toBe('image/png');
+    expect((await api('POST', '/api/week-card', 20, { week: 2 })).status).toBe(404);
 
     const flow = await prisma.flow.findFirstOrThrow({ where: { startsOn: new Date(`${NOV}T00:00:00Z`) } });
     const before = (await computeLeaderboard(flow.id))[0];
