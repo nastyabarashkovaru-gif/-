@@ -166,7 +166,7 @@ export function challengeWindow(m: { flow: Flow; startsOn?: Date | null; timezon
 }
 
 /** Сколько дней участия нужно, чтобы попасть в основной рейтинг недели */
-export const WEEKLY_MIN_DAYS = 7;
+export const WEEKLY_MIN_DAYS = 5;
 
 /**
  * Рейтинг недели (пн–вс) для всего клуба: % выполнения запланированных действий.

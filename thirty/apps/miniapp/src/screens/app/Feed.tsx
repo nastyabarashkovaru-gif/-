@@ -15,7 +15,7 @@ export function Feed() {
   const q = new URLSearchParams(useLocation().search);
   const focus = q.get('msg');
   const nav = useNavigate();
-  const [tab, setTab] = useState<Tab>(() => (focus ? 'chat' : q.get('tab') === 'people' ? 'people' : (sessionStorage.getItem('thirty.feedTab') as Tab) || 'chat'));
+  const [tab, setTab] = useState<Tab>(() => (focus ? 'chat' : q.get('tab') === 'people' ? 'people' : q.get('tab') === 'board' ? 'board' : (sessionStorage.getItem('thirty.feedTab') as Tab) || 'chat'));
   const pick = (t: Tab) => { setTab(t); sessionStorage.setItem('thirty.feedTab', t); };
   return (
     <Screen id={tab === 'chat' ? 'S23' : tab === 'board' ? 'S26' : 'S24'} nav>

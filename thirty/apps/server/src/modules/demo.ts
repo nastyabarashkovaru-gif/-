@@ -182,11 +182,16 @@ function ownerProgress(goal: { category: string }, day: number, days: number, ou
 
 async function participants(flowId: string, flowStart: string) {
   await demoChats(flowId);
-  for (const p of PEOPLE) {
+  for (const [i, p] of PEOPLE.entries()) {
     const m = await enroll(p.id, p.name, p.city, 'm3', flowId, flowStart);
+    // Личные даты старта (ТЗ 14.11): участницы начали в разные дни — все в одном недельном рейтинге
+    await prisma.flowMembership.update({ where: { id: m.id }, data: { startsOn: new Date(`${addDays(flowStart, PEOPLE_START_OFFSET[i % PEOPLE_START_OFFSET.length])}T00:00:00Z`) } });
     await fillGoals(p.id, m.id, p.goals);
   }
 }
+
+/** Сдвиг личного старта участниц относительно владелицы (дни): кто-то раньше, кто-то позже */
+const PEOPLE_START_OFFSET = [0, -3, -6, 2, -9, -1];
 
 async function dayReports(flowStart: string, day: number, days: number, owner: { id: bigint; membershipId: string; s: DemoState } | null, withText: boolean) {
   const date = addDays(flowStart, day - 1);
@@ -436,4 +441,52 @@ export function demoInfo() {
     // Вход в демо-админку (данные в ней тоже демонстрационные)
     admin: config.DEMO_MODE && config.ADMIN_BOOTSTRAP_LOGIN ? { url: '/admin/', login: config.ADMIN_BOOTSTRAP_LOGIN, password: config.ADMIN_BOOTSTRAP_PASSWORD } : null,
   };
+}
+
+
+// ───────────── Сценарии ТЗ 14.11 (личные старты, бадди, лидерборд) ─────────────
+
+export const TZ_SCENARIOS = {
+  1: 'Новая участница: старт сегодня и автоподбор бадди',
+  2: 'Старт через несколько дней — экран ожидания',
+  3: 'Сама выбираю бадди: список свободных и предложение',
+  4: 'Жду автоподбора — приходит новая участница, пара создаётся',
+  5: 'Задачи и фотоотчёт — прогресс меняется',
+  6: 'Недельный лидерборд: разные даты старта',
+  7: 'Завершение 30 дней и новый челлендж',
+  8: 'Админка: участники без бадди и управление парами',
+} as const;
+
+export async function runTzScenario(ownerId: bigint, ownerName: string, n: keyof typeof TZ_SCENARIOS) {
+  const base = demoStateInput.parse({ status: 'active', day: 13, buddy: 'none' });
+  const state: DemoState =
+    n === 1 || n === 2 ? { ...base, status: 'paid' }
+    : n === 5 ? { ...base, day: 12, reports: 'all' }
+    : n === 6 ? { ...base, day: 15, buddy: 'paired' }
+    : n === 7 ? { ...base, status: 'done_sub' }
+    : n === 8 ? { ...base, buddy: 'free' }
+    : base;
+  const r = await applyDemoState(ownerId, ownerName, state);
+  const mine = await (await import('./flows')).currentMembership(ownerId);
+  if (mine && n === 3) await prisma.flowMembership.update({ where: { id: mine.id }, data: { buddyMode: 'self', buddyQueuedAt: null } });
+  // 4: владелица ждёт в очереди, остальные свободны, но автоподбор не выбирали
+  if (mine && n === 4) await prisma.flowMembership.update({ where: { id: mine.id }, data: { buddyMode: 'auto', buddyQueuedAt: clock.now() } });
+  const go = n === 3 ? '/buddy' : n === 6 ? '/feed?tab=board' : n === 7 ? '/finale' : r.go;
+  return { ...r, go };
+}
+
+/** «Пришла новая участница» (сценарий 4): покупает, выбирает автоподбор — очередь сразу создаёт пару */
+export async function demoNewcomer() {
+  assertDemo();
+  const flow = await prisma.flow.findFirst({ where: { startsOn: new Date(`${demoFlowStart()}T00:00:00Z`) } });
+  if (!flow) throw new Error('Сначала выбери сценарий');
+  const id = BigInt(991000 + Math.floor(Math.random() * 8999));
+  const names = [['Катя', 'katya'], ['Вика', 'vika'], ['Полина', 'polina'], ['Ксюша', 'ksusha'], ['Лера', 'lera']];
+  const [name, latin] = names[Number(id % BigInt(names.length))];
+  const m = await enroll(id, name, 'Москва', 'm3', flow.id, demoFlowStart());
+  await prisma.user.update({ where: { id }, data: { username: `demo_${latin}` } });
+  await prisma.flowMembership.update({ where: { id: m.id }, data: { startsOn: new Date(`${localDate(clock.now(), TZ)}T00:00:00Z`), buddyMode: 'auto', buddyQueuedAt: clock.now() } });
+  const { runBuddyQueue } = await import('./buddy');
+  const res = await runBuddyQueue();
+  return { name, paired: res.created > 0 };
 }

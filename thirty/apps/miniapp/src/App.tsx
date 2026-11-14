@@ -12,7 +12,7 @@ import { RestoreDiscount } from './screens/onboarding/Restore';
 import { Tariffs } from './screens/onboarding/Tariffs';
 import { Checkout, PaymentWait } from './screens/onboarding/Checkout';
 import { TributeEntry, GiftEntry } from './screens/onboarding/Tribute';
-import { RegProfile, RegFlow, RegTasks, RegBefore, RegBuddy, RegChats, RegWaiting } from './screens/reg/Registration';
+import { RegTasks, RegBefore, RegBuddy, RegChats, RegWaiting } from './screens/reg/Registration';
 import { StartStep, BuddyModeStep, AboutStep, GoalsStep, PointsStep, PlanStep, ConfirmStep, ReadyScreen } from './screens/reg/Questionnaire';
 import { Notifications } from './screens/app/Notifications';
 import { Home } from './screens/app/Home';
@@ -143,8 +143,9 @@ export function App() {
         <Route path="/checkout/wait/:paymentId" element={<PaymentWait />} />
         <Route path="/tribute" element={<TributeEntry />} />
         <Route path="/gift/:code" element={<GiftEntry />} />
-        <Route path="/reg/profile" element={<RegProfile />} />
-        <Route path="/reg/flow" element={<RegFlow />} />
+        {/* Старые шаги регистрации с выбором потока (общих потоков больше нет, ТЗ 14.11) → новая анкета */}
+        <Route path="/reg/profile" element={<Navigate to="/reg/start" replace />} />
+        <Route path="/reg/flow" element={<Navigate to="/reg/start" replace />} />
         <Route path="/reg/start" element={<StartStep />} />
         <Route path="/reg/buddy-mode" element={<BuddyModeStep />} />
         <Route path="/reg/about" element={<AboutStep />} />

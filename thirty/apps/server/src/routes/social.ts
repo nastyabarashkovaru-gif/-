@@ -46,6 +46,14 @@ export async function socialRoutes(app: FastifyInstance) {
       return runScenario(req.user!.id, 'Анастасия', scenario);
     });
     r.post('/api/demo/advance', async () => advanceDay());
+    // Сценарии ТЗ 14.11 и «пришла новая участница»
+    r.post('/api/demo/tz', async (req) => {
+      assertDemo();
+      const { n } = parse(z.object({ n: z.number().int().min(1).max(8) }), req.body);
+      const { runTzScenario } = await import('../modules/demo');
+      return runTzScenario(req.user!.id, 'Анастасия', n as 1);
+    });
+    r.post('/api/demo/newcomer', async () => (await import('../modules/demo')).demoNewcomer());
     r.post('/api/demo/state', async (req) => {
       assertDemo();
       return applyDemoState(req.user!.id, 'Анастасия', parse(demoStateInput, req.body));

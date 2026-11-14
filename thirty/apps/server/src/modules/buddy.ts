@@ -84,6 +84,9 @@ export async function proposeBuddy(userId: bigint, flowId: string, targetId: big
   await sendBuddyProposal(targetId, inv.id, { name: displayName(me), username: me.username });
   await pushNotification(targetId, 'buddy_proposal', { title: 'Тебе предложили стать парой 💜', body: `${displayName(me)} хочет стать твоим бадди`, link: '/buddy' }, `buddy_proposal:${inv.id}`);
   await track({ userId, eventName: 'buddy_invite_sent', screenId: 'S25', flowId, metadata: { direct: true } });
+  // Демо (сценарий 3): участница из демо-данных принимает предложение через несколько секунд
+  const { config } = await import('../config');
+  if (config.DEMO_MODE && targetId >= 990000n && targetId < 1000000n) setTimeout(() => void respondProposal(targetId, inv.id, true).catch(() => undefined), 4000);
   return { proposalId: inv.id, matched: false };
 }
 
@@ -358,4 +361,58 @@ export async function freeParticipants(userId: bigint, q?: string) {
     goals: x.goals.map((g) => g.title),
     proposed: sent.has(x.userId.toString()),
   }));
+}
+
+// ───────────── Админка «Бадди» по всему клубу (ТЗ 14.11) ─────────────
+
+const card = (u: { id: bigint; firstName: string; lastName: string | null; displayName: string | null; username: string | null }) => ({ id: u.id.toString(), name: displayName(u as never), username: u.username });
+
+/** Сводка: пары, очередь автоподбора, участники без пары, ожидающие предложения */
+export async function adminBuddyOverview() {
+  const observers = await (await import('./observers')).observerIds();
+  const [pairs, members, invites] = await Promise.all([
+    prisma.buddyPair.findMany({ where: { status: 'active' }, orderBy: { createdAt: 'desc' } }),
+    prisma.flowMembership.findMany({ where: { status: { in: [...ELIGIBLE] } }, include: { user: true }, orderBy: { createdAt: 'asc' } }),
+    prisma.buddyInvite.findMany({ where: { status: 'pending', toUserId: { not: null } }, orderBy: { createdAt: 'desc' } }),
+  ]);
+  const paired = new Set(pairs.flatMap((p) => [p.userA.toString(), p.userB.toString()]));
+  const people = new Map<string, (typeof members)[number]>();
+  for (const m of members) if (!observers.has(m.userId.toString()) && !m.user.deletedAt && !people.has(m.userId.toString())) people.set(m.userId.toString(), m);
+  const ids = [...new Set([...pairs.flatMap((p) => [p.userA, p.userB]), ...invites.flatMap((i) => [i.fromUserId, i.toUserId!])])];
+  const users = new Map((await prisma.user.findMany({ where: { id: { in: ids } } })).map((u) => [u.id.toString(), u]));
+  const who = (id: bigint) => (users.get(id.toString()) ? card(users.get(id.toString())!) : { id: id.toString(), name: id.toString(), username: null });
+  const free = [...people.values()].filter((m) => !paired.has(m.userId.toString()));
+  // очередь: buddyQueuedAt у любого действующего участия человека
+  const queuedAt = new Map<string, Date>();
+  for (const m of members) if (m.buddyQueuedAt && !paired.has(m.userId.toString())) {
+    const k = m.userId.toString();
+    if (!queuedAt.has(k) || m.buddyQueuedAt < queuedAt.get(k)!) queuedAt.set(k, m.buddyQueuedAt);
+  }
+  return {
+    stats: { pairs: pairs.length, queue: queuedAt.size, free: free.length, proposals: invites.length },
+    pairs: pairs.map((p) => ({ id: p.id, createdAt: p.createdAt, source: p.source, a: who(p.userA), b: who(p.userB) })),
+    queue: [...queuedAt.entries()].sort((a, b) => a[1].getTime() - b[1].getTime()).map(([id, since]) => ({ ...card(people.get(id)!.user), since })),
+    free: free.map((m) => ({ ...card(m.user), mode: m.buddyMode, queued: queuedAt.has(m.userId.toString()) })),
+    proposals: invites.map((i) => ({ id: i.id, createdAt: i.createdAt, from: who(i.fromUserId), to: who(i.toUserId!) })),
+  };
+}
+
+/** Объединить двух участников вручную; если у кого-то уже есть бадди — прежняя пара корректно завершается */
+export async function adminPair(a: bigint, b: bigint, decidedBy?: string) {
+  if (a === b) throw badRequest('self_pair', 'Нельзя объединить участника с самим собой');
+  const [ma, mb] = await Promise.all([membershipIn(a, ''), membershipIn(b, '')]);
+  if (!ma || !mb) throw conflict('not_member', 'Оба участника должны быть в клубе с действующим доступом');
+  const old = await prisma.buddyAssignment.findMany({ where: { userId: { in: [a, b] }, pair: { status: 'active' } }, select: { pairId: true } });
+  for (const pairId of new Set(old.map((o) => o.pairId))) await dissolvePair(pairId, 'approved', decidedBy);
+  const pair = await serializable((tx) => createPair(tx, ma.flowId, a, b, 'admin', 'вручную из админки', mb.flowId));
+  await onMatched(pair.flowId, [a, b]);
+  // у бывших напарников — сразу подбор из очереди
+  await runBuddyQueue();
+  return { pairId: pair.id };
+}
+
+/** Исключить из очереди автоподбора (участник остаётся в клубе и может выбрать бадди сам) */
+export async function adminUnqueue(userId: bigint) {
+  await prisma.flowMembership.updateMany({ where: { userId }, data: { buddyQueuedAt: null, buddyMode: 'self' } });
+  return { ok: true };
 }

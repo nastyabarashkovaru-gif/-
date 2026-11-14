@@ -304,6 +304,20 @@ export async function seedTemplates() {
       console.log('[topics] @kruuska blog:', JSON.stringify(await setExtraTopic(u.id, 'blog', true)));
     })().catch((e) => console.error('[topics] @kruuska', (e as Error).message)), 20_000);
   }
+  // Разово (14.11): общих потоков больше нет — тексты продления без «следующего потока»
+  const v44 = 'maintenance.noFlowTextsV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v44 } }))) {
+    const fix: [string, string, string][] = [
+      ['renewal_failed', 'Доступ к следующему потоку откроется после оплаты.', 'Доступ к клубу продлится после оплаты.'],
+      ['period_ending', 'Чтобы остаться с нами в следующем потоке — продли участие 💜', 'Чтобы остаться в клубе и начать новый челлендж — продли участие 💜'],
+      ['nudge_tariffs_no_select', 'чат потока', 'общий чат клуба'],
+    ];
+    for (const [key, from, to] of fix) {
+      const t = await prisma.botMessageTemplate.findUnique({ where: { key } });
+      if (t) await prisma.botMessageTemplate.update({ where: { key }, data: { text: t.text.replace(from, to) } });
+    }
+    await prisma.setting.create({ data: { key: v44, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {

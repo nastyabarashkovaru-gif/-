@@ -46,7 +46,9 @@ export function Rating({ canEdit }: { canEdit: boolean }) {
   const [draft, setDraft] = useState<any>(null);
   return (
     <>
-      <h1>Рейтинг и правила</h1>
+      <h1>Рейтинг дисциплины</h1>
+      <WeeklyBoard />
+      <h2 style={{ marginTop: 18 }}>Архив: рейтинги прошлых потоков и правила приза</h2>
       <div className="card"><label className="f">Поток<select value={flowId} onChange={(e) => setFlowId(e.target.value)}><option value="">—</option>{flows.data?.map((f: any) => <option key={f.id} value={f.id}>{f.title}</option>)}</select></label></div>
       {flowId && <View s={board}>{(b: any) => b && (
         <div className="card">
@@ -158,6 +160,28 @@ export function PrizeDetail() {
           ))}</tbody></table>
         </div>
       </>
+    )}</View>
+  );
+}
+
+/** Недельный рейтинг (ТЗ 14.11): пн–вс, все участники клуба с разными датами старта; прошлые недели — в истории */
+function WeeklyBoard() {
+  const [week, setWeek] = useState('');
+  const b = useLoad(() => api(`/admin-api/leaderboard${week ? `?week=${week}` : ''}`), [week]);
+  const shift = (from: string, days: number) => new Date(Date.parse(`${from}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+  return (
+    <View s={b}>{(d: any) => (
+      <div className="card">
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="btn light" onClick={() => setWeek(shift(d.week.from, -7))}>← Прошлая неделя</button>
+          <b>{d.week.from} — {d.week.to}{d.week.current ? ' (текущая)' : ''}</b>
+          {!d.week.current && <button className="btn light" onClick={() => setWeek(shift(d.week.from, 7))}>Следующая →</button>}
+        </div>
+        <div className="muted small" style={{ margin: '6px 0' }}>Процент выполненных запланированных действий за неделю. В рейтинге — участники с {d.minDays}+ днями участия; сортировка: %, затем дни с выполненным планом, затем выполненные действия.</div>
+        <table><thead><tr><th>#</th><th>Участник</th><th>%</th><th>Выполнено</th><th>Дней с выполненным планом</th><th>Дней участия</th></tr></thead>
+          <tbody>{d.rows.map((r: any) => <tr key={r.userId}><td>{r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</td><td><Link to={`/users/${r.userId}`}>{r.name}</Link>{r.username ? <span className="muted"> @{r.username}</span> : null}</td><td>{r.percent}%</td><td>{r.done} из {r.planned}</td><td>{r.fullDays}</td><td>{r.days}</td></tr>)}</tbody></table>
+        {!d.rows.length && <div className="muted">За эту неделю в рейтинге пока никого нет</div>}
+      </div>
     )}</View>
   );
 }

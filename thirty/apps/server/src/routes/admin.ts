@@ -281,7 +281,21 @@ export async function adminRoutes(app: FastifyInstance) {
         ...(req.query.cursor ? { cursor: { id: BigInt(req.query.cursor) }, skip: 1 } : {}),
         include: { subscriptions: { orderBy: { createdAt: 'desc' }, take: 1 } },
       });
-      return jsonSafe(users.map((u) => ({ id: u.id, name: displayName(u), username: u.username, city: u.city, stage: u.onboardingStage, createdAt: u.createdAt, subscription: u.subscriptions[0] ? { status: u.subscriptions[0].status, tariffId: u.subscriptions[0].tariffId } : null })));
+      // Личный челлендж и бадди (ТЗ 14.11): дата старта, окончание, день, способ подбора, есть ли пара
+      const ids = users.map((u) => u.id);
+      const [ms, pairedRows] = await Promise.all([
+        prisma.flowMembership.findMany({ where: { userId: { in: ids }, status: { not: 'revoked' } }, include: { flow: true }, orderBy: [{ startsOn: 'desc' }, { createdAt: 'desc' }] }),
+        prisma.buddyAssignment.findMany({ where: { userId: { in: ids }, pair: { status: 'active' } }, select: { userId: true } }),
+      ]);
+      const { memberWindow } = await import('../modules/flows');
+      const paired = new Set(pairedRows.map((p) => p.userId.toString()));
+      const challengeOf = (id: bigint) => {
+        const m = ms.find((x) => x.userId === id);
+        if (!m) return null;
+        const w = memberWindow(m);
+        return { startsOn: w.chosen ? w.start : null, endsOn: w.chosen ? w.end : null, day: w.day, phase: w.phase, buddyMode: m.buddyMode, queued: Boolean(m.buddyQueuedAt), paired: paired.has(id.toString()) };
+      };
+      return jsonSafe(users.map((u) => ({ id: u.id, name: displayName(u), username: u.username, city: u.city, stage: u.onboardingStage, createdAt: u.createdAt, challenge: challengeOf(u.id), subscription: u.subscriptions[0] ? { status: u.subscriptions[0].status, tariffId: u.subscriptions[0].tariffId } : null })));
     });
 
     r.post<{ Params: { id: string } }>('/admin-api/users/:id/replace-buddy', perm('buddy'), async (req) => {
@@ -618,13 +632,35 @@ export async function adminRoutes(app: FastifyInstance) {
       return jsonSafe({ pairs, replacements, waiting });
     });
     r.post<{ Params: { id: string } }>('/admin-api/buddy/:id/dissolve', perm('buddy'), async (req) => {
-      const { reason } = parse(z.object({ reason: z.string().min(3).max(500) }), req.body);
-      const pair = await prisma.buddyPair.findUniqueOrThrow({ where: { id: req.params.id } });
+      const { reason, requeue } = parse(z.object({ reason: z.string().min(3).max(500), requeue: z.boolean().default(true) }), req.body);
+      await prisma.buddyPair.findUniqueOrThrow({ where: { id: req.params.id } });
       await dissolvePair(req.params.id, 'approved', req.admin!.id);
-      await audit(req, 'buddy.dissolve', 'buddy_pair', req.params.id, { reason });
-      // сразу подбираем обоим новых (бывших друг с другом не ставим)
-      await runBuddyQueue();
+      await audit(req, requeue ? 'buddy.dissolve' : 'buddy.split', 'buddy_pair', req.params.id, { reason });
+      // «Заменить»: сразу подбираем обоим новых (бывших друг с другом не ставим); «Разъединить» — без автоподбора
+      if (requeue) await runBuddyQueue();
+      else {
+        const pair = await prisma.buddyPair.findUniqueOrThrow({ where: { id: req.params.id } });
+        await prisma.flowMembership.updateMany({ where: { userId: { in: [pair.userA, pair.userB] } }, data: { buddyQueuedAt: null } });
+      }
       return { ok: true };
+    });
+    // Недельный рейтинг дисциплины (ТЗ 14.11): текущая и прошлые недели
+    r.get<{ Querystring: { week?: string } }>('/admin-api/leaderboard', perm('users'), async (req) => {
+      const week = req.query.week && /^\d{4}-\d{2}-\d{2}$/.test(req.query.week) ? (req.query.week as never) : undefined;
+      return jsonSafe(await (await import('../modules/rating')).weeklyLeaderboard(null, week));
+    });
+    // Бадди по всему клубу (ТЗ 14.11): сводка, ручное объединение, исключение из очереди
+    r.get('/admin-api/buddy/overview', perm('buddy'), async () => jsonSafe(await (await import('../modules/buddy')).adminBuddyOverview()));
+    r.post('/admin-api/buddy/pair', perm('buddy'), async (req) => {
+      const { a, b, reason } = parse(z.object({ a: z.string().regex(/^\d+$/), b: z.string().regex(/^\d+$/), reason: z.string().trim().min(3).max(500) }), req.body);
+      const res = await (await import('../modules/buddy')).adminPair(BigInt(a), BigInt(b), req.admin!.id);
+      await audit(req, 'buddy.pair', 'buddy_pair', res.pairId, { after: { a, b }, reason });
+      return res;
+    });
+    r.post<{ Params: { userId: string } }>('/admin-api/buddy/queue/:userId/remove', perm('buddy'), async (req) => {
+      const res = await (await import('../modules/buddy')).adminUnqueue(BigInt(req.params.userId));
+      await audit(req, 'buddy.unqueue', 'user', req.params.userId);
+      return res;
     });
 
     // ───────── A11 чаты ─────────

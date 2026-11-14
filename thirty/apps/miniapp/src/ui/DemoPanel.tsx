@@ -27,6 +27,17 @@ const STATUS: [DemoState['status'], string][] = [
 ];
 const DAYS_HINT: Record<number, string> = { 1: 'первый день', 7: 'первая неделя', 14: 'окно трекеров', 15: 'середина', 29: 'обратная связь', 30: 'финал' };
 
+const TZ: [number, string, string][] = [
+  [1, 'Новая участница: старт сегодня + автоподбор', 'Оплата есть, анкета пустая. Выбери «Начать сегодня» и «Подобрать автоматически» — увидишь «Ищем тебе бадди 💜».'],
+  [2, 'Старт через несколько дней', 'Та же анкета: выбери «Выбрать дату» через 3–5 дней — откроется экран ожидания с обратным отсчётом.'],
+  [3, 'Сама выбираю бадди', 'Откроется список участниц без пары. Нажми «Предложить стать бадди» — через пару секунд она примет предложение.'],
+  [4, 'Жду автоподбора → новая участница', 'Ты в очереди автоподбора. Нажми «Пришла новая участница» ниже — система сразу создаст пару.'],
+  [5, 'Задачи и фотоотчёт', '12-й день: отметь задачи, прикрепи фото и отправь отчёт — прогресс на главной обновится.'],
+  [6, 'Лидерборд: разные даты старта', 'Участницы начали в разные дни, но все в одном рейтинге недели (пн–вс).'],
+  [7, 'Завершение и новый челлендж', 'Итоги 30 дней и кнопка «Поставить новую цель».'],
+  [8, 'Админка: бадди', 'Откроется раздел «Бадди» в админке: без пары, очередь, пары, ручное объединение.'],
+];
+
 /** Быстрые переходы к экранам — чтобы не искать их в меню */
 const SCREENS: [string, string][] = [
   ['/', 'Главная'], ['/report', 'Отчёт'], ['/feed', 'Лента'], ['/feed?tab=people', 'Участники'], ['/club', 'Сообщество'], ['/buddy', 'Бадди'],
@@ -101,6 +112,30 @@ export function DemoPanel() {
       setBusy(false);
     }
   };
+  // Сценарии ТЗ 14.11: одна кнопка — готовое состояние и нужный экран
+  const tz = async (n: number) => {
+    setBusy(true);
+    try {
+      const r = await api<{ userId: string; go: string }>('/api/demo/tz', { body: { n } });
+      setDevUser(r.userId);
+      if (n === 8 && info?.admin) window.open(`${info.admin.url.replace(/\/$/, '')}/buddy`, '_blank');
+      location.href = r.go;
+    } catch {
+      toast('Не получилось запустить сценарий');
+      setBusy(false);
+    }
+  };
+  const newcomer = async () => {
+    setBusy(true);
+    try {
+      const r = await api<{ name: string; paired: boolean }>('/api/demo/newcomer', { body: {} });
+      toast(r.paired ? `Пришла ${r.name} и выбрала автоподбор — пара создана 💜` : `Пришла ${r.name}, встала в очередь автоподбора`);
+      window.setTimeout(() => location.reload(), 1200);
+    } catch {
+      toast('Сначала выбери сценарий');
+      setBusy(false);
+    }
+  };
   const now = new Date(info.now).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
 
   return (
@@ -110,6 +145,17 @@ export function DemoPanel() {
         <div className="col" style={{ gap: 10 }}>
           <div className="row between"><div className="h3">Панель демо-версии</div><span className="muted small">{now} МСК</span></div>
           <div className="muted small">Данные ненастоящие, оплата тестовая, сообщения в Telegram не отправляются. Переключатели применяются сразу; кнопка «Применить» пересобирает выбранное состояние заново.</div>
+          <div className="panel" style={{ gap: 6, padding: 12 }}>
+            <b>Сценарии ТЗ: личные старты и бадди</b>
+            {TZ.map(([n, title, hint]) => (
+              <button key={n} className="demo-sc" disabled={busy} onClick={() => void tz(n)}>
+                <b>{n}. {title}</b>
+                <span className="muted small">{hint}</span>
+              </button>
+            ))}
+            <button className="btn btn-secondary" disabled={busy} onClick={() => void newcomer()}>👋 Пришла новая участница (для сценария 4)</button>
+          </div>
+          <div className="muted small" style={{ marginTop: 4 }}>Или собери состояние вручную:</div>
           <Select label="Статус пользователя" value={state.status} options={STATUS} onChange={(v) => set('status', v)} />
           {state.status === 'active' && (
             <Select label="День челленджа" value={state.day} options={Array.from({ length: 30 }, (_, i) => [i + 1, `День ${i + 1}${DAYS_HINT[i + 1] ? ` — ${DAYS_HINT[i + 1]}` : ''}`] as [number, string])} onChange={(v) => set('day', v)} />
