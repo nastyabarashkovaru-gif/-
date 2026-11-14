@@ -95,6 +95,9 @@ export async function adminRoutes(app: FastifyInstance) {
     r.get<HomeQ>('/admin-api/home/retention', perm('dashboard'), async (req) => jsonSafe(await homeRetention(await resolveRange(req.query))));
     r.get<HomeQ>('/admin-api/home/bot', perm('dashboard'), async (req) => jsonSafe(await homeBot(await resolveRange(req.query))));
     r.get<HomeQ>('/admin-api/home/bot-funnel', perm('dashboard'), async (req) => jsonSafe(await (await import('../modules/adminHome')).homeBotFunnel(await resolveRange(req.query))));
+    // Аналитика (ТЗ 14.11): карта сообщений бота и выручка/прибыль за период
+    r.get<HomeQ>('/admin-api/home/map', perm('dashboard'), async (req) => jsonSafe(await (await import('../modules/funnelMap')).funnelMap(await resolveRange(req.query))));
+    r.get<HomeQ>('/admin-api/home/profit', perm('dashboard'), async (req) => jsonSafe(await (await import('../modules/funnelMap')).funnelMoney(await resolveRange(req.query))));
     r.get<HomeQ>('/admin-api/home/members', perm('dashboard'), async (req) => jsonSafe(await homeMembers(req.query.flowId)));
     r.get('/admin-api/home/insights', perm('dashboard'), async () => jsonSafe(await homeInsights()));
     r.get<{ Querystring: Record<string, string> }>('/admin-api/analytics/funnel', perm('analytics'), async (req) =>

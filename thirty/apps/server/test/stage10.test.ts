@@ -280,3 +280,46 @@ describe('организатор в потоке наблюдателем', () =
     expect(await prisma.flowMembership.findFirstOrThrow({ where: { userId: 760n, flowId: flow.id } })).toMatchObject({ status: 'revoked' });
   });
 });
+
+describe('аналитика: карта сообщений и прибыль (ТЗ 14.11)', () => {
+  it('отправки, нажатия по кнопкам и оплаты — по уникальным людям; проверочные отправки не считаются; комиссия из уведомлений CloudPayments', async () => {
+    const { seedTemplates } = await import('../src/modules/bot');
+    await seedTemplates();
+    clock.set('2026-10-21T09:00:00Z');
+    for (const u of [1, 2, 3]) await prisma.user.create({ data: { id: BigInt(u), firstName: `U${u}` } });
+    const log = (u: number, key: string, at: string, extra: { clickedAt?: Date; dedupeKey?: string } = {}) =>
+      prisma.botMessageLog.create({ data: { userId: BigInt(u), templateKey: key, dedupeKey: extra.dedupeKey ?? `${key}:${u}:${at}`, status: 'sent', sentAt: ts(at), clickedAt: extra.clickedAt } });
+    for (const u of [1, 2, 3]) await log(u, 'welcome', '2026-10-20T10:00:00Z');
+    await log(1, 'chain_02', '2026-10-20T10:20:00Z', { clickedAt: ts('2026-10-20T10:25:00Z') });
+    await log(2, 'chain_02', '2026-10-20T10:20:00Z');
+    await log(3, 'chain_02', '2026-10-20T10:20:00Z', { dedupeKey: 'preview:chain_02:3:1' }); // проверка владелицы — не считается
+    for (const u of [1, 2]) await log(u, 'tariffs_pick', '2026-10-20T10:30:00Z');
+    const p1 = await pay(1, { kind: 'initial', status: 'paid', amount: 2990, at: '2026-10-20T10:40:00Z', tariffId: 'm3' });
+    const p2 = await prisma.payment.create({ data: { userId: 2n, kind: 'initial', tariffId: 'm3', amount: 2990, status: 'pending', idempotencyKey: 'k-x' } });
+    const click = (u: number, key: string, paymentId: string, at: string) =>
+      prisma.analyticsEvent.create({ data: { eventId: `t-${++n}`, userId: BigInt(u), sessionId: 'server', eventName: 'bot_button_click', ts: ts(at), metadata: { template: 'tariffs_pick', key, paymentId } } });
+    await click(1, 'url:{pay_m3}', p1.id, '2026-10-20T10:35:00Z');
+    await click(1, 'url:{pay_m3}', p1.id, '2026-10-20T10:36:00Z'); // повторное нажатие не увеличивает
+    await click(2, 'url:{pay_m3}', p2.id, '2026-10-20T10:37:00Z');
+    await prisma.payment.update({ where: { id: p1.id }, data: { providerOrderId: 'cp:777' } });
+    await prisma.paymentEvent.create({ data: { provider: 'cloudpayments', bodyHash: 'h1', signatureValid: true, status: 'paid', payload: { TransactionId: 777, TotalFee: 104.65 }, createdAt: ts('2026-10-20T10:40:00Z') } });
+
+    const { funnelMap, funnelMoney } = await import('../src/modules/funnelMap');
+    const r = { from: '2026-10-20', to: '2026-10-21' } as never;
+    const m = await funnelMap(r);
+    const node = (k: string) => m.nodes.find((x) => x.key === k)!;
+    expect(m.nodes[0].key).toBe('welcome'); // карта начинается с первого сообщения, без «Нажали START»
+    expect(node('welcome').sent).toBe(3);
+    expect(node('chain_02')).toMatchObject({ sent: 2 });
+    expect(node('chain_02').buttons[0]).toMatchObject({ clicks: 1, pct: 50 });
+    expect(node('chain_02').preview).toMatch(/^Привет, подскажи/);
+    const m3 = node('tariffs_pick').buttons.find((b) => b.key === 'url:{pay_m3}')!;
+    expect(m3).toMatchObject({ clicks: 2, pct: 100, paid: 1, paidPct: 50 });
+    // кнопки-ссылки (отзывы, поддержка) — «нет данных», а не ноль
+    expect(node('welcome').buttons.find((b) => b.key.startsWith('url:https'))).toMatchObject({ clicks: null });
+    expect(m.edges.find((e) => e.to === 'pay_retry')!.label).toContain('через 5 мин');
+
+    const money = await funnelMoney(r);
+    expect(money).toMatchObject({ revenue: 2990, refunds: 0, commission: 104.65, noFeeData: 0, profit: 2885.35 });
+  });
+});

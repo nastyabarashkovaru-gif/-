@@ -199,7 +199,11 @@ export async function billingRoutes(app: FastifyInstance) {
       await recordConsents(t.userId, { kinds: ['offer', 'personal_data'], granted: true });
       const r = await createCheckout(t.userId, t.tariffId, `bot-${t.tariffId}-${Math.floor(Date.now() / 3_600_000)}`);
       await markPickClick(t.userId);
-      await track({ userId: t.userId, eventName: 'bot_pay_click', tariffId: t.tariffId, metadata: { paymentId: r.paymentId } });
+      // Аналитика (14.11): из какого сообщения и по какой кнопке — метка в ссылке (m — запись журнала, k — кнопка)
+      const q = req.query as { m?: string; k?: string };
+      const { trackButtonClick } = await import('../modules/bot');
+      if (q.m && q.k) await trackButtonClick(t.userId, q.m, q.k, { paymentId: r.paymentId }).catch(() => undefined);
+      await track({ userId: t.userId, eventName: 'bot_pay_click', tariffId: t.tariffId, metadata: { paymentId: r.paymentId, tracked: Boolean(q.m && q.k) } });
       return reply.redirect(r.url, 302);
     } catch (e) {
       const msg = (e as Error).message || 'Не получилось открыть оплату';
@@ -211,7 +215,9 @@ export async function billingRoutes(app: FastifyInstance) {
   app.get<{ Params: { token: string } }>('/pay/tribute/:token', async (req, reply) => {
     const { readPayToken } = await import('../modules/botPay');
     const t = readPayToken(req.params.token);
-    if (t) await track({ userId: t.userId, eventName: 'tribute_click', screenId: 'bot', dedupeKey: `tribute_click:bot:${t.userId}:${Math.floor(Date.now() / 3_600_000)}` });
+    const q = req.query as { m?: string; k?: string };
+    if (t && q.m && q.k) await (await import('../modules/bot')).trackButtonClick(t.userId, q.m, q.k).catch(() => undefined);
+    if (t) await track({ userId: t.userId, eventName: 'tribute_click', screenId: 'bot', metadata: { tracked: Boolean(q.m && q.k) }, dedupeKey: `tribute_click:bot:${t.userId}:${Math.floor(Date.now() / 3_600_000)}` });
     return reply.redirect('https://web.tribute.tg/s/1bGq', 302);
   });
 

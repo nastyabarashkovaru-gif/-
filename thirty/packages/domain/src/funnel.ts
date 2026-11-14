@@ -55,6 +55,8 @@ export const EVENT_NAMES = [
   'onboarding_screen_3_view', 'onboarding_benefit_open', 'onboarding_screen_3_continue', 'tariffs_screen_view',
   // Итоги недели (14.11)
   'week_result_seen', 'week_card_built',
+  // Аналитика карты сообщений (14.11): нажатие конкретной кнопки конкретного сообщения
+  'bot_button_click',
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 

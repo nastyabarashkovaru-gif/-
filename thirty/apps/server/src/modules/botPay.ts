@@ -31,7 +31,7 @@ export const tributeUrl = (userId: bigint) => `${config.PUBLIC_URL.replace(/\/$/
 export const payUrl = (userId: bigint, tariffId: string) => `${config.PUBLIC_URL.replace(/\/$/, '')}/pay/new/${payToken(userId, tariffId)}`;
 
 /** «Выбери свой тариф»: таймер скидки запускается (или идёт дальше), цены — из настроек тарифов */
-export async function sendTariffPicker(userId: bigint) {
+export async function sendTariffPicker(userId: bigint, tracked = false) {
   const { startOffer } = await import('./billing');
   const { priceVars } = await import('../jobs/chains');
   const { sendTemplate } = await import('./bot');
@@ -43,7 +43,8 @@ export async function sendTariffPicker(userId: bigint) {
     pay_m1: payUrl(userId, 'm1'), pay_m3: payUrl(userId, 'm3'), pay_m6: payUrl(userId, 'm6'), pay_tribute: tributeUrl(userId),
     offer_url: `${base}/doc/offer`, privacy_url: `${base}/doc/privacy`,
   };
-  await track({ userId, eventName: 'bot_tariffs_open' });
+  // tracked: нажатие уже учтено точно (кнопка конкретного сообщения) — в аналитике не приписываем «Как вступить»
+  await track({ userId, eventName: 'bot_tariffs_open', metadata: { tracked } });
   return sendTemplate(userId, 'tariffs_pick', vars, `tariffs_pick:${userId}:${clock.now().getTime()}`);
 }
 

@@ -4,9 +4,10 @@ import { AlertTriangle, CalendarDays, ChevronDown, ChevronRight, CreditCard, Rep
 import { api, dt, rub } from '../api';
 import { Bars, Delta, Donut, LineChart, monthLabel, num, pctf, type Series } from '../charts';
 import { Sheet, useLoad } from '../ui';
+import { FunnelMap, MoneyCards } from './FunnelMap';
 
-export type Period = { period: 'today' | '7d' | '30d' | 'all' | 'custom'; from?: string; to?: string };
-const PERIODS: [Period['period'], string][] = [['today', 'Сегодня'], ['7d', '7 дней'], ['30d', '30 дней'], ['all', 'Всё время']];
+export type Period = { period: 'today' | 'yesterday' | '7d' | '30d' | 'month' | 'prevmonth' | 'all' | 'custom'; from?: string; to?: string };
+const PERIODS: [Period['period'], string][] = [['today', 'Сегодня'], ['yesterday', 'Вчера'], ['7d', '7 дней'], ['30d', '30 дней'], ['month', 'Этот месяц'], ['prevmonth', 'Прошлый месяц'], ['all', 'Всё время']];
 const KEY = 'thirty.admin.period';
 
 export const periodQuery = (p: Period) => (p.period === 'custom' ? `period=custom&from=${p.from}&to=${p.to}` : `period=${p.period}`);
@@ -469,40 +470,18 @@ function Members() {
   );
 }
 
-/** Главная: за несколько секунд — сколько пришло → сколько оплатило → сколько заработали → сколько осталось */
+/** Аналитика (ТЗ 14.11): период → карта сообщений бота → выручка и прибыль. Больше ничего. */
 export function Home() {
   const [p, setP] = usePeriod();
   const q = periodQuery(p);
-  const funnel = useLoad(() => api(`/admin-api/home/funnel?${q}`), [q]);
-  const money = useLoad(() => api(`/admin-api/home/money?${q}`), [q]);
-  const ret = useLoad(() => api(`/admin-api/home/retention?${q}`), [q]);
-  const bot = useLoad(() => api(`/admin-api/home/bot?${q}`), [q]);
-  const botFunnel = useLoad(() => api(`/admin-api/home/bot-funnel?${q}`), [q]);
+  const map = useLoad(() => api(`/admin-api/home/map?${q}`), [q]);
+  const money = useLoad(() => api(`/admin-api/home/profit?${q}`), [q]);
   return (
-    <div className="home">
-      <h1 className="page-title">Аналитика клуба</h1>
+    <div className="fm-page">
+      <h1 className="page-title">Аналитика</h1>
       <PeriodPicker value={p} onChange={setP} />
-      <Block s={funnel} h={170}>{(d: any) => <Hero d={d} />}</Block>
-      <Block s={funnel} h={260}>{(d: any) => (
-        <div className="kpi-grid">
-          <Kpi title="Открыли бота" count={d.cards.bot.count} change={d.cards.bot.change} />
-          <Kpi title="Открыли приложение" count={d.cards.app.count} of={d.cards.app.ofPrev} ofText="от открывших бота" change={d.cards.app.change} />
-          <Kpi title="Дошли до тарифов" count={d.cards.tariffs.count} of={d.cards.tariffs.ofPrev} ofText="от открывших приложение" change={d.cards.tariffs.change} />
-          <Kpi title="Оплатили" count={d.cards.paid.count} of={d.cards.paid.ofPrev} ofText="от дошедших до тарифов" change={d.cards.paid.change} />
-        </div>
-      )}</Block>
-      <Block s={botFunnel} h={420}>{(d: any) => <BotFunnel d={d} />}</Block>
-      <Block s={funnel} h={420}>{(d: any) => <FunnelBlock d={d} />}</Block>
-      <Block s={funnel} h={260}>{(d: any) => <Dynamics d={d} />}</Block>
-      <Block s={money} h={420}>{(d: any) => <Money d={d} />}</Block>
-      <Block s={money} h={300}>{(d: any) => <TariffsBlock d={d} />}</Block>
-      <Block s={bot} h={300}>{(d: any) => <BotBlock d={d} />}</Block>
-      <Block s={ret} h={300}>{(d: any) => <Retention d={d} />}</Block>
-      <Members />
-      <div className="foot-links">
-        <Link to="/more/insights"><Wallet size={16} /> Цели, анкеты, трекеры, рефералы</Link>
-        <Link to="/funnel"><Users size={16} /> Экраны и retention приложения</Link>
-      </div>
+      {map.error ? <div className="fm-empty">Не получилось загрузить карту: {String(map.error)}</div> : !map.data ? <div className="fm-map fm-loading">Собираю карту…</div> : <FunnelMap data={map.data} />}
+      {money.data && <MoneyCards m={money.data} />}
     </div>
   );
 }

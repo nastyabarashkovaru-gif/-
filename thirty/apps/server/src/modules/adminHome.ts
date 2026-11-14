@@ -167,6 +167,13 @@ export async function resolveRange(q: { from?: string; to?: string; period?: str
     return from <= to ? { from, to, period } : { from: to, to: from, period };
   }
   if (period === 'today') return { from: today, to: today, period };
+  if (period === 'yesterday') return { from: addDays(today, -1), to: addDays(today, -1), period };
+  if (period === 'month') return { from: `${today.slice(0, 8)}01` as ISODate, to: today, period };
+  if (period === 'prevmonth') {
+    const first = `${today.slice(0, 8)}01` as ISODate;
+    const prevLast = addDays(first, -1);
+    return { from: `${prevLast.slice(0, 8)}01` as ISODate, to: prevLast, period };
+  }
   if (period === '7d') return { from: addDays(today, -6), to: today, period };
   if (period === 'all') {
     const first = await prisma.$queryRaw<{ m: Date | null }[]>`

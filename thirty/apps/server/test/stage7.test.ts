@@ -522,7 +522,7 @@ describe('оплата из бота (12.11)', () => {
     const how = calls.find((c) => String(c.body.text ?? c.body.caption).includes('Ого, смело'))!;
     expect(JSON.stringify(how.body.reply_markup)).toContain('choose_tariff');
     calls = [];
-    await cb('choose_tariff');
+    await cb((how.body.reply_markup as { inline_keyboard: { callback_data?: string }[][] }).inline_keyboard.flat().find((b) => b.callback_data?.startsWith('choose_tariff'))!.callback_data!);
     const pick = calls.find((c) => String(c.body.caption ?? c.body.text).includes('Выбери свой тариф'))!;
     // картинка со сравнением тарифов и цели под каждым тарифом
     expect(pick.method).toBe('sendPhoto');
@@ -535,13 +535,18 @@ describe('оплата из бота (12.11)', () => {
     const kb = (pick.body.reply_markup as { inline_keyboard: { text: string; url?: string }[][] }).inline_keyboard.flat();
     expect(kb.map((b) => b.text)).toEqual(['😍 1 месяц', '😍🔥 3 месяца — ХИТ', '😍 6 месяцев', '🌍 Оплатить зарубежной картой']);
     const m3 = kb[1].url!;
-    expect(m3).toMatch(/\/pay\/new\/1990\.m3\.\d+\.[A-Za-z0-9_-]{22}$/);
-    const path = new URL(m3).pathname;
-    const r = await app.inject({ method: 'GET', url: path });
+    // 14.11: в ссылке — метка сообщения и кнопки для аналитики
+    expect(m3).toMatch(/\/pay\/new\/1990\.m3\.\d+\.[A-Za-z0-9_-]{22}\?m=[0-9a-f]{32}&k=url%3A%7Bpay_m3%7D$/);
+    const u3 = new URL(m3);
+    const path = u3.pathname;
+    const r = await app.inject({ method: 'GET', url: u3.pathname + u3.search });
     expect(r.statusCode).toBe(302);
     const p = await prisma.payment.findFirstOrThrow({ where: { userId: 1990n } });
     expect(p).toMatchObject({ tariffId: 'm3', amount: 2990, kind: 'initial' });
     expect(r.headers.location).toContain(p.id);
+    const bc = (await prisma.analyticsEvent.findMany({ where: { userId: 1990n, eventName: 'bot_button_click' } })).map((e) => e.metadata as Record<string, unknown>);
+    expect(bc).toContainEqual(expect.objectContaining({ template: 'tariffs_pick', key: 'url:{pay_m3}', paymentId: p.id }));
+    expect(bc).toContainEqual(expect.objectContaining({ template: 'how_to_join', key: 'cb:choose_tariff' }));
     // подделка токена и чужой тариф не проходят
     expect((await app.inject({ method: 'GET', url: path.replace('.m3.', '.m6.') })).body).toContain('Ссылка устарела');
     // воронка бота в админке: зашла → «как вступить» (сама нажала) → «хочу оплатить» → тариф 3 месяца → открыла оплату
@@ -606,6 +611,6 @@ describe('оплата не завершилась (14.11)', () => {
     const kb = (msgs[0].body.reply_markup as { inline_keyboard: { text: string; url?: string; callback_data?: string }[][] }).inline_keyboard.flat();
     expect(kb.map((b) => b.text)).toEqual(['💳 Оплатить ещё раз', '🌍 Оплатить зарубежной картой', 'Выбрать другой тариф', 'Поддержка']);
     expect(kb[0].url).toMatch(/\/pay\/new\/2001\.m3\./);
-    expect(kb[2].callback_data).toBe('choose_tariff');
+    expect(kb[2].callback_data).toMatch(/^choose_tariff:[0-9a-f]{32}$/);
   });
 });

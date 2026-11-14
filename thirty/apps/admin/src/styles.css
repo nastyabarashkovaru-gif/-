@@ -255,3 +255,40 @@ code { word-break: break-all; }
 .review-img { display: flex; flex-direction: column; gap: 8px; }
 .review-img img { width: 100%; max-height: 260px; object-fit: contain; border-radius: 14px; background: #faf9fd; border: 1px solid var(--line); }
 .legacy-link { background: #faf9fd; border: 1px solid var(--line); border-radius: 14px; padding: 12px; font-size: 15px; word-break: break-all; margin-bottom: 4px; }
+
+/* Аналитика (ТЗ 14.11): тёмная карта сообщений бота */
+.fm-page { display: flex; flex-direction: column; gap: 14px; }
+.fm-map { position: relative; width: min(calc(100vw - 32px), 1600px); left: 50%; transform: translateX(-50%); height: min(72vh, 760px); min-height: 420px; background: #121116; border-radius: 18px; overflow: hidden; touch-action: none; cursor: grab; user-select: none; background-image: radial-gradient(#25232c 1px, transparent 1px); background-size: 22px 22px; }
+.fm-map:active { cursor: grabbing; }
+.fm-loading, .fm-empty { display: flex; align-items: center; justify-content: center; color: #8d8899; }
+.fm-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.fm-lines { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.fm-line { fill: none; stroke: #4a4655; stroke-width: 1.5; }
+.fm-line.button { stroke: #e0609a; stroke-width: 1.6; }
+.fm-edge-label { position: absolute; transform: translate(-50%, -50%); background: #1c1b22; border: 1px solid #34313d; color: #c9c5d3; font-size: 12px; font-weight: 300; padding: 3px 9px; border-radius: 999px; white-space: nowrap; pointer-events: none; }
+.fm-edge-label.button { color: #f4a3c6; border-color: #5a2f45; }
+.fm-card { position: absolute; background: linear-gradient(180deg, #24232b, #1d1c23); border: 1px solid #34323d; border-radius: 16px; padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 8px; color: #f2f0f6; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); }
+.fm-title { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: #8d8899; font-weight: 400; }
+.fm-preview { all: unset; cursor: pointer; font-size: 14px; line-height: 1.4; font-weight: 300; color: #f2f0f6; }
+.fm-preview:hover { color: #f4a3c6; }
+.fm-sent { font-size: 13px; color: #c9c5d3; font-weight: 300; }
+.fm-sent b { color: #fff; font-weight: 600; font-size: 15px; }
+.fm-note { font-size: 11px; color: #7d788a; line-height: 1.35; }
+.fm-btn { border-top: 1px solid #312f39; padding-top: 8px; display: flex; flex-direction: column; gap: 3px; }
+.fm-btn-name { font-size: 13px; color: #e6e3ec; font-weight: 400; }
+.fm-to { color: #8d8899; font-weight: 300; font-size: 12px; }
+.fm-click { font-size: 13px; color: #c9c5d3; font-weight: 300; }
+.fm-click b { color: #f472b6; font-weight: 600; }
+.fm-paid { font-size: 13px; color: #c9c5d3; font-weight: 300; }
+.fm-paid b { color: #34d399; font-weight: 600; }
+.fm-na { font-size: 12px; color: #6f6a7d; font-weight: 300; }
+.fm-zoom { position: absolute; right: 12px; top: 12px; z-index: 2; display: flex; flex-direction: column; gap: 6px; }
+.fm-zoom button { width: 34px; height: 34px; border-radius: 10px; border: 1px solid #34323d; background: #1d1c23; color: #e6e3ec; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.fm-money { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .fm-money { grid-template-columns: 1fr; } .fm-map { height: 64vh; } }
+.fm-money-card { background: #1d1c23; color: #f2f0f6; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 6px; border: 1px solid #34323d; }
+.fm-money-card > span { font-size: 13px; color: #8d8899; text-transform: uppercase; letter-spacing: 0.04em; }
+.fm-money-card > b { font-size: 28px; font-weight: 600; }
+.fm-money-card small { color: #8d8899; font-size: 12px; line-height: 1.4; }
+.fm-row { display: flex; justify-content: space-between; font-size: 14px; color: #c9c5d3; font-weight: 300; }
+.fm-profit { color: #34d399 !important; }

@@ -413,11 +413,15 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
   // Кнопка-ссылка ({ text, url }) — например, личное приглашение в чат; без адреса не показывается
   const buttons = (tpl.buttons as { text: string; screen?: string; url?: string; callback?: string }[])
     .map((b) => {
+      // «Выбрать тариф» из любого сообщения — с меткой сообщения, чтобы в аналитике было видно, откуда нажали (14.11)
+      if (b.callback === 'choose_tariff') return { text: b.text, callback_data: `choose_tariff:${short}` };
       if (b.callback) return { text: b.text, callback_data: b.callback };
       // Дожимные (14.11): «Хочу в сообщество», «Вступить…» и т. п. — не в приложение, а сообщение «Выбери свой тариф» в боте
       if (b.url === undefined && b.screen === 'tariffs' && tpl.isMarketing) return { text: b.text, callback_data: `choose_tariff:${short}` };
       if (b.url === undefined) return openAppButton(b.text, `m_${short}_${b.screen}`);
-      const url = b.url.replace(/\{(\w+)\}/g, (_m, k: string) => (vars[k] === undefined ? '' : String(vars[k])));
+      let url = b.url.replace(/\{(\w+)\}/g, (_m, k: string) => (vars[k] === undefined ? '' : String(vars[k])));
+      // Кнопки оплаты ведут на наш сервер — добавляем метку сообщения и кнопки для аналитики (человек ничего не замечает)
+      if (url.startsWith(`${config.PUBLIC_URL.replace(/\/$/, '')}/pay/`)) url += `${url.includes('?') ? '&' : '?'}m=${short}&k=${encodeURIComponent(`url:${b.url}`)}`;
       return /^https?:\/\//.test(url) ? { text: b.text, url } : null;
     })
     .filter(Boolean)
@@ -445,6 +449,25 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
 }
 
 setNotifier(sendTemplate);
+
+/**
+ * Аналитика (14.11): какая именно кнопка какого сообщения нажата — по уникальным людям.
+ * short — id записи журнала без дефисов; кнопка — по ключу (куда ведёт) или по условию.
+ */
+export async function trackButtonClick(userId: bigint, short: string, button: string | ((b: { text: string; screen?: string; url?: string; callback?: string }) => boolean), extra: Record<string, unknown> = {}) {
+  if (!/^[0-9a-f]{32}$/.test(short)) return;
+  const id = `${short.slice(0, 8)}-${short.slice(8, 12)}-${short.slice(12, 16)}-${short.slice(16, 20)}-${short.slice(20)}`;
+  const log = await prisma.botMessageLog.findUnique({ where: { id } });
+  if (!log || log.userId !== userId) return;
+  const { buttonKey } = await import('./funnelMap');
+  const tpl = await prisma.botMessageTemplate.findUnique({ where: { key: log.templateKey } });
+  const btns = (tpl?.buttons as { text: string; screen?: string; url?: string; callback?: string }[] | undefined) ?? [];
+  const b = typeof button === 'string' ? btns.find((x) => buttonKey(x) === button) : btns.find(button);
+  const key = typeof button === 'string' ? button : b ? buttonKey(b) : null;
+  if (!key) return;
+  if (!log.clickedAt) await prisma.botMessageLog.update({ where: { id }, data: { clickedAt: clock.now() } });
+  await track({ userId, eventName: 'bot_button_click', metadata: { template: log.templateKey, logId: id, key, label: b?.text ?? null, ...extra } });
+}
 
 /** Mini App открыт по кнопке из бота: фиксируем клик */
 export async function registerBotClick(userId: bigint, startParam: string) {
@@ -546,8 +569,11 @@ export async function handleUpdate(update: TgUpdate) {
       const { sendTariffPicker } = await import('./botPay');
       // кнопка из дожимного сообщения — клик в статистику этого сообщения
       const short = q.data.split(':')[1];
-      if (short) await registerBotClick(BigInt(q.from.id), `m_${short}_tariffs`);
-      await sendTariffPicker(BigInt(q.from.id));
+      if (short) {
+        await registerBotClick(BigInt(q.from.id), `m_${short}_tariffs`);
+        await trackButtonClick(BigInt(q.from.id), short, (b) => b.callback === 'choose_tariff' || b.screen === 'tariffs');
+      }
+      await sendTariffPicker(BigInt(q.from.id), Boolean(short));
       return;
     }
     if (q.data === 'how_to_join') {
@@ -556,6 +582,7 @@ export async function handleUpdate(update: TgUpdate) {
       // клик по кнопке приветствия — в статистику сообщений
       const w = await prisma.botMessageLog.findFirst({ where: { userId, templateKey: 'welcome', status: 'sent' }, orderBy: { sentAt: 'desc' } });
       if (w && !w.clickedAt) await prisma.botMessageLog.update({ where: { id: w.id }, data: { clickedAt: clock.now() } });
+      if (w) await track({ userId, eventName: 'bot_button_click', metadata: { template: 'welcome', logId: w.id, key: 'cb:how_to_join' } });
       await sendTemplate(userId, 'how_to_join', {}, `how_to_join:${userId}:${clock.now().getTime()}`);
     }
     return;
