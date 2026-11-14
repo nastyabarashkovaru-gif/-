@@ -26,8 +26,10 @@ export async function accessibleChats(userId: bigint, now = clock.now()): Promis
     .map((m) => m.flowId);
   const live = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
   // Тематические чаты — только по категориям целей участника (решение владельца 24.10)
+  // + чаты, открытые вручную из админки (14.11)
+  const extra = live ? (await prisma.user.findUnique({ where: { id: userId }, select: { extraTopics: true } }))?.extraTopics ?? [] : [];
   const topics = live
-    ? [...new Set((await prisma.goal.findMany({ where: { membership: { userId, flowId: { in: flowIds } } }, select: { category: true } })).map((g) => g.category as string))]
+    ? [...new Set([...(await prisma.goal.findMany({ where: { membership: { userId, flowId: { in: flowIds } } }, select: { category: true } })).map((g) => g.category as string), ...extra])]
     : [];
   const chats = await prisma.telegramChat.findMany({
     where: {
@@ -175,4 +177,37 @@ export async function bindChat(chatRowId: string, target: { kind: 'flow'; flowId
       : target.kind === 'topic' ? { kind: 'topic', topic: target.topic, flowId: null, active: true }
       : { kind: 'channel', topic: null, flowId: null, active: true },
   });
+}
+
+/**
+ * Открыть тематический чат вручную (админка, 14.11): тема добавляется к доступным, бот сразу присылает ссылку-заявку.
+ * Закрыть — только то, что открыто вручную; чаты по целям остаются.
+ */
+export async function setExtraTopic(userId: bigint, topic: string, open: boolean) {
+  if (!TOPIC_CHATS.some((t) => t.id === topic)) throw notFound('topic_not_found');
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw notFound();
+  const extraTopics = open ? [...new Set([...user.extraTopics, topic])] : user.extraTopics.filter((t) => t !== topic);
+  await prisma.user.update({ where: { id: userId }, data: { extraTopics } });
+  if (!open) return { extraTopics, sent: false };
+  const chat = (await accessibleChats(userId)).find((c) => c.kind === 'topic' && c.topic === topic);
+  if (!chat) throw forbidden('no_access', 'Чат не открылся: у участницы нет действующей подписки или этот тематический чат не привязан');
+  const title = TOPIC_CHATS.find((t) => t.id === topic)!;
+  const link = await inviteLinkFor(userId, chat.id).catch(() => null);
+  let sent = false;
+  if (link?.url) {
+    await tg('sendMessage', {
+      chat_id: Number(userId),
+      text: `Открыли тебе доступ к чату «${title.title}» ${title.emoji}\n\nНажми кнопку ниже, чтобы вступить 👇🏼`,
+      reply_markup: { inline_keyboard: [[{ text: `Вступить в чат «${title.title}»`, url: link.url }]] },
+    }).then(() => (sent = true)).catch(() => undefined);
+  }
+  return { extraTopics, sent, joined: Boolean(link?.joined) };
+}
+
+/** Тематические чаты участницы для админки: по целям и открытые вручную */
+export async function topicAccess(userId: bigint) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { extraTopics: true } });
+  const fromGoals = [...new Set((await prisma.goal.findMany({ where: { membership: { userId, status: { not: 'revoked' } } }, select: { category: true } })).map((g) => g.category as string))];
+  return TOPIC_CHATS.map((t) => ({ id: t.id, title: `${t.emoji} ${t.title}`, byGoal: fromGoals.includes(t.id), manual: Boolean(user?.extraTopics.includes(t.id)) }));
 }

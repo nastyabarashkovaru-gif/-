@@ -44,6 +44,8 @@ model User {
   trackersGrantedAt DateTime?
   /// Начало дожимной цепочки: каждый /start некупившей запускает её заново с нуля (14.11)
   chainStartedAt  DateTime?
+  /// Тематические чаты, открытые вручную из админки (ошиблась с категорией цели и т. п.) — сверх чатов по целям (14.11)
+  extraTopics     String[]   @default([])
   deletedAt       DateTime?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt

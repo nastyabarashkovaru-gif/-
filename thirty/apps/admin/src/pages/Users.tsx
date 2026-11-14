@@ -146,6 +146,25 @@ export function UserDetail({ canEdit, canStartOver = false }: { canEdit: boolean
           {u.stories.map((r: any) => <div key={r.id}>Сторис @{r.instagram}: {r.status}</div>)}
           {!u.offers.length && !u.promos.length && <div className="muted">Предложение не показывалось</div>}
           <div>Реклама в боте: {u.user.marketingOptIn ? 'разрешена' : 'отключена (/stop)'}</div>
+          <h2>Тематические чаты</h2>
+          <div className="muted small">Открываются по категориям целей. Если участница ошиблась с категорией — открой нужный чат вручную: бот сразу пришлёт ей ссылку.</div>
+          {(u.topics ?? []).map((t: any) => (
+            <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0' }}>
+              <span style={{ flex: 1 }}>{t.title} · {t.byGoal ? 'по цели' : t.manual ? 'открыт вручную' : <span className="muted">закрыт</span>}</span>
+              {!t.byGoal && !t.manual && <button className="btn light" style={{ padding: '2px 8px' }} onClick={async () => {
+                if (!confirm(`Открыть чат «${t.title}»? Бот пришлёт участнице ссылку.`)) return;
+                try {
+                  const r: any = await api(`/admin-api/users/${u.user.id}/topics`, { body: { topic: t.id, open: true } });
+                  alert(r.sent ? 'Готово: доступ открыт, ссылка отправлена в бот' : r.joined ? 'Готово: участница уже в этом чате' : 'Доступ открыт, но ссылку отправить не получилось — участница увидит чат в приложении, раздел «Сообщество»');
+                  location.reload();
+                } catch (e) { alert((e as Error).message); }
+              }}>открыть</button>}
+              {t.manual && !t.byGoal && <button className="btn light" style={{ padding: '2px 8px' }} onClick={async () => {
+                if (!confirm(`Закрыть чат «${t.title}»?`)) return;
+                try { await api(`/admin-api/users/${u.user.id}/topics`, { body: { topic: t.id, open: false } }); location.reload(); } catch (e) { alert((e as Error).message); }
+              }}>закрыть</button>}
+            </div>
+          ))}
           <h2>Подписки и оплаты</h2>
           {u.subscriptions.map((s: any) => <div key={s.id}>{s.tariffId} <Status v={s.status} /> · {d(s.paidFromFlow)} — {d(s.paidThroughFlow)} · след. списание {d(s.nextChargeDate)} {s.autoRenew ? '' : '(автопродление выключено)'}
             {s.autoRenew && ['prestart', 'active', 'past_due'].includes(s.status) && (

@@ -349,6 +349,14 @@ export async function adminRoutes(app: FastifyInstance) {
       await audit(req, 'access.grant', 'user', req.params.id, { after: { tariffId, months }, reason });
       return jsonSafe(r);
     });
+    // Тематические чаты вручную (14.11): ошиблась с категорией — открыть нужный чат, бот пришлёт ссылку
+    r.post<{ Params: { id: string } }>('/admin-api/users/:id/topics', perm('users'), async (req) => {
+      const { topic, open } = parse(z.object({ topic: z.string().max(30), open: z.boolean() }), req.body);
+      const { setExtraTopic, topicAccess } = await import('../modules/chats');
+      const r = await setExtraTopic(BigInt(req.params.id), topic, open);
+      await audit(req, open ? 'topic.open' : 'topic.close', 'user', req.params.id, { after: { topic } });
+      return jsonSafe({ ...r, topics: await topicAccess(BigInt(req.params.id)) });
+    });
     r.post<{ Params: { id: string } }>('/admin-api/users/:id/cancel-subscription', perm('payments'), async (req) => {
       const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(500) }), req.body);
       const r = await cancelAutoRenew(BigInt(req.params.id), `support: ${reason}`);
@@ -387,6 +395,7 @@ export async function adminRoutes(app: FastifyInstance) {
         payments,
         subscriptions,
         memberships: ms,
+        topics: await (await import('../modules/chats')).topicAccess(id),
         consents,
         moderation: { complaintsAbout, complaintsBy, audit: auditRows },
         botLogs,

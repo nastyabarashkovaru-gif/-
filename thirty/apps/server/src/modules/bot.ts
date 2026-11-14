@@ -293,6 +293,17 @@ export async function seedTemplates() {
     if (h) await prisma.botMessageTemplate.update({ where: { key: 'how_to_join' }, data: { buttons: (h.buttons as { text: string; url?: string }[]).map((b) => (b.url === REVIEWS_BUTTON.url ? { ...b, text: REVIEWS_BUTTON.text } : b)) } });
     await prisma.setting.create({ data: { key: v42, value: { at: new Date().toISOString() } } });
   }
+  // Разово (14.11): @kruuska ошиблась с категорией — открыть чат «Блог» и прислать ссылку (владелица)
+  const v43 = 'maintenance.kruuskaBlogV1';
+  if (!config.DEMO_MODE && !process.env.VITEST && !(await prisma.setting.findUnique({ where: { key: v43 } }))) {
+    await prisma.setting.create({ data: { key: v43, value: { at: new Date().toISOString() } } });
+    setTimeout(() => void (async () => {
+      const u = await prisma.user.findFirst({ where: { username: { equals: 'kruuska', mode: 'insensitive' } } });
+      if (!u) return console.warn('[topics] @kruuska не найдена');
+      const { setExtraTopic } = await import('./chats');
+      console.log('[topics] @kruuska blog:', JSON.stringify(await setExtraTopic(u.id, 'blog', true)));
+    })().catch((e) => console.error('[topics] @kruuska', (e as Error).message)), 20_000);
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {

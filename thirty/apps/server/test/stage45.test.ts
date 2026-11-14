@@ -177,6 +177,14 @@ describe('чаты (критерий №7)', () => {
     expect(club.body.topicChats.filter((t: { available: boolean }) => t.available).map((t: { topic: string }) => t.topic)).toEqual(['money']);
     const link = calls.find((c) => c.method === 'createChatInviteLink')!;
     expect(link.body).toMatchObject({ chat_id: -1001, creates_join_request: true });
+    // 14.11: ошиблась с категорией — админка открывает «Английский» вручную, бот сразу присылает ссылку
+    const { setExtraTopic, topicAccess } = await import('../src/modules/chats');
+    expect(await setExtraTopic(2n, 'english', true)).toMatchObject({ extraTopics: ['english'], sent: true });
+    expect(calls.at(-1)!.body.text).toContain('Открыли тебе доступ к чату «Английский»');
+    expect((await api('POST', `/api/chats/${english.id}/invite`, 2)).status).toBe(200);
+    expect((await topicAccess(2n)).filter((t) => t.byGoal || t.manual).map((t) => [t.id, t.byGoal, t.manual])).toEqual([['money', true, false], ['english', false, true]]);
+    await setExtraTopic(2n, 'english', false);
+    expect((await api('POST', `/api/chats/${english.id}/invite`, 2)).status).toBe(403);
 
     const app = await getApp();
     const join = (chat: number, user: number) =>
