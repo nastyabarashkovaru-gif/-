@@ -255,9 +255,12 @@ export async function billingRoutes(app: FastifyInstance) {
       recurrent = { interval: 'Month', period: p.subscription.tariff.months, amount: p.subscription.renewalPrice, startDate: `${plan.nextChargeDate}T09:00:00` };
     }
     const title = tariff ? `«30 дней» — тариф «${tariff.title}»` : '«30 дней»';
+    // Назначение платежа в CloudPayments (14.11): дни по тарифу — 1 мес. = 30, 3 мес. = 90, 6 мес. = 180
+    const months = tariff?.months ?? p.months ?? 1;
+    const description = `Тариф "${months * 30}" (Оказание услуг доп.образования согл. патента N4205250008004)`;
     const params = {
       publicId: config.CP_PUBLIC_ID,
-      description: title,
+      description,
       amount: p.amount,
       currency: 'RUB',
       invoiceId: p.id,

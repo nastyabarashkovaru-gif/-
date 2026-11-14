@@ -553,7 +553,9 @@ describe('оплата из бота (12.11)', () => {
     // воронка бота в админке: зашла → «как вступить» (сама нажала) → «хочу оплатить» → тариф 3 месяца → открыла оплату
     const { payPageSig } = await import('../src/payments/cloudpayments');
     const exp = Math.floor(Date.now() / 1000) + 3600;
-    await app.inject({ method: 'GET', url: `/pay/${p.id}?e=${exp}&s=${payPageSig(p.id, exp)}` });
+    const page = await app.inject({ method: 'GET', url: `/pay/${p.id}?e=${exp}&s=${payPageSig(p.id, exp)}` });
+    // назначение платежа в CloudPayments: дни по тарифу и патент (14.11)
+    expect(page.body).toContain('Тариф \\"90\\" (Оказание услуг доп.образования согл. патента N4205250008004)');
     const { homeBotFunnel } = await import('../src/modules/adminHome');
     const f = await homeBotFunnel({ from: '2026-11-12', to: '2026-11-12' } as never);
     expect(f.current!.steps.map((x: { count: number }) => x.count)).toEqual([1, 1, 1, 1, 1, 0]);
