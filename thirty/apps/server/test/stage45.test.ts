@@ -146,10 +146,14 @@ describe('чаты (критерий №7)', () => {
     await join(12);
     expect(calls.filter((c) => c.method === 'approveChatJoinRequest').map((c) => c.body.user_id)).toEqual([11]);
     expect(calls.filter((c) => c.method === 'declineChatJoinRequest').map((c) => c.body.user_id)).toEqual([12]);
-    // заявка по ссылке другого бота (Tribute) — не одобряем и не отклоняем
+    // заявка по чужой ссылке без доступа — не одобряем и не отклоняем (решит владелица)
     calls = [];
-    await app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { chat_join_request: { chat: { id: -1007 }, from: { id: 12 }, invite_link: { invite_link: 'https://t.me/+tribute', creator: { id: 999, is_bot: true } } } } });
+    const other = (user: number) => app.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { chat_join_request: { chat: { id: -1007 }, from: { id: user }, invite_link: { invite_link: 'https://t.me/+tribute', creator: { id: 999, is_bot: true } } } } });
+    await other(12);
     expect(calls.filter((c) => /ChatJoinRequest/.test(c.method))).toEqual([]);
+    // 14.11: с оплаченным доступом — одобряем по любой ссылке
+    await other(11);
+    expect(calls.filter((c) => c.method === 'approveChatJoinRequest').map((c) => c.body.user_id)).toEqual([11]);
   });
 
   it('чат потока — только его участникам; тематические — только по категориям целей; вступление через проверку заявки', async () => {

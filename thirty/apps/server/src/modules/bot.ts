@@ -325,6 +325,12 @@ export async function seedTemplates() {
     if (t) await prisma.botMessageTemplate.update({ where: { key: 'payment_success' }, data: { text: t.text.replace(' (если не успеешь заполнить до старта — ты не будешь определена в пару)', '') } });
     await prisma.setting.create({ data: { key: v46, value: { at: new Date().toISOString() } } });
   }
+  // Разово (14.11): одобрить висящие заявки в чаты у всех, у кого есть доступ (раньше бот брал только заявки по своим ссылкам)
+  const v47 = 'maintenance.approvePendingV1';
+  if (!config.DEMO_MODE && !process.env.VITEST && !(await prisma.setting.findUnique({ where: { key: v47 } }))) {
+    await prisma.setting.create({ data: { key: v47, value: { at: new Date().toISOString() } } });
+    setTimeout(() => void import('./chats').then((c) => c.approvePendingRequests()).catch((e) => console.error('[chats] pending', (e as Error).message)), 25_000);
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {

@@ -89,13 +89,21 @@ const ourBotId = () => Number((config.BOT_TOKEN ?? '').split(':')[0]) || null;
  * В чатах может быть второй бот-администратор (Tribute, 06.11): заявки по чужим ссылкам не трогаем —
  * их одобряет тот, кто выдал ссылку. Наш бот решает только по своим личным ссылкам.
  */
-export async function onJoinRequest(tgChatId: number, tgUserId: number, link?: { invite_link: string; creator?: { id: number } }) {
+export async function onJoinRequest(tgChatId: number, tgUserId: number, link?: { invite_link: string; name?: string; creator?: { id: number } }) {
   const chat = await prisma.telegramChat.findUnique({ where: { telegramChatId: BigInt(tgChatId) } });
   const userId = BigInt(tgUserId);
-  if (!chat || !chat.active) return;
   const mine = ourBotId();
-  if (!link?.creator || !mine || link.creator.id !== mine) return;
+  const ours = Boolean(link?.creator && mine && link.creator.id === mine);
+  if (!chat || !chat.active) {
+    console.warn(`[chats] заявка ${tgUserId} в ${tgChatId}: чат не привязан в админке — пропускаем`);
+    return;
+  }
   const allowed = (await accessibleChats(userId)).some((c) => c.id === chat.id);
+  // 14.11: Tribute чатами не управляет — оплатившим одобряем заявку по любой ссылке.
+  // Без доступа: по нашей личной ссылке — отклоняем, по чужой — оставляем владелице (решит вручную)
+  const action = allowed ? 'approve' : ours ? 'decline' : 'leave';
+  console.log(`[chats] заявка ${tgUserId} в «${chat.title}»: ссылка ${ours ? 'бота' : link?.creator ? `от ${link.creator.id}` : link ? 'без автора' : 'нет'}${link?.name ? ` (${link.name})` : ''} → ${action === 'approve' ? 'одобрена' : action === 'decline' ? 'отклонена (нет доступа)' : 'оставлена (нет доступа, чужая ссылка)'}`);
+  if (action === 'leave') return;
   try {
     await tg(allowed ? 'approveChatJoinRequest' : 'declineChatJoinRequest', { chat_id: tgChatId, user_id: tgUserId });
   } catch (e) {
@@ -210,4 +218,41 @@ export async function topicAccess(userId: bigint) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { extraTopics: true } });
   const fromGoals = [...new Set((await prisma.goal.findMany({ where: { membership: { userId, status: { not: 'revoked' } } }, select: { category: true } })).map((g) => g.category as string))];
   return TOPIC_CHATS.map((t) => ({ id: t.id, title: `${t.emoji} ${t.title}`, byGoal: fromGoals.includes(t.id), manual: Boolean(user?.extraTopics.includes(t.id)) }));
+}
+
+/**
+ * Разово (14.11): одобрить уже висящие заявки тех, у кого есть доступ.
+ * Список заявок боту недоступен — пробуем одобрить каждого с доступом во всех его чатах, где он ещё не состоит.
+ */
+export async function approvePendingRequests() {
+  const users = await prisma.user.findMany({
+    where: { deletedAt: null, OR: [{ subscriptions: { some: { status: { in: [...LIVE_STATUSES] } } } }, { memberships: { some: { status: { not: 'revoked' } } } }] },
+    select: { id: true },
+  });
+  let approved = 0;
+  let tried = 0;
+  for (const u of users) {
+    const chats = await accessibleChats(u.id);
+    for (const c of chats) {
+      if (!c.telegramChatId || c.kind === 'channel') continue;
+      const m = await prisma.chatMembership.findUnique({ where: { chatId_userId: { chatId: c.id, userId: u.id } } });
+      if (m?.status === 'joined') continue;
+      tried++;
+      try {
+        await tg('approveChatJoinRequest', { chat_id: Number(c.telegramChatId), user_id: Number(u.id) });
+        approved++;
+        await prisma.chatMembership.upsert({
+          where: { chatId_userId: { chatId: c.id, userId: u.id } },
+          create: { chatId: c.id, userId: u.id, status: 'joined', joinedAt: clock.now() },
+          update: { status: 'joined', joinedAt: clock.now(), removedAt: null },
+        });
+        console.log(`[chats] висящая заявка ${u.id} в «${c.title}» одобрена`);
+      } catch {
+        /* заявки нет (HIDE_REQUESTER_MISSING) или уже в чате */
+      }
+      await new Promise((r) => setTimeout(r, 60));
+    }
+  }
+  console.log(`[chats] разовое одобрение висящих заявок: проверено ${tried}, одобрено ${approved}`);
+  return { tried, approved };
 }
