@@ -128,7 +128,8 @@ describe('дожимная цепочка до оплаты', () => {
     expect(calls.at(-1)!.body.reply_markup.inline_keyboard[0][0].web_app.url).toMatch(/startapp=m_[0-9a-f]{32}_tariffs/);
 
     await runPrePurchaseChains(at(180 + 1 * 24 * 60 + 1));
-    expect(sent().at(-1)).toContain('спишь?');
+    expect(sent().at(-1)).toMatch(/^спишь?/);
+    expect(sent().at(-1)).not.toContain('👀');
     // «вернуть скидку через сторис» выключено (02.11): скидка и так возвращается при новом заходе
     await runPrePurchaseChains(at(180 + 2 * 24 * 60 + 1));
     expect(sent().join('\n')).not.toContain('ВЕРНУТЬ СКИДКУ');

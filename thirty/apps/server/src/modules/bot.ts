@@ -277,6 +277,13 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.updateMany({ where: { key: 'welcome' }, data: { text: WELCOME_TEXT, buttons: WELCOME_BUTTONS } });
     await prisma.setting.create({ data: { key: v40, value: { at: new Date().toISOString() } } });
   }
+  // Разово (14.11): в сообщении 08 «спишь?» — без глаз
+  const v41 = 'maintenance.chain08NoEyesV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v41 } }))) {
+    const t08 = await prisma.botMessageTemplate.findUnique({ where: { key: 'chain_08' } });
+    if (t08) await prisma.botMessageTemplate.update({ where: { key: 'chain_08' }, data: { text: t08.text.replace('👀 спишь?', 'спишь?') } });
+    await prisma.setting.create({ data: { key: v41, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
