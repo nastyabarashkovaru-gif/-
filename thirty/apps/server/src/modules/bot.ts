@@ -318,6 +318,13 @@ export async function seedTemplates() {
     }
     await prisma.setting.create({ data: { key: v45, value: { at: new Date().toISOString() } } });
   }
+  // Разово (14.11): «Оплата прошла» — без скобок про пару (дату старта выбирают сами, пару подберём всё равно)
+  const v46 = 'maintenance.paySuccessNoBracketsV1';
+  if (!(await prisma.setting.findUnique({ where: { key: v46 } }))) {
+    const t = await prisma.botMessageTemplate.findUnique({ where: { key: 'payment_success' } });
+    if (t) await prisma.botMessageTemplate.update({ where: { key: 'payment_success' }, data: { text: t.text.replace(' (если не успеешь заполнить до старта — ты не будешь определена в пару)', '') } });
+    await prisma.setting.create({ data: { key: v46, value: { at: new Date().toISOString() } } });
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
