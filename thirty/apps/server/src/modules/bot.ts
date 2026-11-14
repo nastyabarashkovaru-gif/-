@@ -389,6 +389,8 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
   const buttons = (tpl.buttons as { text: string; screen?: string; url?: string; callback?: string }[])
     .map((b) => {
       if (b.callback) return { text: b.text, callback_data: b.callback };
+      // Дожимные (14.11): «Хочу в сообщество», «Вступить…» и т. п. — не в приложение, а сообщение «Выбери свой тариф» в боте
+      if (b.url === undefined && b.screen === 'tariffs' && tpl.isMarketing) return { text: b.text, callback_data: `choose_tariff:${short}` };
       if (b.url === undefined) return openAppButton(b.text, `m_${short}_${b.screen}`);
       const url = b.url.replace(/\{(\w+)\}/g, (_m, k: string) => (vars[k] === undefined ? '' : String(vars[k])));
       return /^https?:\/\//.test(url) ? { text: b.text, url } : null;
@@ -515,8 +517,11 @@ export async function handleUpdate(update: TgUpdate) {
       return;
     }
     // «ХОЧУ ОПЛАТИТЬ ВХОД»: выбор тарифа прямо в боте (12.11)
-    if (q.data === 'choose_tariff') {
+    if (q.data === 'choose_tariff' || q.data?.startsWith('choose_tariff:')) {
       const { sendTariffPicker } = await import('./botPay');
+      // кнопка из дожимного сообщения — клик в статистику этого сообщения
+      const short = q.data.split(':')[1];
+      if (short) await registerBotClick(BigInt(q.from.id), `m_${short}_tariffs`);
       await sendTariffPicker(BigInt(q.from.id));
       return;
     }

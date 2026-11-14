@@ -125,7 +125,14 @@ describe('дожимная цепочка до оплаты', () => {
     expect(sent()).toHaveLength(5);
     expect(sent().join('\n')).not.toContain('ОСТАЛСЯ ВСЕГО ЧАС');
     // кнопки ведут на тарифы
-    expect(calls.at(-1)!.body.reply_markup.inline_keyboard[0][0].web_app.url).toMatch(/startapp=m_[0-9a-f]{32}_tariffs/);
+    // 14.11: кнопка дожимного — не в приложение, а следующим сообщением «Выбери свой тариф» в боте; клик засчитан сообщению
+    const btn = calls.at(-1)!.body.reply_markup.inline_keyboard[0][0];
+    expect(btn.web_app).toBeUndefined();
+    expect(btn.callback_data).toMatch(/^choose_tariff:[0-9a-f]{32}$/);
+    const app1 = await getApp();
+    await app1.inject({ method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret }, payload: { callback_query: { id: 'q7', from: { id: 300 }, data: btn.callback_data, message: { chat: { id: 300 } } } } });
+    expect(sent().at(-1)).toContain('Выбери свой тариф');
+    expect(await prisma.botMessageLog.count({ where: { userId: 300n, templateKey: 'chain_07', clickedAt: { not: null } } })).toBe(1);
 
     await runPrePurchaseChains(at(180 + 1 * 24 * 60 + 1));
     expect(sent().at(-1)).toMatch(/^спишь?/);
