@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { api, d, dt } from '../api';
 import { Modal, Status, View, act, useLoad, withReason } from '../ui';
 
@@ -61,64 +60,25 @@ export function Chats() {
   );
 }
 
-/** A10: бадди по всему клубу (ТЗ 14.11): пары, очередь автоподбора, без пары, ожидающие предложения, ручное управление */
+/** A10: бадди */
 export function Buddy() {
-  const s = useLoad(() => api('/admin-api/buddy/overview'));
-  const [q, setQ] = useState('');
-  const [pick, setPick] = useState<any[]>([]);
-  const who = (u: any) => <><Link to={`/users/${u.id}`}>{u.name}</Link>{u.username ? <span className="muted"> @{u.username}</span> : null}</>;
-  const toggle = (u: any) => setPick((p) => (p.some((x) => x.id === u.id) ? p.filter((x) => x.id !== u.id) : [...p.slice(-1), u]));
-  const pairUp = async (a: any, b: any) => {
-    if (await withReason(`Объединить: ${a.name} + ${b.name}${a.paired || b.paired ? ' (прежние пары будут завершены)' : ''}`, (reason) => api('/admin-api/buddy/pair', { body: { a: a.id, b: b.id, reason } }))) { setPick([]); s.reload(); }
-  };
-  const match = (u: any) => !q.trim() || `${u.name} ${u.username ?? ''}`.toLowerCase().includes(q.trim().toLowerCase().replace(/^@/, ''));
+  const flows = useLoad(() => api('/admin-api/flows'));
+  const [flowId, setFlowId] = useState('');
+  const s = useLoad(() => api(`/admin-api/buddy${flowId ? `?flowId=${flowId}` : ''}`), [flowId]);
   return (
     <>
       <h1>Бадди</h1>
+      <div className="card"><label className="f">Поток<select value={flowId} onChange={(e) => setFlowId(e.target.value)}><option value="">Все</option>{flows.data?.map((f: any) => <option key={f.id} value={f.id}>{f.title}</option>)}</select></label></div>
       <View s={s}>{(data: any) => (
         <>
-          <div className="card row" style={{ gap: 18, flexWrap: 'wrap' }}>
-            <div><div className="muted small">Активных пар</div><b style={{ fontSize: 22 }}>{data.stats.pairs}</b></div>
-            <div><div className="muted small">В очереди автоподбора</div><b style={{ fontSize: 22 }}>{data.stats.queue}</b></div>
-            <div><div className="muted small">Без пары</div><b style={{ fontSize: 22 }}>{data.stats.free}</b></div>
-            <div><div className="muted small">Ожидают ответа на предложение</div><b style={{ fontSize: 22 }}>{data.stats.proposals}</b></div>
+          {flowId && <div className="card"><h2>Без пары ({data.waiting.length})</h2>{data.waiting.map((w: any) => <span key={w.id} className="pill" style={{ margin: 3 }}>{w.name} · {w.interests.join(', ') || 'без интересов'}</span>)}{!data.waiting.length && <span className="muted">Все распределены</span>}</div>}
+          <div className="card"><h2>Запросы на замену</h2>
+            <table><tbody>{data.replacements.map((r: any) => <tr key={r.id}><td>{dt(r.createdAt)}</td><td>{r.requesterId}</td><td>{r.reason}</td><td>{r.comment}</td><td>{r.status}</td></tr>)}</tbody></table>
           </div>
-          <div className="card">
-            <h2>Объединить вручную</h2>
-            <div className="muted small">Отметь двух участников в списках ниже (без пары или из пар) — и нажми «Объединить». Если у кого-то уже есть бадди, прежняя пара завершится, а второй участник из неё встанет в очередь автоподбора.</div>
-            <div className="row" style={{ gap: 8, margin: '8px 0', flexWrap: 'wrap' }}>
-              {pick.map((u) => <span key={u.id} className="pill">{u.name}</span>)}
-              <button className="btn" disabled={pick.length !== 2} onClick={() => pairUp(pick[0], pick[1])}>Объединить</button>
-              {pick.length > 0 && <button className="btn light" onClick={() => setPick([])}>Сбросить</button>}
-            </div>
-            <input placeholder="Поиск по имени или нику" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-          <div className="card"><h2>Без пары ({data.free.length})</h2>
-            <table><thead><tr><th /><th>Участник</th><th>Способ</th><th /></tr></thead>
-              <tbody>{data.free.filter(match).map((u: any) => <tr key={u.id}>
-                <td><input type="checkbox" checked={pick.some((x) => x.id === u.id)} onChange={() => toggle(u)} /></td>
-                <td>{who(u)}</td>
-                <td>{u.mode === 'auto' ? (u.queued ? 'автоподбор · в очереди' : 'автоподбор') : u.mode === 'self' ? 'выбирает сам' : 'не выбран'}</td>
-                <td>{u.queued && <button className="btn light" onClick={async () => { if (confirm(`Исключить ${u.name} из очереди автоподбора?`)) { await act(() => api(`/admin-api/buddy/queue/${u.id}/remove`, { body: {} })); s.reload(); } }}>Исключить из очереди</button>}</td>
-              </tr>)}</tbody></table>
-          </div>
-          <div className="card"><h2>Очередь автоподбора ({data.queue.length})</h2>
-            {data.queue.length ? <ol>{data.queue.map((u: any) => <li key={u.id}>{who(u)} <span className="muted">· с {dt(u.since)}</span></li>)}</ol> : <div className="muted">Очередь пуста</div>}
-          </div>
-          <div className="card"><h2>Ожидающие предложения ({data.proposals.length})</h2>
-            <table><tbody>{data.proposals.map((p: any) => <tr key={p.id}><td>{dt(p.createdAt)}</td><td>{who(p.from)} → {who(p.to)}</td></tr>)}</tbody></table>
-          </div>
-          <div className="card"><h2>Активные пары ({data.pairs.length})</h2>
-            <table><thead><tr><th>Создана</th><th>Участники</th><th>Как</th><th /></tr></thead>
-              <tbody>{data.pairs.filter((p: any) => match(p.a) || match(p.b)).map((p: any) => <tr key={p.id}>
-                <td>{dt(p.createdAt)}</td>
-                <td><input type="checkbox" checked={pick.some((x) => x.id === p.a.id)} onChange={() => toggle({ ...p.a, paired: true })} /> {who(p.a)} + <input type="checkbox" checked={pick.some((x) => x.id === p.b.id)} onChange={() => toggle({ ...p.b, paired: true })} /> {who(p.b)}</td>
-                <td>{({ auto: 'автоподбор', invite: 'по приглашению', admin: 'вручную', replacement: 'замена' } as Record<string, string>)[p.source] ?? p.source}</td>
-                <td style={{ whiteSpace: 'nowrap' }}>
-                  <button className="btn light" onClick={async () => { if (await withReason('Заменить бадди (обоим подберём новых из очереди)', (reason) => api(`/admin-api/buddy/${p.id}/dissolve`, { body: { reason } }))) s.reload(); }}>Заменить</button>{' '}
-                  <button className="btn light" onClick={async () => { if (await withReason('Разъединить пару (без автоподбора)', (reason) => api(`/admin-api/buddy/${p.id}/dissolve`, { body: { reason, requeue: false } }))) s.reload(); }}>Разъединить</button>
-                </td>
-              </tr>)}</tbody></table>
+          <div className="card"><h2>Пары</h2>
+            <table><thead><tr><th>Создана</th><th>Участники</th><th>Источник</th><th>Причина подбора</th><th>Статус</th><th /></tr></thead>
+              <tbody>{data.pairs.map((p: any) => <tr key={p.id}><td>{dt(p.createdAt)}</td><td>{p.userA} + {p.userB}</td><td>{p.source}</td><td>{p.matchReason ?? '—'}</td><td><Status v={p.status} /></td>
+                <td>{p.status === 'active' && <button className="btn light" onClick={async () => { if (await withReason('Заменить бадди (обоим подберём новых)', (reason) => api(`/admin-api/buddy/${p.id}/dissolve`, { body: { reason } }))) s.reload(); }}>Заменить</button>}</td></tr>)}</tbody></table>
           </div>
         </>
       )}</View>

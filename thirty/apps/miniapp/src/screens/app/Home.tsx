@@ -31,8 +31,7 @@ interface HomeData {
   state: 'waiting' | 'active' | 'finished' | 'registration' | 'no_membership';
   membership: { id: string; status: string; finalSubmittedAt: string | null };
   flow: { title: string; startsOn: string; endsOn: string; days: number; today: string; phase: string };
-  stats: { percent: number; successfulDays: number; dayNumber: number | null; completed?: number; scheduled?: number };
-  weekRank?: { place: number | null; of: number; eligible: boolean; percent: number; daysLeft: number } | null;
+  stats: { percent: number; successfulDays: number; dayNumber: number | null };
   comparison: { firstMonth: boolean; baseline: number; current: number; delta: number };
   goals: HomeGoal[];
   todayReported: boolean;
@@ -136,23 +135,6 @@ export function Home() {
         )}
       </div>
 
-      {/* Личный прогресс за 30 дней и место в недельном рейтинге дисциплины (ТЗ 14.11) */}
-      {!before && data.state === 'active' && !p?.finale && (
-        <button className="card card-link prog-card" style={{ textAlign: 'left' }} onClick={() => nav('/feed?tab=board')}>
-          <span className="row h3" style={{ gap: 8, fontSize: 17 }}><TrendingUp size={19} color="var(--accent)" />Мой прогресс</span>
-          <div className="prog-grid">
-            <div><b>{stats.percent}%</b><span>Дисциплина</span></div>
-            <div><b>{stats.completed ?? 0} из {stats.scheduled ?? 0}</b><span>Выполнено задач</span></div>
-            <div><b>{stats.successfulDays} из {Math.min(day, flow.days)}</b><span>Дней с выполненным планом</span></div>
-          </div>
-          {data.weekRank && (
-            <div className="row between small" style={{ marginTop: 2 }}>
-              <span className="muted">{data.weekRank.eligible && data.weekRank.place ? <>Рейтинг недели: <b style={{ color: 'var(--accent)' }}>{data.weekRank.place} место</b> из {data.weekRank.of}</> : `Ты появишься в рейтинге после ${data.weekRank.daysLeft ? `ещё ${data.weekRank.daysLeft} ${plural(data.weekRank.daysLeft, 'дня', 'дней', 'дней')}` : '5 дней'} участия`}</span>
-              <span className="row" style={{ gap: 2, color: 'var(--accent)' }}>Неделя: {data.weekRank.percent}%<ChevronRight size={16} /></span>
-            </div>
-          )}
-        </button>
-      )}
       {!before && data.state === 'active' && !p?.finale && me?.membership?.canChangeStart && (
         <button className="link-accent" style={{ alignSelf: 'center' }} onClick={() => setStartSheet(true)}>🔄 Начать заново или изменить дату старта</button>
       )}

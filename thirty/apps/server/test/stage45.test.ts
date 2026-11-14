@@ -203,31 +203,6 @@ describe('чаты (критерий №7)', () => {
   });
 });
 
-describe('бадди в админке (ТЗ 14.11)', () => {
-  it('сводка по клубу, ручное объединение с завершением прежней пары, исключение из очереди', async () => {
-    clock.set('2026-10-21T09:00:00Z');
-    for (const id of [60, 61, 62, 63]) await grantMembership(id, NOV, 'm1');
-    const b = await import('../src/modules/buddy');
-    await b.setBuddyMode(60n, 'auto');
-    let o = await b.adminBuddyOverview();
-    expect(o.stats).toMatchObject({ pairs: 0, queue: 1, free: 4 });
-    await b.adminPair(61n, 62n);
-    await expect(b.adminPair(61n, 61n)).rejects.toThrow();
-    // 61 уходит к 63: пара 61+62 завершается, 62 встаёт в очередь и сразу получает 60 (тот ждал)
-    await b.adminPair(61n, 63n);
-    o = await b.adminBuddyOverview();
-    expect(o.stats).toMatchObject({ pairs: 2, queue: 0, free: 0 });
-    expect(o.pairs.map((p) => [p.a.id, p.b.id].sort().join('+')).sort()).toEqual(['60+62', '61+63']);
-    expect(await prisma.buddyPair.count({ where: { status: 'dissolved' } })).toBe(1);
-    // исключить из очереди
-    await grantMembership(64, NOV, 'm1');
-    await b.setBuddyMode(64n, 'auto');
-    expect((await b.adminBuddyOverview()).stats.queue).toBe(1);
-    await b.adminUnqueue(64n);
-    expect((await b.adminBuddyOverview()).stats).toMatchObject({ queue: 0, free: 1 });
-  });
-});
-
 describe('бадди (критерий №8)', () => {
   it('пара по приглашению не перераспределяется, автоподбор идемпотентен, одному — один бадди', async () => {
     clock.set('2026-10-21T09:00:00Z');
@@ -291,10 +266,10 @@ describe('лента, участники, рейтинг', () => {
     expect(byFlow.body.items.map((x: { id: string }) => x.id)).toEqual(['10']);
     expect((await api('GET', '/api/participants?flowStart=2026-12-01', 11)).body.items).toHaveLength(0);
 
-    // недельный рейтинг: в топе — после 5 дней участия (ТЗ 14.11), свой результат виден сразу
+    // недельный рейтинг: в топе — после 7 дней участия, свой результат виден сразу
     const lb = await api('GET', '/api/leaderboard', 10);
     expect(lb.body.rows).toHaveLength(0);
-    expect(lb.body.me).toMatchObject({ eligible: false, daysLeft: 5, done: 1 });
+    expect(lb.body.me).toMatchObject({ eligible: false, daysLeft: 7, done: 1 });
     clock.set('2026-11-08T09:00:00Z');
     const lb2 = await api('GET', '/api/leaderboard', 10);
     expect(lb2.body.week).toMatchObject({ from: '2026-11-02', to: '2026-11-08' });

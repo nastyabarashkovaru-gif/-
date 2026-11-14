@@ -162,11 +162,6 @@ export async function memberRoutes(app: FastifyInstance) {
       buddy: await buddyCard(user.id, m.flowId),
       perks: tariffPerks(tariff?.months ?? 1),
       prompts: await homePrompts(user.id, m),
-      // Место в недельном рейтинге дисциплины (ТЗ 14.11): на главной рядом с личным прогрессом
-      weekRank: info.phase === 'active' ? await (async () => {
-        const lb = await (await import('../modules/rating')).weeklyLeaderboard(user.id).catch(() => null);
-        return lb?.me ? { place: lb.me.rank, of: lb.rows.length, eligible: lb.me.eligible, percent: lb.me.percent, daysLeft: lb.me.daysLeft } : null;
-      })() : null,
       month: await monthNumber(user.id, m),
       // Время сервера: обратный отсчёт до старта считается от него (в демо время «перемотано»)
       serverNow: clock.now().toISOString(),

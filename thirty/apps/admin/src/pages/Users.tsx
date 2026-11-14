@@ -30,12 +30,6 @@ export function Users() {
                   <b>{u.name}</b>
                   <span>{u.username ? `@${u.username} · ` : ''}{u.city ?? 'город не указан'}</span>
                   <span className="muted">{STAGE_RU[u.stage] ?? u.stage} · с {d(u.createdAt)}</span>
-                  {u.challenge && (
-                    <span className="muted">
-                      {u.challenge.startsOn ? `Челлендж ${d(u.challenge.startsOn)} — ${d(u.challenge.endsOn)}${u.challenge.phase === 'active' ? ` · день ${u.challenge.day} из 30` : u.challenge.phase === 'upcoming' ? ' · ждёт старта' : ' · завершён'}` : 'Дата старта не выбрана'}
-                      {' · '}{u.challenge.paired ? '🤝 есть бадди' : u.challenge.buddyMode === 'auto' ? (u.challenge.queued ? '⏳ в очереди автоподбора' : 'автоподбор') : u.challenge.buddyMode === 'self' ? 'ищет бадди сам' : 'без бадди'}
-                    </span>
-                  )}
                 </div>
                 {u.subscription ? <span className={`pill ${['active', 'prestart'].includes(u.subscription.status) ? 'ok' : u.subscription.status === 'past_due' ? 'err' : 'warn'}`}>{u.subscription.tariffId.replace('m', '')} мес · {SUB_RU[u.subscription.status] ?? u.subscription.status}</span> : null}
               </button>
