@@ -38,10 +38,11 @@ export function PeriodPicker({ value, onChange }: { value: Period; onChange: (p:
   const [to, setTo] = useState(value.to ?? today);
   return (
     <>
-      <div className="chips">
+      <div className="chips wrap small">
         {PERIODS.map(([k, t]) => <button key={k} className={`chip${value.period === k ? ' on' : ''}`} onClick={() => onChange({ period: k })}>{t}</button>)}
-        <button className={`chip icon${value.period === 'custom' ? ' on' : ''}`} onClick={() => setOpen(true)} aria-label="Свой период">
-          <CalendarDays size={18} />{value.period === 'custom' && <span>{value.from!.slice(8, 10)}.{value.from!.slice(5, 7)}–{value.to!.slice(8, 10)}.{value.to!.slice(5, 7)}</span>}
+        {/* Свой период: любые две даты (14.11 — заметной кнопкой, а не только значком) */}
+        <button className={`chip${value.period === 'custom' ? ' on' : ''}`} onClick={() => setOpen(true)}>
+          <CalendarDays size={18} />{value.period === 'custom' ? <span>{value.from!.slice(8, 10)}.{value.from!.slice(5, 7)}.{value.from!.slice(2, 4)} – {value.to!.slice(8, 10)}.{value.to!.slice(5, 7)}.{value.to!.slice(2, 4)}</span> : 'Свой период'}
         </button>
       </div>
       <Sheet open={open} onClose={() => setOpen(false)} title="Свой период">
