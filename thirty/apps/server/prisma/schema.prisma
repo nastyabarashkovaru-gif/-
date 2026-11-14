@@ -42,6 +42,8 @@ model User {
   trackerPromptAt   DateTime?
   /// Трекеры выданы — окно больше не показывается
   trackersGrantedAt DateTime?
+  /// Начало дожимной цепочки: каждый /start некупившей запускает её заново с нуля (14.11)
+  chainStartedAt  DateTime?
   deletedAt       DateTime?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt

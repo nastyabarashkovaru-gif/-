@@ -210,6 +210,40 @@ describe('дожимная цепочка до оплаты', () => {
     expect((await prisma.priceOffer.findFirstOrThrow({ where: { userId: 310n, kind: 'intro' } })).startedAt).toEqual(at(10));
   });
 
+  it('каждый новый /start некупившей — цепочка заново с нуля; купившей — не трогаем (14.11)', async () => {
+    clock.set('2026-10-21T09:00:00Z');
+    await start(320);
+    const at = (m: number) => new Date(Date.parse('2026-10-21T09:00:00Z') + m * 60_000);
+    calls = [];
+    await runPrePurchaseChains(at(7));
+    await runPrePurchaseChains(at(10));
+    await runPrePurchaseChains(at(21));
+    expect(sent()).toHaveLength(2);
+    const first = await prisma.priceOffer.findFirstOrThrow({ where: { userId: 320n, kind: 'intro' } });
+    // через двое суток снова нажала /start — всё сначала: «как вступить», новый таймер, 02
+    const day2 = (m: number) => new Date(Date.parse('2026-10-23T09:00:00Z') + m * 60_000);
+    clock.set(day2(0));
+    await start(320);
+    expect(await prisma.priceOffer.count({ where: { userId: 320n, kind: 'intro' } })).toBe(0);
+    calls = [];
+    await runPrePurchaseChains(day2(7));
+    expect(sent()).toHaveLength(1);
+    expect(sent()[0]).toContain('Ого, смело');
+    await runPrePurchaseChains(day2(10));
+    const second = await prisma.priceOffer.findFirstOrThrow({ where: { userId: 320n, kind: 'intro' } });
+    expect(second.id).not.toBe(first.id);
+    expect(second.startedAt).toEqual(day2(10));
+    await runPrePurchaseChains(day2(21));
+    expect(sent()).toHaveLength(2);
+    expect(sent()[1]).toContain('получилось посмотреть');
+    // купила — /start цепочку не перезапускает
+    await prisma.payment.create({ data: { userId: 320n, kind: 'initial', status: 'paid', amount: 999, tariffId: 'm1', paidAt: day2(30), idempotencyKey: 'restart-320' } });
+    const before = (await prisma.user.findUniqueOrThrow({ where: { id: 320n } })).chainStartedAt;
+    clock.set(day2(60));
+    await start(320);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: 320n } })).chainStartedAt).toEqual(before);
+  });
+
   it('/stop прекращает цепочку; старты в боте 11.11 и дальше каждые 4 дня: послезавтра, завтра + СТАРТ, сегодня', async () => {
     const { nextMarketingStart } = await import('../src/modules/promos');
     expect(['2026-11-07', '2026-11-11', '2026-11-12', '2026-11-15', '2026-11-16'].map((d) => nextMarketingStart(d as never))).toEqual(['2026-11-11', '2026-11-11', '2026-11-15', '2026-11-15', '2026-11-19']);

@@ -77,14 +77,17 @@ export async function runPrePurchaseChains(now = clock.now(), send: Send = sendT
 
   // «Как вступить» само через 7 минут после приветствия, если человек не нажал «Ознакомился, как вступить?» (12.11).
   // Окно — час: давним /start при выкладке ничего не досылаем
-  const howTo = await prisma.botMessageLog.findMany({
-    where: {
-      templateKey: 'welcome', sentAt: { gt: minutesAgo(now, AUTO_HOW_TO_JOIN_WINDOW_MIN), lte: minutesAgo(now, AUTO_HOW_TO_JOIN_MIN) },
-      user: { marketingOptIn: true, botLogs: { none: { templateKey: 'how_to_join' } } },
-    },
-    select: { userId: true },
+  // С 14.11 — от последнего /start (chainStartedAt): каждый новый заход запускает цепочку заново
+  const howTo = await prisma.user.findMany({
+    where: { marketingOptIn: true, chainStartedAt: { gt: minutesAgo(now, AUTO_HOW_TO_JOIN_WINDOW_MIN), lte: minutesAgo(now, AUTO_HOW_TO_JOIN_MIN) } },
+    select: { id: true, chainStartedAt: true },
   });
-  for (const h of howTo) if (!paid.has(h.userId.toString())) await send(h.userId, 'how_to_join', {}, `how_to_join:auto:${h.userId}`);
+  for (const h of howTo) {
+    if (paid.has(h.id.toString())) continue;
+    const since = h.chainStartedAt!;
+    if (await prisma.botMessageLog.findFirst({ where: { userId: h.id, templateKey: 'how_to_join', sentAt: { gte: since } } })) continue;
+    await send(h.id, 'how_to_join', {}, `how_to_join:auto:${h.id}:${since.getTime()}`);
+  }
 
   // Оплата не завершилась (14.11): открыла оплату и за 5 минут не оплатила — «Оплатить ещё раз» (тот же тариф),
   // зарубежная карта, другой тариф, поддержка. Один раз в сутки; окно — час, старые незавершённые не трогаем
@@ -109,11 +112,12 @@ export async function runPrePurchaseChains(now = clock.now(), send: Send = sendT
   }
 
   // Таймер для тех, кто не дошёл до тарифов: от первого /start (приветствие в журнале бота)
-  const starters = await prisma.botMessageLog.findMany({
-    where: { templateKey: 'welcome', sentAt: { gt: minutesAgo(now, AUTO_OFFER_WINDOW_MIN), lte: minutesAgo(now, AUTO_OFFER_AFTER_MIN) }, user: { offers: { none: { kind: 'intro' } } } },
-    select: { userId: true },
+  // (с 14.11 — от последнего /start: при новом заходе прежний таймер удаляется, и он запускается заново)
+  const starters = await prisma.user.findMany({
+    where: { chainStartedAt: { gt: minutesAgo(now, AUTO_OFFER_WINDOW_MIN), lte: minutesAgo(now, AUTO_OFFER_AFTER_MIN) }, offers: { none: { kind: 'intro' } } },
+    select: { id: true },
   });
-  for (const s of starters) if (!paid.has(s.userId.toString())) await startOffer(s.userId, now);
+  for (const s of starters) if (!paid.has(s.id.toString())) await startOffer(s.id, now);
 
   // 02–09: персональный таймер
   const offers = await prisma.priceOffer.findMany({ where: { kind: 'intro', consumedAt: null, startedAt: { gt: minutesAgo(now, 10 * 24 * 60) } } });
@@ -161,12 +165,14 @@ export async function runPrePurchaseChains(now = clock.now(), send: Send = sendT
     // Только те, кто пришёл в бот до дня отправки; в разгар личного таймера не мешаем цепочке 02–07
     const users = await prisma.user.findMany({
       where: { allowsWrite: true, botBlocked: false, marketingOptIn: true, deletedAt: null, createdAt: { lt: startOfLocalDay(sendDay, tz) } },
-      select: { id: true, createdAt: true },
+      select: { id: true, createdAt: true, chainStartedAt: true },
     });
     for (const u of users) {
       if (paid.has(u.id.toString())) continue;
-      // Только свой старт — ближайший после прихода в бот; не успела — дальше только основные дожимные (07.11)
-      if (userMarketingStart(localDate(u.createdAt, tz)) !== nextStart) continue;
+      // Только свой старт — ближайший после последнего /start (14.11; раньше — после прихода в бот); не успела — дальше только основные дожимные
+      const came = u.chainStartedAt ?? u.createdAt;
+      if (came >= startOfLocalDay(sendDay, tz)) continue;
+      if (userMarketingStart(localDate(came, tz)) !== nextStart) continue;
       const running = await prisma.priceOffer.findFirst({ where: { userId: u.id, kind: 'intro', consumedAt: null, expiresAt: { gt: now } } });
       if (running) continue;
       await send(u.id, key, startVars, `${key}:${nextStart}:${u.id}`);

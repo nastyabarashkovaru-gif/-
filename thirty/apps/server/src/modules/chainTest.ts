@@ -59,3 +59,28 @@ export function runChainTest(userId: bigint) {
     }
   })().finally(() => running.delete(userId.toString()));
 }
+
+/** Все сообщения цепочки подряд одному человеку (по username) — на проверку текстов, без сброса покупки и таймера */
+export async function sendWholeChain(username: string, stepMs = 3000) {
+  const user = await prisma.user.findFirst({ where: { username: { equals: username, mode: 'insensitive' } }, orderBy: { createdAt: 'asc' } });
+  if (!user) {
+    console.warn(`[chain-preview] @${username} не найдена`);
+    return;
+  }
+  const { payUrl, tributeUrl } = await import('./botPay');
+  const { config } = await import('../config');
+  const { nextMarketingStart } = await import('./promos');
+  const { humanDate, localDate } = await import('@thirty/domain');
+  const base = config.PUBLIC_URL.replace(/\/$/, '');
+  const vars = {
+    ...(await priceVars()),
+    start_date: humanDate(nextMarketingStart(localDate(clock.now(), 'Europe/Moscow'))),
+    pay_m1: payUrl(user.id, 'm1'), pay_m3: payUrl(user.id, 'm3'), pay_m6: payUrl(user.id, 'm6'), pay_tribute: tributeUrl(user.id), pay_again: payUrl(user.id, 'm3'),
+    offer_url: `${base}/doc/offer`, privacy_url: `${base}/doc/privacy`,
+  };
+  for (const key of ['how_to_join', 'tariffs_pick', 'pay_retry', ...STAGES]) {
+    const res = await sendTemplate(user.id, key, vars, `preview:${key}:${user.id}:${clock.now().getTime()}`).catch(() => 'failed');
+    console.log(`[chain-preview] @${username} ${key}: ${res}`);
+    await new Promise((r) => setTimeout(r, stepMs));
+  }
+}

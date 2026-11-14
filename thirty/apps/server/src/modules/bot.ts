@@ -264,6 +264,13 @@ export async function seedTemplates() {
     await prisma.botMessageTemplate.updateMany({ where: { key: 'pay_retry' }, data: { enabled: true, approved: true } });
     await prisma.setting.create({ data: { key: v38, value: { at: new Date().toISOString() } } });
   }
+  // Разово (14.11): владелица попросила прислать ей все дожимные подряд на проверку (не в демо)
+  const v39 = 'maintenance.chainPreviewV1';
+  if (!config.DEMO_MODE && !process.env.VITEST && !(await prisma.setting.findUnique({ where: { key: v39 } }))) {
+    await prisma.setting.create({ data: { key: v39, value: { at: new Date().toISOString() } } });
+    const { sendWholeChain } = await import('./chainTest');
+    setTimeout(() => void sendWholeChain('barashkova_a').catch((e) => console.error('[chain-preview]', e)), 15_000);
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
@@ -315,6 +322,21 @@ export function imageUrlOf(url: string | null | undefined) {
  * лимит частоты на шаблон и общий лимит рекламы в сутки, дедупликация по ключу.
  * Каждая отправка пишется в журнал; клики по кнопкам отслеживаются через startapp=m_<logId>_<screen>.
  */
+/** Перезапуск дожимной цепочки с нуля — только тем, кто не купил (тестовые оплаты покупкой не считаются) */
+export async function restartChain(userId: bigint) {
+  const { LIVE_STATUSES } = await import('./billing');
+  const [paid, live] = await Promise.all([
+    prisma.payment.findFirst({ where: { userId, status: 'paid', kind: 'initial', test: false }, select: { id: true } }),
+    prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] }, test: false }, select: { id: true } }),
+  ]);
+  if (paid || live) return false;
+  await prisma.$transaction([
+    prisma.priceOffer.deleteMany({ where: { userId, kind: 'intro' } }),
+    prisma.user.update({ where: { id: userId }, data: { chainStartedAt: clock.now() } }),
+  ]);
+  return true;
+}
+
 export async function sendTemplate(userId: bigint, key: string, vars: Record<string, string | number>, dedupeKey: string): Promise<'sent' | 'skipped' | 'failed'> {
   const tpl = await prisma.botMessageTemplate.findUnique({ where: { key } });
   if (!tpl || !tpl.enabled) return 'skipped';
@@ -556,6 +578,8 @@ export async function handleUpdate(update: TgUpdate) {
       const u = await prisma.user.findUnique({ where: { id: userId } });
       if (u) await handleStartParam(u, safe);
     }
+    // Каждый /start некупившей — вся цепочка заново с нуля (14.11): «как вступить» через 7 минут, новый таймер скидки, 02–15, свой старт
+    if (!testing) await restartChain(userId);
     const tpl = await prisma.botMessageTemplate.findUnique({ where: { key: 'welcome' } });
     // Сообщение 1 — на каждый /start, как в прежнем боте; запись в журнале — только первая (для аналитики)
     await prisma.botMessageLog.create({ data: { userId, templateKey: 'welcome', dedupeKey: `welcome:${userId}`, status: 'sent', sentAt: clock.now() } }).catch((e) => {
@@ -568,7 +592,8 @@ export async function handleUpdate(update: TgUpdate) {
     const { getSetting } = await import('../settings');
     const { humanDate, localDate } = await import('@thirty/domain');
     const tz = await getSetting('flow.timezone');
-    const arrived = localDate((await prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } }))?.createdAt ?? clock.now(), tz);
+    const me = await prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true, chainStartedAt: true } });
+    const arrived = localDate(me?.chainStartedAt ?? me?.createdAt ?? clock.now(), tz);
     const today = localDate(clock.now(), tz);
     let myStart = userMarketingStart(arrived);
     if (myStart <= today) myStart = userMarketingStart(today);
