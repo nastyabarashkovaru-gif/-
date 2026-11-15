@@ -337,6 +337,33 @@ export async function seedTemplates() {
     await prisma.setting.create({ data: { key: v48, value: { at: new Date().toISOString() } } });
     setTimeout(() => void import('./chats').then((c) => c.approvePendingRequests(['channel'])).catch((e) => console.error('[chats] pending', (e as Error).message)), 25_000);
   }
+  // Разово (15.11): тестовая бадди только для владелицы (@barashkova_a, наблюдатель) — посмотреть экран бадди и отчёты пары.
+  // Несуществующий человек, тоже наблюдатель: не попадает в списки участниц, рейтинг, подбор и статистику
+  const v49 = 'maintenance.ownerTestBuddyV1';
+  if (!config.DEMO_MODE && !process.env.VITEST && !(await prisma.setting.findUnique({ where: { key: v49 } }))) {
+    await prisma.setting.create({ data: { key: v49, value: { at: new Date().toISOString() } } });
+    try {
+      const owner = await prisma.user.findFirst({ where: { username: { equals: 'barashkova_a', mode: 'insensitive' } } });
+      const { currentMembership } = await import('./flows');
+      const m = owner ? await currentMembership(owner.id) : null;
+      if (!owner || !m) console.warn('[test-buddy] @barashkova_a или её участие не найдены');
+      else {
+        const FAKE = 999000000001n;
+        await prisma.user.upsert({ where: { id: FAKE }, create: { id: FAKE, firstName: 'Тестовая бадди', displayName: 'Тестовая бадди 🧪', allowsWrite: false }, update: {} });
+        const { getSetting: gs, setSetting } = await import('../settings');
+        const obs = await gs('flow.observers');
+        if (!obs.includes(String(FAKE))) await setSetting('flow.observers', [...obs, String(FAKE)]);
+        const has = await prisma.buddyAssignment.findFirst({ where: { userId: owner.id, pair: { status: 'active' } } });
+        if (!has) {
+          const pair = await prisma.buddyPair.create({ data: { flowId: m.flowId, userA: owner.id, userB: FAKE, source: 'admin', matchReason: 'тестовая бадди для владелицы' } });
+          await prisma.buddyAssignment.createMany({ data: [{ flowId: m.flowId, userId: owner.id, pairId: pair.id }, { flowId: m.flowId, userId: FAKE, pairId: pair.id }] });
+        }
+        console.log('[test-buddy] тестовая бадди назначена владелице');
+      }
+    } catch (e) {
+      console.error('[test-buddy]', (e as Error).message);
+    }
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
