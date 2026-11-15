@@ -28,7 +28,7 @@ import { ComebackScreen, FeedbackScreen, FinaleScreen, ResultCardScreen, Tracker
 /** Экран по параметру кнопки бота: m_<log>_<screen> */
 const SCREEN_ROUTES: Record<string, string> = {
   welcome: '/tariffs', resume: '/', tariffs: '/tariffs', restore: '/restore', checkout: '/tariffs', reg_profile: '/reg/about', reg_goals: '/reg/goals', reg_buddy: '/reg/buddy',
-  home: '/', report: '/report', card: '/cards', review: '/review', buddy: '/buddy', meeting: '/club', final: '/finale', finale: '/finale', feedback: '/feedback', trackers: '/trackers', comeback: '/comeback', profile: '/profile', support: '/profile',
+  home: '/', report: '/report', card: '/cards', review: '/review', buddy: '/buddy', buddy_reports: '/buddy?tab=reports', meeting: '/club', final: '/finale', finale: '/finale', feedback: '/feedback', trackers: '/trackers', comeback: '/comeback', profile: '/profile', support: '/profile',
 };
 
 /** Каждый новый месяц участия — свой цвет приложения: фиолетовый, красный, оранжевый, зелёный, синий, розовый, дальше по кругу */

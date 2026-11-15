@@ -107,6 +107,7 @@ export async function socialRoutes(app: FastifyInstance) {
     r.post<{ Params: { id: string } }>('/api/chats/:id/invite', async (req) => inviteLinkFor(req.user!.id, req.params.id));
 
     // Бадди S16, S29
+    r.get<{ Querystring: { before?: string } }>('/api/buddy/reports', async (req) => jsonSafe(await (await import('../modules/feedChat')).buddyReports(req.user!.id, req.query)));
     r.get('/api/buddy', async (req) => {
       const m = await currentMembership(req.user!.id);
       if (!m) return { state: 'none' };

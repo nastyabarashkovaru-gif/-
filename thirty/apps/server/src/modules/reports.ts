@@ -87,7 +87,10 @@ export async function submitReport(userId: bigint, membershipId: string, input: 
     const buddy = await buddyOf(userId, m.flowId);
     if (buddy) {
       const me = await prisma.user.findUnique({ where: { id: userId } });
-      await pushNotification(buddy.otherId, 'buddy_report', { title: 'Твой бадди прислал отчёт!', body: me ? `${me.displayName || me.firstName} — отчёт за сегодня` : null, link: `/feed?msg=${r.messageId}` }, `buddy_report:${r.reportId}`);
+      await pushNotification(buddy.otherId, 'buddy_report', { title: 'Твой бадди прислал отчёт!', body: me ? `${me.displayName || me.firstName} — отчёт за сегодня` : null, link: '/buddy?tab=reports' }, `buddy_report:${r.reportId}`);
+      // И сообщение в бот (15.11): «Твой бадди прислал отчёт — загляни, чтобы проверить»
+      const { sendTemplate } = await import('./bot');
+      await sendTemplate(buddy.otherId, 'buddy_report', { name: me ? me.displayName || me.firstName : '' }, `buddy_report_bot:${r.reportId}`).catch((e) => console.warn('[buddy] report notify', (e as Error).message));
     }
     return r;
   });

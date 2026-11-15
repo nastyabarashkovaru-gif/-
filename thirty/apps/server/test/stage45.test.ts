@@ -317,6 +317,7 @@ describe('уведомления и текущий результат', () => {
     clock.set('2026-10-21T10:00:00Z');
     await grantMembership(60, '2026-11-01', 'm1');
     await grantMembership(61, '2026-11-01', 'm1');
+    await prisma.user.update({ where: { id: 61n }, data: { allowsWrite: true } });
     const g = await api('POST', '/api/goals', 60, { category: 'weightloss', title: 'Минус 3 кг', pointA: '60 кг', pointB: '57 кг', confirmMethod: 'photo_video' });
     const t = await api('POST', `/api/goals/${g.body.id}/tasks`, 60, { title: 'Шаги', frequency: 'daily' });
     await api('POST', '/api/membership/fix', 60);
@@ -331,7 +332,15 @@ describe('уведомления и текущий результат', () => {
     expect(rep.status).toBe(200);
     const n61 = await api('GET', '/api/notifications', 61);
     expect(n61.body.unread).toBe(1);
-    expect(n61.body.items[0]).toMatchObject({ kind: 'buddy_report', title: 'Твой бадди прислал отчёт!', link: `/feed?msg=${rep.body.messageId}`, read: false });
+    expect(n61.body.items[0]).toMatchObject({ kind: 'buddy_report', title: 'Твой бадди прислал отчёт!', link: '/buddy?tab=reports', read: false });
+    // 15.11: и сообщение в бот с кнопкой «Посмотреть отчёт» → отчёты пары
+    const botMsg = calls.find((c) => c.method === 'sendMessage' && Number(c.body.chat_id) === 61 && String(c.body.text).includes('прислал отчёт'))!;
+    expect(String(botMsg.body.text)).toContain('Загляни, чтобы проверить и поддержать!');
+    expect(botMsg.body.reply_markup.inline_keyboard[0][0].web_app.url).toMatch(/startapp=m_[0-9a-f]{32}_buddy_reports/);
+    // отчёты пары: только эти двое
+    const pairReports = await api('GET', '/api/buddy/reports', 61);
+    expect(pairReports.body.buddy).toMatchObject({ id: '60' });
+    expect(pairReports.body.messages.map((m: { user: { id: string }; mine: boolean }) => [m.user.id, m.mine])).toEqual([['60', false]]);
     const home = await api('GET', '/api/home', 60);
     expect(home.body.goals[0]).toMatchObject({ numeric: true, unit: 'кг', current: 58.5, progress: 50 });
 

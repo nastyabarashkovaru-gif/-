@@ -104,3 +104,25 @@ export async function postChat(userId: bigint, input: z.infer<typeof chatMessage
 export async function setHidden(id: string, hidden: boolean) {
   return prisma.feedMessage.update({ where: { id }, data: { hidden } });
 }
+
+/** Отчёты пары (15.11): только отчёты двух бадди друг друга — в формате переписки, старые сверху */
+export async function buddyReports(userId: bigint, q: { before?: string }) {
+  const m = await chatFlow(userId);
+  const { buddyOf } = await import('./buddy');
+  const b = await buddyOf(userId, m.flowId);
+  if (!b) return { buddy: null, messages: [], hasMore: false };
+  const where: Prisma.FeedMessageWhereInput = { userId: { in: [userId, b.otherId] }, reportId: { not: null } };
+  if (q.before) {
+    const x = await prisma.feedMessage.findUnique({ where: { id: q.before } });
+    if (x) where.AND = [{ OR: [{ createdAt: { lt: x.createdAt } }, { createdAt: x.createdAt, id: { lt: x.id } }] }];
+  }
+  const limit = 30;
+  const rows = await prisma.feedMessage.findMany({ where, include, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: limit + 1 });
+  const page = rows.slice(0, limit).reverse();
+  const other = await prisma.user.findUnique({ where: { id: b.otherId } });
+  return {
+    buddy: other ? { id: other.id.toString(), name: nameOf(other), username: other.username, photoUrl: other.photoUrl } : null,
+    messages: await serialize(page, userId),
+    hasMore: rows.length > limit,
+  };
+}

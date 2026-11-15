@@ -43,9 +43,21 @@ export function BuddyScreen() {
       setBusy(false);
     }
   };
+  const tab = params.get('tab') === 'reports' ? 'reports' : 'buddy';
+  const setTab = (t: 'buddy' | 'reports') => nav(t === 'reports' ? '/buddy?tab=reports' : '/buddy', { replace: true });
+  if (tab === 'reports') {
+    return (
+      <Screen id="S29">
+        <Header title="Мой бадди" back="/" />
+        <div className="seg"><button onClick={() => setTab('buddy')}>Бадди</button><button className="on">Отчёты</button></div>
+        <BuddyReports />
+      </Screen>
+    );
+  }
   return (
     <Screen id="S29">
       <Header title="Мой бадди" back="/" />
+      <div className="seg"><button className="on">Бадди</button><button onClick={() => setTab('reports')}>Отчёты</button></div>
       <div className="card center" style={{ alignItems: 'center' }}>
         <div className="ava lg">{data.buddy.photoUrl ? <img src={data.buddy.photoUrl} alt="" /> : <User size={26} />}</div>
         <div className="h2">{data.buddy.name}</div>
@@ -244,5 +256,60 @@ export function BuddyRoulette({ onClose }: { onClose: () => void }) {
       </div>
     </div>,
     document.body,
+  );
+}
+
+interface PairMsg { id: string; createdAt: string; mine: boolean; user: { id: string; name: string; photoUrl: string | null; username: string | null }; text: string | null; hidden: boolean; report: { id: string; photos: string[]; done: string[] } | null }
+interface PairPage { buddy: { id: string; name: string; username: string | null; photoUrl: string | null } | null; messages: PairMsg[]; hasMore: boolean }
+
+const hm = (iso: string) => new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+const dayOf = (iso: string) => new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+
+/** Отчёты пары (15.11): только твои и бадди — как переписка, новые внизу */
+function BuddyReports() {
+  const [page, setPage] = useState<PairPage | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const load = () => api<PairPage>('/api/buddy/reports').then((r) => { setPage(r); setError(null); requestAnimationFrame(() => window.scrollTo({ top: document.documentElement.scrollHeight })); }).catch(setError);
+  useEffect(() => { void load(); }, []);
+  const older = async () => {
+    if (!page?.messages.length) return;
+    const r = await api<PairPage>(`/api/buddy/reports?before=${page.messages[0].id}`);
+    setPage({ ...page, messages: [...r.messages, ...page.messages], hasMore: r.hasMore });
+  };
+  if (error && !page) return <ErrorState error={error} retry={load} />;
+  if (!page) return <Loading lines={2} />;
+  let lastDay = '';
+  return (
+    <div className="card" style={{ gap: 12 }}>
+      {page.hasMore && <button className="link-btn" onClick={older}>Показать предыдущие</button>}
+      {page.messages.length === 0 && <div className="muted center small" style={{ padding: '12px 0' }}>Здесь будут ваши отчёты — твои и {page.buddy?.name ?? 'бадди'}. Отправь свой первый, чтобы поддержать друг друга 💜</div>}
+      {page.messages.map((m) => {
+        const day = dayOf(m.createdAt);
+        const sep = day !== lastDay;
+        lastDay = day;
+        return (
+          <div key={m.id} className="col" style={{ gap: 8 }}>
+            {sep && <div className="muted small center">{day}</div>}
+            <div className={`msg-row ${m.mine ? 'mine' : ''}`}>
+              {!m.mine && <span className="msg-ava"><Avatar name={m.user.name} url={m.user.photoUrl} /></span>}
+              <div className={`bubble ${m.mine ? 'mine' : ''}`}>
+                <div className="row between" style={{ gap: 8 }}>
+                  <span className="bubble-name">{m.mine ? 'Ты' : m.user.name}</span>
+                  <span className="muted small">{hm(m.createdAt)}</span>
+                </div>
+                {m.hidden ? <div className="muted small">Отчёт скрыт модератором</div> : (
+                  <>
+                    {m.report?.photos.map((p) => <img key={p} src={p} alt="Фотоотчёт" className="bubble-photo" loading="lazy" />)}
+                    {m.text && <div style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div>}
+                    {m.report && m.report.done.length > 0 && <div className="muted small">✓ {m.report.done.join(' · ')}</div>}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {page.buddy?.username && <button className="btn btn-secondary" onClick={() => openTelegram(`https://t.me/${page.buddy!.username}`)}><Send size={17} /> Написать {page.buddy.name}</button>}
+    </div>
   );
 }
