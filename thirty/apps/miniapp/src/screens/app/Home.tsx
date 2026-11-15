@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { HeartHandshake, MessagesSquare, BookOpen, ChevronRight, ChevronDown, ChevronUp, ArrowRight, CircleCheck, TrendingUp, ClipboardCheck, PenLine, Instagram, Copy, Download, Share2 } from 'lucide-react';
-import { api } from '../../lib/api';
+import { HeartHandshake, MessagesSquare, BookOpen, Rocket, ChevronRight, ChevronDown, ChevronUp, ArrowRight, CircleCheck, TrendingUp, ClipboardCheck, PenLine, Instagram, Copy, Download, Share2 } from 'lucide-react';
+import { api, demoKey } from '../../lib/api';
 import { formatMetric } from '../../lib/metric';
 import { AppBar, ErrorState, Loading, Screen, Sheet, errorText, humanDate, plural, toast, useLoad } from '../../ui';
 import { canShareStory, downloadImage, shareLink, shareStory } from '../../lib/telegram';
@@ -11,7 +11,7 @@ import { BuddyRoulette } from './Buddy';
 import { FeedbackPopup, TrackersPopup } from './Journey';
 import { WeekResultPopup } from './WeekResult';
 import { useMe } from '../../state';
-import { haptic } from '../../lib/telegram';
+import { haptic, openExternal } from '../../lib/telegram';
 
 interface HomeGoal {
   id: string;
@@ -75,6 +75,9 @@ export function Home() {
   const [startSheet, setStartSheet] = useState(() => new URLSearchParams(loc.search).get('start') === '1');
   const { me, refresh } = useMe();
   const p = data?.prompts;
+  const [upgrade, setUpgrade] = useState<UpgradeOffer | null>(null);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  useEffect(() => { void api<UpgradeOffer>('/api/upgrade').then(setUpgrade).catch(() => undefined); }, []);
   const [feedbackOpen, closeFeedback] = useOncePerDay(data ? `feedback.${data.membership.id}` : null, Boolean(p?.feedbackPopup));
   // Окно трекеров не накладывается на окно обратной связи
   // Итоги недели (14.11): показываем один раз — сервер отмечает окно просмотренным; в этот заход окно трекеров не накладываем
@@ -196,6 +199,16 @@ export function Home() {
         <span className="pill green">{data.goals.length} {plural(data.goals.length, 'цель', 'цели', 'целей')}</span>
       </div>
       {data.goals.map((g, i) => <GoalItem key={g.id} goal={g} n={i + 1} />)}
+
+      {/* Повысить тариф (15.11): в любой момент — 1 мес. → 3 или 6, 3 мес. → 6 */}
+      {upgrade?.available && (
+        <button className="card card-link" style={{ flexDirection: 'row', alignItems: 'center', textAlign: 'left', gap: 12 }} onClick={() => setUpgradeOpen(true)}>
+          <span className="ic sq" style={{ width: 44, height: 44, borderRadius: 12 }}><Rocket size={20} /></span>
+          <span className="grow"><b style={{ display: 'block', fontSize: 16 }}>Повысить тариф</b><span className="muted" style={{ fontSize: 14 }}>{upgrade.options.map((o) => o.to.title).join(' или ')} — больше целей и выгоднее</span></span>
+          <ChevronRight size={20} color="var(--accent)" />
+        </button>
+      )}
+      {upgradeOpen && upgrade?.available && <UpgradePicker offer={upgrade} onClose={() => setUpgradeOpen(false)} />}
 
       <div className="grid2" style={{ alignItems: 'stretch' }}>
         <div className="card" style={{ gap: 8 }}>
@@ -459,5 +472,49 @@ function RegistrationHome() {
         <ChevronRight size={18} color="var(--accent)" />
       </button>
     </Screen>
+  );
+}
+
+interface UpgradeOption { to: { id: string; title: string; goalLimit: number | null; months: number }; amount: number; paid: number; price: number; renewal: { amount: number; date: string; months: number }; until: string }
+interface UpgradeOffer { available: boolean; from?: { title: string; goalLimit: number | null; months: number }; options: UpgradeOption[] }
+
+/** Выбор тарифа для повышения: доплата разницы, срок — от начала оплаченного периода, дальше автопродление по новой цене */
+function UpgradePicker({ offer, onClose }: { offer: UpgradeOffer; onClose: () => void }) {
+  const nav = useNavigate();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [key] = useState(() => `up-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const rub = (n: number) => `${n.toLocaleString('ru-RU')} ₽`;
+  const goals = (n: number | null) => (n === null ? 'безлимит целей' : n === 1 ? '1 цель' : `до ${n} целей`);
+  const months = (n: number) => `${n} ${plural(n, 'месяц', 'месяца', 'месяцев')}`;
+  const pay = async (o: UpgradeOption) => {
+    setBusy(o.to.id);
+    try {
+      const r = await api<{ paymentId: string; url: string }>('/api/upgrade/checkout', { body: { idempotencyKey: `${key}-${o.to.id}`, tariffId: o.to.id } });
+      haptic('success');
+      if (demoKey()) location.href = r.url;
+      else openExternal(r.url);
+      nav(`/checkout/wait/${r.paymentId}`);
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <Sheet open onClose={onClose}>
+      <div className="col" style={{ gap: 12 }}>
+        <h2 className="h2" style={{ fontSize: 22 }}>Повысить тариф 🚀</h2>
+        {offer.from && <p className="muted" style={{ margin: 0 }}>Сейчас: «{offer.from.title}» — {goals(offer.from.goalLimit)}. Уже оплаченное засчитаем — доплачиваешь только разницу.</p>}
+        {offer.options.map((o) => (
+          <div key={o.to.id} className="card" style={{ gap: 6, border: '1.5px solid var(--accent)' }}>
+            <b style={{ fontSize: 17 }}>«{o.to.title}» — {goals(o.to.goalLimit)}</b>
+            <span>Доплата <b>{rub(o.amount)}</b> <span className="muted">(тариф {rub(o.price)}, уже оплачено {rub(o.paid)})</span></span>
+            <span className="muted small">Доступ к клубу — до {humanDate(o.until, true)}. Дальше — {rub(o.renewal.amount)} раз в {months(o.renewal.months)}, первое продление {humanDate(o.renewal.date, true)}.</span>
+            <button className="btn btn-primary" disabled={Boolean(busy)} onClick={() => pay(o)}>{busy === o.to.id ? 'Открываем оплату…' : `Перейти на «${o.to.title}» за ${rub(o.amount)}`}</button>
+          </div>
+        ))}
+        <button className="link-btn" onClick={onClose}>Не сейчас</button>
+      </div>
+    </Sheet>
   );
 }

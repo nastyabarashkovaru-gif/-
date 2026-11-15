@@ -444,6 +444,8 @@ describe('повышение тарифа из анкеты (05.11)', () => {
     expect((await api('POST', '/api/goals', 970, { category: 'blog', title: 'Вторая цель', pointA: 'а', pointB: 'б' })).status).toBe(409);
     const offer = (await api('GET', '/api/upgrade', 970)).body;
     expect(offer).toMatchObject({ available: true, amount: 1991, paid: 999, price: 2990, to: { goalLimit: 3 }, renewal: { amount: 2990, date: '2027-02-28', months: 3 } });
+    // с 1 месяца можно сразу и на 6 (15.11)
+    expect(offer.options.map((o: { to: { id: string }; amount: number }) => [o.to.id, o.amount])).toEqual([['m3', 1991], ['m6', 2991]]);
     const co = await api('POST', '/api/upgrade/checkout', 970, { idempotencyKey: 'upgrade-970-1' });
     expect(co.body.amount).toBe(1991);
     // пока не оплачено — прежняя подписка жива
@@ -464,8 +466,19 @@ describe('повышение тарифа из анкеты (05.11)', () => {
     expect((await api('GET', '/api/membership', 970)).body.membership.goalLimit).toBe(3);
     expect((await api('POST', '/api/goals', 970, { category: 'blog', title: 'Вторая цель', pointA: 'а', pointB: 'б' })).status).toBe(200);
     expect(await prisma.flowMembership.count({ where: { userId: 970n, tariffId: 'm3' } })).toBe(3);
+    expect((await api('GET', `/api/payments/${co.body.paymentId}`, 970)).body).toMatchObject({ kind: 'upgrade', status: 'paid', tariff: { title: '3 месяца', goalLimit: 3 } });
+    // 15.11: в любой момент дальше — 3 месяца → 6: доплата разницы, срок от начала оплаченного периода
+    const up6 = (await api('GET', '/api/upgrade', 970)).body;
+    expect(up6.options.map((o: { to: { id: string }; amount: number }) => [o.to.id, o.amount])).toEqual([['m6', 1000]]);
+    const co6 = await api('POST', '/api/upgrade/checkout', 970, { idempotencyKey: 'upgrade-970-6', tariffId: 'm6' });
+    expect(co6.body.amount).toBe(1000);
+    const d6 = { order_num: co6.body.paymentId, order_id: `pd-${co6.body.paymentId}`, sum: '1000.00', payment_status: 'success', customer_extra: 'tg:970', subscription_id: 'pd-sub-up6' };
+    expect(await handleWebhook(paymentProvider().parseWebhook({ sign: signMock(d6) }, d6), JSON.stringify(d6))).toMatchObject({ upgraded: true });
+    const live = await prisma.subscription.findFirstOrThrow({ where: { userId: 970n, status: { not: 'expired' } } });
+    expect(live).toMatchObject({ tariffId: 'm6', renewalPrice: 3990 });
+    expect(live.paidThroughFlow.toISOString().slice(0, 10)).toBe('2027-05-01'); // декабрь–май
+    // выше 6 месяцев повышать некуда
     expect((await api('GET', '/api/upgrade', 970)).body.available).toBe(false);
-    expect((await api('GET', `/api/payments/${co.body.paymentId}`, 970)).body).toMatchObject({ kind: 'upgrade', status: 'paid' });
   });
 });
 

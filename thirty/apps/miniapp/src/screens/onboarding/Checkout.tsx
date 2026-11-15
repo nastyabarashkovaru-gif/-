@@ -114,7 +114,7 @@ export function PaymentWait() {
   const { paymentId = '' } = useParams();
   const nav = useNavigate();
   const { me, refresh } = useMe();
-  const [st, setSt] = useState<{ status: string; kind?: string; waitingTooLong: boolean; needsRefund: boolean } | null>(null);
+  const [st, setSt] = useState<{ status: string; kind?: string; waitingTooLong: boolean; needsRefund: boolean; tariff?: { title: string; goalLimit: number | null } | null } | null>(null);
   const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
@@ -146,11 +146,11 @@ export function PaymentWait() {
         <BrandBar right={<span className="badge-ok"><CircleCheck size={13} />Тариф повышен</span>} />
         <img src="/img/success.png" alt="" style={{ width: '62%', maxWidth: 240, alignSelf: 'center', marginTop: 16 }} />
         <div className="col" style={{ gap: 10 }}>
-          <h1 className="hero">Готово! Теперь у тебя <em>до 3 целей</em> 🎉</h1>
-          <p className="lead">Тариф «3 месяца» подключён, прежняя подписка отменена. Возвращайся к анкете и добавь новые цели.</p>
+          <h1 className="hero">Готово! Теперь у тебя <em>{st.tariff?.goalLimit ? `до ${st.tariff.goalLimit} целей` : 'безлимит целей'}</em> 🎉</h1>
+          <p className="lead">Тариф «{st.tariff?.title ?? 'новый'}» подключён, прежняя подписка отменена. {me?.membership?.registeredAt ? 'Доступ к клубу продлён, а в следующем челлендже можно поставить больше целей.' : 'Возвращайся к анкете и добавь новые цели.'}</p>
         </div>
         <div className="spacer" />
-        <Cta onClick={() => nav('/reg/goals', { replace: true })}>Вернуться к анкете</Cta>
+        <Cta onClick={() => nav(me?.membership?.registeredAt ? '/' : '/reg/goals', { replace: true })}>{me?.membership?.registeredAt ? 'На главную' : 'Вернуться к анкете'}</Cta>
       </Screen>
     );
   }

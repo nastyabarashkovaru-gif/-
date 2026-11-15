@@ -87,7 +87,8 @@ export async function billingRoutes(app: FastifyInstance) {
       if (!p || p.userId !== req.user!.id) throw notFound();
       const pendingWindow = await getSetting('payment.pendingWindowMinutes');
       const waitedMin = (Date.now() - p.createdAt.getTime()) / 60_000;
-      return { id: p.id, kind: p.kind, status: p.status, amount: p.amount, needsRefund: p.needsRefund, waitingTooLong: p.status === 'pending' && waitedMin > pendingWindow };
+      const t = p.tariffId ? await prisma.tariff.findUnique({ where: { id: p.tariffId } }) : null;
+      return { id: p.id, kind: p.kind, status: p.status, amount: p.amount, needsRefund: p.needsRefund, waitingTooLong: p.status === 'pending' && waitedMin > pendingWindow, tariff: t ? { title: t.title, goalLimit: t.goalLimit } : null };
     });
 
     // Подарочная ссылка (11.11): доступ без оплаты, одна ссылка — один человек
@@ -104,8 +105,8 @@ export async function billingRoutes(app: FastifyInstance) {
     // Повышение тарифа из анкеты: 1 месяц → 3 месяца (05.11)
     r.get('/api/upgrade', async (req) => jsonSafe(await (await import('../modules/upgrade')).upgradeOffer(req.user!.id)));
     r.post('/api/upgrade/checkout', async (req) => {
-      const { idempotencyKey } = parse(z.object({ idempotencyKey: z.string().min(8).max(80) }), req.body);
-      return (await import('../modules/upgrade')).createUpgradeCheckout(req.user!.id, idempotencyKey);
+      const { idempotencyKey, tariffId } = parse(z.object({ idempotencyKey: z.string().min(8).max(80), tariffId: z.enum(['m3', 'm6']).optional() }), req.body);
+      return (await import('../modules/upgrade')).createUpgradeCheckout(req.user!.id, idempotencyKey, tariffId);
     });
     r.get('/api/subscription', async (req) => jsonSafe(await subscriptionSummary(req.user!.id)));
 

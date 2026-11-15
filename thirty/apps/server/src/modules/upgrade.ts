@@ -13,24 +13,25 @@ import { track } from './analytics';
 import { paymentAlert } from './paymentAlerts';
 
 /**
- * Повышение тарифа из анкеты (просьба владельца 05.11): у кого куплен 1 месяц (одна цель) — «3 месяца» (до 3 целей).
- * Сейчас — доплата разницы (цена 3 месяцев минус уже оплаченный месяц), дальше — автопродление по цене 3 месяцев.
+ * Повышение тарифа (05.11 из анкеты; 15.11 — в любой момент с главной): 1 месяц → 3 или 6, 3 месяца → 6.
+ * Доплата — разница между ценой нового тарифа и уже оплаченным текущим периодом; новый срок считается
+ * от начала оплаченного периода; дальше — автопродление по цене нового тарифа.
  * Прежняя подписка отменяется только после успешной оплаты новой.
  */
-const FROM = 'm1';
-const TO = 'm3';
+async function currentSubscription(userId: bigint) {
+  const subs = await prisma.subscription.findMany({ where: { userId, status: { in: ['prestart', 'active', 'canceled_at_period_end'] } }, include: { tariff: true }, orderBy: { createdAt: 'desc' } });
+  return subs.find((s) => s.priceVariant !== 'tribute') ?? null;
+}
 
-async function upgradeContext(userId: bigint) {
-  const m = await planningMembership(userId);
-  if (!m || m.tariffId !== FROM || !m.subscriptionId) return null;
-  const sub = await prisma.subscription.findUnique({ where: { id: m.subscriptionId } });
-  if (!sub || sub.priceVariant === 'tribute' || sub.tariffId !== FROM || !['prestart', 'active', 'canceled_at_period_end'].includes(sub.status)) return null;
-  const firstFlow = fromDbDate(m.flow.startsOn);
-  // Оплачен только месяц этой анкеты (без уже оплаченного продления) — иначе разница считается иначе, через поддержку
-  if (fromDbDate(sub.paidThroughFlow) !== firstFlow) return null;
-  const target = await prisma.tariff.findUnique({ where: { id: TO } });
-  if (!target || !target.active) return null;
-  // Цена — того же вида, что и прежняя покупка: по акции → «3 месяца» по акции, по обычной цене → по обычной
+async function upgradeContext(userId: bigint, toId?: string) {
+  const sub = await currentSubscription(userId);
+  if (!sub) return null;
+  const targets = (await prisma.tariff.findMany({ where: { active: true, months: { gt: sub.tariff.months } }, orderBy: { months: 'asc' } })).filter((t) => !toId || t.id === toId);
+  const target = targets[0];
+  if (!target) return null;
+  // Текущий оплаченный период: последние «months» месяцев до paidThroughFlow
+  const firstFlow = addMonths(fromDbDate(sub.paidThroughFlow), -(sub.tariff.months - 1)) as ISODate;
+  // Цена — того же вида, что и прежняя покупка: по акции → по акции, по обычной цене → по обычной
   const promo = sub.priceVariant !== 'regular';
   const price = quote(target, promo).price;
   const paid = sub.renewalPrice;
@@ -38,26 +39,39 @@ async function upgradeContext(userId: bigint) {
   if (amount <= 0) return null;
   const flows = coverage(firstFlow, target.months);
   const chargeDate = chargeDateFor(flows[flows.length - 1]);
-  return { m, sub, target, price, paid, amount, flows, firstFlow, chargeDate, promo };
+  return { sub, target, price, paid, amount, flows, firstFlow, chargeDate, promo };
 }
 
+const offerOf = (c: NonNullable<Awaited<ReturnType<typeof upgradeContext>>>) => ({
+  to: { id: c.target.id, title: c.target.title, goalLimit: c.target.goalLimit, months: c.target.months },
+  amount: c.amount,
+  paid: c.paid,
+  price: c.price,
+  renewal: { amount: c.price, date: c.chargeDate, months: c.target.months },
+  until: addMonths(c.flows[c.flows.length - 1], 1),
+});
+
+/** Что можно купить сверх текущего тарифа: ближайший вариант (для анкеты) и все варианты (для главной) */
 export async function upgradeOffer(userId: bigint) {
-  const c = await upgradeContext(userId);
-  if (!c) return { available: false as const };
+  const sub = await currentSubscription(userId);
+  if (!sub) return { available: false as const, options: [] };
+  const targets = await prisma.tariff.findMany({ where: { active: true, months: { gt: sub.tariff.months } }, orderBy: { months: 'asc' } });
+  const options = [];
+  for (const t of targets) {
+    const c = await upgradeContext(userId, t.id);
+    if (c) options.push(offerOf(c));
+  }
+  if (!options.length) return { available: false as const, options: [] };
   return {
     available: true as const,
-    from: { title: '1 месяц', goalLimit: 1 },
-    to: { id: c.target.id, title: c.target.title, goalLimit: c.target.goalLimit, months: c.target.months },
-    amount: c.amount,
-    paid: c.paid,
-    price: c.price,
-    renewal: { amount: c.price, date: c.chargeDate, months: c.target.months },
-    until: addMonths(c.flows[c.flows.length - 1], 1),
+    from: { id: sub.tariff.id, title: sub.tariff.title, goalLimit: sub.tariff.goalLimit, months: sub.tariff.months },
+    ...options[0],
+    options,
   };
 }
 
-export async function createUpgradeCheckout(userId: bigint, idempotencyKey: string) {
-  const c = await upgradeContext(userId);
+export async function createUpgradeCheckout(userId: bigint, idempotencyKey: string, toId?: string) {
+  const c = await upgradeContext(userId, toId);
   if (!c) throw conflict('upgrade_unavailable', 'Повысить тариф сейчас нельзя — напиши в поддержку, поможем');
   const key = `upgrade:${userId}:${idempotencyKey}`;
   const existing = await prisma.payment.findUnique({ where: { idempotencyKey: key } });
