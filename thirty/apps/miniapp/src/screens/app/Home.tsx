@@ -509,7 +509,7 @@ function UpgradePicker({ offer, onClose }: { offer: UpgradeOffer; onClose: () =>
           <div key={o.to.id} className="card" style={{ gap: 6, border: '1.5px solid var(--accent)' }}>
             <b style={{ fontSize: 17 }}>«{o.to.title}» — {goals(o.to.goalLimit)}</b>
             <span>Доплата <b>{rub(o.amount)}</b> <span className="muted">(тариф {rub(o.price)}, уже оплачено {rub(o.paid)})</span></span>
-            <span className="muted small">Доступ к клубу — до {humanDate(o.until, true)}. Дальше — {rub(o.renewal.amount)} раз в {months(o.renewal.months)}, первое продление {humanDate(o.renewal.date, true)}.</span>
+            <span className="muted small">Доступ к клубу — до {humanDate(o.until, true)}. Дальше — {rub(o.renewal.amount)} раз в {months(o.renewal.months)}, первое продление {humanDate(o.renewal.date, true)}. Отменить можно всегда в личном кабинете.</span>
             <button className="btn btn-primary" disabled={Boolean(busy)} onClick={() => pay(o)}>{busy === o.to.id ? 'Открываем оплату…' : `Перейти на «${o.to.title}» за ${rub(o.amount)}`}</button>
           </div>
         ))}
