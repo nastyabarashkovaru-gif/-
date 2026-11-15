@@ -364,6 +364,33 @@ export async function seedTemplates() {
       console.error('[test-buddy]', (e as Error).message);
     }
   }
+  // Разово (15.11): тестовая бадди — на аккаунт @bar_barash (с него владелица смотрит приложение); у @barashkova_a убрать
+  const v50 = 'maintenance.ownerTestBuddyV2';
+  if (!config.DEMO_MODE && !process.env.VITEST && !(await prisma.setting.findUnique({ where: { key: v50 } }))) {
+    await prisma.setting.create({ data: { key: v50, value: { at: new Date().toISOString() } } });
+    try {
+      const FAKE = 999000000001n;
+      // прежняя пара с тестовой бадди — убрать без постановки в очередь
+      const old = await prisma.buddyPair.findMany({ where: { status: 'active', OR: [{ userA: FAKE }, { userB: FAKE }] } });
+      for (const pr of old) {
+        await prisma.buddyAssignment.deleteMany({ where: { pairId: pr.id } });
+        await prisma.buddyPair.update({ where: { id: pr.id }, data: { status: 'dissolved', dissolvedAt: new Date() } });
+      }
+      const me = await prisma.user.findFirst({ where: { username: { equals: 'bar_barash', mode: 'insensitive' } } });
+      const { currentMembership } = await import('./flows');
+      const m = me ? await currentMembership(me.id) : null;
+      if (!me || !m) console.warn('[test-buddy] @bar_barash или её участие не найдены');
+      else if (await prisma.buddyAssignment.findFirst({ where: { userId: me.id, pair: { status: 'active' } } })) console.warn('[test-buddy] у @bar_barash уже есть бадди');
+      else {
+        const pair = await prisma.buddyPair.create({ data: { flowId: m.flowId, userA: me.id, userB: FAKE, source: 'admin', matchReason: 'тестовая бадди для владелицы' } });
+        await prisma.buddyAssignment.createMany({ data: [{ flowId: m.flowId, userId: me.id, pairId: pair.id }, { flowId: m.flowId, userId: FAKE, pairId: pair.id }] });
+        await prisma.flowMembership.updateMany({ where: { userId: me.id }, data: { buddyQueuedAt: null } });
+        console.log('[test-buddy] тестовая бадди назначена @bar_barash');
+      }
+    } catch (e) {
+      console.error('[test-buddy]', (e as Error).message);
+    }
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
