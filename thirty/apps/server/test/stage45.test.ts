@@ -704,3 +704,28 @@ describe('группа стала супергруппой (09.11)', () => {
     expect(await prisma.chatMembership.findUnique({ where: { chatId_userId: { chatId: habits.id, userId: 3006n } } })).toMatchObject({ status: 'joined' });
   });
 });
+
+describe('цель после анкеты (16.11)', () => {
+  it('6 месяцев: «+ Добавить цель» после отправки анкеты, задачи — с сегодняшнего дня; 1 месяц — нельзя', async () => {
+    clock.set('2026-11-01T09:00:00Z');
+    await grantMembership(4001, '2026-11-01', 'm6');
+    await grantMembership(4002, '2026-11-01', 'm1');
+    await fixDaily(4001);
+    await fixDaily(4002);
+    clock.set('2026-11-10T09:00:00Z');
+    await refreshFlowStatuses();
+    expect((await api('GET', '/api/home', 4001)).body.canAddGoal).toBe(true);
+    expect((await api('GET', '/api/home', 4002)).body.canAddGoal).toBe(false);
+    const body = { category: 'blog', title: 'Вести блог', pointA: '100 подписчиков', pointB: '1 000 подписчиков', tasks: [{ title: 'Рилс', frequency: 'daily' }, { title: 'Эфир', frequency: 'once', dueDate: '2026-11-20' }] };
+    expect((await api('POST', '/api/goals/later', 4002, body)).status).toBe(409);
+    const r = await api('POST', '/api/goals/later', 4001, body);
+    expect(r.status).toBe(200);
+    const occ = await prisma.taskOccurrence.findMany({ where: { task: { goalId: r.body.id } }, orderBy: { windowEnd: 'asc' } });
+    // прошлые дни (1–9 ноября) не добавлены — процент не портится задним числом
+    expect(occ[0].windowEnd.toISOString().slice(0, 10)).toBe('2026-11-10');
+    expect(occ.filter((o) => o.windowStart.getTime() === o.windowEnd.getTime()).length).toBeGreaterThan(15);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: 4001n } })).interests).toContain('blog');
+    // дата одноразовой задачи в прошлом — нельзя
+    expect((await api('POST', '/api/goals/later', 4001, { ...body, tasks: [{ title: 'Эфир', frequency: 'once', dueDate: '2026-11-05' }] })).status).toBe(400);
+  });
+});

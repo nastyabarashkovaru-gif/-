@@ -38,6 +38,7 @@ interface HomeData {
   buddy: { state: 'paired'; buddy: { id: string; name: string; photoUrl: string | null; percent: number | null; writeUrl: string } } | { state: 'waiting' | 'invited' };
   month?: number;
   serverNow?: string;
+  canAddGoal?: boolean;
   prompts?: { feedback: boolean; feedbackPopup: boolean; feedbackDone: boolean; finale: boolean; finaleDone: boolean; trackers: boolean; trackersClarify?: boolean; weekResult?: number | null };
 }
 
@@ -199,6 +200,8 @@ export function Home() {
         <span className="pill green">{data.goals.length} {plural(data.goals.length, 'цель', 'цели', 'целей')}</span>
       </div>
       {data.goals.map((g, i) => <GoalItem key={g.id} goal={g} n={i + 1} />)}
+      {/* 16.11: добавить цель после анкеты — небольшой надписью, если тариф позволяет */}
+      {data.canAddGoal && <button className="link-accent" style={{ alignSelf: 'flex-start', padding: '2px 4px', fontWeight: 500 }} onClick={() => nav('/goal/new')}>+ Добавить цель</button>}
 
       {/* Повысить тариф (15.11): в любой момент — 1 мес. → 3 или 6, 3 мес. → 6 */}
       {upgrade?.available && (

@@ -62,7 +62,7 @@ function Note({ icon, title, children }: { icon: ReactNode; title: string; child
   );
 }
 
-function Radio({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
+export function Radio({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
   return <button type="button" className={`radio ${on ? 'on' : ''}`} role="radio" aria-checked={on} onClick={onClick}><i />{children}</button>;
 }
 

@@ -383,3 +383,57 @@ export async function restartQuestionnaire(userId: bigint, membershipId: string)
   await track({ userId, eventName: 'challenge_start_changed', flowId: m.flowId, metadata: { refill: true, restart: m.status === 'active' } });
   return { ok: true };
 }
+
+// ───────────── Цель после отправки анкеты (16.11) ─────────────
+
+export const laterGoalInput = z.object({
+  category: goalInput.shape.category,
+  title: z.string().trim().min(3).max(200),
+  pointA: z.string().trim().min(2).max(300),
+  pointB: z.string().trim().min(2).max(300),
+  tasks: z.array(taskInput.pick({ title: true, frequency: true, n: true, dueDate: true })).min(1).max(10),
+});
+
+/** Можно ли добавить ещё цель в идущий/ожидающий челлендж: анкета отправлена и тариф позволяет больше целей */
+export async function canAddGoalLater(m: MembershipFull) {
+  if (!m.goalsLockedAt || m.status === 'revoked' || m.status === 'finished') return false;
+  if (memberWindow(m).phase === 'finished') return false;
+  const limit = await goalLimitFor(m);
+  return canAddGoal(limit, await prisma.goal.count({ where: { membershipId: m.id } }));
+}
+
+/**
+ * Добавить цель с планом действий после отправки анкеты: в пределах тарифа (3 мес. — до 3, 6 мес. — без лимита).
+ * Задачи считаются с сегодняшнего дня (или со дня старта, если он впереди) до конца личных 30 дней — прошлое не трогаем.
+ */
+export async function addGoalLater(userId: bigint, membershipId: string, input: z.infer<typeof laterGoalInput>) {
+  const m = await loadOwnMembership(userId, membershipId);
+  if (!m.goalsLockedAt) throw badRequest('use_questionnaire', 'Цели пока добавляются в анкете');
+  if (!(await canAddGoalLater(m))) {
+    const limit = await goalLimitFor(m);
+    throw conflict('goal_limit', limit === null ? 'Сейчас добавить цель нельзя' : `В вашем тарифе ${limit === 1 ? 'одна цель' : `до ${limit} целей`} — чтобы добавить ещё, повысьте тариф`);
+  }
+  const w = memberWindow(m);
+  const from = w.start > w.today ? w.start : w.today;
+  for (const t of input.tasks) {
+    if (t.frequency === 'n_per_week' && t.n > 7) throw badRequest('bad_schedule', 'Не больше 7 раз в неделю');
+    if (t.frequency === 'once' && (!t.dueDate || t.dueDate < from || t.dueDate > w.end)) throw badRequest('due_date_out_of_flow', 'Дата одноразовой задачи — с сегодняшнего дня до конца твоих 30 дней');
+  }
+  const count = await prisma.goal.count({ where: { membershipId } });
+  const goal = await prisma.goal.create({ data: { membershipId, category: input.category, title: input.title, pointA: input.pointA, pointB: input.pointB, successCriterion: input.pointB, sort: count } });
+  for (const t of input.tasks) {
+    const { evidence, selfReported } = await policyEvidence(goal.category, undefined);
+    const n = t.frequency === 'daily' || t.frequency === 'once' ? 1 : t.n;
+    const task = await prisma.task.create({ data: { goalId: goal.id, title: t.title, frequency: t.frequency, n, dueDate: t.frequency === 'once' ? toDbDate(t.dueDate!) : null, evidence, selfReported } });
+    const rows = generateOccurrences({ frequency: t.frequency, n, dueDate: t.frequency === 'once' ? t.dueDate! : null }, w.start, { startsOn: w.start, endsOn: w.end })
+      // прошедшие дни не добавляем: процент и рейтинг не портятся задним числом
+      .filter((o) => o.windowEnd >= from)
+      .map((o) => ({ taskId: task.id, membershipId, windowStart: toDbDate(o.windowStart < from ? from : o.windowStart), windowEnd: toDbDate(o.windowEnd), slot: o.slot }));
+    if (rows.length) await prisma.taskOccurrence.createMany({ data: rows });
+  }
+  // категория — в интересы: откроется тематический чат
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { interests: true } });
+  if (u && !u.interests.includes(input.category)) await prisma.user.update({ where: { id: userId }, data: { interests: [...u.interests, input.category] } });
+  await track({ userId, eventName: 'goal_created', screenId: 'HOME', flowId: m.flowId, metadata: { category: input.category, later: true } });
+  return { id: goal.id };
+}

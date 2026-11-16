@@ -16,7 +16,7 @@ import { RegProfile, RegFlow, RegTasks, RegBefore, RegBuddy, RegChats, RegWaitin
 import { StartStep, BuddyModeStep, AboutStep, GoalsStep, PointsStep, PlanStep, ConfirmStep, ReadyScreen } from './screens/reg/Questionnaire';
 import { Notifications } from './screens/app/Notifications';
 import { Home } from './screens/app/Home';
-import { GoalScreen } from './screens/app/Goal';
+import { GoalScreen, AddGoalScreen } from './screens/app/Goal';
 import { ReportScreen, ReportHistory, ReportView } from './screens/app/Report';
 import { Feed, ParticipantScreen } from './screens/app/Feed';
 import { Club, MeetingScreen } from './screens/app/Club';
@@ -160,6 +160,7 @@ export function App() {
         <Route path="/reg/chats" element={<RegChats />} />
         <Route path="/reg/waiting" element={<RegWaiting />} />
         <Route path="/" element={me.membership ? <Home /> : <Navigate to="/tariffs" replace />} />
+        <Route path="/goal/new" element={<AddGoalScreen />} />
         <Route path="/goal/:id" element={<GoalScreen />} />
         <Route path="/report" element={<ReportScreen />} />
         <Route path="/reports" element={<ReportHistory />} />

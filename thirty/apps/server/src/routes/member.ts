@@ -47,6 +47,13 @@ export async function memberRoutes(app: FastifyInstance) {
     if (!m) throw forbidden('no_membership', 'Сначала оплатите участие');
     return createGoal(req.user!.id, m.id, parse(goalInput, req.body));
   });
+  // Добавить цель после анкеты (16.11): в текущий челлендж, в пределах тарифа
+  app.post('/api/goals/later', async (req) => {
+    const m = await homeMembership(req.user!.id);
+    if (!m) throw forbidden('no_membership', 'Сначала оплатите участие');
+    const { addGoalLater, laterGoalInput } = await import('../modules/goals');
+    return addGoalLater(req.user!.id, m.id, parse(laterGoalInput, req.body));
+  });
   app.patch<{ Params: { id: string } }>('/api/goals/:id', async (req) => updateGoal(req.user!.id, req.params.id, parse(goalPatch, req.body)));
   app.delete<{ Params: { id: string } }>('/api/goals/:id', async (req) => {
     await deleteGoal(req.user!.id, req.params.id);
@@ -162,6 +169,8 @@ export async function memberRoutes(app: FastifyInstance) {
       buddy: await buddyCard(user.id, m.flowId),
       perks: tariffPerks(tariff?.months ?? 1),
       prompts: await homePrompts(user.id, m),
+      // «+ Добавить цель» под целями (16.11): анкета отправлена, тариф позволяет больше целей
+      canAddGoal: await (await import('../modules/goals')).canAddGoalLater(m),
       month: await monthNumber(user.id, m),
       // Время сервера: обратный отсчёт до старта считается от него (в демо время «перемотано»)
       serverNow: clock.now().toISOString(),
