@@ -211,6 +211,10 @@ function AboutForm({ m }: { m: MembershipView }) {
   const valid = name.trim().length >= 1 && city.trim().length >= 2 && Number.isInteger(ageNum) && ageNum >= 14 && ageNum <= 99 && occupation.trim().length >= 2 && expectation.trim().length >= 2;
 
   const save = async () => {
+    if (!valid) {
+      toast(name.trim().length < 1 ? 'Напиши, как тебя зовут' : city.trim().length < 2 ? 'Напиши свой город' : !(Number.isInteger(ageNum) && ageNum >= 14 && ageNum <= 99) ? 'Укажи возраст числом (от 14 до 99)' : occupation.trim().length < 2 ? 'Напиши, чем ты занимаешься' : 'Напиши, что хочешь получить от клуба');
+      return;
+    }
     setBusy(true);
     try {
       await api('/api/me', { method: 'PATCH', body: { displayName: name.trim(), city: city.trim(), age: ageNum, occupation: occupation.trim() } });
@@ -251,7 +255,7 @@ function AboutForm({ m }: { m: MembershipView }) {
         <span className="h3" style={{ fontSize: 15 }}>Что хочешь получить от сообщества «30 дней»?</span>
         <textarea className="textarea" rows={3} value={expectation} maxLength={1000} onChange={(e) => setExpectation(e.target.value)} />
       </label>
-      <Cta disabled={!valid || busy} onClick={save}>Продолжить</Cta>
+      <Cta disabled={busy} onClick={save}>Продолжить</Cta>
     </Screen>
   );
 }
@@ -350,6 +354,13 @@ function GoalsForm({ m }: { m: MembershipView }) {
       }
   };
   const save = async () => {
+    // 16.11: не молчим — подсказываем, что не заполнено
+    if (!valid) {
+      const k = drafts.findIndex((d) => !(d.title.trim().length >= 3 && d.pointA.trim().length >= 2 && d.pointB.trim().length >= 2 && d.category));
+      const d = drafts[k];
+      toast(`${drafts.length > 1 ? `Цель ${k + 1}: ` : ''}${!d.category ? 'выбери категорию' : d.title.trim().length < 3 ? 'напиши цель (от 3 символов)' : d.pointA.trim().length < 2 ? 'заполни, где ты сейчас (точка А)' : 'заполни, к чему придёшь (точка Б)'}`);
+      return;
+    }
     setBusy(true);
     try {
       await persist();
@@ -403,7 +414,7 @@ function GoalsForm({ m }: { m: MembershipView }) {
         : single && <button className="btn btn-outline" onClick={() => setUpgrade(true)}><Plus size={17} />Добавить ещё одну цель</button>}
       {upgrade && <UpgradeSheet onClose={() => setUpgrade(false)} beforePay={async () => { if (valid) await persist(); }} />}
       <button className="link-btn" onClick={() => nav('/materials')}>Не знаешь, какую цель поставить?</button>
-      <Cta disabled={!valid || busy} onClick={save}>Продолжить</Cta>
+      <Cta disabled={busy} onClick={save}>Продолжить</Cta>
     </Screen>
   );
 }
@@ -425,14 +436,43 @@ function PlanForm({ m, i }: { m: MembershipView; i: number }) {
   const initial: ActionDraft[] = goal.tasks.length
     ? goal.tasks.map((t) => ({ id: t.id, title: t.title, frequency: t.frequency === 'every_n_days' ? 'daily' : (t.frequency as ActionDraft['frequency']), n: t.n, dueDate: t.dueDate ?? '' }))
     : [{ title: '', frequency: '', n: 3, dueDate: '' }];
-  const [actions, setActions] = useState<ActionDraft[]>(initial);
+  // Черновик плана хранится на телефоне (16.11): закрыла анкету — при возвращении всё на месте
+  const draftKey = `thirty.planDraft.${goal.id}`;
+  const [actions, setActionsRaw] = useState<ActionDraft[]>(() => {
+    if (goal.tasks.length) return initial;
+    try {
+      const d = JSON.parse(localStorage.getItem(draftKey) ?? '') as ActionDraft[];
+      if (Array.isArray(d) && d.length) return d;
+    } catch {
+      /* черновика нет */
+    }
+    return initial;
+  });
+  const setActions = (next: ActionDraft[]) => {
+    setActionsRaw(next);
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(next));
+    } catch {
+      /* без хранилища — просто не запоминаем */
+    }
+  };
   const [examples, setExamples] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
   const set = (k: number, patch: Partial<ActionDraft>) => setActions(actions.map((x, j) => (j === k ? { ...x, ...patch } : x)));
-  const valid = actions.length > 0 && actions.every((x) => x.title.trim().length >= 2 && x.frequency && (x.frequency !== 'once' || x.dueDate));
+  // Что не так с действием — чтобы подсказать, а не молча держать кнопку неактивной (16.11)
+  const problem = (x: ActionDraft) => (x.title.trim().length < 2 ? 'Напиши, что будешь делать' : !x.frequency ? 'Выбери, как часто будешь выполнять' : x.frequency === 'once' && !x.dueDate ? 'Выбери дату выполнения' : null);
+  const valid = actions.length > 0 && actions.every((x) => !problem(x));
   const { startsOn, endsOn } = m.flow;
 
   const save = async () => {
+    if (!valid) {
+      setShowErrors(true);
+      const k = actions.findIndex((x) => problem(x));
+      toast(`Действие ${k + 1}: ${problem(actions[k])!.toLowerCase()}`);
+      document.getElementById(`action-${k}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     setBusy(true);
     try {
       const keep = new Set(actions.map((x) => x.id).filter(Boolean));
@@ -445,6 +485,11 @@ function PlanForm({ m, i }: { m: MembershipView; i: number }) {
         } else await api(`/api/goals/${goal.id}/tasks`, { body });
       }
       haptic('success');
+      try {
+        localStorage.removeItem(draftKey);
+      } catch {
+        /* нет хранилища */
+      }
       // после плана действий — дата старта, затем бадди и «обещание себе» (решение владельца 03.11)
       // Дата старта в анкете больше не спрашивается (07.11): ближайший старт назначается сам, раньше — кнопкой на главной
       nav(i + 1 < m.goals.length ? `/reg/plan/${i + 1}` : '/reg/buddy-mode');
@@ -466,7 +511,7 @@ function PlanForm({ m, i }: { m: MembershipView; i: number }) {
         <div className="h3" style={{ fontSize: 15 }}>{goal.title}</div>
       </div>
       {actions.map((x, k) => (
-        <div className="card" key={x.id ?? `new${k}`} style={{ gap: 10 }}>
+        <div className="card" id={`action-${k}`} key={x.id ?? `new${k}`} style={{ gap: 10, ...(showErrors && problem(x) ? { border: '1.5px solid var(--danger)' } : {}) }}>
           <div className="row between">
             <span className="h3" style={{ fontSize: 16 }}>Действие {k + 1}</span>
             {actions.length > 1 && <button className="link-btn" style={{ padding: 0 }} onClick={() => setActions(actions.filter((_, j) => j !== k))}>Удалить</button>}
@@ -499,6 +544,7 @@ function PlanForm({ m, i }: { m: MembershipView; i: number }) {
               </label>
             </div>
           )}
+          {showErrors && problem(x) && <div className="small" style={{ color: 'var(--danger)', fontWeight: 600 }}>⚠️ {problem(x)}</div>}
         </div>
       ))}
       <button className="btn btn-outline" onClick={() => setActions([...actions, { title: '', frequency: '', n: 3, dueDate: '' }])}><Plus size={17} />Добавить действие</button>
@@ -514,7 +560,7 @@ function PlanForm({ m, i }: { m: MembershipView; i: number }) {
       <Note icon={<ClipboardCheck size={17} />} title="Каждый день — маленький отчёт">
         Каждый день ты будешь отмечать выполнение запланированных действий. Так ты увидишь свой прогресс, а твой бадди сможет тебя поддерживать.
       </Note>
-      <Cta disabled={!valid || busy} onClick={save}>{i + 1 < m.goals.length ? 'Следующая цель' : 'Сохранить план действий'}</Cta>
+      <Cta disabled={busy} onClick={save}>{i + 1 < m.goals.length ? 'Следующая цель' : 'Сохранить план действий'}</Cta>
     </Screen>
   );
 }
