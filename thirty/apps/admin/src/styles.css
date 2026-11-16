@@ -292,3 +292,7 @@ code { word-break: break-all; }
 .fm-money-card small { color: #8d8899; font-size: 12px; line-height: 1.4; }
 .fm-row { display: flex; justify-content: space-between; font-size: 14px; color: #c9c5d3; font-weight: 300; }
 .fm-profit { color: #34d399 !important; }
+.fm-conv { background: #1d1c23; color: #f2f0f6; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 4px; border: 1px solid #34323d; }
+.fm-conv > span { font-size: 13px; color: #8d8899; text-transform: uppercase; letter-spacing: 0.04em; }
+.fm-conv > b { font-size: 28px; font-weight: 600; color: #f472b6; }
+.fm-conv small { color: #8d8899; font-size: 12px; }

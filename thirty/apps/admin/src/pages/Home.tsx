@@ -477,15 +477,23 @@ export function Home() {
   const q = periodQuery(p);
   const map = useLoad(() => api(`/admin-api/home/map?${q}`), [q]);
   const money = useLoad(() => api(`/admin-api/home/profit?${q}`), [q]);
+  const conv = useLoad(() => api(`/admin-api/home/conversion?${q}`), [q]);
   return (
     <div className="fm-page">
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 className="page-title">Аналитика</h1>
         {/* Данные не обновляются сами — только по этой кнопке или при смене периода */}
-        <button className="chip" onClick={() => { map.reload(); money.reload(); }} disabled={map.loading || money.loading}>{map.loading || money.loading ? 'Обновляю…' : '↻ Обновить'}</button>
+        <button className="chip" onClick={() => { map.reload(); money.reload(); conv.reload(); }} disabled={map.loading || money.loading}>{map.loading || money.loading ? 'Обновляю…' : '↻ Обновить'}</button>
       </div>
       <PeriodPicker value={p} onChange={setP} />
       {map.error ? <div className="fm-empty">Не получилось загрузить карту: {String(map.error)}</div> : !map.data ? <div className="fm-map fm-loading">Собираю карту…</div> : <FunnelMap data={map.data} />}
+      {conv.data && (
+        <div className="fm-conv">
+          <span>Конверсия из зашедших в бота в покупку</span>
+          <b>{conv.data.percent === null ? 'Нет данных' : `${String(conv.data.percent).replace('.', ',')}%`}</b>
+          <small>Зашли в бота: {conv.data.entered.toLocaleString('ru-RU')} · купили: {conv.data.buyers.toLocaleString('ru-RU')} (оплата могла быть и позже периода)</small>
+        </div>
+      )}
       {money.data && <MoneyCards m={money.data} />}
     </div>
   );

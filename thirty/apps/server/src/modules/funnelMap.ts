@@ -232,3 +232,23 @@ export async function funnelMoney(r: DayRange) {
     payments: paid.length,
   };
 }
+
+/**
+ * Конверсия из зашедших в бота в покупку (16.11): кто впервые нажал /start в периоде (приветствие в журнале — первое),
+ * сколько из них оплатили (подтверждённая оплата, без тестовых; оплата могла быть и позже периода).
+ */
+export async function botConversion(r: DayRange) {
+  const zone = await getSetting('flow.timezone');
+  const from = startOfLocalDay(r.from as ISODate, zone);
+  const to = startOfLocalDay(addDays(r.to as ISODate, 1), zone);
+  const entered = await prisma.botMessageLog.findMany({
+    where: { templateKey: 'welcome', status: 'sent', sentAt: { gte: from, lt: to }, NOT: [{ dedupeKey: { startsWith: 'test:' } }, { dedupeKey: { startsWith: 'preview:' } }] },
+    select: { userId: true },
+    distinct: ['userId'],
+  });
+  const ids = entered.map((e) => e.userId);
+  const buyers = ids.length
+    ? (await prisma.payment.findMany({ where: { userId: { in: ids }, test: false, paidAt: { not: null }, status: { in: ['paid', 'refunded'] } }, select: { userId: true }, distinct: ['userId'] })).length
+    : 0;
+  return { entered: ids.length, buyers, percent: ids.length ? Math.round((buyers / ids.length) * 1000) / 10 : null };
+}

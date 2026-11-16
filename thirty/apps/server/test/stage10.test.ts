@@ -319,6 +319,9 @@ describe('аналитика: карта сообщений и прибыль (�
     expect(node('welcome').buttons.find((b) => b.key.startsWith('url:https'))).toMatchObject({ clicks: null });
     expect(m.edges.find((e) => e.to === 'pay_retry')!.label).toContain('через 5 мин');
 
+    // конверсия из зашедших в бота в покупку: зашли трое, оплатил один (проверочные отправки не считаются)
+    const { botConversion } = await import('../src/modules/funnelMap');
+    expect(await botConversion(r)).toEqual({ entered: 3, buyers: 1, percent: 33.3 });
     const money = await funnelMoney(r);
     expect(money).toMatchObject({ revenue: 2990, refunds: 0, commission: 104.65, noFeeData: 0, profit: 2885.35 });
   });
