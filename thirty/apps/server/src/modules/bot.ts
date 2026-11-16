@@ -391,6 +391,20 @@ export async function seedTemplates() {
       console.error('[test-buddy]', (e as Error).message);
     }
   }
+  // Разово (16.11, только чтение): почему у Varvara Kalugina нет «Повысить тариф» — тариф, вид оплаты и статус подписки
+  const v51 = 'maintenance.diagUpgradeKaluginaV1';
+  if (!config.DEMO_MODE && !process.env.VITEST && !(await prisma.setting.findUnique({ where: { key: v51 } }))) {
+    await prisma.setting.create({ data: { key: v51, value: { at: new Date().toISOString() } } });
+    setTimeout(() => void (async () => {
+      const users = await prisma.user.findMany({ where: { OR: [{ lastName: { contains: 'Kalugina', mode: 'insensitive' } }, { firstName: { contains: 'Kalugina', mode: 'insensitive' } }, { displayName: { contains: 'Kalugina', mode: 'insensitive' } }, { lastName: { contains: 'Калугина', mode: 'insensitive' } }] } });
+      if (!users.length) console.log('[diag-upgrade] Kalugina не найдена');
+      for (const u of users) {
+        const subs = await prisma.subscription.findMany({ where: { userId: u.id }, orderBy: { createdAt: 'desc' } });
+        const offer = await (await import('./upgrade')).upgradeOffer(u.id).catch((e) => ({ error: (e as Error).message }));
+        console.log(`[diag-upgrade] ${u.id} ${u.firstName} ${u.lastName ?? ''} @${u.username ?? '-'} subs=${JSON.stringify(subs.map((s) => ({ t: s.tariffId, st: s.status, v: s.priceVariant, price: s.renewalPrice, reason: s.cancelReason, test: s.test })))} offer=${JSON.stringify(offer).slice(0, 200)}`);
+      }
+    })().catch((e) => console.error('[diag-upgrade]', (e as Error).message)), 15_000);
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {
