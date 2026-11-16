@@ -405,6 +405,12 @@ export async function seedTemplates() {
       }
     })().catch((e) => console.error('[diag-upgrade]', (e as Error).message)), 15_000);
   }
+  // Разово (16.11): после исправления номеров супергрупп — ещё раз одобрить висящие заявки тех, у кого есть доступ
+  const v52 = 'maintenance.approvePendingAfterMigrateV1';
+  if (!config.DEMO_MODE && !process.env.VITEST && !(await prisma.setting.findUnique({ where: { key: v52 } }))) {
+    await prisma.setting.create({ data: { key: v52, value: { at: new Date().toISOString() } } });
+    setTimeout(() => void import('./chats').then((c) => c.approvePendingRequests(['flow', 'topic', 'channel'])).catch((e) => console.error('[chats] pending', (e as Error).message)), 180_000);
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {

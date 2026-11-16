@@ -691,4 +691,16 @@ describe('группа стала супергруппой (09.11)', () => {
     expect((await prisma.telegramChat.findUniqueOrThrow({ where: { id: chat.id } })).telegramChatId).toBe(-1001006n);
     expect((await api('POST', '/api/tribute/activate', 996, { tariffId: 'm1' })).body).toEqual({ ok: true });
   });
+
+  it('16.11: новый номер уже занят лишней «непривязанной» записью — она убирается, заявки идут в привязанный чат', async () => {
+    const habits = await prisma.telegramChat.create({ data: { kind: 'topic', topic: 'habits', telegramChatId: -2006n, title: '30 дней ПРИВЫЧКИ' } });
+    const dup = await prisma.telegramChat.create({ data: { kind: 'pending', telegramChatId: -1002006n, title: '30 дней ПРИВЫЧКИ', active: false } });
+    await prisma.user.create({ data: { id: 3006n, firstName: 'Тест' } });
+    await prisma.chatMembership.create({ data: { chatId: dup.id, userId: 3006n, status: 'joined' } });
+    const { chatMigrated } = await import('../src/lib/telegram');
+    await chatMigrated(-2006, -1002006);
+    expect((await prisma.telegramChat.findUniqueOrThrow({ where: { id: habits.id } })).telegramChatId).toBe(-1002006n);
+    expect(await prisma.telegramChat.findUnique({ where: { id: dup.id } })).toBeNull();
+    expect(await prisma.chatMembership.findUnique({ where: { chatId_userId: { chatId: habits.id, userId: 3006n } } })).toMatchObject({ status: 'joined' });
+  });
 });

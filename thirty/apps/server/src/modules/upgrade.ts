@@ -51,6 +51,18 @@ const offerOf = (c: NonNullable<Awaited<ReturnType<typeof upgradeContext>>>) => 
   until: addMonths(c.flows[c.flows.length - 1], 1),
 });
 
+/** Почему повышение недоступно — для админки (16.11) */
+export async function upgradeBlockReason(userId: bigint): Promise<string | null> {
+  const all = await prisma.subscription.findMany({ where: { userId }, include: { tariff: true }, orderBy: { createdAt: 'desc' } });
+  if (!all.length) return 'нет ни одной подписки (оплата не записалась или доступ выдан без подписки)';
+  const live = all.filter((s) => ['prestart', 'active', 'canceled_at_period_end'].includes(s.status));
+  if (!live.length) return `нет действующей подписки: последняя — «${all[0].tariff.title}», статус ${all[0].status}`;
+  if (live.every((s) => s.priceVariant === 'tribute')) return 'подписка оформлена через Tribute — повышение там';
+  const sub = live.find((s) => s.priceVariant !== 'tribute')!;
+  if (sub.tariff.months >= 6) return 'уже максимальный тариф';
+  return null;
+}
+
 /** Что можно купить сверх текущего тарифа: ближайший вариант (для анкеты) и все варианты (для главной) */
 export async function upgradeOffer(userId: bigint) {
   const sub = await currentSubscription(userId);

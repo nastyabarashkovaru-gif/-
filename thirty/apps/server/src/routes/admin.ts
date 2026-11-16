@@ -399,6 +399,12 @@ export async function adminRoutes(app: FastifyInstance) {
         subscriptions,
         memberships: ms,
         topics: await (await import('../modules/chats')).topicAccess(id),
+        // Повышение тарифа (16.11): что предлагается участнице на главной, а если ничего — почему
+        upgrade: await (async () => {
+          const u = await import('../modules/upgrade');
+          const o = await u.upgradeOffer(id);
+          return { options: o.options.map((x) => ({ title: x.to.title, amount: x.amount })), reason: o.available ? null : (await u.upgradeBlockReason(id)) ?? 'доплата получается нулевой или отрицательной' };
+        })(),
         consents,
         moderation: { complaintsAbout, complaintsBy, audit: auditRows },
         botLogs,

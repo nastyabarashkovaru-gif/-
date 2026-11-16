@@ -166,6 +166,12 @@ export function UserDetail({ canEdit, canStartOver = false }: { canEdit: boolean
             </div>
           ))}
           <h2>Подписки и оплаты</h2>
+          {u.upgrade && (
+            <div style={{ margin: '4px 0 8px' }}>
+              <b>Кнопка «Повысить тариф»: </b>
+              {u.upgrade.options.length ? <span>видна — {u.upgrade.options.map((o: any) => `«${o.title}» за ${rub(o.amount)}`).join(', ')}</span> : <span className="muted">не показывается: {u.upgrade.reason}</span>}
+            </div>
+          )}
           {u.subscriptions.map((s: any) => <div key={s.id}>{s.tariffId} <Status v={s.status} /> · {d(s.paidFromFlow)} — {d(s.paidThroughFlow)} · след. списание {d(s.nextChargeDate)} {s.autoRenew ? '' : '(автопродление выключено)'}
             {s.autoRenew && ['prestart', 'active', 'past_due'].includes(s.status) && (
               <button className="btn light" style={{ padding: '2px 8px', marginLeft: 6 }} onClick={async () => { if (await withReason('Отменить автопродление по обращению', (reason) => api(`/admin-api/users/${u.user.id}/cancel-subscription`, { body: { reason } }))) location.reload(); }}>отменить автопродление</button>

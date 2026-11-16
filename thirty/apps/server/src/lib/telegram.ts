@@ -73,14 +73,40 @@ export const tg: TgCall = async <T>(method: string, body: Record<string, unknown
   }
 };
 
-/** Группа стала супергруппой: в привязанных чатах меняем старый номер на новый */
+/**
+ * Группа стала супергруппой: в привязанных чатах меняем старый номер на новый.
+ * 16.11: если новый номер уже записан на другую запись (бот увидел супергруппу и завёл её как «новую, не привязанную»),
+ * эту лишнюю запись убираем — иначе заявки из супергруппы считались «из непривязанного чата» и висели.
+ */
 export async function chatMigrated(oldId: number, newId: number) {
   const { prisma } = await import('../db');
-  const r = await prisma.telegramChat.updateMany({ where: { telegramChatId: BigInt(oldId) }, data: { telegramChatId: BigInt(newId) } }).catch((err) => {
+  try {
+    const done = await prisma.$transaction(async (tx) => {
+      const old = await tx.telegramChat.findUnique({ where: { telegramChatId: BigInt(oldId) } });
+      if (!old) return 0;
+      const dup = await tx.telegramChat.findUnique({ where: { telegramChatId: BigInt(newId) } });
+      if (dup && dup.id !== old.id) {
+        if (dup.active && !old.active) {
+          // супергруппу уже привязали заново — старая запись больше не нужна
+          await tx.telegramChat.update({ where: { id: old.id }, data: { telegramChatId: null } });
+          return 0;
+        }
+        // лишняя запись: участницы из неё переходят в привязанный чат (без дублей), саму запись удаляем
+        const members = await tx.chatMembership.findMany({ where: { chatId: dup.id } });
+        for (const m of members) {
+          const exists = await tx.chatMembership.findUnique({ where: { chatId_userId: { chatId: old.id, userId: m.userId } } });
+          if (!exists) await tx.chatMembership.create({ data: { chatId: old.id, userId: m.userId, inviteLink: m.inviteLink, status: m.status, joinedAt: m.joinedAt, removedAt: m.removedAt } });
+        }
+        await tx.chatMembership.deleteMany({ where: { chatId: dup.id } });
+        await tx.telegramChat.delete({ where: { id: dup.id } });
+      }
+      await tx.telegramChat.update({ where: { id: old.id }, data: { telegramChatId: BigInt(newId) } });
+      return 1;
+    });
+    if (done) console.log(`[telegram] чат ${oldId} стал супергруппой ${newId} — номер обновлён`);
+  } catch (err) {
     console.warn('[telegram] chat migrate', (err as Error).message);
-    return { count: 0 };
-  });
-  if (r.count) console.log(`[telegram] чат ${oldId} стал супергруппой ${newId} — номер обновлён`);
+  }
 }
 
 /** При запуске: проверяем привязанные группы со старыми номерами — Telegram сообщит новый номер */
