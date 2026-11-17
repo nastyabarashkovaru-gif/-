@@ -400,6 +400,19 @@ export async function adminRoutes(app: FastifyInstance) {
         subscriptions,
         memberships: ms,
         topics: await (await import('../modules/chats')).topicAccess(id),
+        // «+ Добавить цель» (17.11): видна ли на главной, а если нет — почему
+        addGoal: await (async () => {
+          const { currentMembership, memberWindow } = await import('../modules/flows');
+          const g = await import('../modules/goals');
+          const m = await currentMembership(id);
+          if (!m) return { visible: false, reason: 'нет участия в челлендже' };
+          const limit = await g.goalLimitFor(m);
+          const count = await prisma.goal.count({ where: { membershipId: m.id } });
+          const goals = `целей ${count} из ${limit === null ? 'безлимита' : limit}`;
+          if (!m.goalsLockedAt) return { visible: false, reason: `анкета ещё не отправлена — цели добавляются в анкете (${goals})` };
+          if (m.status === 'finished' || memberWindow(m).phase === 'finished') return { visible: false, reason: `челлендж завершён (${goals})` };
+          return (await g.canAddGoalLater(m)) ? { visible: true, reason: goals } : { visible: false, reason: `лимит тарифа: ${goals}` };
+        })(),
         // Повышение тарифа (16.11): что предлагается участнице на главной, а если ничего — почему
         upgrade: await (async () => {
           const u = await import('../modules/upgrade');

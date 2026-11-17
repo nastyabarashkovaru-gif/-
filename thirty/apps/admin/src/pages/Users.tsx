@@ -166,6 +166,7 @@ export function UserDetail({ canEdit, canStartOver = false }: { canEdit: boolean
             </div>
           ))}
           <h2>Подписки и оплаты</h2>
+          {u.addGoal && <div style={{ margin: '4px 0' }}><b>Надпись «+ Добавить цель»: </b>{u.addGoal.visible ? <span>видна ({u.addGoal.reason})</span> : <span className="muted">не показывается: {u.addGoal.reason}</span>}</div>}
           {u.upgrade && (
             <div style={{ margin: '4px 0 8px' }}>
               <b>Кнопка «Повысить тариф»: </b>

@@ -725,6 +725,9 @@ describe('цель после анкеты (16.11)', () => {
     expect(occ[0].windowEnd.toISOString().slice(0, 10)).toBe('2026-11-10');
     expect(occ.filter((o) => o.windowStart.getTime() === o.windowEnd.getTime()).length).toBeGreaterThan(15);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: 4001n } })).interests).toContain('blog');
+    // 17.11: участие осталось с тарифом «1 месяц», а подписка — 6 месяцев: лимит берётся по подписке
+    await prisma.subscription.create({ data: { userId: 4002n, tariffId: 'm6', status: 'active', renewalPrice: 3990, paidFromFlow: new Date('2026-11-01T00:00:00Z'), paidThroughFlow: new Date('2027-04-01T00:00:00Z') } });
+    expect((await api('GET', '/api/home', 4002)).body.canAddGoal).toBe(true);
     // дата одноразовой задачи в прошлом — нельзя
     expect((await api('POST', '/api/goals/later', 4001, { ...body, tasks: [{ title: 'Эфир', frequency: 'once', dueDate: '2026-11-05' }] })).status).toBe(400);
   });

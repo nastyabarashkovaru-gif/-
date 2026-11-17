@@ -54,9 +54,17 @@ async function assertEditable(m: MembershipFull) {
   if (!(await canEditGoals(m))) throw forbidden('goals_locked', 'После старта потока цели и задачи менять нельзя');
 }
 
+/**
+ * Сколько целей можно поставить: по лучшему из тарифа участия и тарифов действующих подписок (17.11).
+ * Участие могло остаться со старым тарифом (было с прошлого месяца или до покупки 6 месяцев) — подписка главнее.
+ */
 export async function goalLimitFor(m: FlowMembership): Promise<number | null> {
-  const tariff = await prisma.tariff.findUnique({ where: { id: m.tariffId } });
-  return tariff ? tariff.goalLimit : 1;
+  const subs = await prisma.subscription.findMany({ where: { userId: m.userId, status: { in: ['prestart', 'active', 'past_due', 'canceled_at_period_end'] } }, select: { tariffId: true } });
+  const ids = [...new Set([m.tariffId, ...subs.map((s) => s.tariffId)])];
+  const tariffs = await prisma.tariff.findMany({ where: { id: { in: ids } } });
+  if (!tariffs.length) return 1;
+  if (tariffs.some((t) => t.goalLimit === null)) return null;
+  return Math.max(...tariffs.map((t) => t.goalLimit ?? 1));
 }
 
 export async function createGoal(userId: bigint, membershipId: string, input: z.infer<typeof goalInput>) {
