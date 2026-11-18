@@ -30,7 +30,7 @@ interface HomeGoal {
 interface HomeData {
   state: 'waiting' | 'active' | 'finished' | 'registration' | 'no_membership';
   membership: { id: string; status: string; finalSubmittedAt: string | null };
-  flow: { title: string; startsOn: string; endsOn: string; days: number; today: string; phase: string };
+  flow: { title: string; startsOn: string; endsOn: string; days: number; today: string; phase: string; paused?: boolean; pausedUntil?: string | null };
   stats: { percent: number; successfulDays: number; dayNumber: number | null };
   comparison: { firstMonth: boolean; baseline: number; current: number; delta: number };
   goals: HomeGoal[];
@@ -78,6 +78,19 @@ export function Home() {
   const p = data?.prompts;
   const [upgrade, setUpgrade] = useState<UpgradeOffer | null>(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const resume = async () => {
+    setResuming(true);
+    try {
+      const r = await api<{ day: number }>('/api/challenge/resume', { body: {} });
+      toast(`С возвращением! Сегодня ${r.day}-й день 🔥`);
+      reload();
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setResuming(false);
+    }
+  };
   useEffect(() => { void api<UpgradeOffer>('/api/upgrade').then(setUpgrade).catch(() => undefined); }, []);
   const [feedbackOpen, closeFeedback] = useOncePerDay(data ? `feedback.${data.membership.id}` : null, Boolean(p?.feedbackPopup));
   // Окно трекеров не накладывается на окно обратной связи
@@ -114,9 +127,16 @@ export function Home() {
       <div className="hero-card">
         <div className="row between">
           <span style={{ opacity: 0.9 }}>{before ? 'До старта' : 'Твой челлендж'}</span>
-          <span className={`hero-pill${before ? ' green' : ''}`}>{before ? 'Ожидание старта' : p?.finale ? 'Финиш 🏁' : `День ${Math.min(day, flow.days)} из ${flow.days}`}</span>
+          <span className={`hero-pill${before ? ' green' : ''}`}>{before ? 'Ожидание старта' : flow.paused ? 'Пауза ❄️' : p?.finale ? 'Финиш 🏁' : `День ${Math.min(day, flow.days)} из ${flow.days}`}</span>
         </div>
-        {before ? (
+        {flow.paused ? (
+          <>
+            {/* Заморозка (18.11): прогресс и цели сохранены, вернуться можно раньше */}
+            <div className="hero-title">Челлендж на паузе ❄️</div>
+            <div style={{ opacity: 0.9 }}>{flow.pausedUntil ? `До ${humanDate(flow.pausedUntil)} — ` : ''}твой прогресс, цели и отчёты сохранены. Челлендж продолжится с {day + 1}-го дня.</div>
+            <button className="btn hero-btn" disabled={resuming} onClick={resume}>{resuming ? 'Возвращаемся…' : 'Продолжить челлендж'}<ArrowRight size={17} /></button>
+          </>
+        ) : before ? (
           <>
             <StartCountdown startsOn={flow.startsOn} serverNow={data.serverNow} />
             <div style={{ opacity: 0.9 }}>Старт {humanDate(flow.startsOn)}. Твоё обещание себе уже зафиксировано ✨</div>
@@ -175,7 +195,7 @@ export function Home() {
         <ChangeStartSheet today={flow.today} active={!before} onClose={() => setStartSheet(false)}
           onDone={async (refill) => { setStartSheet(false); await refresh(); if (refill) nav('/reg/goals'); else reload(); }} />
       )}
-      {data.state === 'active' && (
+      {data.state === 'active' && !flow.paused && (
         <div className="card" style={{ gap: 10 }}>
           <div className="row between">
             <span className="row h3" style={{ gap: 8, fontSize: 17 }}><ClipboardCheck size={19} color="var(--accent)" />Отчёт за сегодня</span>

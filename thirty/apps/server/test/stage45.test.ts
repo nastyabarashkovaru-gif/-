@@ -732,3 +732,35 @@ describe('цель после анкеты (16.11)', () => {
     expect((await api('POST', '/api/goals/later', 4001, { ...body, tasks: [{ title: 'Эфир', frequency: 'once', dueDate: '2026-11-05' }] })).status).toBe(400);
   });
 });
+
+describe('заморозка челленджа (18.11)', () => {
+  it('пауза: день стоит, задач и пропусков нет, отчёт нельзя; в дату окончания — продолжается с того же дня, конец сдвигается; подписка сдвигается', async () => {
+    clock.set('2026-11-01T09:00:00Z');
+    await paidUser(4101, NOV, 'm1');
+    await prisma.subscription.updateMany({ where: { userId: 4101n }, data: { status: 'active', nextChargeDate: new Date('2026-11-28T00:00:00Z') } });
+    const { taskId } = await fixDaily(4101);
+    await prisma.flowMembership.updateMany({ where: { userId: 4101n }, data: { startsOn: new Date('2026-11-01T00:00:00Z') } });
+    await api('POST', '/api/membership/fix', 4101);
+    clock.set('2026-11-05T09:00:00Z');
+    await refreshFlowStatuses();
+    expect((await api('GET', '/api/home', 4101)).body.flow).toMatchObject({ day: 5, endsOn: '2026-11-30', paused: false });
+    const { freezeChallenge, resumeDueFreezes } = await import('../src/modules/freeze');
+    const f = await freezeChallenge(4101n, '2026-11-15' as never);
+    expect(f.subscription).toContain('1 мес');
+    const sub = await prisma.subscription.findFirstOrThrow({ where: { userId: 4101n } });
+    expect(sub.nextChargeDate!.toISOString().slice(0, 10)).toBe('2026-12-28');
+    expect(await prisma.taskOccurrence.count({ where: { taskId, windowEnd: { gte: new Date('2026-11-05T00:00:00Z') } } })).toBe(0);
+    clock.set('2026-11-10T09:00:00Z');
+    const home = (await api('GET', '/api/home', 4101)).body;
+    expect(home.flow).toMatchObject({ paused: true, pausedUntil: '2026-11-15', day: 4 });
+    expect((await api('POST', '/api/reports', 4101, { items: [{ taskId, done: true }], mediaIds: [(await upload(4101)).body.id], publicAck: true })).body.code).toBe('challenge_paused');
+    // дни паузы — не пропуски
+    expect(home.stats.days.filter((d: { state: string }) => d.state === 'missed').length).toBe(4);
+    clock.set('2026-11-15T09:00:00Z');
+    expect(await resumeDueFreezes()).toEqual({ resumed: 1 });
+    const after = (await api('GET', '/api/home', 4101)).body;
+    expect(after.flow).toMatchObject({ paused: false, day: 5, endsOn: '2026-12-10' });
+    expect(await prisma.taskOccurrence.count({ where: { taskId, windowEnd: { gte: new Date('2026-11-15T00:00:00Z') } } })).toBe(26);
+    expect((await api('POST', '/api/reports', 4101, { items: [{ taskId, done: true }], mediaIds: [(await upload(4101)).body.id], publicAck: true })).status).toBe(200);
+  });
+});

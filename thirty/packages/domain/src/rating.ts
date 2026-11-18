@@ -14,6 +14,8 @@ export interface MemberFacts {
   occurrences: OccurrenceFact[];
   /** Даты принятых отчётов */
   reportDates: ISODate[];
+  /** Заморозки (18.11): дни паузы не считаются ни выполненными, ни пропущенными */
+  pauses?: { from: ISODate; to: ISODate }[];
 }
 
 export interface MemberStats {
@@ -67,6 +69,7 @@ export function computeStats(f: MemberFacts): MemberStats {
   let current = 0;
   const lastDay = f.flowEnd;
   for (const date of eachDay(f.flowStart, lastDay)) {
+    if (f.pauses?.some((p) => date >= p.from && date <= p.to)) continue;
     const due = dueByDay.get(date) ?? { total: 0, done: 0 };
     const hasReport = reports.has(date);
     const allDone = due.done === due.total;

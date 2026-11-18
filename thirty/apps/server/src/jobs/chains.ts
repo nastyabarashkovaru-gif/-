@@ -230,6 +230,8 @@ export async function runFlowChains(now = clock.now(), send: Send = sendTemplate
     const tz = memberTz(m);
     const today = w.today;
     const hour = DateTime.fromJSDate(now, { zone: tz }).hour;
+    // на паузе (заморозка) — ни напоминаний, ни «после пропуска», ни карточек
+    if (w.paused) continue;
     if (w.phase === 'active') {
       const dayNum = w.day;
       const hoursLeft = (dayDeadline(today, tz).getTime() - now.getTime()) / 3600_000;

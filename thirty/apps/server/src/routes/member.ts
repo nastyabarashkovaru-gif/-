@@ -47,6 +47,8 @@ export async function memberRoutes(app: FastifyInstance) {
     if (!m) throw forbidden('no_membership', 'Сначала оплатите участие');
     return createGoal(req.user!.id, m.id, parse(goalInput, req.body));
   });
+  // Заморозка (18.11): «Продолжить челлендж» на главной
+  app.post('/api/challenge/resume', async (req) => (await import('../modules/freeze')).resumeOwn(req.user!.id));
   // Добавить цель после анкеты (16.11): в текущий челлендж, в пределах тарифа
   app.post('/api/goals/later', async (req) => {
     const m = await homeMembership(req.user!.id);

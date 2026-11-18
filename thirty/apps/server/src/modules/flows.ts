@@ -1,4 +1,4 @@
-import { addDays, addMonths, challengeBounds, challengeDay, challengePhase, flowBounds, flowPhase, fromDbDate, localDate, toDbDate, type ISODate } from '@thirty/domain';
+import { addDays, addMonths, challengeBounds, challengeDay, challengePhase, daysBetween, flowBounds, flowPhase, fromDbDate, localDate, toDbDate, type ISODate } from '@thirty/domain';
 import type { Flow, FlowMembership } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma, type Tx } from '../db';
@@ -38,21 +38,37 @@ export function flowInfo(flow: Flow, now = clock.now()) {
  * Окно личного челленджа (ТЗ 02.11): 30 дней от личной даты старта. Дата ещё не выбрана — ориентир:
  * не раньше сегодняшнего дня и не раньше месяца, к которому относится участие (челлендж пока не начался).
  */
-export function memberWindow(m: { startsOn: Date | null; flow: Flow; timezone?: string | null }, now = clock.now()) {
+type PauseFields = { pausedFrom?: Date | null; pausedUntil?: Date | null; pausedDays?: number | null; pauses?: unknown };
+
+/** Паузы (заморозки) участия: завершённые и текущая (до вчера включительно — сегодня тоже день паузы) */
+export function pauseRanges(m: PauseFields, today: ISODate): { from: ISODate; to: ISODate }[] {
+  const list = Array.isArray(m.pauses) ? (m.pauses as { from: ISODate; to: ISODate }[]) : [];
+  const cur = m.pausedFrom ? fromDbDate(m.pausedFrom) : null;
+  return cur && today >= cur ? [...list, { from: cur, to: today }] : list;
+}
+
+export function memberWindow(m: { startsOn: Date | null; flow: Flow; timezone?: string | null } & PauseFields, now = clock.now()) {
   const today = memberToday(m, now);
   const chosen = m.startsOn ? fromDbDate(m.startsOn) : null;
   const flowStart = fromDbDate(m.flow.startsOn);
   const start = chosen ?? (flowStart > today ? flowStart : today);
   const b = challengeBounds(start);
+  // Заморозка (18.11): конец 30 дней сдвигается на дни паузы; пока пауза идёт — день челленджа стоит
+  const pausedFrom = m.pausedFrom ? fromDbDate(m.pausedFrom) : null;
+  const paused = Boolean(chosen && pausedFrom && today >= pausedFrom);
+  const done = m.pausedDays ?? 0;
+  const running = paused ? daysBetween(pausedFrom!, today) + 1 : 0;
+  const end = addDays(b.endsOn, done + running);
   // не выбранная дата: челлендж считается ещё не начавшимся
-  const phase = chosen ? challengePhase(b.startsOn, b.endsOn, today) : ('upcoming' as const);
-  return { start: b.startsOn, end: b.endsOn, days: b.days, today, phase, day: chosen ? challengeDay(b.startsOn, b.endsOn, today) : 0, chosen: Boolean(chosen) };
+  const phase = chosen ? challengePhase(b.startsOn, end, today) : ('upcoming' as const);
+  const day = !chosen ? 0 : paused ? Math.max(1, daysBetween(b.startsOn, pausedFrom!)) : Math.max(0, challengeDay(b.startsOn, end, today) - done);
+  return { start: b.startsOn, end, days: b.days, today, phase, day, chosen: Boolean(chosen), paused, pausedUntil: paused && m.pausedUntil ? fromDbDate(m.pausedUntil) : null };
 }
 
 /** Сведения о челлендже для клиента: те же поля, что у потока (startsOn/endsOn/days/phase), но личные */
-export function challengeInfo(m: { startsOn: Date | null; flow: Flow; timezone?: string | null }, now = clock.now()) {
+export function challengeInfo(m: { startsOn: Date | null; flow: Flow; timezone?: string | null } & PauseFields, now = clock.now()) {
   const w = memberWindow(m, now);
-  return { id: m.flow.id, startsOn: w.start, endsOn: w.end, days: w.days, title: m.flow.title, timezone: memberTz(m), today: w.today, phase: w.phase, day: w.day, chosen: w.chosen };
+  return { id: m.flow.id, startsOn: w.start, endsOn: w.end, days: w.days, title: m.flow.title, timezone: memberTz(m), today: w.today, phase: w.phase, day: w.day, chosen: w.chosen, paused: w.paused, pausedUntil: w.pausedUntil };
 }
 
 /**

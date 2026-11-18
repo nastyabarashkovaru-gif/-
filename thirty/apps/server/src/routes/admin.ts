@@ -361,6 +361,21 @@ export async function adminRoutes(app: FastifyInstance) {
       await audit(req, open ? 'topic.open' : 'topic.close', 'user', req.params.id, { after: { topic } });
       return jsonSafe({ ...r, topics: await topicAccess(BigInt(req.params.id)) });
     });
+    // Заморозка челленджа (18.11): с сегодняшнего дня до даты; «разморозить» — продолжить сейчас
+    r.post<{ Params: { id: string } }>('/admin-api/users/:id/freeze', perm('payments'), async (req) => {
+      const { until, reason } = parse(z.object({ until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), reason: z.string().trim().min(3).max(500) }), req.body);
+      const r = await (await import('../modules/freeze')).freezeChallenge(BigInt(req.params.id), until as never);
+      await audit(req, 'challenge.freeze', 'user', req.params.id, { after: r, reason });
+      return jsonSafe(r);
+    });
+    r.post<{ Params: { id: string } }>('/admin-api/users/:id/unfreeze', perm('payments'), async (req) => {
+      const { currentMembership } = await import('../modules/flows');
+      const m = await currentMembership(BigInt(req.params.id));
+      if (!m) throw notFound();
+      const r = await (await import('../modules/freeze')).resumeChallenge(m.id);
+      await audit(req, 'challenge.unfreeze', 'user', req.params.id, { after: r });
+      return jsonSafe(r);
+    });
     r.post<{ Params: { id: string } }>('/admin-api/users/:id/cancel-subscription', perm('payments'), async (req) => {
       const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(500) }), req.body);
       const r = await cancelAutoRenew(BigInt(req.params.id), `support: ${reason}`);
@@ -400,6 +415,14 @@ export async function adminRoutes(app: FastifyInstance) {
         subscriptions,
         memberships: ms,
         topics: await (await import('../modules/chats')).topicAccess(id),
+        // Заморозка (18.11): на паузе ли челлендж и до какого числа
+        freeze: await (async () => {
+          const { currentMembership, memberWindow } = await import('../modules/flows');
+          const m = await currentMembership(id);
+          if (!m) return null;
+          const w = memberWindow(m);
+          return { paused: w.paused, until: w.pausedUntil, day: w.day, endsOn: w.end, phase: w.phase };
+        })(),
         // «+ Добавить цель» (17.11): видна ли на главной, а если нет — почему
         addGoal: await (async () => {
           const { currentMembership, memberWindow } = await import('../modules/flows');

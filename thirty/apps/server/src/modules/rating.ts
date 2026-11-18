@@ -4,23 +4,24 @@ import { displayName } from './users';
 import type { Flow } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma } from '../db';
-import { flowToday, memberWindow } from './flows';
+import { flowToday, memberWindow, pauseRanges } from './flows';
 
 /** Факты участника из БД → доменный расчёт. Отклонённые модерацией отчёты не засчитываются. */
 export async function loadFacts(membershipId: string, flow: Flow, now = clock.now()) {
   const [occ, reports, m] = await Promise.all([
     prisma.taskOccurrence.findMany({ where: { membershipId }, select: { windowStart: true, windowEnd: true, status: true, taskId: true } }),
     prisma.dailyReport.findMany({ where: { membershipId, status: 'accepted' }, select: { date: true } }),
-    prisma.flowMembership.findUnique({ where: { id: membershipId }, select: { startsOn: true, timezone: true } }),
+    prisma.flowMembership.findUnique({ where: { id: membershipId }, select: { startsOn: true, timezone: true, pausedFrom: true, pausedUntil: true, pausedDays: true, pauses: true } }),
   ]);
   // Личный челлендж: 30 дней от личной даты старта
-  const w = memberWindow({ startsOn: m?.startsOn ?? null, flow, timezone: m?.timezone }, now);
+  const w = memberWindow({ startsOn: m?.startsOn ?? null, flow, timezone: m?.timezone, pausedFrom: m?.pausedFrom, pausedUntil: m?.pausedUntil, pausedDays: m?.pausedDays, pauses: m?.pauses }, now);
   return {
     flowStart: w.start,
     flowEnd: w.end,
     today: w.today,
     occurrences: occ.map((o) => ({ windowStart: fromDbDate(o.windowStart), windowEnd: fromDbDate(o.windowEnd), done: o.status === 'done', taskId: o.taskId })),
     reportDates: reports.map((r) => fromDbDate(r.date)),
+    pauses: m ? pauseRanges(m, w.today) : [],
   };
 }
 

@@ -411,6 +411,21 @@ export async function seedTemplates() {
     await prisma.setting.create({ data: { key: v52, value: { at: new Date().toISOString() } } });
     setTimeout(() => void import('./chats').then((c) => c.approvePendingRequests(['flow', 'topic', 'channel'])).catch((e) => console.error('[chats] pending', (e as Error).message)), 180_000);
   }
+  // Разово (18.11): заморозка для @your_math_expert_ege (Айнур, операция) — с сегодняшнего дня до 11 января
+  const v53 = 'maintenance.freezeAynurV1';
+  if (!config.DEMO_MODE && !process.env.VITEST && !(await prisma.setting.findUnique({ where: { key: v53 } }))) {
+    await prisma.setting.create({ data: { key: v53, value: { at: new Date().toISOString() } } });
+    try {
+      const u = await prisma.user.findFirst({ where: { username: { equals: 'your_math_expert_ege', mode: 'insensitive' } } });
+      if (!u) console.warn('[freeze] @your_math_expert_ege не найдена');
+      else {
+        const r = await (await import('./freeze')).freezeChallenge(u.id, '2027-01-11' as never);
+        console.log('[freeze] @your_math_expert_ege:', JSON.stringify(r));
+      }
+    } catch (e) {
+      console.error('[freeze] @your_math_expert_ege', (e as Error).message);
+    }
+  }
   // Разово (02.11): механика «вернуть скидку» убрана — таймер засекается заново при каждом заходе; сообщение 09 выключено
   const v18 = 'maintenance.noRestoreV1';
   if (!(await prisma.setting.findUnique({ where: { key: v18 } }))) {

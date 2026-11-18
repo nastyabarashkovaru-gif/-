@@ -166,6 +166,21 @@ export function UserDetail({ canEdit, canStartOver = false }: { canEdit: boolean
             </div>
           ))}
           <h2>Подписки и оплаты</h2>
+          {u.freeze && (
+            <div style={{ margin: '4px 0', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <b>Челлендж:</b>
+              {u.freeze.paused ? <span>❄️ на паузе до {d(u.freeze.until)}</span> : <span>{u.freeze.phase === 'active' ? `идёт, день ${u.freeze.day}` : u.freeze.phase === 'upcoming' ? 'ещё не начался' : 'завершён'} · до {d(u.freeze.endsOn)}</span>}
+              {u.freeze.paused ? (
+                <button className="btn light" style={{ padding: '2px 8px' }} onClick={async () => { if (confirm('Разморозить: челлендж продолжится с сегодняшнего дня?')) { try { await api(`/admin-api/users/${u.user.id}/unfreeze`, { body: {} }); location.reload(); } catch (e) { alert((e as Error).message); } } }}>разморозить</button>
+              ) : u.freeze.phase !== 'finished' && (
+                <button className="btn light" style={{ padding: '2px 8px' }} onClick={async () => {
+                  const until = prompt('Заморозить с сегодняшнего дня до какой даты? (ГГГГ-ММ-ДД)', '');
+                  if (!until || !/^\d{4}-\d{2}-\d{2}$/.test(until.trim())) return;
+                  if (await withReason('Заморозить челлендж', (reason) => api(`/admin-api/users/${u.user.id}/freeze`, { body: { until: until.trim(), reason } }))) location.reload();
+                }}>❄️ заморозить</button>
+              )}
+            </div>
+          )}
           {u.addGoal && <div style={{ margin: '4px 0' }}><b>Надпись «+ Добавить цель»: </b>{u.addGoal.visible ? <span>видна ({u.addGoal.reason})</span> : <span className="muted">не показывается: {u.addGoal.reason}</span>}</div>}
           {u.upgrade && (
             <div style={{ margin: '4px 0 8px' }}>

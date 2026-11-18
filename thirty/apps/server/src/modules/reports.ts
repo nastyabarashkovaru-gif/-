@@ -43,6 +43,7 @@ export async function submitReport(userId: bigint, membershipId: string, input: 
   const today = memberToday(m, now);
   // Личный челлендж: отчёт — только за сегодня и только в его 30 дней
   if (memberWindow(m, now).phase !== 'active') throw forbidden('flow_not_active', 'Твой челлендж сейчас не идёт');
+  if (memberWindow(m, now).paused) throw forbidden('challenge_paused', 'Челлендж на паузе — нажми «Продолжить челлендж» на главной, чтобы вернуться');
   const date = toDbDate(today);
 
   const taskIds = [...new Set(input.items.map((i) => i.taskId))];

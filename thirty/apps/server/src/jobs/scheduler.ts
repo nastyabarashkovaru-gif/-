@@ -28,6 +28,8 @@ export const TASKS: Task[] = [
   { name: 'chains-post', everyMin: 30, run: () => runPostPurchaseChains() },
   { name: 'chains-flow', everyMin: 15, run: () => runFlowChains() },
   { name: 'chains-meetings', everyMin: 5, run: () => runMeetingChains() },
+  // Заморозка (18.11): в дату окончания паузы челлендж продолжается сам
+  { name: 'freeze-resume', everyMin: 60, run: async () => { await (await import('../modules/freeze')).resumeDueFreezes(); } },
 ];
 
 /** Потоки на 2 месяца вперёд существуют всегда; статусы переводятся по календарю */

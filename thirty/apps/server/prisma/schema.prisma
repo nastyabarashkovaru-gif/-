@@ -321,6 +321,11 @@ model FlowMembership {
   finalResult      String?
   /// Личная дата старта 30-дневного челленджа (ТЗ 02.11); null — участница ещё не выбрала дату
   startsOn         DateTime?        @db.Date
+  /// Заморозка (18.11): с какой даты челлендж на паузе и до какой; сколько дней уже было на паузе и сами паузы
+  pausedFrom       DateTime?        @db.Date
+  pausedUntil      DateTime?        @db.Date
+  pausedDays       Int              @default(0)
+  pauses           Json             @default("[]")
   /// Часовой пояс участницы (с телефона): «сегодня», дедлайн отчёта, напоминания. null — время потока
   timezone         String?
   /// Как найти бадди: auto — очередь автоподбора, self — выбор самой (null — ещё не выбрано)
