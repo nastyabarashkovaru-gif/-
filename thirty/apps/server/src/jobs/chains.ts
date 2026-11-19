@@ -189,9 +189,19 @@ export async function runPostPurchaseChains(now = clock.now(), send: Send = send
     where: { status: { in: ['reserved', 'registered'] }, flow: { status: { not: 'finished' } } },
     include: { flow: true, user: true, subscription: true },
   });
+  // 19.11: у 3/6 месяцев участия на следующие месяцы заведены заранее и «не заполнены» — это не повод напоминать.
+  // Напоминаем об анкете только про текущее участие (идущий или ближайший челлендж), а не про будущие месяцы
+  const { currentMembership } = await import('../modules/flows');
+  const currentOf = new Map<string, string | null>();
+  const isCurrent = async (userId: bigint, membershipId: string) => {
+    const k = userId.toString();
+    if (!currentOf.has(k)) currentOf.set(k, (await currentMembership(userId))?.id ?? null);
+    return currentOf.get(k) === membershipId;
+  };
   for (const m of reserved) {
     const uid = m.userId;
     const paidAt = m.createdAt;
+    if (!(await isCurrent(uid, m.id))) continue;
     if (m.status === 'reserved') {
       const profileDone = m.user.interests.length > 0;
       const key = profileDone ? 'reg_goals' : 'reg_profile';

@@ -764,3 +764,24 @@ describe('заморозка челленджа (18.11)', () => {
     expect((await api('POST', '/api/reports', 4101, { items: [{ taskId, done: true }], mediaIds: [(await upload(4101)).body.id], publicAck: true })).status).toBe(200);
   });
 });
+
+describe('напоминание «Анкета ещё не заполнена» (19.11)', () => {
+  it('3 месяца, анкета текущего месяца заполнена — про будущие месяцы не напоминаем; не заполнила — напоминаем', async () => {
+    clock.set('2026-11-01T09:00:00Z');
+    await paidUser(4201, NOV, 'm3');
+    await paidUser(4202, NOV, 'm3');
+    // будущие месяцы подписки — участия «не заполнены»
+    for (const uid of [4201, 4202]) for (const f of ['2026-12-01', '2027-01-01']) await grantMembership(uid, f, 'm3');
+    await prisma.user.updateMany({ where: { id: { in: [4201n, 4202n] } }, data: { interests: ['habits'], allowsWrite: true } });
+    await fixDaily(4201);
+    // время создания участия — по часам базы, ставим явно
+    await prisma.flowMembership.updateMany({ where: { userId: { in: [4201n, 4202n] } }, data: { createdAt: new Date('2026-11-01T09:00:00Z') } });
+    clock.set('2026-11-02T12:00:00Z');
+    calls.length = 0;
+    const { runPostPurchaseChains } = await import('../src/jobs/chains');
+    await runPostPurchaseChains();
+    const to = (uid: number) => calls.filter((c) => c.method === 'sendMessage' && Number(c.body.chat_id) === uid && String(c.body.text).includes('Анкета ещё не заполнена'));
+    expect(to(4201)).toHaveLength(0);
+    expect(to(4202)).toHaveLength(1);
+  });
+});
