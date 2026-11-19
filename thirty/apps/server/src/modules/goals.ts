@@ -185,7 +185,8 @@ export async function autoStart(m: MembershipFull, now = clock.now()): Promise<I
   const today = memberToday(m, now);
   if (earlier || today < '2026-11-07') return memberWindow(m, now).start;
   const { nextMarketingStart } = await import('./promos');
-  const bought = nextMarketingStart(memberToday(m, m.createdAt));
+  // старт на момент покупки: купившие до закрытия набора остаются на своём старте
+  const bought = nextMarketingStart(memberToday(m, m.createdAt), m.createdAt);
   return bought >= today ? bought : nextMarketingStart(today);
 }
 

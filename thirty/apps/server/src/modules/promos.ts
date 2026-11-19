@@ -28,8 +28,13 @@ export const MARKETING_START_ANCHOR = '2026-11-11' as ISODate;
 export const MARKETING_START_EVERY = 4;
 /** Перенесённые старты (владелица 12.11): 23.11 → 22.11. Следующие даты не сдвигаются */
 export const MARKETING_START_MOVED: Record<string, ISODate> = { '2026-11-23': '2026-11-22' as ISODate };
+/**
+ * Набор на старт закрыт досрочно (места заняты): с этого момента ближайшим считается следующий старт.
+ * Кто купил раньше — остаётся на своём старте (владелица 19.11: «на 19-е всё занято, продаём на 22-е»).
+ */
+export const MARKETING_START_CLOSED: Record<string, string> = { '2026-11-19': '2026-11-19T16:18:00Z' };
 
-export function nextMarketingStart(today: ISODate): ISODate {
+export function nextMarketingStart(today: ISODate, at: Date = clock.now()): ISODate {
   if (today <= MARKETING_START_ANCHOR && !Object.values(MARKETING_START_MOVED).some((d) => d < MARKETING_START_ANCHOR)) return MARKETING_START_ANCHOR;
   const days = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${MARKETING_START_ANCHOR}T00:00:00Z`)) / 86_400_000);
   const k0 = Math.max(0, Math.floor(days / MARKETING_START_EVERY) - 1);
@@ -39,7 +44,7 @@ export function nextMarketingStart(today: ISODate): ISODate {
     const d = addDays(MARKETING_START_ANCHOR, k * MARKETING_START_EVERY);
     candidates.push(MARKETING_START_MOVED[d] ?? d);
   }
-  return candidates.filter((d) => d >= today).sort()[0];
+  return candidates.filter((d) => d >= today && !(MARKETING_START_CLOSED[d] && at.getTime() >= Date.parse(MARKETING_START_CLOSED[d]))).sort()[0];
 }
 
 /** Свой старт человека в боте: ближайший после дня, когда он пришёл в бот (на него — «послезавтра/завтра/сегодня») */
