@@ -25,7 +25,9 @@ export function readPayToken(token: string, now = clock.now()): { userId: bigint
   return { userId: BigInt(m[1]), tariffId: m[2] };
 }
 
-/** Кнопка «Оплатить зарубежной картой» в боте ведёт через наш адрес — нажатие попадает в воронку */
+export const TRIBUTE_CHECKOUT_URL = 'https://web.tribute.tg/s/1bGq';
+
+/** Кнопка Tribute ведёт через наш адрес — нажатие попадает в воронку. */
 export const tributeUrl = (userId: bigint) => `${config.PUBLIC_URL.replace(/\/$/, '')}/pay/tribute/${payToken(userId, 'm1')}`;
 
 export const payUrl = (userId: bigint, tariffId: string) => `${config.PUBLIC_URL.replace(/\/$/, '')}/pay/new/${payToken(userId, tariffId)}`;

@@ -25,6 +25,7 @@ const schema = z.object({
   ADMIN_BOOTSTRAP_PASSWORD: z.string().default(''),
   ADMIN_ORIGIN: z.string().default(''),
   PAYMENT_PROVIDER: z.enum(['cloudpayments', 'mock']).default('mock'),
+  BOT_TRIBUTE_ONLY: bool,
   /** CloudPayments: Public ID и пароль для API из настроек сайта в кабинете */
   CP_PUBLIC_ID: z.string().default(''),
   CP_API_SECRET: z.string().default(''),

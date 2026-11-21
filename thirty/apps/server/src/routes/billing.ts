@@ -12,6 +12,7 @@ import { paymentProvider } from '../payments';
 import { signMock } from '../payments/mock';
 import { getSetting, youtubeVideo } from '../settings';
 import { track } from '../modules/analytics';
+import { TRIBUTE_CHECKOUT_URL } from '../modules/botPay';
 import {
   appUrl, cancelAutoRenew, checkoutPreview, createCheckout, createDebtPayment, handleWebhook, offerState, resumeAutoRenew, startOffer, subscriptionSummary,
 } from '../modules/billing';
@@ -191,6 +192,7 @@ export async function billingRoutes(app: FastifyInstance) {
    * Согласие с офертой и ПДн — нажатием (текст об этом в сообщении с тарифами).
    */
   app.get<{ Params: { token: string } }>('/pay/new/:token', async (req, reply) => {
+    if (config.BOT_TRIBUTE_ONLY) return reply.header('cache-control', 'no-store').redirect(TRIBUTE_CHECKOUT_URL, 302);
     const page = (body: string) => reply.header('content-type', 'text/html; charset=utf-8').send(payPageHtml(body));
     const { readPayToken, markPickClick } = await import('../modules/botPay');
     const t = readPayToken(req.params.token);
@@ -219,7 +221,7 @@ export async function billingRoutes(app: FastifyInstance) {
     const q = req.query as { m?: string; k?: string };
     if (t && q.m && q.k) await (await import('../modules/bot')).trackButtonClick(t.userId, q.m, q.k).catch(() => undefined);
     if (t) await track({ userId: t.userId, eventName: 'tribute_click', screenId: 'bot', metadata: { tracked: Boolean(q.m && q.k) }, dedupeKey: `tribute_click:bot:${t.userId}:${Math.floor(Date.now() / 3_600_000)}` });
-    return reply.redirect('https://web.tribute.tg/s/1bGq', 302);
+    return reply.redirect(TRIBUTE_CHECKOUT_URL, 302);
   });
 
   /** Оферта и политика ПДн страницей — для ссылок из сообщений бота */
