@@ -7,8 +7,9 @@ import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, HOW_TO_JOIN_BUTTONS, HOW_TO_JOIN_TE
 import { config } from '../config';
 import { setNotifier } from './notify';
 import { track } from './analytics';
-import { TRIBUTE_CHECKOUT_URL, tributeUrl } from './botPay';
-import { buttonKey } from './funnelMap';
+import { TRIBUTE_CHECKOUT_URL } from './botPay';
+
+const LEGACY_TRIBUTE_CHECKOUT_URL = 'https://web.tribute.tg/s/1bGq';
 
 export async function seedTemplates() {
   for (const t of DEFAULT_TEMPLATES) {
@@ -242,7 +243,7 @@ export async function seedTemplates() {
   if (!(await prisma.setting.findUnique({ where: { key: v36 } }))) {
     const t = await prisma.botMessageTemplate.findUnique({ where: { key: 'tariffs_pick' } });
     if (t) {
-      const btns = (t.buttons as { text: string; url?: string }[]).map((b) => (b.url === 'https://web.tribute.tg/s/1bGq' ? { ...b, url: '{pay_tribute}' } : b));
+      const btns = (t.buttons as { text: string; url?: string }[]).map((b) => (b.url === LEGACY_TRIBUTE_CHECKOUT_URL ? { ...b, url: '{pay_tribute}' } : b));
       await prisma.botMessageTemplate.update({ where: { key: 'tariffs_pick' }, data: { buttons: btns } });
     }
     await prisma.setting.create({ data: { key: v36, value: { at: new Date().toISOString() } } });
@@ -529,12 +530,13 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
       const paymentLink = b.url && (
         /^\{pay_(?:m1|m3|m6|again|tribute)\}$/.test(b.url) ||
         b.url === TRIBUTE_CHECKOUT_URL ||
+        b.url === LEGACY_TRIBUTE_CHECKOUT_URL ||
         b.url.startsWith(`${config.PUBLIC_URL.replace(/\/$/, '')}/pay/new/`)
       );
       if (config.BOT_TRIBUTE_ONLY && (joinsClub || paymentLink)) {
         if (tributeButtonAdded) return null;
         tributeButtonAdded = true;
-        return { text: 'ОПЛАТИТЬ😍', url: `${tributeUrl(userId)}?m=${short}&k=${encodeURIComponent(buttonKey(b))}` };
+        return { text: 'ОПЛАТИТЬ😍', url: TRIBUTE_CHECKOUT_URL };
       }
       // «Выбрать тариф» из любого сообщения — с меткой сообщения, чтобы в аналитике было видно, откуда нажали (14.11)
       if (b.callback === 'choose_tariff') return { text: b.text, callback_data: `choose_tariff:${short}` };
@@ -542,7 +544,8 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
       // Дожимные (14.11): «Хочу в сообщество», «Вступить…» и т. п. — не в приложение, а сообщение «Выбери свой тариф» в боте
       if (b.url === undefined && b.screen === 'tariffs' && tpl.isMarketing) return { text: b.text, callback_data: `choose_tariff:${short}` };
       if (b.url === undefined) return openAppButton(b.text, `m_${short}_${b.screen}`);
-      let url = b.url.replace(/\{(\w+)\}/g, (_m, k: string) => (vars[k] === undefined ? '' : String(vars[k])));
+      let url = b.url === LEGACY_TRIBUTE_CHECKOUT_URL ? TRIBUTE_CHECKOUT_URL :
+        b.url.replace(/\{(\w+)\}/g, (_m, k: string) => (vars[k] === undefined ? '' : String(vars[k])));
       // Кнопки оплаты ведут на наш сервер — добавляем метку сообщения и кнопки для аналитики (человек ничего не замечает)
       if (url.startsWith(`${config.PUBLIC_URL.replace(/\/$/, '')}/pay/`)) url += `${url.includes('?') ? '&' : '?'}m=${short}&k=${encodeURIComponent(`url:${b.url}`)}`;
       return /^https?:\/\//.test(url) ? { text: b.text, url } : null;
