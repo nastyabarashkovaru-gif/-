@@ -580,7 +580,7 @@ describe('оплата из бота (12.11)', () => {
     expect(f.current!.steps[3].note).toContain('3 месяца — 1');
     // «Оплатить зарубежной картой» — через наш адрес, нажатие считается
     const tr = await app.inject({ method: 'GET', url: new URL(kb[3].url!).pathname });
-    expect(tr.headers.location).toBe('https://web.tribute.tg/s/1bGq');
+    expect(tr.headers.location).toBe('https://t.me/tribute/app?startapp=s1bGq');
     expect((await homeBotFunnel({ from: '2026-11-12', to: '2026-11-12' } as never)).current!.side.tribute).toBe(1);
     // оферта открывается страницей
     expect((await app.inject({ method: 'GET', url: '/doc/offer' })).body).toContain('Публичная оферта');
