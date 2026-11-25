@@ -524,7 +524,7 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
   // Кнопка-ссылка ({ text, url }) — например, личное приглашение в чат; без адреса не показывается
   const templateButtons = tpl.buttons as { text: string; screen?: string; url?: string; callback?: string }[];
   let tributeButtonAdded = false;
-  const buttons = templateButtons
+  const inlineButtons = templateButtons
     .map((b) => {
       const joinsClub = b.callback === 'choose_tariff' || (b.screen === 'tariffs' && tpl.isMarketing);
       const paymentLink = b.url && (
@@ -550,8 +550,11 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
       if (url.startsWith(`${config.PUBLIC_URL.replace(/\/$/, '')}/pay/`)) url += `${url.includes('?') ? '&' : '?'}m=${short}&k=${encodeURIComponent(`url:${b.url}`)}`;
       return /^https?:\/\//.test(url) ? { text: b.text, url } : null;
     })
-    .filter(Boolean)
-    .map((b) => [b]);
+    .filter((button) => button !== null);
+  if (key === 'payment_success' && typeof vars.chat_url === 'string' && vars.chat_url && !inlineButtons.some((button) => 'url' in button && button.url === vars.chat_url)) {
+    inlineButtons.push({ text: 'Зайти в чат 💬', url: vars.chat_url });
+  }
+  const buttons = inlineButtons.map((button) => [button]);
   // Пустая переменная не оставляет лишних пустых строк
   const tributeText = config.BOT_TRIBUTE_ONLY && (
     key === 'tariffs_pick' ? 'Выбери тариф и оплати участие в Tribute 👇🏼' :
@@ -567,8 +570,6 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
       await tg('sendMessage', { chat_id: Number(userId), text, parse_mode: 'HTML', reply_markup: markup });
     }
     await prisma.botMessageLog.update({ where: { id }, data: { status: 'sent' } });
-    await track({ userId, eventName: 'bot_message_sent', metadata: { template: key, logId: id } });
-    return 'sent';
   } catch (e) {
     const err = e as TelegramError;
     await prisma.botMessageLog.update({ where: { id }, data: { status: 'failed', error: err.message?.slice(0, 300) } });
@@ -576,6 +577,8 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
     await track({ userId, eventName: 'bot_message_failed', metadata: { template: key, code: err.code } });
     return 'failed';
   }
+  await track({ userId, eventName: 'bot_message_sent', metadata: { template: key, logId: id } }).catch(() => console.warn('[bot] не записали событие отправки'));
+  return 'sent';
 }
 
 setNotifier(sendTemplate);

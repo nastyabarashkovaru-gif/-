@@ -8,6 +8,7 @@ import { decideStoryRequest } from '../src/modules/stories';
 import { paymentProvider, setPaymentProvider } from '../src/payments';
 import { MockProvider, signMock } from '../src/payments/mock';
 import { handleWebhook } from '../src/modules/billing';
+import { deliverPaymentAccess } from '../src/modules/paymentAccess';
 import { dashboard } from '../src/modules/adminAnalytics';
 import { CloudPaymentsProvider } from '../src/payments/cloudpayments';
 import { adminBotLinkCode, adminBotSecret, setAdminBotTransport } from '../src/modules/adminBot';
@@ -60,6 +61,7 @@ describe('после оплаты', () => {
     });
     await prisma.user.create({ data: { id: 950n, firstName: 'Аня', allowsWrite: true } });
     await buy(950);
+    await deliverPaymentAccess();
     const msg = calls.find((c) => c.method === 'sendMessage' && Number(c.body.chat_id) === 950 && String(c.body.text).includes('Скорее заполняй анкету'))!;
     expect(msg).toBeTruthy();
     expect(String(msg.body.text)).not.toContain('определена в пару'); // 14.11: без скобок про пару

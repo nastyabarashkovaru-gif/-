@@ -18,7 +18,7 @@ import {
 } from '../modules/billing';
 
 import { offerDoc, privacyDoc } from '../legal/docs';
-import { CloudPaymentsProvider, cpVerify, payPageSig, type CpKind } from '../payments/cloudpayments';
+import { CloudPaymentsProvider, cpAmount, cpVerify, payPageSig, type CpKind } from '../payments/cloudpayments';
 import { chargeDateFor, coverage, fromDbDate, planRenewal } from '@thirty/domain';
 import { applyPromo } from '../modules/promos';
 import { escAdmin, notifyAdmins } from '../modules/adminBot';
@@ -344,10 +344,10 @@ h2{margin:8px 0 0;font-size:22px}.sum{font-size:34px;font-weight:700;margin:0;co
 async function cpCheck(body: Record<string, unknown>): Promise<number> {
   const id = String(body.InvoiceId ?? '');
   if (!id) return Number(body.SubscriptionId ? 0 : 10);
-  const p = await prisma.payment.findUnique({ where: { id } }).catch(() => null);
+  const p = await prisma.payment.findUnique({ where: { id } });
   if (!p) return 10;
   if (String(body.AccountId ?? '') !== p.userId.toString()) return 11;
-  if (Math.round(Number(body.Amount)) !== p.amount) return 12;
+  if (body.Currency !== 'RUB' || cpAmount(body.Amount) !== p.amount) return 12;
   if (p.status === 'paid') return 13;
   if (p.priceVariant === 'promo' && p.kind === 'initial') {
     const offer = await prisma.priceOffer.findFirst({ where: { userId: p.userId, consumedAt: null, expiresAt: { gt: new Date(clock.now().getTime() - 15 * 60_000) } } });
