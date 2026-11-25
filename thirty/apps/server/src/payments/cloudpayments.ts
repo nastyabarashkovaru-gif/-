@@ -12,6 +12,13 @@ import type { CreatePaymentInput, ParsedWebhook, PaymentProvider, SubscriptionRe
 const API = 'https://api.cloudpayments.ru';
 const str = (v: unknown) => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : undefined);
 
+export function cpAmount(value: unknown) {
+  const amount = str(value);
+  if (!amount || !/^\d+(?:\.\d{1,2})?$/.test(amount)) return null;
+  const number = Number(amount);
+  return Number.isFinite(number) ? number : null;
+}
+
 export function cpSign(raw: string, secret = config.CP_API_SECRET) {
   return createHmac('sha256', secret).update(raw, 'utf8').digest('base64');
 }
@@ -57,12 +64,12 @@ export class CloudPaymentsProvider implements PaymentProvider {
     const kind = __kind ?? 'pay';
     const invoice = str(data.InvoiceId) || null;
     const subId = str(data.SubscriptionId) || (kind === 'recurrent' ? str(data.Id) : undefined) || null;
-    const amount = str(data.Amount);
     const base = {
       valid,
       paymentId: invoice,
       providerOrderId: str(data.TransactionId) ? `cp:${str(data.TransactionId)}` : null,
-      amount: amount ? Math.round(Number(amount)) : null,
+      amount: cpAmount(data.Amount),
+      currency: str(data.Currency) ?? null,
       providerSubscriptionId: subId,
       nextChargeDate: null as string | null,
       subscriptionActive: null as boolean | null,

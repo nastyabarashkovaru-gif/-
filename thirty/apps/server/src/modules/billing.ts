@@ -7,7 +7,7 @@ import type { Payment, Prisma, Subscription, Tariff } from '@prisma/client';
 import { clock } from '../clock';
 import { config } from '../config';
 import { prisma, serializable, isUniqueViolation, type Tx } from '../db';
-import { badRequest, conflict, forbidden, notFound } from '../http';
+import { badRequest, conflict, forbidden, HttpError, notFound } from '../http';
 import { getSetting } from '../settings';
 import { paymentProvider } from '../payments';
 import type { ParsedWebhook, SubscriptionRef } from '../payments/types';
@@ -214,7 +214,7 @@ export function appUrl(startParam: string) {
 
 /**
  * Единая точка обработки уведомлений провайдера. Доступ выдаётся только здесь (не по redirect клиента).
- * Повторный webhook отсекается по хэшу тела и по уникальному id операции провайдера.
+ * Один обработчик захватывает уведомление. После сбоя его можно обработать повторно.
  */
 export async function handleWebhook(parsed: ParsedWebhook, rawBody: string) {
   const bodyHash = createHash('sha256').update(rawBody).digest('hex');
@@ -224,28 +224,44 @@ export async function handleWebhook(parsed: ParsedWebhook, rawBody: string) {
       data: { provider: paymentProvider().name, bodyHash, signatureValid: parsed.valid, status: parsed.status, payload: parsed.raw as object, paymentId: null },
     });
   } catch (e) {
-    if (isUniqueViolation(e)) return { duplicate: true };
-    throw e;
+    if (!isUniqueViolation(e)) throw e;
+    event = await prisma.paymentEvent.findUniqueOrThrow({ where: { bodyHash } });
   }
-  if (!parsed.valid) {
-    await prisma.paymentEvent.update({ where: { id: event.id }, data: { error: 'bad_signature', processedAt: clock.now() } });
-    return { rejected: 'bad_signature' };
+  if (event.processedAt) return { duplicate: true };
+  const now = clock.now();
+  const processingUntil = new Date(now.getTime() + 2 * 60_000);
+  const claimed = await prisma.paymentEvent.updateMany({
+    where: { id: event.id, processedAt: null, OR: [{ processingUntil: null }, { processingUntil: { lte: now } }] },
+    data: { processingUntil },
+  });
+  if (!claimed.count) {
+    const current = await prisma.paymentEvent.findUniqueOrThrow({ where: { id: event.id }, select: { processedAt: true } });
+    if (current.processedAt) return { duplicate: true };
+    throw new HttpError(503, 'payment_event_processing');
   }
-  // Уведомления по другим продуктам магазина (не «30 дней») — пропускаем с ответом 200, чтобы провайдер не повторял
-  if (!(await isOurEvent(parsed))) {
-    await prisma.paymentEvent.update({ where: { id: event.id }, data: { processedAt: clock.now(), error: 'foreign_event_ignored' } });
-    return { ignored: 'foreign' };
-  }
+
+  const claim = { id: event.id, processingUntil };
   try {
-    let result: unknown;
-    if (parsed.kind === 'payment' && parsed.paymentId) result = await handlePaymentEvent(parsed, event.id);
+    let result: unknown = { ignored: true };
+    let error: string | null = null;
+    if (!parsed.valid) {
+      error = 'bad_signature';
+      result = { rejected: error };
+    } else if (!(await isOurEvent(parsed))) {
+      // Уведомления других продуктов магазина подтверждаем, чтобы провайдер не повторял доставку.
+      error = 'foreign_event_ignored';
+      result = { ignored: 'foreign' };
+    } else if (parsed.kind === 'payment' && parsed.paymentId) result = await handlePaymentEvent(parsed, event.id);
     else if (parsed.kind === 'renewal') result = await handleRenewalEvent(parsed);
     else if (parsed.kind === 'subscription_status') result = await handleSubscriptionStatus(parsed);
-    else result = { ignored: true };
-    await prisma.paymentEvent.update({ where: { id: event.id }, data: { processedAt: clock.now() } });
+    const completed = await prisma.paymentEvent.updateMany({
+      where: claim,
+      data: { processedAt: clock.now(), processingUntil: null, error, signatureValid: parsed.valid },
+    });
+    if (!completed.count) throw new HttpError(503, 'payment_event_processing');
     return result;
   } catch (e) {
-    await prisma.paymentEvent.update({ where: { id: event.id }, data: { error: (e as Error).message.slice(0, 500) } });
+    await prisma.paymentEvent.updateMany({ where: claim, data: { processingUntil: null, error: (e as Error).message.slice(0, 500) } });
     throw e;
   }
 }
@@ -253,7 +269,7 @@ export async function handleWebhook(parsed: ParsedWebhook, rawBody: string) {
 /** Событие относится к «30 дням»: наш номер заказа или подписка одного из наших тарифов / уже известная подписка */
 async function isOurEvent(p: ParsedWebhook): Promise<boolean> {
   if (p.customer.accountId && /^\d+$/.test(p.customer.accountId) && (await prisma.subscription.findFirst({ where: { userId: BigInt(p.customer.accountId) } }))) return true;
-  if (p.paymentId && (await prisma.payment.findUnique({ where: { id: p.paymentId } }).catch(() => null))) return true;
+  if (p.paymentId && (await prisma.payment.findUnique({ where: { id: p.paymentId } }))) return true;
   if (p.providerSubscriptionId) {
     const known = await prisma.subscription.findFirst({ where: { providerSubscriptionId: p.providerSubscriptionId } });
     if (known) return true;
@@ -265,9 +281,16 @@ async function handlePaymentEvent(p: ParsedWebhook, eventId: string) {
   const payment = await prisma.payment.findUnique({ where: { id: p.paymentId! } });
   if (!payment) throw new Error(`payment ${p.paymentId} not found`);
   await prisma.paymentEvent.update({ where: { id: eventId }, data: { paymentId: payment.id } });
+  if (payment.status === 'refunded') return { ignored: 'already_refunded' };
   if (p.status === 'paid') {
+    if (payment.status === 'paid') return { alreadyPaid: true };
+    if (p.currency !== undefined && (p.currency !== 'RUB' || p.customer.accountId !== payment.userId.toString() || p.amount === null)) {
+      const reason = p.currency !== 'RUB' ? 'currency_mismatch' : p.customer.accountId !== payment.userId.toString() ? 'account_mismatch' : 'missing_amount';
+      await prisma.payment.updateMany({ where: { id: payment.id, status: { notIn: ['paid', 'refunded'] } }, data: { status: 'disputed', failureReason: reason } });
+      return { disputed: reason };
+    }
     if (p.amount !== null && p.amount !== payment.amount) {
-      await prisma.payment.update({ where: { id: payment.id }, data: { status: 'disputed', failureReason: `amount_mismatch:${p.amount}` } });
+      await prisma.payment.updateMany({ where: { id: payment.id, status: { notIn: ['paid', 'refunded'] } }, data: { status: 'disputed', failureReason: `amount_mismatch:${p.amount}` } });
       return { disputed: 'amount_mismatch' };
     }
     if (payment.kind === 'debt') return markDebtPaid(payment, p);
@@ -313,7 +336,7 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
 
   const outcome = await serializable(async (tx) => {
     const fresh = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } });
-    if (fresh.status === 'paid') return { alreadyPaid: true as const };
+    if (fresh.status === 'paid' || fresh.status === 'refunded') return { alreadyPaid: true as const };
     const live = await blockingSubscription(payment.userId, firstFlow, tx);
     if (live) {
       // Вторая оплата при живой подписке: деньги приняты, доступ не дублируется, нужен возврат

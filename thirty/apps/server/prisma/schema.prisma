@@ -263,11 +263,12 @@ model PaymentEvent {
   provider       String
   paymentId      String?
   payment        Payment?  @relation(fields: [paymentId], references: [id])
-  bodyHash       String    @unique // повторный webhook отсекается
+  bodyHash       String    @unique
   signatureValid Boolean
   status         String?
   payload        Json
   processedAt    DateTime?
+  processingUntil DateTime?
   error          String?
   createdAt      DateTime  @default(now())
 }

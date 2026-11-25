@@ -22,6 +22,8 @@ export interface ParsedWebhook {
   providerOrderId: string | null;
   status: 'paid' | 'failed' | 'canceled' | 'refunded' | 'unknown';
   amount: number | null;
+  /** Валюта терминала. null — провайдер не передал её в уведомлении. */
+  currency?: string | null;
   providerSubscriptionId: string | null;
   /** Следующая дата списания по данным провайдера, если пришла */
   nextChargeDate: string | null;
