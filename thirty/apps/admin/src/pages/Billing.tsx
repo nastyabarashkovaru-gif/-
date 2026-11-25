@@ -90,7 +90,20 @@ export function Payments() {
   const KIND: Record<string, string> = { initial: 'Первая покупка', renewal: 'Продление', debt: 'Продление (долг)', upsell: 'Доп. покупка' };
   const rows = (list.data ?? []).map((p: any) => ({ ...p, at: p.paidAt ?? p.createdAt, name: p.userName, userId: p.userId, tariff: p.tariffId ? `${p.tariffId.replace('m', '')} мес` : '—', kindTitle: KIND[p.kind] ?? p.kind }));
   const paidSum = rows.filter((p: any) => p.status === 'paid' && !p.test).reduce((a: number, p: any) => a + p.amount, 0);
-  const issues = rec.data ? rec.data.needsRefund.length + rec.data.stuckPending.length + rec.data.webhookErrors.length + rec.data.chargeDateSyncErrors.length + rec.data.disputed.length : 0;
+  const issues = rec.data ? rec.data.needsRefund.length + rec.data.stuckPending.length + rec.data.webhookErrors.length + rec.data.chargeDateSyncErrors.length + rec.data.disputed.length + rec.data.accessIssues : 0;
+  const delivery = sel?.accessDelivery;
+  const canSendInvite = sel?.status === 'paid' && sel.kind === 'initial' && !sel.needsRefund && sel.subscriptionId &&
+    (!delivery || delivery.status === 'failed' || (delivery.status === 'pending' && delivery.lastError));
+  const deliveryLabels: Record<string, string> = {
+    pending: 'Ожидает отправки', sending: 'Отправляется', sent: 'Отправлено', joined: 'Участник уже в чате', failed: 'Не удалось отправить', canceled: 'Доступ не действует',
+  };
+  const requestInvite = async () => {
+    const queued = await withReason('Поставить приглашение в очередь', async (reason) => {
+      const updated = await api(`/admin-api/payments/${sel.id}/access-delivery`, { body: { reason } });
+      setSel((current: any) => current?.id === sel.id ? { ...current, accessDelivery: updated } : current);
+    });
+    if (queued) { list.reload(); rec.reload(); }
+  };
   return (
     <>
       <h1 className="page-title">Все оплаты</h1>
@@ -114,10 +127,13 @@ export function Payments() {
             <div><span>Тип</span><b>{sel.kindTitle}</b></div>
             <div><span>Статус</span><b>{(STATUS_RU[sel.status] ?? [sel.status])[0]}{sel.needsRefund ? ' · нужен возврат' : ''}</b></div>
             <div><span>Покрывает</span><b>{d(sel.coversFromFlow)}{sel.months ? ` × ${sel.months} мес` : ''}</b></div>
+            {delivery && <div><span>Приглашение в чат</span><b>{deliveryLabels[delivery.status]}</b></div>}
+            {delivery?.lastError && <div><span>Ошибка приглашения</span><b>{delivery.lastError}</b></div>}
             {sel.failureReason && <div><span>Причина</span><b>{sel.failureReason}</b></div>}
             <div><span>Тестовая</span><b>{sel.test ? 'да — не входит в выручку' : 'нет'}</b></div>
           </div>
           <div className="col">
+            {canSendInvite && <button className="btn big light" onClick={requestInvite}>Отправить приглашение</button>}
             {sel.status === 'paid' && <button className="btn big light" onClick={async () => { if (await withReason('Отметить возврат (деньги возвращаются в кабинете CloudPayments)', (reason) => api(`/admin-api/payments/${sel.id}/refund`, { body: { reason } }))) { setSel(null); list.reload(); } }}>Отметить возврат</button>}
             {(sel.status === 'paid' || sel.status === 'refunded') && <button className="btn big light" onClick={async () => { await api(`/admin-api/payments/${sel.id}/test`, { body: { test: !sel.test } }); setSel(null); list.reload(); }}>{sel.test ? 'Это настоящая оплата' : 'Пометить как тестовую'}</button>}
           </div>
@@ -132,6 +148,7 @@ export function Payments() {
             <div><span>Ошибки уведомлений</span><b>{r.webhookErrors.length}</b></div>
             <div><span>Не перенесена дата списания</span><b>{r.chargeDateSyncErrors.length}</b></div>
             <div><span>Расхождение суммы</span><b>{r.disputed.length}</b></div>
+            <div><span>Проблемы с приглашениями в чат</span><b>{r.accessIssues}</b></div>
           </div>
         )}</View>
       )}

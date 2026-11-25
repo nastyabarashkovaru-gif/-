@@ -231,10 +231,31 @@ model Payment {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  events PaymentEvent[]
+  events         PaymentEvent[]
+  accessDelivery PaymentAccessDelivery?
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
+}
+
+enum PaymentAccessDeliveryStatus {
+  pending
+  sending
+  sent
+  joined
+  failed
+  canceled
+}
+
+model PaymentAccessDelivery {
+  paymentId     String                      @id
+  payment       Payment                     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  status        PaymentAccessDeliveryStatus @default(pending)
+  attempts      Int                         @default(0)
+  nextAttemptAt DateTime                    @default(now())
+  lastError     String?
+
+  @@index([status, nextAttemptAt])
 }
 
 model PaymentEvent {

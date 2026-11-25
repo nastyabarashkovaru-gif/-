@@ -6,6 +6,9 @@ import { paymentProvider, setPaymentProvider } from '../src/payments';
 import { MockProvider } from '../src/payments/mock';
 import { signPayload, verifyPayload, normalize } from '../src/payments/sign';
 import { handleWebhook, markRefunded, refreshSubscriptionStatuses } from '../src/modules/billing';
+import { deliverPaymentAccess, requestPaymentAccessDelivery } from '../src/modules/paymentAccess';
+import { setTelegramTransport, TelegramError } from '../src/lib/telegram';
+import { DEFAULT_TEMPLATES } from '../src/modules/templates';
 
 const U = 500;
 const CONSENTS = ['personal_data', 'offer', 'public_reports', 'adult', 'autorenew'];
@@ -64,6 +67,60 @@ describe('таймер предложения', () => {
 });
 
 describe('оплата и права доступа', () => {
+  it('сохраняет приглашение вместе с оплатой и повторяет доставку после ошибок Telegram', async () => {
+    const co = await buy(U, 'm1');
+    const tpl = DEFAULT_TEMPLATES.find((t) => t.key === 'payment_success')!;
+    await prisma.botMessageTemplate.create({ data: { ...tpl, buttons: [] } });
+    const evt = paidEvent(co.paymentId, co.amount, U);
+    await webhook(evt);
+    await webhook(evt);
+    expect(await prisma.subscription.count()).toBe(1);
+    expect(await prisma.paymentAccessDelivery.findMany()).toMatchObject([{ paymentId: co.paymentId, status: 'pending', attempts: 0 }]);
+    const membership = await prisma.flowMembership.findFirstOrThrow();
+    await prisma.telegramChat.create({ data: { kind: 'flow', flowId: membership.flowId, telegramChatId: -1001n, title: 'Чат клуба' } });
+    const inviteUrl = 'https://t.me/+testInvite';
+    const messages: Record<string, unknown>[] = [];
+    let invites = 0;
+    setTelegramTransport(async (method, body) => {
+      if (method === 'createChatInviteLink') return { invite_link: ++invites === 1 ? '' : inviteUrl } as never;
+      if (method === 'sendMessage') {
+        messages.push(body);
+        if (messages.length === 1) throw new TelegramError(method, 503, 'Temporary failure');
+      }
+      return { message_id: 1 } as never;
+    });
+    const row = () => prisma.paymentAccessDelivery.findUniqueOrThrow({ where: { paymentId: co.paymentId } });
+
+    await deliverPaymentAccess();
+    expect(await row()).toMatchObject({ status: 'pending', attempts: 1 });
+    expect(messages).toHaveLength(0);
+    expect(await prisma.chatMembership.count()).toBe(0);
+
+    clock.set('2026-10-21T09:01:00Z');
+    await deliverPaymentAccess();
+    expect(await row()).toMatchObject({ status: 'pending', attempts: 2 });
+
+    expect(await requestPaymentAccessDelivery(co.paymentId)).toMatchObject({ status: 'pending', lastError: null });
+    await Promise.all([deliverPaymentAccess(), deliverPaymentAccess()]);
+    expect(await row()).toMatchObject({ status: 'sent', attempts: 3, lastError: null });
+    expect(messages).toHaveLength(2);
+    expect(messages[1].reply_markup).toEqual({ inline_keyboard: [[{ text: 'Зайти в чат 💬', url: inviteUrl }]] });
+    expect(invites).toBe(2);
+    expect(await requestPaymentAccessDelivery(co.paymentId)).toMatchObject({ status: 'sent', attempts: 3 });
+  });
+
+  it('позволяет поставить старую оплату в очередь и отменяет отправку после возврата', async () => {
+    const co = await buy(U, 'm1');
+    await webhook(paidEvent(co.paymentId, co.amount, U));
+    await prisma.paymentAccessDelivery.delete({ where: { paymentId: co.paymentId } });
+    expect(await requestPaymentAccessDelivery(co.paymentId)).toMatchObject({ status: 'pending', attempts: 0 });
+
+    await markRefunded(co.paymentId, 'admin');
+    await deliverPaymentAccess();
+    expect(await prisma.paymentAccessDelivery.findUniqueOrThrow({ where: { paymentId: co.paymentId } })).toMatchObject({ status: 'canceled' });
+    await expect(requestPaymentAccessDelivery(co.paymentId)).rejects.toMatchObject({ code: 'payment_access_unavailable' });
+  });
+
   it('без согласий оплатить нельзя', async () => {
     clock.set('2026-10-21T09:00:00Z');
     const co = await api('POST', '/api/checkout', U, { tariffId: 'm1', idempotencyKey: 'no-consent-1' });

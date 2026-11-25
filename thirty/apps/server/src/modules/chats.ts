@@ -61,7 +61,8 @@ export async function inviteLinkFor(userId: bigint, chatId: string) {
   // Демо: настоящих чатов нет, ссылку не создаём
   if (config.DEMO_MODE) return { url: null, joined: false, demo: true };
   const ttlHours = await getSetting('chats.inviteTtlHours');
-  const fresh = existing?.inviteLink && existing.updatedAt.getTime() > clock.now().getTime() - (ttlHours - 1) * 3600_000;
+  const fresh = existing?.inviteLink && isTelegramInvite(existing.inviteLink) &&
+    existing.updatedAt.getTime() > clock.now().getTime() - (ttlHours - 1) * 3600_000;
   let url = fresh ? existing!.inviteLink! : null;
   if (!url) {
     const link = await tg<{ invite_link: string }>('createChatInviteLink', {
@@ -70,6 +71,7 @@ export async function inviteLinkFor(userId: bigint, chatId: string) {
       creates_join_request: true,
       expire_date: Math.floor(clock.now().getTime() / 1000) + ttlHours * 3600,
     });
+    if (!isTelegramInvite(link.invite_link)) throw new TelegramError('createChatInviteLink', 0, 'Недействительная ссылка-приглашение');
     url = link.invite_link;
     await prisma.chatMembership.upsert({
       where: { chatId_userId: { chatId, userId } },
@@ -79,6 +81,10 @@ export async function inviteLinkFor(userId: bigint, chatId: string) {
   }
   await track({ userId, eventName: 'chat_link_open', screenId: 'S27', metadata: { chat: chat.kind, topic: chat.topic } });
   return { url, joined: false };
+}
+
+function isTelegramInvite(value: string) {
+  return /^https:\/\/t\.me\/(?:\+|joinchat\/)[\w-]+$/.test(value);
 }
 
 /** id нашего бота — первая часть токена */

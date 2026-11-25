@@ -126,7 +126,7 @@ export async function checkoutPreview(userId: bigint, tariffId: string, comeback
   };
 }
 
-function monthName(iso: ISODate) {
+export function monthName(iso: ISODate) {
   const names = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
   return `${names[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
 }
@@ -351,6 +351,11 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
     await redeemOnPayment(tx, payment.userId, payment.id, now);
     await tx.priceOffer.updateMany({ where: { userId: payment.userId, consumedAt: null, expiresAt: { gt: now } }, data: { consumedAt: now } });
     await tx.user.update({ where: { id: payment.userId }, data: { onboardingStage: 'paid', ...(tariff.months >= 6 ? { sixMonthBadge: true } : {}) } });
+    if (!config.DEMO_MODE) await tx.paymentAccessDelivery.upsert({
+      where: { paymentId: payment.id },
+      create: { paymentId: payment.id, nextAttemptAt: now },
+      update: {},
+    });
     return { subscription: sub };
   });
 
@@ -365,26 +370,13 @@ async function markInitialPaid(payment: Payment, p: ParsedWebhook) {
   await registerBotConversion(payment.userId);
   paymentAlert('initial', { userId: payment.userId, amount: payment.amount, tariffId: tariff.id, test: p.test });
   await track({ userId: payment.userId, eventName: 'payment_success', screenId: 'S09', tariffId: tariff.id, metadata: { amount: payment.amount, paymentId: payment.id }, dedupeKey: `payment_success:${payment.id}` });
-  await notify(
+  if (config.DEMO_MODE) await notify(
     payment.userId,
     'payment_success',
-    { tariff: tariff.title, flows: flows.map(monthName).join(', '), next_date: humanDate(chargeDate, true), next_amount: payment.amount, chat_url: await flowChatLink(payment.userId) },
+    { tariff: tariff.title, flows: flows.map(monthName).join(', '), next_date: humanDate(chargeDate, true), next_amount: payment.amount, chat_url: '' },
     `payment_success:${payment.id}`,
   );
   return { subscriptionId: sub.id };
-}
-
-/** Личная ссылка-приглашение в общий чат потока — сразу после оплаты (без чата или при ошибке Telegram — пусто) */
-async function flowChatLink(userId: bigint) {
-  try {
-    const { accessibleChats, inviteLinkFor } = await import('./chats');
-    const chat = (await accessibleChats(userId)).find((c) => c.kind === 'flow');
-    if (!chat) return '';
-    return (await inviteLinkFor(userId, chat.id)).url ?? '';
-  } catch (e) {
-    console.warn('[billing] chat link', (e as Error).message);
-    return '';
-  }
 }
 
 function refOf(sub: Subscription): SubscriptionRef | null {

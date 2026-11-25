@@ -24,6 +24,7 @@ import { adminReplaceBuddy, dissolvePair, runBuddyQueue } from '../modules/buddy
 import { displayName } from '../modules/users';
 import { track } from '../modules/analytics';
 import { notify } from '../modules/notify';
+import { requestPaymentAccessDelivery } from '../modules/paymentAccess';
 import { computeStats } from '@thirty/domain';
 
 function range(q: { from?: string; to?: string }) {
@@ -219,7 +220,7 @@ export async function adminRoutes(app: FastifyInstance) {
         orderBy: { createdAt: 'desc' },
         take: 100,
         ...(q.cursor ? { cursor: { id: q.cursor }, skip: 1 } : {}),
-        include: { user: true },
+        include: { user: true, accessDelivery: true },
       });
       return jsonSafe(rows.map((p) => ({ ...p, userName: displayName(p.user), user: undefined, paymentUrl: undefined })));
     });
@@ -231,7 +232,16 @@ export async function adminRoutes(app: FastifyInstance) {
         needsRefund: await prisma.payment.findMany({ where: { needsRefund: true } }),
         chargeDateSyncErrors: await prisma.billingSchedule.findMany({ where: { syncError: { not: null }, status: 'scheduled' }, take: 100 }),
         disputed: await prisma.payment.findMany({ where: { status: 'disputed' }, take: 100 }),
+        accessIssues: await prisma.paymentAccessDelivery.count({
+          where: { payment: { status: 'paid', test: false }, OR: [{ status: 'failed' }, { status: 'pending', lastError: { not: null } }] },
+        }),
       });
+    });
+    r.post<{ Params: { id: string } }>('/admin-api/payments/:id/access-delivery', perm('payments'), async (req) => {
+      const { reason } = parse(z.object({ reason: z.string().min(3).max(500) }), req.body);
+      const delivery = await requestPaymentAccessDelivery(req.params.id);
+      await audit(req, 'payment.access_delivery.request', 'payment', req.params.id, { reason, after: { status: delivery.status } });
+      return delivery;
     });
     r.post<{ Params: { id: string } }>('/admin-api/payments/:id/refund', perm('refunds'), async (req) => {
       const { reason } = parse(z.object({ reason: z.string().min(3).max(500) }), req.body);
