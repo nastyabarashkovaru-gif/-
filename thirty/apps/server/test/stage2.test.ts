@@ -39,6 +39,19 @@ describe('Telegram initData', () => {
 });
 
 describe('цели и задачи', () => {
+  it('сохраняет больше десяти задач к одной цели и включает их в план', async () => {
+    clock.set('2026-10-21T10:00:00Z');
+    const { goalId } = await setupGoal(14);
+    for (let i = 2; i <= 15; i++) {
+      const res = await api('POST', `/api/goals/${goalId}/tasks`, 14, { title: `Действие ${i}`, frequency: 'daily' });
+      expect(res.status).toBe(200);
+    }
+    const plan = (await api('GET', '/api/membership', 14)).body.membership.goals[0];
+    expect(plan.tasks).toHaveLength(15);
+    expect(plan.tasks.at(-1)).toMatchObject({ title: 'Действие 15' });
+    expect((await api('POST', '/api/membership/fix', 14)).body.occurrences).toBe(15 * 30);
+  });
+
   it('лимит целей: 1 месяц — одна (критерий №4)', async () => {
     clock.set('2026-10-21T10:00:00Z');
     await setupGoal(1, 'm1');

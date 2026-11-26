@@ -716,10 +716,15 @@ describe('цель после анкеты (16.11)', () => {
     await refreshFlowStatuses();
     expect((await api('GET', '/api/home', 4001)).body.canAddGoal).toBe(true);
     expect((await api('GET', '/api/home', 4002)).body.canAddGoal).toBe(false);
-    const body = { category: 'blog', title: 'Вести блог', pointA: '100 подписчиков', pointB: '1 000 подписчиков', tasks: [{ title: 'Рилс', frequency: 'daily' }, { title: 'Эфир', frequency: 'once', dueDate: '2026-11-20' }] };
+    const tasks = [
+      ...Array.from({ length: 11 }, (_, i) => ({ title: `Рилс ${i + 1}`, frequency: 'daily' })),
+      { title: 'Эфир', frequency: 'once', dueDate: '2026-11-20' },
+    ];
+    const body = { category: 'blog', title: 'Вести блог', pointA: '100 подписчиков', pointB: '1 000 подписчиков', tasks };
     expect((await api('POST', '/api/goals/later', 4002, body)).status).toBe(409);
     const r = await api('POST', '/api/goals/later', 4001, body);
     expect(r.status).toBe(200);
+    expect(await prisma.task.count({ where: { goalId: r.body.id } })).toBe(12);
     const occ = await prisma.taskOccurrence.findMany({ where: { task: { goalId: r.body.id } }, orderBy: { windowEnd: 'asc' } });
     // прошлые дни (1–9 ноября) не добавлены — процент не портится задним числом
     expect(occ[0].windowEnd.toISOString().slice(0, 10)).toBe('2026-11-10');
