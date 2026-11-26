@@ -9,6 +9,7 @@ import { flowToday, memberToday, memberWindow } from './flows';
 import { track } from './analytics';
 
 export const CONFIRM_METHODS = ['screenshot', 'photo_video', 'document', 'daily_reports', 'other'] as const;
+const MAX_TASKS_PER_GOAL = 100;
 
 export const goalInput = z.object({
   category: z.enum(['money', 'weightloss', 'blog', 'english', 'habits', 'selfdev', 'other']),
@@ -111,7 +112,7 @@ export async function createTask(userId: bigint, goalId: string, input: z.infer<
   if (input.frequency === 'n_per_week' && input.n > 7) throw badRequest('bad_schedule', 'Не больше 7 раз в неделю');
   const dueDate = checkDueDate(goal.membership, input.frequency, input.dueDate);
   const count = await prisma.task.count({ where: { goalId } });
-  if (count >= 10) throw conflict('task_limit', 'Не больше 10 задач на цель');
+  if (count >= MAX_TASKS_PER_GOAL) throw conflict('task_limit', `Не больше ${MAX_TASKS_PER_GOAL} задач на цель`);
   const { evidence, selfReported } = await policyEvidence(goal.category, input.evidence);
   const task = await prisma.task.create({
     data: { goalId, title: input.title, frequency: input.frequency, n: input.frequency === 'daily' || input.frequency === 'once' ? 1 : input.n, dueDate, evidence, selfReported, criteria: input.criteria },
@@ -400,7 +401,7 @@ export const laterGoalInput = z.object({
   title: z.string().trim().min(3).max(200),
   pointA: z.string().trim().min(2).max(300),
   pointB: z.string().trim().min(2).max(300),
-  tasks: z.array(taskInput.pick({ title: true, frequency: true, n: true, dueDate: true })).min(1).max(10),
+  tasks: z.array(taskInput.pick({ title: true, frequency: true, n: true, dueDate: true })).min(1).max(MAX_TASKS_PER_GOAL),
 });
 
 /** Можно ли добавить ещё цель в идущий/ожидающий челлендж: анкета отправлена и тариф позволяет больше целей */
