@@ -82,7 +82,7 @@ describe('бот', () => {
     expect(how.body.photo).toMatch(/\/img\/bot-rules\.jpg$/);
     expect(how.body.caption).toContain('Чтобы вступить в сообщество');
     const kb = how.body.reply_markup.inline_keyboard.map((r: { text: string }[]) => r[0]);
-    expect(kb[0].text).toBe('ХОЧУ ОПЛАТИТЬ ВХОД! 🔥😍');
+    expect(kb[0].text).toBe('ХОЧУ ВСТУПИТЬ! 😍');
     expect(kb[0].callback_data).toMatch(/^choose_tariff:[0-9a-f]{32}$/); // 12.11: выбор тарифа прямо в боте (14.11 — с меткой сообщения для аналитики)
     expect(kb).toHaveLength(3);
     expect(kb[1]).toEqual({ text: 'ОТЗЫВЫ', url: 'https://t.me/+L6ES0lLCupFjYjk6' });

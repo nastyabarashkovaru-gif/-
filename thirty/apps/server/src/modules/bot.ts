@@ -3,7 +3,7 @@ import type { BotMessageTemplate } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma, isUniqueViolation } from '../db';
 import { openAppButton, tg, TelegramError } from '../lib/telegram';
-import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, HOW_TO_JOIN_BUTTONS, HOW_TO_JOIN_TEXT, REVIEWS_BUTTON, TARIFFS_PICK_TEXT, WELCOME_BUTTONS, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
+import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, HOW_TO_JOIN_BUTTONS, HOW_TO_JOIN_TEXT, JOIN_CLUB_BUTTON_TEXT, REVIEWS_BUTTON, TARIFFS_PICK_IMAGE, TARIFFS_PICK_TEXT, WELCOME_BUTTONS, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
 import { config } from '../config';
 import { setNotifier } from './notify';
 import { track } from './analytics';
@@ -521,12 +521,16 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
   }
   const short = id.replace(/-/g, '');
   vars = { ...(await linkVars()), ...vars };
+  const tributeTariffs = config.BOT_TRIBUTE_ONLY && key === 'tariffs_pick';
   // Кнопка-ссылка ({ text, url }) — например, личное приглашение в чат; без адреса не показывается
   const templateButtons = tpl.buttons as { text: string; screen?: string; url?: string; callback?: string }[];
   let tributeButtonAdded = false;
-  const inlineButtons = templateButtons
+  const inlineButtons = tributeTariffs ? [{ text: 'ХОЧУ ОПЛАТИТЬ 🔥', url: TRIBUTE_CHECKOUT_URL }] : templateButtons
     .map((b) => {
       const joinsClub = b.callback === 'choose_tariff' || (b.screen === 'tariffs' && tpl.isMarketing);
+      if (key === 'how_to_join' && (joinsClub || b.screen === 'tariffs')) {
+        return { text: JOIN_CLUB_BUTTON_TEXT, callback_data: `choose_tariff:${short}` };
+      }
       const paymentLink = b.url && (
         /^\{pay_(?:m1|m3|m6|again|tribute)\}$/.test(b.url) ||
         b.url === TRIBUTE_CHECKOUT_URL ||
@@ -556,14 +560,11 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
   }
   const buttons = inlineButtons.map((button) => [button]);
   // Пустая переменная не оставляет лишних пустых строк
-  const tributeText = config.BOT_TRIBUTE_ONLY && (
-    key === 'tariffs_pick' ? 'Выбери тариф и оплати участие в Tribute 👇🏼' :
-    key === 'pay_retry' ? 'Оплата не завершилась. Попробуй оплатить участие через Tribute 👇🏼' : ''
-  );
+  const tributeText = config.BOT_TRIBUTE_ONLY && key === 'pay_retry' ? 'Оплата не завершилась. Попробуй оплатить участие через Tribute 👇🏼' : '';
   const text = render(tributeText || tpl.text, vars).replace(/\n{3,}/g, '\n\n').trim();
   try {
     const markup = buttons.length ? { inline_keyboard: buttons } : undefined;
-    const image = imageUrlOf(config.BOT_TRIBUTE_ONLY && key === 'tariffs_pick' ? null : tpl.imageUrl);
+    const image = imageUrlOf(tpl.imageUrl ?? (tributeTariffs ? TARIFFS_PICK_IMAGE : null));
     if (image && text.length <= 1024) await tg('sendPhoto', { chat_id: Number(userId), photo: image, caption: text, parse_mode: 'HTML', reply_markup: markup });
     else {
       if (image) await tg('sendPhoto', { chat_id: Number(userId), photo: image });

@@ -13,6 +13,7 @@ import { dashboard } from '../src/modules/adminAnalytics';
 import { CloudPaymentsProvider } from '../src/payments/cloudpayments';
 import { adminBotLinkCode, adminBotSecret, setAdminBotTransport } from '../src/modules/adminBot';
 import { config } from '../src/config';
+import { TRIBUTE_CHECKOUT_URL } from '../src/modules/botPay';
 
 let calls: { method: string; body: Record<string, any> }[] = [];
 let adminCalls: { method: string; body: Record<string, any> }[] = [];
@@ -533,6 +534,40 @@ describe('подарочная ссылка (11.11)', () => {
 });
 
 describe('оплата из бота (12.11)', () => {
+  it('в режиме Tribute «ХОЧУ ВСТУПИТЬ» открывает карточку тарифов с одной кнопкой оплаты', async () => {
+    clock.set('2026-11-12T09:00:00Z');
+    const original = config.BOT_TRIBUTE_ONLY;
+    config.BOT_TRIBUTE_ONLY = true;
+    try {
+      const id = 1997;
+      await start(id);
+      const app = await getApp();
+      const tap = (data: string) => app.inject({
+        method: 'POST', url: '/api/telegram/webhook', headers: { 'x-telegram-bot-api-secret-token': webhookSecret },
+        payload: { callback_query: { id: 'tribute-funnel', from: { id }, message: { chat: { id } }, data } },
+      });
+      await prisma.botMessageTemplate.update({
+        where: { key: 'how_to_join' },
+        data: { buttons: [{ text: 'Старая кнопка', callback: 'choose_tariff' }] },
+      });
+      calls = [];
+      await tap('how_to_join');
+      const how = calls.find((c) => String(c.body.text ?? c.body.caption).includes('Ого, смело'))!;
+      const button = how.body.reply_markup.inline_keyboard[0][0];
+      expect(button).toEqual({ text: 'ХОЧУ ВСТУПИТЬ! 😍', callback_data: expect.stringMatching(/^choose_tariff:/) });
+
+      calls = [];
+      await tap(button.callback_data);
+      const card = calls.find((c) => String(c.body.caption).includes('Выбери свой тариф'))!;
+      expect(card.method).toBe('sendPhoto');
+      expect(card.body.photo).toContain('/img/tariffs-compare-h.jpg');
+      expect(card.body.caption).toContain('6 месяцев');
+      expect(card.body.reply_markup.inline_keyboard).toEqual([[{ text: 'ХОЧУ ОПЛАТИТЬ 🔥', url: TRIBUTE_CHECKOUT_URL }]]);
+    } finally {
+      config.BOT_TRIBUTE_ONLY = original;
+    }
+  });
+
   it('«ХОЧУ ОПЛАТИТЬ ВХОД» → «Выбери свой тариф» с ценами → кнопка тарифа сразу открывает оплату', async () => {
     clock.set('2026-11-12T09:00:00Z');
     await start(1990);
