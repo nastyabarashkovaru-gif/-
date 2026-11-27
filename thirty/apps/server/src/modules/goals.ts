@@ -68,6 +68,12 @@ export async function goalLimitFor(m: FlowMembership): Promise<number | null> {
   return Math.max(...tariffs.map((t) => t.goalLimit ?? 1));
 }
 
+async function assertDistinctTributeGoals(m: FlowMembership, categories: string[]) {
+  if (m.tariffId !== 'm3' || !m.subscriptionId || new Set(categories).size === categories.length) return;
+  const subscription = await prisma.subscription.findUnique({ where: { id: m.subscriptionId }, select: { tributeExpiresAt: true } });
+  if (subscription?.tributeExpiresAt) throw badRequest('goal_categories', 'На тарифе на 3 месяца выбери для каждой цели свою категорию');
+}
+
 export async function createGoal(userId: bigint, membershipId: string, input: z.infer<typeof goalInput>) {
   const m = await loadOwnMembership(userId, membershipId);
   await assertEditable(m);
@@ -204,6 +210,7 @@ export async function fixGoals(userId: bigint, membershipId: string) {
   await assertEditable(m);
   const goals = await prisma.goal.findMany({ where: { membershipId }, include: { tasks: true } });
   if (!goals.length) throw badRequest('no_goals', 'Добавьте хотя бы одну цель');
+  await assertDistinctTributeGoals(m, goals.map((goal) => goal.category));
   const empty = goals.find((g) => g.tasks.length === 0);
   if (empty) throw badRequest('goal_without_tasks', `Добавь действия к цели «${empty.title}»`);
   const noPoints = goals.find((g) => !g.pointA || !g.pointB);
@@ -422,6 +429,10 @@ export async function addGoalLater(userId: bigint, membershipId: string, input: 
   if (!(await canAddGoalLater(m))) {
     const limit = await goalLimitFor(m);
     throw conflict('goal_limit', limit === null ? 'Сейчас добавить цель нельзя' : `В вашем тарифе ${limit === 1 ? 'одна цель' : `до ${limit} целей`} — чтобы добавить ещё, повысьте тариф`);
+  }
+  if (m.tariffId === 'm3') {
+    const goals = await prisma.goal.findMany({ where: { membershipId }, select: { category: true } });
+    await assertDistinctTributeGoals(m, [...goals.map((goal) => goal.category), input.category]);
   }
   const w = memberWindow(m);
   const from = w.start > w.today ? w.start : w.today;

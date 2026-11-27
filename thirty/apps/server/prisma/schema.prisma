@@ -159,6 +159,7 @@ model Subscription {
   paidThroughFlow        DateTime           @db.Date // startsOn последнего оплаченного потока
   nextChargeDate         DateTime?          @db.Date
   providerSubscriptionId String?
+  tributeExpiresAt       DateTime?
   providerLocked         Boolean            @default(false)
   /**
    * Данные покупателя из уведомления оплаты (AccountId, токен карты) — для API платёжного провайдера
@@ -182,6 +183,19 @@ model Subscription {
 
   @@index([userId])
   @@index([status, nextChargeDate])
+  @@index([tributeExpiresAt])
+}
+
+model TributeEntitlement {
+  userId    BigInt   @id
+  offerId   String
+  tariffId  String
+  expiresAt DateTime
+  eventAt   DateTime
+  autoRenew Boolean
+  pending   Boolean  @default(true)
+
+  @@index([pending, expiresAt])
 }
 
 enum PaymentStatus {

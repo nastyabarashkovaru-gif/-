@@ -423,10 +423,10 @@ export async function syncChargeDate(subscriptionId: string) {
 
 async function findSubscriptionForEvent(p: ParsedWebhook) {
   if (!p.providerSubscriptionId) return null;
-  const subs = await prisma.subscription.findMany({ where: { providerSubscriptionId: p.providerSubscriptionId }, include: { tariff: true }, orderBy: { createdAt: 'desc' } });
+  const subs = await prisma.subscription.findMany({ where: { providerSubscriptionId: p.providerSubscriptionId, priceVariant: { not: 'tribute' } }, include: { tariff: true }, orderBy: { createdAt: 'desc' } });
   // CloudPayments: у каждого покупателя своя подписка; если её id ещё не известен — привязываем по AccountId (tg id)
   if (!subs.length && p.customer.accountId && /^\d+$/.test(p.customer.accountId)) {
-    const sub = await prisma.subscription.findFirst({ where: { userId: BigInt(p.customer.accountId), providerSubscriptionId: null, status: { in: [...LIVE_STATUSES] } }, include: { tariff: true }, orderBy: { createdAt: 'desc' } });
+    const sub = await prisma.subscription.findFirst({ where: { userId: BigInt(p.customer.accountId), providerSubscriptionId: null, priceVariant: { not: 'tribute' }, status: { in: [...LIVE_STATUSES] } }, include: { tariff: true }, orderBy: { createdAt: 'desc' } });
     if (sub) {
       const linked = await prisma.subscription.update({ where: { id: sub.id }, data: { providerSubscriptionId: p.providerSubscriptionId, providerCustomer: { ...(sub.providerCustomer as object), ...p.customer } }, include: { tariff: true } });
       await syncChargeDate(linked.id);
@@ -610,6 +610,7 @@ export async function deactivateAtProvider(subscriptionId: string) {
 export async function resumeAutoRenew(userId: bigint) {
   const sub = await prisma.subscription.findFirst({ where: { userId, status: 'canceled_at_period_end' } });
   if (!sub) throw notFound('no_subscription');
+  if (sub.priceVariant === 'tribute') throw badRequest('tribute_subscription', 'Подпиской можно управлять в боте Tribute');
   const ref = refOf(sub);
   if (ref) await paymentProvider().setActive(ref, true);
   const today = localDate(clock.now(), await getSetting('flow.timezone'));
@@ -657,7 +658,7 @@ export async function markRefunded(paymentId: string, source: 'provider' | 'admi
 export async function refreshSubscriptionStatuses() {
   const tz = await getSetting('flow.timezone');
   const today = localDate(clock.now(), tz);
-  const subs = await prisma.subscription.findMany({ where: { status: { in: [...LIVE_STATUSES] } } });
+  const subs = await prisma.subscription.findMany({ where: { status: { in: [...LIVE_STATUSES] }, tributeExpiresAt: null } });
   const changed: { id: string; from: string; to: string }[] = [];
   for (const s of subs) {
     const next = subscriptionStatusOn({ today, paidFromFlow: fromDbDate(s.paidFromFlow), paidThroughFlow: fromDbDate(s.paidThroughFlow), autoRenew: s.autoRenew, nextChargeDate: s.nextChargeDate ? fromDbDate(s.nextChargeDate) : null });
@@ -688,7 +689,7 @@ export async function subscriptionSummary(userId: bigint) {
           regularPrice: quote(sub.tariff, false).price,
           autoRenew: sub.autoRenew,
           paidFrom: fromDbDate(sub.paidFromFlow),
-          paidUntil: addMonths(fromDbDate(sub.paidThroughFlow), 1),
+          paidUntil: sub.tributeExpiresAt ? localDate(sub.tributeExpiresAt, await getSetting('flow.timezone')) : addMonths(fromDbDate(sub.paidThroughFlow), 1),
           nextCharge: sub.autoRenew && sub.nextChargeDate ? { date: fromDbDate(sub.nextChargeDate), amount: sub.renewalPrice } : null,
           // Оплачено через Tribute: продление и отмена — в Tribute, доступ — пока человек в чате клуба
           viaTribute: sub.priceVariant === 'tribute',

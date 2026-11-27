@@ -76,13 +76,13 @@ export function challengeInfo(m: { startsOn: Date | null; flow: Flow; timezone?:
  * пока не подведены итоги), иначе последний завершённый (для финала и архива).
  */
 export async function currentMembership(userId: bigint): Promise<(FlowMembership & { flow: Flow }) | null> {
+  const now = clock.now();
   const list = await prisma.flowMembership.findMany({
-    where: { userId, status: { not: 'revoked' } },
+    where: { userId, status: { not: 'revoked' }, OR: [{ subscriptionId: null }, { subscription: { OR: [{ tributeExpiresAt: null }, { tributeExpiresAt: { gt: now } }] } }] },
     include: { flow: true },
     orderBy: [{ startsOn: 'asc' }, { flow: { startsOn: 'asc' } }],
   });
   if (!list.length) return null;
-  const now = clock.now();
   const active = list.find((m) => memberWindow(m, now).phase === 'active');
   if (active) return active;
   const upcoming = list.filter((m) => memberWindow(m, now).phase === 'upcoming').sort((a, b) => (memberWindow(a, now).start < memberWindow(b, now).start ? -1 : 1))[0];

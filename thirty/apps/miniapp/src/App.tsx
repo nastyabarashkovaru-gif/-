@@ -56,6 +56,7 @@ function initialRoute(me: Me): string {
     if (fromBot && fromBot !== '/') return fromBot;
     return '/';
   }
+  if (me.tributeCheckout) return '/tribute';
   if (fromBot === '/tariffs' || fromBot === '/restore') return fromBot;
   if (me.user.onboardingStage === 'checkout' || me.user.onboardingStage === 'tariffs') return '/tariffs';
   return '/tariffs';
@@ -138,8 +139,8 @@ export function App() {
         <Route path="/materials" element={<Materials />} />
         <Route path="/docs/:kind" element={<DocScreen />} />
         <Route path="/restore" element={<RestoreDiscount />} />
-        <Route path="/tariffs" element={<Tariffs />} />
-        <Route path="/checkout/:tariff" element={<Checkout />} />
+        <Route path="/tariffs" element={me.tributeCheckout ? <Navigate to="/tribute" replace /> : <Tariffs />} />
+        <Route path="/checkout/:tariff" element={me.tributeCheckout ? <Navigate to="/tribute" replace /> : <Checkout />} />
         <Route path="/checkout/wait/:paymentId" element={<PaymentWait />} />
         <Route path="/tribute" element={<TributeEntry />} />
         <Route path="/gift/:code" element={<GiftEntry />} />

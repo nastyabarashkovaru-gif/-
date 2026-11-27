@@ -10,6 +10,7 @@ import { removeExpiredMembers } from '../modules/chats';
 import { FINAL_WINDOW_DAYS } from '../modules/finale';
 import { runFlowChains, runMeetingChains, runPostPurchaseChains, runPrePurchaseChains } from './chains';
 import { deliverPaymentAccess } from '../modules/paymentAccess';
+import { maintainVerifiedTribute, reconcileTributeSubscribers } from '../modules/tributeBilling';
 
 const LOCK_ID = 30_300_030;
 
@@ -17,6 +18,8 @@ type Task = { name: string; everyMin: number; run: () => Promise<unknown> };
 
 export const TASKS: Task[] = [
   { name: 'payment-access', everyMin: 1, run: deliverPaymentAccess },
+  { name: 'tribute-access', everyMin: 1, run: maintainVerifiedTribute },
+  { name: 'tribute-reconcile', everyMin: 30, run: reconcileTributeSubscribers },
   { name: 'flows', everyMin: 1, run: maintainFlows },
   // Tribute: продление по членству в чате — до проверки статусов подписок
   { name: 'tribute', everyMin: 180, run: async () => (await import('../modules/tribute')).syncTribute() },
