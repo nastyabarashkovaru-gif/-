@@ -78,6 +78,7 @@ export async function billingRoutes(app: FastifyInstance) {
     r.get<{ Querystring: { tariff: string; comeback?: string } }>('/api/checkout/preview', async (req) => jsonSafe(await checkoutPreview(req.user!.id, String(req.query.tariff ?? ''), req.query.comeback === '1')));
 
     r.post('/api/checkout', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
+      if (config.TRIBUTE_VERIFIED_ACCESS) throw forbidden('tribute_checkout', 'Новая подписка оформляется в Tribute');
       const body = parse(z.object({ tariffId: z.enum(['m1', 'm3', 'm6']), idempotencyKey: z.string().min(8).max(64), comeback: z.boolean().optional() }), req.body);
       return createCheckout(req.user!.id, body.tariffId, body.idempotencyKey, body.comeback ?? false);
     });
@@ -166,6 +167,16 @@ export async function billingRoutes(app: FastifyInstance) {
 
   /** Prodamus больше не используется: старый адрес уведомлений отвечает 200 без обработки, чтобы Prodamus не повторял отправку */
   app.post('/api/payments/prodamus/webhook', async (_req, reply) => reply.send('success'));
+
+  // Tribute signs the original bytes, including JSON whitespace.
+  app.register(async (r) => {
+    r.removeContentTypeParser('application/json');
+    r.addContentTypeParser('application/json', { parseAs: 'buffer', bodyLimit: 64 * 1024 }, (_req, body, done) => done(null, body));
+    r.post<{ Body: Buffer }>('/api/payments/tribute/webhook', async (req, reply) => {
+      if (!Buffer.isBuffer(req.body)) return reply.code(415).send({ code: 'unsupported_tribute_content' });
+      return (await import('../modules/tributeBilling')).receiveTributeWebhook(req.body, req.headers['trbt-signature']);
+    });
+  });
 
   /**
    * CloudPayments: уведомления Check / Pay / Fail / Recurrent / Refund. Ответ {"code":0}; на Check отказываем,

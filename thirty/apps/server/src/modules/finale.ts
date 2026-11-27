@@ -95,7 +95,7 @@ export async function revokeReviewConsent(userId: bigint, reviewId: string) {
 /** Архив и сравнение месяцев S34; фото «до/после» и карта трансформации — по тарифу */
 export async function archive(userId: bigint) {
   const memberships = await prisma.flowMembership.findMany({
-    where: { userId, status: { not: 'revoked' } },
+    where: { userId, OR: [{ status: { not: 'revoked' } }, { subscription: { cancelReason: 'tribute_expired' }, startsOn: { not: null } }] },
     include: { flow: true, goals: true, beforeAfter: true },
     orderBy: { flow: { startsOn: 'asc' } },
   });

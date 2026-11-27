@@ -785,6 +785,14 @@ export async function handleUpdate(update: TgUpdate) {
       await cancelStart(userId, msg.chat.id);
       return;
     }
+    if (payload === 'tribute' && config.TRIBUTE_VERIFIED_ACCESS) {
+      await tg('sendMessage', {
+        chat_id: msg.chat.id,
+        text: 'После подтверждения оплаты твой тариф будет доступен в приложении 💜',
+        reply_markup: { inline_keyboard: [[openAppButton('Открыть приложение', 'tribute')]] },
+      });
+      return;
+    }
     // Реферальная ссылка на бота (?start=ref_…): визит засчитываем сразу — в приложение человек попадёт позже, из второго сообщения
     if (safe?.startsWith('ref_')) {
       const { handleStartParam } = await import('./entry');

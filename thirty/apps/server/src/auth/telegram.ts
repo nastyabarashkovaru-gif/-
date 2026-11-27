@@ -110,6 +110,9 @@ export async function requireUser(req: FastifyRequest, _reply: FastifyReply) {
   });
   if (user.deletedAt) throw new HttpError(403, 'account_deleted');
   req.user = user;
+  if (config.TRIBUTE_SUBSCRIPTION_ID || config.TRIBUTE_VERIFIED_ACCESS) {
+    await (await import('../modules/tributeBilling')).expireTributeFor(user.id);
+  }
   // Подписанный start_param (t.me/...?startapp=) или параметр из URL кнопки web_app (только для учёта кликов)
   const urlParam = req.headers['x-start-param'];
   const sp = tg.startParam ?? (typeof urlParam === 'string' && /^m_[0-9a-f]{32}_[a-z_]{1,24}$/.test(urlParam) ? urlParam : undefined);

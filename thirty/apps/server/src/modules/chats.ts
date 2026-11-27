@@ -20,17 +20,25 @@ const FLOW_CHAT_GRACE_DAYS = 7;
 export async function accessibleChats(userId: bigint, now = clock.now()): Promise<TelegramChat[]> {
   const tz = await getSetting('flow.timezone');
   const today = localDate(now, tz);
-  const memberships = await prisma.flowMembership.findMany({ where: { userId, status: { not: 'revoked' } }, include: { flow: true } });
+  const accessUntil = { OR: [{ tributeExpiresAt: null }, { tributeExpiresAt: { gt: now } }] };
+  const memberships = await prisma.flowMembership.findMany({
+    where: { userId, status: { not: 'revoked' }, OR: [{ subscriptionId: null }, { subscription: accessUntil }] },
+    include: { flow: true },
+  });
   const flowIds = memberships
     .filter((m) => addDays(memberWindow(m, now).end, FLOW_CHAT_GRACE_DAYS) >= today)
     .map((m) => m.flowId);
-  const live = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
+  const live = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] }, ...accessUntil } });
   // Тематические чаты — только по категориям целей участника (решение владельца 24.10)
   // + чаты, открытые вручную из админки (14.11)
   const extra = live ? (await prisma.user.findUnique({ where: { id: userId }, select: { extraTopics: true } }))?.extraTopics ?? [] : [];
-  const topics = live
-    ? [...new Set([...(await prisma.goal.findMany({ where: { membership: { userId, flowId: { in: flowIds } } }, select: { category: true } })).map((g) => g.category as string), ...extra])]
+  const categories = live
+    ? (await prisma.goal.findMany({ where: { membership: { userId, status: { not: 'revoked' }, flowId: { in: flowIds } } }, select: { category: true }, orderBy: [{ membership: { flow: { startsOn: 'desc' } } }, { sort: 'asc' }] })).map((g) => g.category as string)
     : [];
+  const allowedTopics = TOPIC_CHATS.map((topic) => topic.id as string);
+  const topics = live?.tributeExpiresAt
+    ? live.tariffId === 'm6' ? allowedTopics : [...new Set(categories.filter((category) => allowedTopics.includes(category)))].slice(0, live.tariffId === 'm3' ? 3 : 1)
+    : [...new Set([...categories, ...extra])];
   const chats = await prisma.telegramChat.findMany({
     where: {
       active: true,
@@ -130,10 +138,15 @@ export async function onJoinRequest(tgChatId: number, tgUserId: number, link?: {
 export async function onChatMemberUpdate(tgChatId: number, tgUserId: number, status: string) {
   const chat = await prisma.telegramChat.findUnique({ where: { telegramChatId: BigInt(tgChatId) } });
   if (!chat) return;
+  const userId = BigInt(tgUserId);
+  if (chat.active && status === 'member' && await prisma.tributeEntitlement.findUnique({ where: { userId }, select: { userId: true } })) {
+    const data = { status: 'joined' as const, joinedAt: clock.now(), removedAt: null };
+    await prisma.chatMembership.upsert({ where: { chatId_userId: { chatId: chat.id, userId } }, create: { chatId: chat.id, userId, ...data }, update: data });
+  }
   if (status === 'left' || status === 'kicked') {
-    await prisma.chatMembership.updateMany({ where: { chatId: chat.id, userId: BigInt(tgUserId) }, data: { status: 'removed', removedAt: clock.now() } });
+    await prisma.chatMembership.updateMany({ where: { chatId: chat.id, userId }, data: { status: 'removed', removedAt: clock.now() } });
     // Вышел из общего чата клуба: доступ по Tribute закрывается (07.11)
-    if (chat.kind === 'flow') await (await import('./tribute')).onClubChatLeft(BigInt(tgUserId));
+    if (chat.kind === 'flow') await (await import('./tribute')).onClubChatLeft(userId);
   }
 }
 

@@ -1,5 +1,6 @@
 import { addMonths, localDate, subscriptionStatusOn, toDbDate, type ISODate } from '@thirty/domain';
 import { clock } from '../clock';
+import { config } from '../config';
 import { prisma } from '../db';
 import { badRequest, forbidden } from '../http';
 import { getSetting } from '../settings';
@@ -46,7 +47,9 @@ const currentMonth = async () => `${localDate(clock.now(), await getSetting('flo
 
 export async function tributeStatus(userId: bigint) {
   const live = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
-  if (live) return { hasAccess: true, viaTribute: isTribute(live), inChat: true };
+  const paymentVerification = config.TRIBUTE_VERIFIED_ACCESS || Boolean(await prisma.tributeEntitlement.findUnique({ where: { userId }, select: { userId: true } }));
+  if (live) return { hasAccess: true, viaTribute: isTribute(live), inChat: true, paymentVerification };
+  if (paymentVerification) return { hasAccess: false, viaTribute: false, inChat: null, paymentVerification };
   return { hasAccess: false, viaTribute: false, inChat: await inClubChat(userId) };
 }
 
@@ -54,6 +57,9 @@ export async function tributeStatus(userId: bigint) {
 export async function activateTribute(userId: bigint, tariffId: string) {
   const live = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
   if (live) return { ok: true, already: true };
+  if (config.TRIBUTE_VERIFIED_ACCESS || await prisma.tributeEntitlement.findUnique({ where: { userId }, select: { userId: true } })) {
+    throw forbidden('tribute_payment_required', 'Доступ откроется после подтверждения оплаты от Tribute');
+  }
   const tariff = await prisma.tariff.findUnique({ where: { id: tariffId } });
   if (!tariff || !tariff.active) throw badRequest('tariff_not_found', 'Выбери тариф');
   const inChat = await inClubChat(userId);
@@ -92,13 +98,13 @@ async function endTribute(userId: bigint) {
 
 /** Вышел или удалён из общего чата клуба — если доступ был по Tribute, закрываем сразу */
 export async function onClubChatLeft(userId: bigint) {
-  const live = await prisma.subscription.findFirst({ where: { userId, priceVariant: TRIBUTE, status: { in: [...LIVE_STATUSES] } } });
+  const live = await prisma.subscription.findFirst({ where: { userId, priceVariant: TRIBUTE, tributeExpiresAt: null, status: { in: [...LIVE_STATUSES] } } });
   if (live) await endTribute(userId);
 }
 
 /** Ежедневно: в чате — продлеваем на месяц вперёд; нет в чате — закрываем. Telegram не ответил — ничего не меняем */
 export async function syncTribute() {
-  const subs = await prisma.subscription.findMany({ where: { priceVariant: TRIBUTE, status: { in: [...LIVE_STATUSES] } } });
+  const subs = await prisma.subscription.findMany({ where: { priceVariant: TRIBUTE, tributeExpiresAt: null, status: { in: [...LIVE_STATUSES] } } });
   const through = addMonths(await currentMonth(), 1);
   let extended = 0, ended = 0;
   for (const s of subs) {

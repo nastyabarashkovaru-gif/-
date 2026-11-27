@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useEffect } from 'react';
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { haptic, openExternal } from '../../lib/telegram';
 import { TRIBUTE_PAY_URL } from '../../lib/tribute';
@@ -13,18 +13,44 @@ const TARIFFS = [
   ['m6', '6 месяцев'],
 ] as const;
 
-/**
- * Вход по ссылке для оплативших через Tribute (07.11). Кто уже участвует — сразу обычное приложение.
- * Новенькие: проверяем, что человек в чате клуба (туда пускает Tribute), и спрашиваем оплаченный тариф.
- */
+type TributeStatus = { hasAccess: boolean; inChat: boolean | null; paymentVerification?: boolean };
+
 export function TributeEntry() {
   const nav = useNavigate();
-  const { refresh } = useMe();
-  const { data, error, loading, reload } = useLoad(() => api<{ hasAccess: boolean; inChat: boolean | null }>('/api/tribute/status'));
+  const { refresh, me } = useMe();
+  const { data, error, loading, reload } = useLoad(() => api<TributeStatus>('/api/tribute/status'));
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (data?.hasAccess) void refresh().then(() => nav('/', { replace: true })).catch((e) => toast(errorText(e)));
+  }, [data?.hasAccess, nav, refresh]);
   if (loading && !data) return <Screen id="TR"><Loading /></Screen>;
   if (error || !data) return <Screen id="TR"><ErrorState error={error} retry={reload} /></Screen>;
-  if (data.hasAccess) return <Navigate to="/" replace />;
+  if (data.hasAccess) return <Screen id="TR"><Loading /></Screen>;
+
+  if (data.paymentVerification) {
+    return (
+      <Screen id="TR">
+        <BrandBar />
+        <h1 className="hero">Вступить в «30 дней» 💜</h1>
+        <p className="lead">Выбери тариф в Tribute. После подтверждения оплаты здесь откроются твои цели и чаты.</p>
+        <div className="spacer" />
+        <Cta onClick={() => openExternal(TRIBUTE_PAY_URL)}>Оплатить в Tribute</Cta>
+        <button className="btn btn-secondary" disabled={busy} onClick={async () => {
+          setBusy(true);
+          try {
+            const status = await api<TributeStatus>('/api/tribute/status');
+            if (status.hasAccess) reload();
+            else toast('Пока ждём подтверждение от Tribute. Проверь, что оплата была с этого аккаунта Telegram, и попробуй ещё раз.');
+          } catch (e) {
+            toast(errorText(e));
+          } finally {
+            setBusy(false);
+          }
+        }}>{busy ? 'Проверяем…' : 'Я уже оплатила'}</button>
+        {me?.support && <button className="btn btn-ghost" onClick={() => openExternal(me.support)}>Написать в поддержку</button>}
+      </Screen>
+    );
+  }
 
   const choose = async (tariffId: string) => {
     setBusy(true);
