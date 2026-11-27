@@ -8,11 +8,13 @@ import { setupBot } from './lib/botSetup';
 import { setupAdminBot } from './modules/adminBot';
 import { ensureDemoPhotos, restoreDemoClock } from './modules/demo';
 import { checkCloudPaymentsKeys } from './payments/cloudpayments';
+import { initializeTaskCorrection } from './modules/taskCorrection';
 
 async function main() {
   // Только для локального просмотра экранов: «сейчас» = DEV_FAKE_NOW
   if (config.NODE_ENV !== 'production' && process.env.DEV_FAKE_NOW) clock.set(process.env.DEV_FAKE_NOW);
   await seed();
+  await initializeTaskCorrection().catch(() => console.warn('[task-correction] grant check failed'));
   const app = await buildApp({ logger: true });
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   await setupBot();

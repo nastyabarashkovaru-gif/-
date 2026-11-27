@@ -3,6 +3,8 @@ import { api, clock, getApp, grantMembership, prisma, resetDb, upload } from './
 import { signInitData, validateInitData } from '../src/auth/telegram';
 import { computeLeaderboard, selectPrizeCandidates } from '../src/modules/rating';
 import { refreshFlowStatuses } from '../src/modules/flows';
+import { config } from '../src/config';
+import { initializeTaskCorrection } from '../src/modules/taskCorrection';
 
 const NOV = '2026-11-01';
 
@@ -39,6 +41,50 @@ describe('Telegram initData', () => {
 });
 
 describe('цели и задачи', () => {
+  it('персональное исправление задач сохраняет отчёт и действует только в выданном челлендже', async () => {
+    clock.set('2026-10-21T10:00:00Z');
+    const { taskId } = await setupGoal(15);
+    const other = await setupGoal(16);
+    await api('POST', '/api/membership/fix', 15);
+    await api('POST', '/api/membership/fix', 16);
+    clock.set('2026-11-01T09:00:00Z');
+    await refreshFlowStatuses();
+    const media = await upload(15);
+    const report = await api('POST', '/api/reports', 15, { items: [{ taskId, done: true }], mediaIds: [media.body.id], publicAck: true, text: 'Первый отчёт' });
+    expect(report.body).toMatchObject({ marked: 1 });
+    const completed = await prisma.taskOccurrence.findFirstOrThrow({ where: { taskId, status: 'done' } });
+
+    clock.set('2026-11-02T09:00:00Z');
+    await prisma.user.update({ where: { id: 15n }, data: { username: 'Correction_Example' } });
+    const original = config.TASK_CORRECTION_USERNAME;
+    config.TASK_CORRECTION_USERNAME = '@correction_example';
+    try {
+      expect(await initializeTaskCorrection()).toBe('granted');
+      expect((await api('GET', '/api/home', 15)).body.taskCorrectionFrom).toBe('2026-11-03');
+      expect((await api('GET', '/api/home', 16)).body.taskCorrectionFrom).toBeNull();
+      const body = { title: 'Исправленная задача', frequency: 'every_n_days', n: 2 };
+      expect((await api('PATCH', `/api/tasks/${other.taskId}/correction`, 16, body)).status).toBe(403);
+      expect((await api('PATCH', `/api/tasks/${other.taskId}/correction`, 15, body)).status).toBe(404);
+      expect((await api('PATCH', `/api/tasks/${taskId}`, 15, body)).status).toBe(403);
+      expect((await api('PATCH', `/api/tasks/${taskId}/correction`, 15, body)).body).toMatchObject(body);
+
+      expect(await prisma.taskOccurrence.findUniqueOrThrow({ where: { id: completed.id } })).toMatchObject({ status: 'done' });
+      expect(await prisma.reportItem.count({ where: { occurrenceId: completed.id, reportId: report.body.reportId } })).toBe(1);
+      expect(await prisma.dailyReport.findUniqueOrThrow({ where: { id: report.body.reportId } })).toMatchObject({ text: 'Первый отчёт' });
+      expect(await prisma.taskOccurrence.count({ where: { taskId, status: 'pending', windowStart: { gte: new Date('2026-11-03') } } })).toBe(14);
+      expect((await api('GET', '/api/membership', 15)).body.membership).toMatchObject({ canEdit: false, status: 'active' });
+
+      await prisma.user.update({ where: { id: 15n }, data: { username: 'Correction_Renamed' } });
+      await prisma.user.update({ where: { id: 16n }, data: { username: 'Correction_Example' } });
+      expect(await initializeTaskCorrection()).toBe('granted');
+      expect((await api('GET', '/api/home', 15)).body.taskCorrectionFrom).toBe('2026-11-03');
+      expect((await api('GET', '/api/home', 16)).body.taskCorrectionFrom).toBeNull();
+    } finally {
+      config.TASK_CORRECTION_USERNAME = original;
+      await initializeTaskCorrection();
+    }
+  });
+
   it('сохраняет больше десяти задач к одной цели и включает их в план', async () => {
     clock.set('2026-10-21T10:00:00Z');
     const { goalId } = await setupGoal(14);

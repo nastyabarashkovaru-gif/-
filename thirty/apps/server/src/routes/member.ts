@@ -14,6 +14,7 @@ import { goalStats, memberStats } from '../modules/rating';
 import { reportInput, submitReport, todayChecklist } from '../modules/reports';
 import { track } from '../modules/analytics';
 import { buddyCard } from '../modules/buddy';
+import { correctTask, taskCorrectionFrom } from '../modules/taskCorrection';
 
 export async function memberRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireUser);
@@ -63,6 +64,9 @@ export async function memberRoutes(app: FastifyInstance) {
   });
   app.post<{ Params: { id: string } }>('/api/goals/:id/tasks', async (req) => createTask(req.user!.id, req.params.id, parse(taskInput, req.body)));
   app.patch<{ Params: { id: string } }>('/api/tasks/:id', async (req) => updateTask(req.user!.id, req.params.id, parse(taskInput.partial(), req.body)));
+  app.patch<{ Params: { id: string } }>('/api/tasks/:id/correction', async (req) => {
+    return correctTask(req.user!.id, req.params.id, parse(taskInput.pick({ title: true, frequency: true, n: true, dueDate: true }), req.body));
+  });
   // «X раз в неделю» — можно менять и после отправки анкеты, с текущей недели
   app.post<{ Params: { id: string } }>('/api/tasks/:id/per-week', async (req) => {
     const { changeWeeklyCount } = await import('../modules/goals');
@@ -165,7 +169,7 @@ export async function memberRoutes(app: FastifyInstance) {
         ...serializeGoal(g),
         // Для нечисловых целей прогресс — процент выполненных запланированных действий
         planPercent: info.phase === 'upcoming' ? null : Math.round((await goalStats(g.id, m.id, m.flow)).ratio * 100),
-        tasks: g.tasks.map((t) => ({ id: t.id, title: t.title, schedule: scheduleLabel(t), evidence: t.evidence, frequency: t.frequency, n: t.n })),
+        tasks: g.tasks.map((t) => ({ id: t.id, title: t.title, schedule: scheduleLabel(t), evidence: t.evidence, frequency: t.frequency, n: t.n, dueDate: t.dueDate ? fromDbDate(t.dueDate) : null })),
       }))),
       todayReported: Boolean(today && today.status === 'accepted'),
       buddy: await buddyCard(user.id, m.flowId),
@@ -173,6 +177,7 @@ export async function memberRoutes(app: FastifyInstance) {
       prompts: await homePrompts(user.id, m),
       // «+ Добавить цель» под целями (16.11): анкета отправлена, тариф позволяет больше целей
       canAddGoal: await (await import('../modules/goals')).canAddGoalLater(m),
+      taskCorrectionFrom: taskCorrectionFrom(m),
       month: await monthNumber(user.id, m),
       // Время сервера: обратный отсчёт до старта считается от него (в демо время «перемотано»)
       serverNow: clock.now().toISOString(),

@@ -12,6 +12,7 @@ import { FeedbackPopup, TrackersPopup } from './Journey';
 import { WeekResultPopup } from './WeekResult';
 import { useMe } from '../../state';
 import { haptic, openExternal } from '../../lib/telegram';
+import type { Frequency } from '@thirty/domain';
 
 interface HomeGoal {
   id: string;
@@ -24,7 +25,7 @@ interface HomeGoal {
   current: number | null;
   progress: number | null;
   planPercent: number | null;
-  tasks: { id: string; title: string; schedule: string; frequency?: string; n?: number }[];
+  tasks: { id: string; title: string; schedule: string; frequency?: Frequency; n?: number; dueDate?: string | null }[];
 }
 
 interface HomeData {
@@ -39,6 +40,7 @@ interface HomeData {
   month?: number;
   serverNow?: string;
   canAddGoal?: boolean;
+  taskCorrectionFrom?: string | null;
   prompts?: { feedback: boolean; feedbackPopup: boolean; feedbackDone: boolean; finale: boolean; finaleDone: boolean; trackers: boolean; trackersClarify?: boolean; weekResult?: number | null };
 }
 
@@ -219,7 +221,9 @@ export function Home() {
         <h2 className="h2" style={{ fontSize: 22 }}>Мои цели 🎯</h2>
         <span className="pill green">{data.goals.length} {plural(data.goals.length, 'цель', 'цели', 'целей')}</span>
       </div>
-      {data.goals.map((g, i) => <GoalItem key={g.id} goal={g} n={i + 1} />)}
+      {data.goals.map((g, i) => <GoalItem key={g.id} goal={g} n={i + 1} correction={data.taskCorrectionFrom ? {
+        from: data.taskCorrectionFrom, to: flow.endsOn, canReschedule: !flow.paused && data.taskCorrectionFrom <= flow.endsOn, onSaved: reload,
+      } : undefined} />)}
       {/* 16.11: добавить цель после анкеты — небольшой надписью, если тариф позволяет */}
       {data.canAddGoal && <button className="link-accent" style={{ alignSelf: 'flex-start', padding: '2px 4px', fontWeight: 500 }} onClick={() => nav('/goal/new')}>+ Добавить цель</button>}
 
@@ -274,9 +278,12 @@ export function Home() {
   );
 }
 
+type TaskCorrection = { from: string; to: string; canReschedule: boolean; onSaved: () => void };
+
 /** Действие плана; у «X раз в неделю» число можно поменять прямо здесь (с текущей недели) */
-function TaskRow({ t }: { t: HomeGoal['tasks'][number] }) {
+function TaskRow({ t, correction }: { t: HomeGoal['tasks'][number]; correction?: TaskCorrection }) {
   const [edit, setEdit] = useState(false);
+  const [correcting, setCorrecting] = useState(false);
   const [n, setN] = useState(t.n ?? 3);
   const [saved, setSaved] = useState(t.n ?? 3);
   const [busy, setBusy] = useState(false);
@@ -300,7 +307,9 @@ function TaskRow({ t }: { t: HomeGoal['tasks'][number] }) {
       <CircleCheck size={16} color="var(--accent)" style={{ marginTop: 3 }} />
       <div className="grow">
         <div>{t.title}</div>
-        <div className="muted small">{label}{weekly && !edit && <button className="link-accent" style={{ padding: 0, marginLeft: 8, fontSize: 13, fontWeight: 600 }} onClick={() => setEdit(true)}>Изменить</button>}</div>
+        <div className="muted small">{label}{correction
+          ? <button className="link-accent" style={{ padding: 0, marginLeft: 8, fontSize: 13, fontWeight: 600 }} onClick={() => setCorrecting(true)}>Редактировать</button>
+          : weekly && !edit && <button className="link-accent" style={{ padding: 0, marginLeft: 8, fontSize: 13, fontWeight: 600 }} onClick={() => setEdit(true)}>Изменить</button>}</div>
         {edit && (
           <div className="col" style={{ gap: 8, marginTop: 8 }}>
             <div className="n-chips" role="radiogroup">
@@ -313,11 +322,75 @@ function TaskRow({ t }: { t: HomeGoal['tasks'][number] }) {
           </div>
         )}
       </div>
+      {correcting && correction && <TaskCorrectionSheet task={t} correction={correction} onClose={() => setCorrecting(false)} />}
     </div>
   );
 }
 
-function GoalItem({ goal, n }: { goal: HomeGoal; n: number }) {
+function TaskCorrectionSheet({ task, correction, onClose }: {
+  task: HomeGoal['tasks'][number];
+  correction: TaskCorrection;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState(task.title);
+  const [frequency, setFrequency] = useState<Frequency>(task.frequency ?? 'daily');
+  const [n, setN] = useState(task.n ?? 1);
+  const [dueDate, setDueDate] = useState(task.dueDate ?? '');
+  const [busy, setBusy] = useState(false);
+  const count = frequency === 'daily' || frequency === 'once' ? 1 : n;
+  const deadline = frequency === 'once' ? dueDate : '';
+  const scheduleChanged = frequency !== task.frequency || count !== task.n || deadline !== (task.dueDate ?? '');
+  const invalidDate = scheduleChanged && frequency === 'once' && (!deadline || deadline < correction.from || deadline > correction.to);
+  const max = frequency === 'n_per_week' ? 7 : 31;
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api(`/api/tasks/${task.id}/correction`, { method: 'PATCH', body: { title: title.trim(), frequency, n: count, dueDate: deadline || null } });
+      correction.onSaved();
+      onClose();
+      toast('Задача сохранена');
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet open onClose={onClose}>
+      <h2 className="h2">Редактировать задачу</h2>
+      <label className="field">Название<input className="input" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} /></label>
+      {correction.canReschedule && (
+        <>
+          <label className="field">Как часто
+            <select className="input" value={frequency} onChange={(e) => {
+              const next = e.target.value as Frequency;
+              setFrequency(next);
+              setN(next === 'n_per_week' ? Math.min(n, 7) : n);
+            }}>
+              <option value="daily">Каждый день</option>
+              <option value="n_per_week">Несколько раз в неделю</option>
+              <option value="every_n_days">Раз в несколько дней</option>
+              <option value="once">Однократно</option>
+            </select>
+          </label>
+          {(frequency === 'n_per_week' || frequency === 'every_n_days') && <label className="field">
+            {frequency === 'n_per_week' ? 'Сколько раз в неделю' : 'Через сколько дней'}
+            <input className="input" type="number" min={1} max={max} value={n} onChange={(e) => setN(Number(e.target.value))} />
+          </label>}
+          {frequency === 'once' && <label className="field">Выполнить до
+            <input className="input" type="date" value={dueDate} min={correction.from} max={correction.to} onChange={(e) => setDueDate(e.target.value)} />
+          </label>}
+          {scheduleChanged && <p className="muted small">Новое расписание начнёт действовать с {humanDate(correction.from)}.</p>}
+        </>
+      )}
+      <button className="btn btn-primary" disabled={busy || title.trim().length < 2 || invalidDate || !Number.isInteger(count) || count < 1 || count > max} onClick={save}>
+        {busy ? 'Сохраняю…' : 'Сохранить'}
+      </button>
+    </Sheet>
+  );
+}
+
+function GoalItem({ goal, n, correction }: { goal: HomeGoal; n: number; correction?: TaskCorrection }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="card" style={{ gap: 12 }}>
@@ -339,7 +412,7 @@ function GoalItem({ goal, n }: { goal: HomeGoal; n: number }) {
           </div>
           <GoalProgress goal={goal} />
           <div className="h3">План действий</div>
-          {goal.tasks.map((t) => <TaskRow key={t.id} t={t} />)}
+          {goal.tasks.map((t) => <TaskRow key={t.id} t={t} correction={correction} />)}
         </>
       )}
     </div>
