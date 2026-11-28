@@ -12,8 +12,10 @@ import { LIVE_STATUSES } from './billing';
 import { ensureFlow, memberWindow } from './flows';
 
 const tariffIds = { monthly: 'm1', quarterly: 'm3', halfyearly: 'm6' } as const;
+const subscriptionNames = z.enum(['new_subscription', 'renewed_subscription', 'cancelled_subscription']);
+const webhookEnvelope = z.object({ name: z.string().optional(), test: z.unknown() });
 const subscriptionEvent = z.object({
-  name: z.enum(['new_subscription', 'renewed_subscription', 'cancelled_subscription']),
+  name: subscriptionNames,
   created_at: z.string().datetime({ offset: true }),
   payload: z.object({
     subscription_id: z.number().int().safe().positive(),
@@ -135,12 +137,24 @@ export async function receiveTributeWebhook(body: Buffer, signature: unknown) {
   if (typeof signature !== 'string' || !/^[0-9a-f]{64}$/i.test(signature) || !timingSafeEqual(Buffer.from(signature, 'hex'), expected)) {
     throw new HttpError(401, 'bad_signature');
   }
+  const raw = body.toString('utf8');
+  if (/^(?:ping|test)?$/i.test(raw.trim())) return { ok: true, status: 'test' };
   let message: unknown;
-  try { message = JSON.parse(body.toString('utf8')); } catch { throw new HttpError(400, 'bad_json'); }
+  try {
+    message = JSON.parse(raw);
+  } catch {
+    console.warn('[tribute] signed webhook was not valid JSON');
+    throw new HttpError(400, 'bad_json');
+  }
+  const envelope = webhookEnvelope.safeParse(message);
+  if (envelope.success) {
+    if (envelope.data.test === true || !envelope.data.name) return { ok: true, status: 'test' };
+    if (!subscriptionNames.safeParse(envelope.data.name).success) return { ok: true, status: 'ignored' };
+  }
   const parsed = subscriptionEvent.safeParse(message);
   if (!parsed.success) {
-    const name = z.object({ name: z.string() }).safeParse(message);
-    if (name.success && !subscriptionEvent.shape.name.options.some((value) => value === name.data.name)) return { ok: true, status: 'ignored' };
+    const fields = parsed.error.issues.map((issue) => issue.path.join('.') || 'body').join(', ');
+    console.warn(`[tribute] signed webhook did not match subscription fields: ${fields}`);
     throw new HttpError(400, 'invalid_tribute_event');
   }
   const { payload, name, created_at } = parsed.data;

@@ -20,8 +20,8 @@ function event(userId: number, period = 'monthly', kind = 'new_subscription', cr
   };
 }
 
-async function webhook(message: ReturnType<typeof event>, trusted = true) {
-  const payload = JSON.stringify(message, null, 2);
+async function webhook(message: object | string, trusted = true) {
+  const payload = typeof message === 'string' ? message : JSON.stringify(message, null, 2);
   const signature = createHmac('sha256', trusted ? key : 'incorrect-key').update(payload).digest('hex');
   return (await getApp()).inject({
     method: 'POST', url: '/api/payments/tribute/webhook', headers: { 'content-type': 'application/json', 'trbt-signature': signature }, payload,
@@ -47,6 +47,21 @@ describe('Tribute checkout and paid access', () => {
   afterEach(() => Object.assign(config, {
     TRIBUTE_API_KEY: oldConfig.key, TRIBUTE_SUBSCRIPTION_ID: oldConfig.offer, TRIBUTE_VERIFIED_ACCESS: oldConfig.active,
   }));
+
+  it('acknowledges signed test requests without granting access or weakening purchase validation', async () => {
+    expect((await webhook({}, false)).statusCode).toBe(401);
+    for (const probe of ['', 'ping', {}, { test: true }, { ...event(810), test: true }]) {
+      const response = await webhook(probe);
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ ok: true, status: 'test' });
+    }
+    const incomplete = await webhook({ name: 'new_subscription', created_at: initialTime, payload: { subscription_id: 123 } });
+    expect(incomplete.statusCode).toBe(400);
+    expect(incomplete.json().code).toBe('invalid_tribute_event');
+    expect(await prisma.subscription.count()).toBe(0);
+    expect(await prisma.tributeEntitlement.count()).toBe(0);
+    expect(telegramCalls).toEqual([]);
+  });
 
   it('accepts the original signed bytes, requires a real offer and ignores attempts to select a tier', async () => {
     expect((await webhook(event(811), false)).statusCode).toBe(401);
