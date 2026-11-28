@@ -225,7 +225,7 @@ async function getTributeSubscribers(key: string, offerId: string) {
 /** Read-only verification of the configured offer and migration coverage. */
 export async function checkTributeReadiness() {
   const key = config.TRIBUTE_API_KEY;
-  const [offerId] = tributeOfferIds();
+  const [offerId, ...retainedIds] = tributeOfferIds();
   if (!key || !offerId || config.DEMO_MODE) return;
   const now = clock.now();
   const [offers, subscribers, legacy] = await Promise.allSettled([
@@ -235,7 +235,10 @@ export async function checkTributeReadiness() {
       const body = offerList.safeParse(await response.json());
       if (!body.success) return { http: response.status, valid: false };
       const offer = body.data.result.find((item) => String(item.subscriptionId) === offerId);
-      return { http: response.status, found: Boolean(offer), currency: offer?.currency, periods: offer?.periods };
+      const retainedOffers = body.data.result
+        .filter((item) => retainedIds.includes(String(item.subscriptionId)))
+        .map(({ subscriptionId, currency, periods }) => ({ offerId: String(subscriptionId), currency, periods }));
+      return { http: response.status, found: Boolean(offer), currency: offer?.currency, periods: offer?.periods, retainedOffers };
     })(),
     getTributeSubscribers(key, offerId),
     prisma.subscription.findMany({

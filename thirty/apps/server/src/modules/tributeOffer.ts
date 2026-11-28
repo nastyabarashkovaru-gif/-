@@ -21,7 +21,7 @@ export function currentTributeCheckout() {
 }
 
 export function tributeOfferIds() {
-  const legacy = config.TRIBUTE_SUBSCRIPTION_ID;
-  const next = newCheckout()?.id;
-  return [...new Set([...(next ? [next] : []), ...(/^\d+$/.test(legacy) ? [legacy] : [])])];
+  const retained = config.TRIBUTE_RETAINED_SUBSCRIPTION_IDS.split(',').map((id) => id.trim());
+  const ids = [newCheckout()?.id ?? '', config.TRIBUTE_SUBSCRIPTION_ID, ...retained];
+  return [...new Set(ids.filter((id) => /^\d+$/.test(id)))];
 }
