@@ -10,7 +10,7 @@ import { api, clock, getApp, prisma, resetDb } from './helpers';
 const key = 'tribute-integration-test-secret';
 const initialTime = '2026-11-27T10:00:00.000Z';
 const end = '2026-12-27T10:00:00.000Z';
-const oldConfig = { key: config.TRIBUTE_API_KEY, offer: config.TRIBUTE_SUBSCRIPTION_ID, active: config.TRIBUTE_VERIFIED_ACCESS };
+const oldConfig = { key: config.TRIBUTE_API_KEY, offer: config.TRIBUTE_SUBSCRIPTION_ID, checkout: config.TRIBUTE_NEW_CHECKOUT_URL, active: config.TRIBUTE_VERIFIED_ACCESS };
 const telegramCalls: string[] = [];
 
 function event(userId: number, period = 'monthly', kind = 'new_subscription', createdAt = initialTime, expiresAt = end, offer = 123) {
@@ -45,7 +45,7 @@ describe('Tribute checkout and paid access', () => {
   });
 
   afterEach(() => Object.assign(config, {
-    TRIBUTE_API_KEY: oldConfig.key, TRIBUTE_SUBSCRIPTION_ID: oldConfig.offer, TRIBUTE_VERIFIED_ACCESS: oldConfig.active,
+    TRIBUTE_API_KEY: oldConfig.key, TRIBUTE_SUBSCRIPTION_ID: oldConfig.offer, TRIBUTE_NEW_CHECKOUT_URL: oldConfig.checkout, TRIBUTE_VERIFIED_ACCESS: oldConfig.active,
   }));
 
   it('acknowledges signed test requests without granting access or weakening purchase validation', async () => {
@@ -147,6 +147,27 @@ describe('Tribute checkout and paid access', () => {
     const renewedUntil = '2027-01-27T10:00:00.000Z';
     expect((await webhook(event(831, 'monthly', 'renewed_subscription', end, renewedUntil))).json().status).toBe('applied');
     expect((await api('GET', '/api/me', 831)).body.subscription.tariffId).toBe('m1');
+  });
+
+  it('opens the replacement checkout and keeps an overlapping legacy renewal', async () => {
+    config.TRIBUTE_NEW_CHECKOUT_URL = 'https://web.tribute.tg/s/20';
+    const newCheckout = 'https://t.me/tribute/app?startapp=s20';
+    expect((await api('GET', '/api/me', 871)).body.tributeCheckoutUrl).toBe(newCheckout);
+
+    await webhook(event(871));
+    const shorterEnd = '2026-12-15T10:00:00.000Z';
+    await webhook(event(871, 'quarterly', 'new_subscription', initialTime, shorterEnd, 124));
+    expect((await api('GET', '/api/me', 871)).body.subscription.tariffId).toBe('m3');
+    const renewedAt = '2026-12-04T12:00:00.000Z';
+    const renewedUntil = '2027-01-27T10:00:00.000Z';
+    clock.set(new Date(renewedAt));
+    expect((await webhook(event(871, 'monthly', 'renewed_subscription', renewedAt, renewedUntil))).json().status).toBe('applied');
+    expect((await api('GET', '/api/me', 871)).body.subscription.tariffId).toBe('m3');
+
+    clock.set(new Date(shorterEnd));
+    expect((await api('GET', '/api/me', 871)).body.subscription.tariffId).toBe('m1');
+    expect(await prisma.tributeEntitlement.count({ where: { userId: 871n } })).toBe(2);
+    expect(await prisma.subscription.findFirst({ where: { userId: 871n } })).toMatchObject({ tributeExpiresAt: new Date(renewedUntil) });
   });
 
   it('restores an existing active subscription using the offer snapshot when authorised', async () => {

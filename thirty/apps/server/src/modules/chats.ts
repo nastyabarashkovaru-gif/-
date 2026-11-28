@@ -157,7 +157,7 @@ export async function onChatMemberUpdate(tgChatId: number, tgUserId: number, sta
   const chat = await prisma.telegramChat.findUnique({ where: { telegramChatId: BigInt(tgChatId) } });
   if (!chat) return;
   const userId = BigInt(tgUserId);
-  if (chat.active && status === 'member' && await prisma.tributeEntitlement.findUnique({ where: { userId }, select: { userId: true } })) {
+  if (chat.active && status === 'member' && await prisma.tributeEntitlement.findFirst({ where: { userId }, select: { userId: true } })) {
     const data = { status: 'joined' as const, joinedAt: clock.now(), removedAt: null };
     await prisma.chatMembership.upsert({ where: { chatId_userId: { chatId: chat.id, userId } }, create: { chatId: chat.id, userId, ...data }, update: data });
   }

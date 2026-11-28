@@ -34,7 +34,7 @@ export function TributeEntry() {
         <h1 className="hero">Вступить в «30 дней» 💜</h1>
         <p className="lead">Выбери тариф в Tribute. После подтверждения оплаты здесь откроются твои цели и чаты.</p>
         <div className="spacer" />
-        <Cta onClick={() => openExternal(TRIBUTE_PAY_URL)}>Оплатить в Tribute</Cta>
+        <Cta onClick={() => openExternal(me?.tributeCheckoutUrl ?? TRIBUTE_PAY_URL)}>Оплатить в Tribute</Cta>
         <button className="btn btn-secondary" disabled={busy} onClick={async () => {
           setBusy(true);
           try {
@@ -76,7 +76,7 @@ export function TributeEntry() {
           <p className="lead" style={{ textAlign: 'left' }}>Мы не нашли тебя в чате клуба. Оплати подписку в Tribute и вступи в чат по ссылке, которую пришлёт Tribute. Потом вернись сюда.</p>
         </div>
         <div className="spacer" />
-        <button className="btn btn-primary" onClick={() => openExternal(TRIBUTE_PAY_URL)}>Оплатить в Tribute</button>
+        <button className="btn btn-primary" onClick={() => openExternal(me?.tributeCheckoutUrl ?? TRIBUTE_PAY_URL)}>Оплатить в Tribute</button>
         <button className="btn btn-secondary" disabled={busy} onClick={async () => {
           setBusy(true);
           try {

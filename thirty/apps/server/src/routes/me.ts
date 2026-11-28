@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireUser } from '../auth/telegram';
 import { prisma } from '../db';
 import { config } from '../config';
+import { currentTributeCheckout } from '../modules/tributeOffer';
 import { badRequest, forbidden, jsonSafe, notFound } from '../http';
 import { parse } from '../lib/validate';
 import { ALLOWED_MIME, newKey, signedMediaUrl, sniffImage, storage, verifyMediaSig } from '../lib/storage';
@@ -44,6 +45,7 @@ export async function meRoutes(app: FastifyInstance) {
         consents: [...(await activeConsents(u.id))],
         startParam: req.tg?.startParam ?? null,
         tributeCheckout: config.TRIBUTE_VERIFIED_ACCESS,
+        tributeCheckoutUrl: currentTributeCheckout(),
         support: `https://t.me/${await getSetting('support.username')}`,
         // Организатор-наблюдатель: может посмотреть окна отмены, ничего не отменяя
         observer: (await getSetting('flow.observers')).includes(String(u.id)),

@@ -28,6 +28,7 @@ const schema = z.object({
   BOT_TRIBUTE_ONLY: bool,
   TRIBUTE_API_KEY: z.string().trim().default(''),
   TRIBUTE_SUBSCRIPTION_ID: z.string().trim().default(''),
+  TRIBUTE_NEW_CHECKOUT_URL: z.string().trim().default(''),
   TRIBUTE_VERIFIED_ACCESS: bool,
   TRIBUTE_SUBSCRIBER_SYNC: bool,
   TASK_CORRECTION_USERNAME: z.string().default(''),

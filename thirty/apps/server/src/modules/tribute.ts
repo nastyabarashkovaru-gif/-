@@ -47,7 +47,7 @@ const currentMonth = async () => `${localDate(clock.now(), await getSetting('flo
 
 export async function tributeStatus(userId: bigint) {
   const live = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
-  const paymentVerification = config.TRIBUTE_VERIFIED_ACCESS || Boolean(await prisma.tributeEntitlement.findUnique({ where: { userId }, select: { userId: true } }));
+  const paymentVerification = config.TRIBUTE_VERIFIED_ACCESS || Boolean(await prisma.tributeEntitlement.findFirst({ where: { userId }, select: { userId: true } }));
   if (live) return { hasAccess: true, viaTribute: isTribute(live), inChat: true, paymentVerification };
   if (paymentVerification) return { hasAccess: false, viaTribute: false, inChat: null, paymentVerification };
   return { hasAccess: false, viaTribute: false, inChat: await inClubChat(userId) };
@@ -57,7 +57,7 @@ export async function tributeStatus(userId: bigint) {
 export async function activateTribute(userId: bigint, tariffId: string) {
   const live = await prisma.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
   if (live) return { ok: true, already: true };
-  if (config.TRIBUTE_VERIFIED_ACCESS || await prisma.tributeEntitlement.findUnique({ where: { userId }, select: { userId: true } })) {
+  if (config.TRIBUTE_VERIFIED_ACCESS || await prisma.tributeEntitlement.findFirst({ where: { userId }, select: { userId: true } })) {
     throw forbidden('tribute_payment_required', 'Доступ откроется после подтверждения оплаты от Tribute');
   }
   const tariff = await prisma.tariff.findUnique({ where: { id: tariffId } });
