@@ -9,6 +9,7 @@ import { setupAdminBot } from './modules/adminBot';
 import { ensureDemoPhotos, restoreDemoClock } from './modules/demo';
 import { checkCloudPaymentsKeys } from './payments/cloudpayments';
 import { initializeTaskCorrection } from './modules/taskCorrection';
+import { checkTributeReadiness } from './modules/tributeBilling';
 
 async function main() {
   // Только для локального просмотра экранов: «сейчас» = DEV_FAKE_NOW
@@ -17,6 +18,9 @@ async function main() {
   await initializeTaskCorrection().catch(() => console.warn('[task-correction] grant check failed'));
   const app = await buildApp({ logger: true });
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
+  void checkTributeReadiness().then((status) => {
+    if (status) console.log('[tribute-readiness]', JSON.stringify(status));
+  }).catch(() => console.warn('[tribute-readiness] check unavailable'));
   await setupBot();
   // Разовые выдачи доступа по просьбе владелицы
   void import('./modules/grant').then(async (m) => (await m.giftLinkOnce('curly_bob', 'm3', 3), m.giftLinkOnce('perehod-3m', 'm3', 3, 500))).catch((e) => console.warn('[gift]', e));
