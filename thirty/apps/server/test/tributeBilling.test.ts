@@ -10,7 +10,13 @@ import { api, clock, getApp, prisma, resetDb } from './helpers';
 const key = 'tribute-integration-test-secret';
 const initialTime = '2026-11-27T10:00:00.000Z';
 const end = '2026-12-27T10:00:00.000Z';
-const oldConfig = { key: config.TRIBUTE_API_KEY, offer: config.TRIBUTE_SUBSCRIPTION_ID, checkout: config.TRIBUTE_NEW_CHECKOUT_URL, active: config.TRIBUTE_VERIFIED_ACCESS };
+const oldConfig = {
+  TRIBUTE_API_KEY: config.TRIBUTE_API_KEY,
+  TRIBUTE_SUBSCRIPTION_ID: config.TRIBUTE_SUBSCRIPTION_ID,
+  TRIBUTE_NEW_CHECKOUT_URL: config.TRIBUTE_NEW_CHECKOUT_URL,
+  TRIBUTE_RETAINED_SUBSCRIPTION_IDS: config.TRIBUTE_RETAINED_SUBSCRIPTION_IDS,
+  TRIBUTE_VERIFIED_ACCESS: config.TRIBUTE_VERIFIED_ACCESS,
+};
 const telegramCalls: string[] = [];
 
 function event(userId: number, period = 'monthly', kind = 'new_subscription', createdAt = initialTime, expiresAt = end, offer = 123) {
@@ -36,6 +42,8 @@ describe('Tribute checkout and paid access', () => {
     clock.set(new Date(initialTime));
     config.TRIBUTE_API_KEY = key;
     config.TRIBUTE_SUBSCRIPTION_ID = '123';
+    config.TRIBUTE_NEW_CHECKOUT_URL = '';
+    config.TRIBUTE_RETAINED_SUBSCRIPTION_IDS = '';
     config.TRIBUTE_VERIFIED_ACCESS = true;
     telegramCalls.length = 0;
     setTelegramTransport(async (method) => {
@@ -44,9 +52,7 @@ describe('Tribute checkout and paid access', () => {
     });
   });
 
-  afterEach(() => Object.assign(config, {
-    TRIBUTE_API_KEY: oldConfig.key, TRIBUTE_SUBSCRIPTION_ID: oldConfig.offer, TRIBUTE_NEW_CHECKOUT_URL: oldConfig.checkout, TRIBUTE_VERIFIED_ACCESS: oldConfig.active,
-  }));
+  afterEach(() => Object.assign(config, oldConfig));
 
   it('acknowledges signed test requests without granting access or weakening purchase validation', async () => {
     expect((await webhook({}, false)).statusCode).toBe(401);
@@ -168,6 +174,19 @@ describe('Tribute checkout and paid access', () => {
     expect((await api('GET', '/api/me', 871)).body.subscription.tariffId).toBe('m1');
     expect(await prisma.tributeEntitlement.count({ where: { userId: 871n } })).toBe(2);
     expect(await prisma.subscription.findFirst({ where: { userId: 871n } })).toMatchObject({ tributeExpiresAt: new Date(renewedUntil) });
+  });
+
+  it('accepts renewals from both earlier offers after switching to another checkout', async () => {
+    config.TRIBUTE_NEW_CHECKOUT_URL = 'https://web.tribute.tg/s/21';
+    config.TRIBUTE_RETAINED_SUBSCRIPTION_IDS = '123, 124, 125';
+    expect((await api('GET', '/api/me', 872)).body.tributeCheckoutUrl).toBe('https://t.me/tribute/app?startapp=s21');
+
+    expect((await webhook(event(872, 'monthly', 'renewed_subscription', initialTime, end, 123))).json().status).toBe('applied');
+    expect((await webhook(event(873, 'quarterly', 'renewed_subscription', initialTime, end, 124))).json().status).toBe('applied');
+    expect((await webhook(event(874, 'halfyearly', 'new_subscription', initialTime, end, 125))).json().status).toBe('applied');
+    expect((await api('GET', '/api/me', 872)).body.subscription.tariffId).toBe('m1');
+    expect((await api('GET', '/api/me', 873)).body.subscription.tariffId).toBe('m3');
+    expect((await api('GET', '/api/me', 874)).body.subscription.tariffId).toBe('m6');
   });
 
   it('restores an existing active subscription using the offer snapshot when authorised', async () => {
