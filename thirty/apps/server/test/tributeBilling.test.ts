@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { config } from '../src/config';
 import { setTelegramTransport } from '../src/lib/telegram';
 import { accessibleChats, onChatMemberUpdate, removeExpiredMembers } from '../src/modules/chats';
-import { maintainVerifiedTribute, reconcileTributeSubscribers } from '../src/modules/tributeBilling';
+import { checkTributeReadiness, maintainVerifiedTribute, reconcileTributeSubscribers } from '../src/modules/tributeBilling';
 import { api, clock, getApp, prisma, resetDb } from './helpers';
 
 const key = 'tribute-integration-test-secret';
@@ -134,6 +134,28 @@ describe('Tribute checkout and paid access', () => {
       expect(await prisma.tributeEntitlement.count()).toBe(1);
     } finally {
       config.TRIBUTE_SUBSCRIBER_SYNC = false;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('reports the configured offer and linkable subscribers without changing subscriptions', async () => {
+    const fetchMock = vi.fn(async (url: URL | string) => new Response(JSON.stringify({ result: String(url).includes('/subscribers?')
+      ? [
+        { subscriptionId: 123, telegramUserId: 851, status: 'active', activatedAt: initialTime, expireAt: end, period: 'monthly' },
+        { subscriptionId: 123, telegramUserId: 0, status: 'active', activatedAt: initialTime, expireAt: end, period: 'monthly' },
+      ]
+      : [{ subscriptionId: 123, currency: 'rub', periods: [{ period: 'monthly', price: 999 }] }],
+    })));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      expect(await checkTributeReadiness()).toMatchObject({
+        offer: { found: true, currency: 'rub', periods: [{ period: 'monthly', price: 999 }] },
+        activeSubscriptions: 2, verifiedSubscribers: 1, withoutTelegram: 1, legacySubscriptions: 0, legacyMatched: 0,
+      });
+      expect(await prisma.subscription.count()).toBe(0);
+      expect(await prisma.tributeEntitlement.count()).toBe(0);
+      expect(telegramCalls).toEqual([]);
+    } finally {
       vi.unstubAllGlobals();
     }
   });

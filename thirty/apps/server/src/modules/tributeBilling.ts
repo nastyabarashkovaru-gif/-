@@ -33,6 +33,11 @@ const subscriberList = z.object({ result: z.array(z.object({
   expireAt: z.string().datetime({ offset: true }),
   period: z.string(),
 })) });
+const offerList = z.object({ result: z.array(z.object({
+  subscriptionId: z.number().int().safe().positive(),
+  currency: z.string(),
+  periods: z.array(z.object({ period: z.string(), price: z.number() })),
+})) });
 
 function tariffForPeriod(period: string) {
   return Object.hasOwn(tariffIds, period) ? tariffIds[period as keyof typeof tariffIds] : undefined;
@@ -194,19 +199,59 @@ export async function receiveTributeWebhook(body: Buffer, signature: unknown) {
   return { ok: true, status };
 }
 
+async function getTributeSubscribers(key: string, offerId: string) {
+  const url = new URL('https://tribute.tg/api/v1/subscribers');
+  url.searchParams.set('subscriptionID', offerId);
+  const response = await fetch(url, { headers: { 'Api-Key': key }, signal: AbortSignal.timeout(12_000), redirect: 'error' });
+  if (!response.ok) throw new HttpError(response.status, 'tribute_subscribers_http', `Tribute subscriber list returned HTTP ${response.status}`);
+  const list = subscriberList.safeParse(await response.json());
+  if (!list.success) throw new Error('Tribute subscriber list format changed');
+  return list.data.result;
+}
+
+/** Read-only verification of the configured offer and migration coverage. */
+export async function checkTributeReadiness() {
+  const { TRIBUTE_API_KEY: key, TRIBUTE_SUBSCRIPTION_ID: offerId } = config;
+  if (!key || !/^\d+$/.test(offerId) || config.DEMO_MODE) return;
+  const now = clock.now();
+  const [offers, subscribers, legacy] = await Promise.allSettled([
+    (async () => {
+      const response = await fetch('https://tribute.tg/api/v1/subscriptions', { headers: { 'Api-Key': key }, signal: AbortSignal.timeout(12_000), redirect: 'error' });
+      if (!response.ok) return { http: response.status };
+      const body = offerList.safeParse(await response.json());
+      if (!body.success) return { http: response.status, valid: false };
+      const offer = body.data.result.find((item) => String(item.subscriptionId) === offerId);
+      return { http: response.status, found: Boolean(offer), currency: offer?.currency, periods: offer?.periods };
+    })(),
+    getTributeSubscribers(key, offerId),
+    prisma.subscription.findMany({
+      where: { priceVariant: 'tribute', tributeExpiresAt: null, status: { in: [...LIVE_STATUSES] }, test: false },
+      select: { userId: true },
+    }),
+  ]);
+  const active = subscribers.status === 'fulfilled' ? subscribers.value.filter((item) => String(item.subscriptionId) === offerId && new Date(item.expireAt) > now) : null;
+  const verifiedUsers = active && new Set(active.filter((item) => item.telegramUserId && tariffForPeriod(item.period)).map((item) => String(item.telegramUserId)));
+  return {
+    offerId,
+    offer: offers.status === 'fulfilled' ? offers.value : { available: false },
+    subscriberList: subscribers.status === 'fulfilled' ? { available: true }
+      : { available: false, http: subscribers.reason instanceof HttpError ? subscribers.reason.status : undefined },
+    activeSubscriptions: active?.length,
+    verifiedSubscribers: verifiedUsers?.size,
+    withoutTelegram: active?.filter((item) => !item.telegramUserId).length,
+    legacySubscriptions: legacy.status === 'fulfilled' ? legacy.value.length : undefined,
+    legacyMatched: verifiedUsers && legacy.status === 'fulfilled' ? legacy.value.filter((item) => verifiedUsers.has(String(item.userId))).length : undefined,
+  };
+}
+
 /** Enable only after verifying that Tribute exposes the customer list to this API key. */
 export async function reconcileTributeSubscribers() {
   const { TRIBUTE_API_KEY: key, TRIBUTE_SUBSCRIPTION_ID: offerId, TRIBUTE_SUBSCRIBER_SYNC: enabled } = config;
   if (!enabled || !key || !/^\d+$/.test(offerId) || config.DEMO_MODE) return;
   const snapshotAt = clock.now();
-  const url = new URL('https://tribute.tg/api/v1/subscribers');
-  url.searchParams.set('subscriptionID', offerId);
-  const response = await fetch(url, { headers: { 'Api-Key': key }, signal: AbortSignal.timeout(12_000), redirect: 'error' });
-  if (!response.ok) throw new Error(`Tribute subscriber list returned HTTP ${response.status}`);
-  const list = subscriberList.safeParse(await response.json());
-  if (!list.success) throw new Error('Tribute subscriber list format changed');
-  const newest = new Map<number, (typeof list.data.result)[number]>();
-  for (const item of list.data.result) {
+  const subscribers = await getTributeSubscribers(key, offerId);
+  const newest = new Map<number, (typeof subscribers)[number]>();
+  for (const item of subscribers) {
     if (!item.telegramUserId || String(item.subscriptionId) !== offerId || !tariffForPeriod(item.period) || new Date(item.expireAt) <= snapshotAt) continue;
     const prior = newest.get(item.telegramUserId);
     if (!prior || new Date(item.activatedAt) > new Date(prior.activatedAt)) newest.set(item.telegramUserId, item);
