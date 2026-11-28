@@ -748,6 +748,7 @@ model ChatMembership {
   chat       TelegramChat @relation(fields: [chatId], references: [id])
   userId     BigInt
   inviteLink String?
+  invitedFromApp Boolean   @default(false)
   status     String       @default("invited") // invited | joined | removed | declined
   joinedAt   DateTime?
   removedAt  DateTime?

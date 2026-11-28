@@ -3,7 +3,7 @@ import type { BotMessageTemplate } from '@prisma/client';
 import { clock } from '../clock';
 import { prisma, isUniqueViolation } from '../db';
 import { openAppButton, tg, TelegramError } from '../lib/telegram';
-import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, HOW_TO_JOIN_BUTTONS, HOW_TO_JOIN_TEXT, JOIN_CLUB_BUTTON_TEXT, REVIEWS_BUTTON, TARIFFS_PICK_IMAGE, TARIFFS_PICK_TEXT, WELCOME_BUTTONS, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
+import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, HOW_TO_JOIN_BUTTONS, HOW_TO_JOIN_TEXT, JOIN_CLUB_BUTTON_TEXT, PAYMENT_CONFIRMED_APP_TEXT, REVIEWS_BUTTON, TARIFFS_PICK_IMAGE, TARIFFS_PICK_TEXT, WELCOME_BUTTONS, WELCOME_IMAGE, WELCOME_TEXT } from './templates';
 import { config } from '../config';
 import { setNotifier } from './notify';
 import { track } from './analytics';
@@ -522,10 +522,12 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
   const short = id.replace(/-/g, '');
   vars = { ...(await linkVars()), ...vars };
   const tributeTariffs = config.BOT_TRIBUTE_ONLY && key === 'tariffs_pick';
+  const appAccessOnly = config.TRIBUTE_VERIFIED_ACCESS && key === 'payment_success';
   // Кнопка-ссылка ({ text, url }) — например, личное приглашение в чат; без адреса не показывается
   const templateButtons = tpl.buttons as { text: string; screen?: string; url?: string; callback?: string }[];
   let tributeButtonAdded = false;
-  const inlineButtons = tributeTariffs ? [{ text: 'ХОЧУ ОПЛАТИТЬ 🔥', url: TRIBUTE_CHECKOUT_URL }] : templateButtons
+  const inlineButtons = appAccessOnly ? [openAppButton('Открыть приложение')]
+    : tributeTariffs ? [{ text: 'ХОЧУ ОПЛАТИТЬ 🔥', url: TRIBUTE_CHECKOUT_URL }] : templateButtons
     .map((b) => {
       const joinsClub = b.callback === 'choose_tariff' || (b.screen === 'tariffs' && tpl.isMarketing);
       if (key === 'how_to_join' && (joinsClub || b.screen === 'tariffs')) {
@@ -555,13 +557,13 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
       return /^https?:\/\//.test(url) ? { text: b.text, url } : null;
     })
     .filter((button) => button !== null);
-  if (key === 'payment_success' && typeof vars.chat_url === 'string' && vars.chat_url && !inlineButtons.some((button) => 'url' in button && button.url === vars.chat_url)) {
+  if (!appAccessOnly && key === 'payment_success' && typeof vars.chat_url === 'string' && vars.chat_url && !inlineButtons.some((button) => 'url' in button && button.url === vars.chat_url)) {
     inlineButtons.push({ text: 'Зайти в чат 💬', url: vars.chat_url });
   }
   const buttons = inlineButtons.map((button) => [button]);
   // Пустая переменная не оставляет лишних пустых строк
   const tributeText = config.BOT_TRIBUTE_ONLY && key === 'pay_retry' ? 'Оплата не завершилась. Попробуй оплатить участие через Tribute 👇🏼' : '';
-  const text = render(tributeText || tpl.text, vars).replace(/\n{3,}/g, '\n\n').trim();
+  const text = render(appAccessOnly ? PAYMENT_CONFIRMED_APP_TEXT : tributeText || tpl.text, vars).replace(/\n{3,}/g, '\n\n').trim();
   try {
     const markup = buttons.length ? { inline_keyboard: buttons } : undefined;
     const image = imageUrlOf(tpl.imageUrl ?? (tributeTariffs ? TARIFFS_PICK_IMAGE : null));

@@ -104,7 +104,7 @@ export async function socialRoutes(app: FastifyInstance) {
     r.get('/api/club', async (req) => jsonSafe(await clubOverview(req.user!.id)));
     r.get<{ Params: { id: string } }>('/api/meetings/:id', async (req) => jsonSafe(await meetingDetails(req.user!.id, req.params.id)));
     r.post<{ Params: { id: string } }>('/api/meetings/:id/join', async (req) => joinMeeting(req.user!.id, req.params.id));
-    r.post<{ Params: { id: string } }>('/api/chats/:id/invite', async (req) => inviteLinkFor(req.user!.id, req.params.id));
+    r.post<{ Params: { id: string } }>('/api/chats/:id/invite', async (req) => inviteLinkFor(req.user!.id, req.params.id, { fromApp: true }));
 
     // Бадди S16, S29
     r.get<{ Querystring: { before?: string } }>('/api/buddy/reports', async (req) => jsonSafe(await (await import('../modules/feedChat')).buddyReports(req.user!.id, req.query)));

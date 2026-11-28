@@ -3,10 +3,10 @@ import { memberWindow } from './flows';
 import type { TelegramChat } from '@prisma/client';
 import { clock } from '../clock';
 import { config } from '../config';
-import { prisma } from '../db';
+import { prisma, serializable } from '../db';
 import { forbidden, notFound } from '../http';
 import { getSetting } from '../settings';
-import { tg, TelegramError } from '../lib/telegram';
+import { openAppButton, tg, TelegramError } from '../lib/telegram';
 import { track } from './analytics';
 import { LIVE_STATUSES } from './billing';
 
@@ -60,18 +60,23 @@ export async function accessibleChats(userId: bigint, now = clock.now()): Promis
 }
 
 /** Персональная ссылка-заявка: вступление только через проверку оплаты ботом (chat_join_request) */
-export async function inviteLinkFor(userId: bigint, chatId: string) {
+export async function inviteLinkFor(userId: bigint, chatId: string, { fromApp = false } = {}) {
+  if (config.TRIBUTE_VERIFIED_ACCESS && !fromApp) throw forbidden('miniapp_required', 'Запроси приглашение в разделе «Моё сообщество»');
   const chats = await accessibleChats(userId);
   const chat = chats.find((c) => c.id === chatId);
   if (!chat) throw forbidden('no_access', 'Чат доступен только участникам с оплаченным доступом');
-  const existing = await prisma.chatMembership.findUnique({ where: { chatId_userId: { chatId, userId } } });
+  const where = { chatId_userId: { chatId, userId } };
+  const existing = await prisma.chatMembership.findUnique({ where });
   if (existing?.status === 'joined') return { url: null, joined: true };
   // Демо: настоящих чатов нет, ссылку не создаём
   if (config.DEMO_MODE) return { url: null, joined: false, demo: true };
   const ttlHours = await getSetting('chats.inviteTtlHours');
-  const fresh = existing?.inviteLink && isTelegramInvite(existing.inviteLink) &&
-    existing.updatedAt.getTime() > clock.now().getTime() - (ttlHours - 1) * 3600_000;
-  let url = fresh ? existing!.inviteLink! : null;
+  const reusableLink = (membership: typeof existing) => {
+    if (!membership?.inviteLink || !isTelegramInvite(membership.inviteLink)) return null;
+    if (config.TRIBUTE_VERIFIED_ACCESS && !membership.invitedFromApp) return null;
+    return membership.updatedAt.getTime() > clock.now().getTime() - (ttlHours - 1) * 3600_000 ? membership.inviteLink : null;
+  };
+  let url = reusableLink(existing);
   if (!url) {
     const link = await tg<{ invite_link: string }>('createChatInviteLink', {
       chat_id: Number(chat.telegramChatId),
@@ -80,12 +85,17 @@ export async function inviteLinkFor(userId: bigint, chatId: string) {
       expire_date: Math.floor(clock.now().getTime() / 1000) + ttlHours * 3600,
     });
     if (!isTelegramInvite(link.invite_link)) throw new TelegramError('createChatInviteLink', 0, 'Недействительная ссылка-приглашение');
-    url = link.invite_link;
-    await prisma.chatMembership.upsert({
-      where: { chatId_userId: { chatId, userId } },
-      create: { chatId, userId, inviteLink: url, status: 'invited' },
-      update: { inviteLink: url, status: existing?.status === 'removed' ? 'invited' : existing?.status ?? 'invited' },
+    const result = await serializable(async (tx) => {
+      const current = await tx.chatMembership.findUnique({ where });
+      if (current?.status === 'joined') return { joined: true, url: null };
+      const saved = reusableLink(current);
+      if (saved) return { joined: false, url: saved };
+      const data = { inviteLink: link.invite_link, invitedFromApp: fromApp, status: 'invited' };
+      await tx.chatMembership.upsert({ where, create: { chatId, userId, ...data }, update: data });
+      return { joined: false, url: link.invite_link };
     });
+    if (result.joined) return result;
+    url = result.url;
   }
   await track({ userId, eventName: 'chat_link_open', screenId: 'S27', metadata: { chat: chat.kind, topic: chat.topic } });
   return { url, joined: false };
@@ -112,25 +122,33 @@ export async function onJoinRequest(tgChatId: number, tgUserId: number, link?: {
     console.warn(`[chats] заявка ${tgUserId} в ${tgChatId}: чат не привязан в админке — пропускаем`);
     return;
   }
-  const allowed = (await accessibleChats(userId)).some((c) => c.id === chat.id);
+  const where = { chatId_userId: { chatId: chat.id, userId } };
+  const strict = config.TRIBUTE_VERIFIED_ACCESS;
+  const personalInvite = strict && ours && link
+    ? await prisma.chatMembership.findUnique({ where, select: { inviteLink: true, invitedFromApp: true } })
+    : null;
+  const allowedOrigin = !strict || Boolean(personalInvite?.invitedFromApp && personalInvite.inviteLink === link?.invite_link);
+  const allowed = allowedOrigin && (await accessibleChats(userId)).some((c) => c.id === chat.id);
   // 14.11: Tribute чатами не управляет — оплатившим одобряем заявку по любой ссылке.
   // Без доступа: по нашей личной ссылке — отклоняем, по чужой — оставляем владелице (решит вручную)
   // Канал полезных материалов (14.11): без доступа никого не отклоняем — заявка висит, владелица смотрит сама
-  const action = allowed ? 'approve' : ours && chat.kind !== 'channel' ? 'decline' : 'leave';
+  const shouldDecline = strict || (ours && chat.kind !== 'channel');
+  const action = allowed ? 'approve' : shouldDecline ? 'decline' : 'leave';
   console.log(`[chats] заявка ${tgUserId} в «${chat.title}»: ссылка ${ours ? 'бота' : link?.creator ? `от ${link.creator.id}` : link ? 'без автора' : 'нет'}${link?.name ? ` (${link.name})` : ''} → ${action === 'approve' ? 'одобрена' : action === 'decline' ? 'отклонена (нет доступа)' : 'оставлена (нет доступа, чужая ссылка)'}`);
   if (action === 'leave') return;
   try {
     await tg(allowed ? 'approveChatJoinRequest' : 'declineChatJoinRequest', { chat_id: tgChatId, user_id: tgUserId });
   } catch (e) {
     console.warn('[chats] join request', (e as Error).message);
+    return;
   }
   if (allowed) {
     await prisma.chatMembership.upsert({
-      where: { chatId_userId: { chatId: chat.id, userId } },
+      where,
       create: { chatId: chat.id, userId, status: 'joined', joinedAt: clock.now() },
       update: { status: 'joined', joinedAt: clock.now(), removedAt: null },
     });
-  } else {
+  } else if (allowedOrigin) {
     await prisma.chatMembership.updateMany({ where: { chatId: chat.id, userId }, data: { status: 'declined' } });
   }
 }
@@ -221,6 +239,16 @@ export async function setExtraTopic(userId: bigint, topic: string, open: boolean
   const chat = (await accessibleChats(userId)).find((c) => c.kind === 'topic' && c.topic === topic);
   if (!chat) throw forbidden('no_access', 'Чат не открылся: у участницы нет действующей подписки или этот тематический чат не привязан');
   const title = TOPIC_CHATS.find((t) => t.id === topic)!;
+  if (config.TRIBUTE_VERIFIED_ACCESS) {
+    const membership = await prisma.chatMembership.findUnique({ where: { chatId_userId: { chatId: chat.id, userId } }, select: { status: true } });
+    if (membership?.status === 'joined') return { extraTopics, sent: false, joined: true };
+    const sent = await tg('sendMessage', {
+      chat_id: Number(userId),
+      text: `Открыли тебе доступ к чату «${title.title}» ${title.emoji}\n\nЧтобы вступить, открой раздел «Моё сообщество» в приложении.`,
+      reply_markup: { inline_keyboard: [[openAppButton('Открыть приложение')]] },
+    }).then(() => true).catch(() => false);
+    return { extraTopics, sent, joined: false };
+  }
   const link = await inviteLinkFor(userId, chat.id).catch(() => null);
   let sent = false;
   if (link?.url) {
@@ -245,6 +273,7 @@ export async function topicAccess(userId: bigint) {
  * Список заявок боту недоступен — пробуем одобрить каждого с доступом во всех его чатах, где он ещё не состоит.
  */
 export async function approvePendingRequests(kinds: string[] = ['flow', 'topic']) {
+  if (config.TRIBUTE_VERIFIED_ACCESS) return { tried: 0, approved: 0 };
   const users = await prisma.user.findMany({
     where: { deletedAt: null, OR: [{ subscriptions: { some: { status: { in: [...LIVE_STATUSES] } } } }, { memberships: { some: { status: { not: 'revoked' } } } }] },
     select: { id: true },
