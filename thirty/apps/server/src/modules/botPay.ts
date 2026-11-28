@@ -25,7 +25,7 @@ export function readPayToken(token: string, now = clock.now()): { userId: bigint
   return { userId: BigInt(m[1]), tariffId: m[2] };
 }
 
-export const TRIBUTE_CHECKOUT_URL = 'https://t.me/tribute/app?startapp=s1bGq';
+export { TRIBUTE_CHECKOUT_URL } from './tributeOffer';
 
 /** Кнопка Tribute ведёт через наш адрес — нажатие попадает в воронку. */
 export const tributeUrl = (userId: bigint) => `${config.PUBLIC_URL.replace(/\/$/, '')}/pay/tribute/${payToken(userId, 'm1')}`;

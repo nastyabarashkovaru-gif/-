@@ -7,7 +7,7 @@ import { CHAIN_TEMPLATES, DEFAULT_TEMPLATES, HOW_TO_JOIN_BUTTONS, HOW_TO_JOIN_TE
 import { config } from '../config';
 import { setNotifier } from './notify';
 import { track } from './analytics';
-import { TRIBUTE_CHECKOUT_URL } from './botPay';
+import { currentTributeCheckout, TRIBUTE_CHECKOUT_URL } from './tributeOffer';
 
 const LEGACY_TRIBUTE_CHECKOUT_URL = 'https://web.tribute.tg/s/1bGq';
 
@@ -522,12 +522,13 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
   const short = id.replace(/-/g, '');
   vars = { ...(await linkVars()), ...vars };
   const tributeTariffs = config.BOT_TRIBUTE_ONLY && key === 'tariffs_pick';
+  const tributeCheckout = currentTributeCheckout();
   const appAccessOnly = config.TRIBUTE_VERIFIED_ACCESS && key === 'payment_success';
   // Кнопка-ссылка ({ text, url }) — например, личное приглашение в чат; без адреса не показывается
   const templateButtons = tpl.buttons as { text: string; screen?: string; url?: string; callback?: string }[];
   let tributeButtonAdded = false;
   const inlineButtons = appAccessOnly ? [openAppButton('Открыть приложение')]
-    : tributeTariffs ? [{ text: 'ХОЧУ ОПЛАТИТЬ 🔥', url: TRIBUTE_CHECKOUT_URL }] : templateButtons
+    : tributeTariffs ? [{ text: 'ХОЧУ ОПЛАТИТЬ 🔥', url: tributeCheckout }] : templateButtons
     .map((b) => {
       const joinsClub = b.callback === 'choose_tariff' || (b.screen === 'tariffs' && tpl.isMarketing);
       if (key === 'how_to_join' && (joinsClub || b.screen === 'tariffs')) {
@@ -536,13 +537,14 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
       const paymentLink = b.url && (
         /^\{pay_(?:m1|m3|m6|again|tribute)\}$/.test(b.url) ||
         b.url === TRIBUTE_CHECKOUT_URL ||
+        b.url === tributeCheckout ||
         b.url === LEGACY_TRIBUTE_CHECKOUT_URL ||
         b.url.startsWith(`${config.PUBLIC_URL.replace(/\/$/, '')}/pay/new/`)
       );
       if (config.BOT_TRIBUTE_ONLY && (joinsClub || paymentLink)) {
         if (tributeButtonAdded) return null;
         tributeButtonAdded = true;
-        return { text: 'ОПЛАТИТЬ😍', url: TRIBUTE_CHECKOUT_URL };
+        return { text: 'ОПЛАТИТЬ😍', url: tributeCheckout };
       }
       // «Выбрать тариф» из любого сообщения — с меткой сообщения, чтобы в аналитике было видно, откуда нажали (14.11)
       if (b.callback === 'choose_tariff') return { text: b.text, callback_data: `choose_tariff:${short}` };
@@ -550,7 +552,7 @@ export async function sendTemplate(userId: bigint, key: string, vars: Record<str
       // Дожимные (14.11): «Хочу в сообщество», «Вступить…» и т. п. — не в приложение, а сообщение «Выбери свой тариф» в боте
       if (b.url === undefined && b.screen === 'tariffs' && tpl.isMarketing) return { text: b.text, callback_data: `choose_tariff:${short}` };
       if (b.url === undefined) return openAppButton(b.text, `m_${short}_${b.screen}`);
-      let url = b.url === LEGACY_TRIBUTE_CHECKOUT_URL ? TRIBUTE_CHECKOUT_URL :
+      let url = (b.url === LEGACY_TRIBUTE_CHECKOUT_URL || b.url === TRIBUTE_CHECKOUT_URL) ? tributeCheckout :
         b.url.replace(/\{(\w+)\}/g, (_m, k: string) => (vars[k] === undefined ? '' : String(vars[k])));
       // Кнопки оплаты ведут на наш сервер — добавляем метку сообщения и кнопки для аналитики (человек ничего не замечает)
       if (url.startsWith(`${config.PUBLIC_URL.replace(/\/$/, '')}/pay/`)) url += `${url.includes('?') ? '&' : '?'}m=${short}&k=${encodeURIComponent(`url:${b.url}`)}`;

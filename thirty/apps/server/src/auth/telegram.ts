@@ -110,7 +110,7 @@ export async function requireUser(req: FastifyRequest, _reply: FastifyReply) {
   });
   if (user.deletedAt) throw new HttpError(403, 'account_deleted');
   req.user = user;
-  if (config.TRIBUTE_SUBSCRIPTION_ID || config.TRIBUTE_VERIFIED_ACCESS) {
+  if (config.TRIBUTE_SUBSCRIPTION_ID || config.TRIBUTE_NEW_CHECKOUT_URL || config.TRIBUTE_VERIFIED_ACCESS) {
     await (await import('../modules/tributeBilling')).expireTributeFor(user.id);
   }
   // Подписанный start_param (t.me/...?startapp=) или параметр из URL кнопки web_app (только для учёта кликов)

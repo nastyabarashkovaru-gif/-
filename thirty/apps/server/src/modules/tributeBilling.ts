@@ -11,6 +11,7 @@ import { openAppButton, tg } from '../lib/telegram';
 import { LIVE_STATUSES } from './billing';
 import { ensureFlow, memberWindow } from './flows';
 import { PAYMENT_CONFIRMED_APP_TEXT } from './templates';
+import { tributeOfferIds } from './tributeOffer';
 
 const tariffIds = { monthly: 'm1', quarterly: 'm3', halfyearly: 'm6' } as const;
 const subscriptionNames = z.enum(['new_subscription', 'renewed_subscription', 'cancelled_subscription']);
@@ -44,19 +45,18 @@ function tariffForPeriod(period: string) {
   return Object.hasOwn(tariffIds, period) ? tariffIds[period as keyof typeof tariffIds] : undefined;
 }
 
-async function closeExpired(tx: Tx, now: Date, userId?: bigint) {
-  const rows = await tx.subscription.findMany({
-    where: { userId, tributeExpiresAt: { lte: now }, status: { in: [...LIVE_STATUSES] } },
-    select: { id: true },
+async function closeExpired(tx: Tx, userId: bigint, now: Date) {
+  const subscription = await tx.subscription.findFirst({
+    where: { userId, tributeExpiresAt: { not: null }, status: { in: [...LIVE_STATUSES] } },
+    select: { id: true, tributeExpiresAt: true },
   });
-  const ids = rows.map((row) => row.id);
-  if (!ids.length) return;
-  await tx.subscription.updateMany({
-    where: { id: { in: ids } },
-    data: { status: 'expired', autoRenew: false, cancelReason: 'tribute_expired' },
+  if (!subscription) return;
+  await tx.subscription.update({
+    where: { id: subscription.id },
+    data: { status: 'expired', autoRenew: false, cancelReason: 'tribute_expired', ...(subscription.tributeExpiresAt! > now ? { tributeExpiresAt: now } : {}) },
   });
   await tx.flowMembership.updateMany({
-    where: { subscriptionId: { in: ids }, status: { in: ['reserved', 'registered', 'active'] } },
+    where: { subscriptionId: subscription.id, status: { in: ['reserved', 'registered', 'active'] } },
     data: { status: 'revoked' },
   });
 }
@@ -67,17 +67,14 @@ export async function expireTributeFor(userId: bigint) {
     where: { userId, tributeExpiresAt: { lte: now }, status: { in: [...LIVE_STATUSES] } },
     select: { id: true },
   });
-  if (expired) await serializable((tx) => closeExpired(tx, now, userId));
+  if (expired) {
+    const tz = await getSetting('flow.timezone');
+    await serializable((tx) => refreshEntitlement(tx, userId, now, tz));
+  }
 }
 
 async function applyEntitlement(tx: Tx, entitlement: TributeEntitlement, now: Date, tz: string) {
   const { userId, tariffId, expiresAt, autoRenew } = entitlement;
-  if (expiresAt <= now) {
-    await tx.subscription.updateMany({ where: { userId, tributeExpiresAt: { not: null }, status: { in: [...LIVE_STATUSES] } }, data: { tributeExpiresAt: expiresAt } });
-    await closeExpired(tx, now, userId);
-    return 'expired';
-  }
-  await closeExpired(tx, now, userId);
   const live = await tx.subscription.findFirst({ where: { userId, status: { in: [...LIVE_STATUSES] } } });
   if (live && live.priceVariant !== 'tribute') return 'other_subscription';
   const user = await tx.user.upsert({
@@ -128,17 +125,31 @@ async function applyEntitlement(tx: Tx, entitlement: TributeEntitlement, now: Da
 }
 
 async function recordEntitlement(tx: Tx, values: Omit<TributeEntitlement, 'pending'>, now: Date, tz: string) {
-  const { userId } = values;
-  const entitlement = await tx.tributeEntitlement.upsert({ where: { userId }, create: values, update: values });
+  const { userId, offerId } = values;
+  await tx.tributeEntitlement.upsert({ where: { userId_offerId: { userId, offerId } }, create: values, update: values });
+  return refreshEntitlement(tx, userId, now, tz);
+}
+
+async function refreshEntitlement(tx: Tx, userId: bigint, now: Date, tz: string) {
+  // Tariff IDs m6, m3 and m1 sort in order of the access they grant. On expiry, fall back to the next paid offer.
+  const entitlement = await tx.tributeEntitlement.findFirst({
+    where: { userId, expiresAt: { gt: now } },
+    orderBy: [{ tariffId: 'desc' }, { expiresAt: 'desc' }, { offerId: 'asc' }],
+  });
+  if (!entitlement) {
+    await closeExpired(tx, userId, now);
+    return 'expired';
+  }
   const status = await applyEntitlement(tx, entitlement, now, tz);
-  await tx.tributeEntitlement.update({ where: { userId }, data: { pending: status === 'other_subscription' } });
+  const pending = status === 'other_subscription';
+  await tx.tributeEntitlement.updateMany({ where: { userId, pending: !pending }, data: { pending } });
   return status;
 }
 
 export async function receiveTributeWebhook(body: Buffer, signature: unknown) {
   const key = config.TRIBUTE_API_KEY;
-  const offerId = config.TRIBUTE_SUBSCRIPTION_ID;
-  if (!key || !/^\d+$/.test(offerId) || config.DEMO_MODE) throw new HttpError(503, 'tribute_not_configured');
+  const offerIds = tributeOfferIds();
+  if (!key || !offerIds.length || config.DEMO_MODE) throw new HttpError(503, 'tribute_not_configured');
   const expected = createHmac('sha256', key).update(body).digest();
   if (typeof signature !== 'string' || !/^[0-9a-f]{64}$/i.test(signature) || !timingSafeEqual(Buffer.from(signature, 'hex'), expected)) {
     throw new HttpError(401, 'bad_signature');
@@ -164,8 +175,9 @@ export async function receiveTributeWebhook(body: Buffer, signature: unknown) {
     throw new HttpError(400, 'invalid_tribute_event');
   }
   const { payload, name, created_at } = parsed.data;
+  const offerId = String(payload.subscription_id);
   const tariffId = tariffForPeriod(payload.period);
-  if (!tariffId || !payload.telegram_user_id || payload.type !== 'regular' || String(payload.subscription_id) !== offerId) {
+  if (!tariffId || !payload.telegram_user_id || payload.type !== 'regular' || !offerIds.includes(offerId)) {
     return { ok: true, status: 'ignored' };
   }
   const userId = BigInt(payload.telegram_user_id);
@@ -177,7 +189,7 @@ export async function receiveTributeWebhook(body: Buffer, signature: unknown) {
   const bodyHash = createHash('sha256').update(`tribute:${name}:${userId}:${offerId}:${eventAt.toISOString()}:${expiresAt.toISOString()}:${tariffId}`).digest('hex');
 
   const status = await serializable(async (tx) => {
-    const prior = await tx.tributeEntitlement.findUnique({ where: { userId } });
+    const prior = await tx.tributeEntitlement.findUnique({ where: { userId_offerId: { userId, offerId } } });
     if (prior && (prior.eventAt > eventAt || (prior.eventAt.getTime() === eventAt.getTime() && (!prior.autoRenew || autoRenew)))) return 'duplicate_or_old';
     // An explicit cancellation stays active until the paid period ends. A past event cannot shorten a later purchase.
     const result = await recordEntitlement(tx, { userId, offerId, tariffId, expiresAt, eventAt, autoRenew }, now, tz);
@@ -212,8 +224,9 @@ async function getTributeSubscribers(key: string, offerId: string) {
 
 /** Read-only verification of the configured offer and migration coverage. */
 export async function checkTributeReadiness() {
-  const { TRIBUTE_API_KEY: key, TRIBUTE_SUBSCRIPTION_ID: offerId } = config;
-  if (!key || !/^\d+$/.test(offerId) || config.DEMO_MODE) return;
+  const key = config.TRIBUTE_API_KEY;
+  const [offerId] = tributeOfferIds();
+  if (!key || !offerId || config.DEMO_MODE) return;
   const now = clock.now();
   const [offers, subscribers, legacy] = await Promise.allSettled([
     (async () => {
@@ -247,46 +260,50 @@ export async function checkTributeReadiness() {
 
 /** Enable only after verifying that Tribute exposes the customer list to this API key. */
 export async function reconcileTributeSubscribers() {
-  const { TRIBUTE_API_KEY: key, TRIBUTE_SUBSCRIPTION_ID: offerId, TRIBUTE_SUBSCRIBER_SYNC: enabled } = config;
-  if (!enabled || !key || !/^\d+$/.test(offerId) || config.DEMO_MODE) return;
+  const { TRIBUTE_API_KEY: key, TRIBUTE_SUBSCRIBER_SYNC: enabled } = config;
+  const offerIds = tributeOfferIds();
+  if (!enabled || !key || !offerIds.length || config.DEMO_MODE) return;
   const snapshotAt = clock.now();
-  const subscribers = await getTributeSubscribers(key, offerId);
-  const newest = new Map<number, (typeof subscribers)[number]>();
-  for (const item of subscribers) {
-    if (!item.telegramUserId || String(item.subscriptionId) !== offerId || !tariffForPeriod(item.period) || new Date(item.expireAt) <= snapshotAt) continue;
-    const prior = newest.get(item.telegramUserId);
-    if (!prior || new Date(item.activatedAt) > new Date(prior.activatedAt)) newest.set(item.telegramUserId, item);
-  }
+  const snapshots = await Promise.allSettled(offerIds.map((id) => getTributeSubscribers(key, id)));
   const tz = await getSetting('flow.timezone');
-  let matched = 0;
-  for (const [telegramId, item] of newest) {
-    const userId = BigInt(telegramId);
-    const expiresAt = new Date(item.expireAt);
-    const status = await serializable(async (tx) => {
-      const prior = await tx.tributeEntitlement.findUnique({ where: { userId } });
-      if (prior && (prior.eventAt >= snapshotAt || prior.expiresAt >= expiresAt)) return 'already_recorded';
-      return recordEntitlement(tx, {
-        userId, offerId, tariffId: tariffForPeriod(item.period)!, expiresAt, eventAt: snapshotAt, autoRenew: item.status === 'active',
-      }, snapshotAt, tz);
-    });
-    if (status === 'applied') matched++;
+  const matched = new Set<bigint>();
+  for (const [index, snapshot] of snapshots.entries()) {
+    const offerId = offerIds[index];
+    if (snapshot.status === 'rejected') {
+      console.warn(`[tribute] subscriber snapshot unavailable for offer ${offerId}`);
+      continue;
+    }
+    const newest = new Map<number, (typeof snapshot.value)[number]>();
+    for (const item of snapshot.value) {
+      if (!item.telegramUserId || String(item.subscriptionId) !== offerId || !tariffForPeriod(item.period) || new Date(item.expireAt) <= snapshotAt) continue;
+      const prior = newest.get(item.telegramUserId);
+      if (!prior || new Date(item.activatedAt) > new Date(prior.activatedAt)) newest.set(item.telegramUserId, item);
+    }
+    for (const [telegramId, item] of newest) {
+      const userId = BigInt(telegramId);
+      const expiresAt = new Date(item.expireAt);
+      const status = await serializable(async (tx) => {
+        const prior = await tx.tributeEntitlement.findUnique({ where: { userId_offerId: { userId, offerId } } });
+        if (prior && (prior.eventAt >= snapshotAt || prior.expiresAt >= expiresAt)) return 'already_recorded';
+        return recordEntitlement(tx, {
+          userId, offerId, tariffId: tariffForPeriod(item.period)!, expiresAt, eventAt: snapshotAt, autoRenew: item.status === 'active',
+        }, snapshotAt, tz);
+      });
+      if (status === 'applied') matched.add(userId);
+    }
   }
-  if (matched) console.log(`[tribute] restored verified access for ${matched} subscribers`);
+  if (matched.size) console.log(`[tribute] restored verified access for ${matched.size} subscribers`);
 }
 
 export async function maintainVerifiedTribute() {
-  if (!config.TRIBUTE_SUBSCRIPTION_ID && !config.TRIBUTE_VERIFIED_ACCESS) return;
+  if (!tributeOfferIds().length && !config.TRIBUTE_VERIFIED_ACCESS) return;
   const now = clock.now();
-  await serializable((tx) => closeExpired(tx, now));
-  const pending = await prisma.tributeEntitlement.findMany({ where: { pending: true, expiresAt: { gt: now } }, orderBy: { eventAt: 'asc' } });
-  if (!pending.length) return;
+  const [expired, pending] = await Promise.all([
+    prisma.subscription.findMany({ where: { tributeExpiresAt: { lte: now }, status: { in: [...LIVE_STATUSES] } }, select: { userId: true } }),
+    prisma.tributeEntitlement.findMany({ where: { pending: true, expiresAt: { gt: now } }, select: { userId: true } }),
+  ]);
+  const users = new Set([...expired, ...pending].map((row) => row.userId));
+  if (!users.size) return;
   const tz = await getSetting('flow.timezone');
-  for (const row of pending) {
-    await serializable(async (tx) => {
-      const current = await tx.tributeEntitlement.findUnique({ where: { userId: row.userId } });
-      if (!current?.pending) return;
-      const status = await applyEntitlement(tx, current, now, tz);
-      if (status !== 'other_subscription') await tx.tributeEntitlement.update({ where: { userId: row.userId }, data: { pending: false } });
-    });
-  }
+  for (const userId of users) await serializable((tx) => refreshEntitlement(tx, userId, now, tz));
 }
