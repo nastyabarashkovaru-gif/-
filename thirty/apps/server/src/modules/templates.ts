@@ -35,6 +35,7 @@ export const WELCOME_BUTTONS = [
   { text: 'Задать вопрос', url: '{support_url}' },
 ];
 export const JOIN_CLUB_BUTTON_TEXT = 'ХОЧУ ВСТУПИТЬ! 😍';
+export const PAYMENT_CONFIRMED_APP_TEXT = 'Оплата подтверждена 💜 Твой доступ к «30 дням» уже открыт. Приглашения в чаты — в разделе «Моё сообщество».';
 export const TARIFFS_PICK_IMAGE = '{public_url}/img/tariffs-compare-h.jpg';
 export const HOW_TO_JOIN_BUTTONS = [{ text: JOIN_CLUB_BUTTON_TEXT, callback: 'choose_tariff' }, { text: 'ОТЗЫВЫ', url: 'https://t.me/+L6ES0lLCupFjYjk6' }, { text: 'Поддержка', url: '{support_url}' }];
 /** Выбор тарифа прямо в боте (12.11): кнопки ведут сразу на оплату */

@@ -52,10 +52,13 @@ async function sendPaymentAccess(payment: AccessPayment, attempt: number): Promi
   });
   if (sent) return 'sent';
 
-  const chat = (await accessibleChats(payment.userId)).find((entry) => entry.kind === 'flow');
-  if (!chat) throw new DeliveryError('Общий чат клуба не привязан');
-  const invite = await inviteLinkFor(payment.userId, chat.id);
-  if (!invite.joined && !invite.url) throw new DeliveryError('Telegram не вернул действительное приглашение');
+  let invite: Awaited<ReturnType<typeof inviteLinkFor>> | undefined;
+  if (!config.TRIBUTE_VERIFIED_ACCESS) {
+    const chat = (await accessibleChats(payment.userId)).find((entry) => entry.kind === 'flow');
+    if (!chat) throw new DeliveryError('Общий чат клуба не привязан');
+    invite = await inviteLinkFor(payment.userId, chat.id);
+    if (!invite.joined && !invite.url) throw new DeliveryError('Telegram не вернул действительное приглашение');
+  }
 
   const tariff = await prisma.tariff.findUniqueOrThrow({ where: { id: payment.tariffId } });
   const sub = payment.subscription;
@@ -64,9 +67,9 @@ async function sendPaymentAccess(payment: AccessPayment, attempt: number): Promi
     flows: coverage(fromDbDate(payment.coversFromFlow ?? sub.paidFromFlow), payment.months ?? tariff.months).map(monthName).join(', '),
     next_date: sub.nextChargeDate ? humanDate(fromDbDate(sub.nextChargeDate), true) : '—',
     next_amount: payment.amount,
-    chat_url: invite.url ?? '',
+    chat_url: invite?.url ?? '',
   }, `${keyPrefix}${attempt}`);
-  if (invite.joined) return 'joined';
+  if (invite?.joined) return 'joined';
   if (result !== 'sent') throw new DeliveryError(result === 'skipped' ? 'Бот не может отправить сообщение или шаблон отключён' : 'Бот не отправил сообщение');
   return 'sent';
 }

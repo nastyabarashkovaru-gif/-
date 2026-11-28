@@ -10,6 +10,7 @@ import { getSetting } from '../settings';
 import { openAppButton, tg } from '../lib/telegram';
 import { LIVE_STATUSES } from './billing';
 import { ensureFlow, memberWindow } from './flows';
+import { PAYMENT_CONFIRMED_APP_TEXT } from './templates';
 
 const tariffIds = { monthly: 'm1', quarterly: 'm3', halfyearly: 'm6' } as const;
 const subscriptionNames = z.enum(['new_subscription', 'renewed_subscription', 'cancelled_subscription']);
@@ -191,7 +192,7 @@ export async function receiveTributeWebhook(body: Buffer, signature: unknown) {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { allowsWrite: true, botBlocked: true } });
     if (user?.allowsWrite && !user.botBlocked) {
       void tg('sendMessage', {
-        chat_id: Number(userId), text: 'Оплата подтверждена 💜 Твой доступ к «30 дням» уже открыт.',
+        chat_id: Number(userId), text: PAYMENT_CONFIRMED_APP_TEXT,
         reply_markup: { inline_keyboard: [[openAppButton('Открыть приложение')]] },
       }).catch(() => console.warn('[tribute] could not send the app button'));
     }

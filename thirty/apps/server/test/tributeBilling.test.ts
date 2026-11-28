@@ -3,7 +3,7 @@ import { TOPIC_CHATS } from '@thirty/domain';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { config } from '../src/config';
 import { setTelegramTransport } from '../src/lib/telegram';
-import { accessibleChats, onChatMemberUpdate, removeExpiredMembers } from '../src/modules/chats';
+import { accessibleChats, approvePendingRequests, onChatMemberUpdate, onJoinRequest, removeExpiredMembers } from '../src/modules/chats';
 import { checkTributeReadiness, maintainVerifiedTribute, reconcileTributeSubscribers } from '../src/modules/tributeBilling';
 import { api, clock, getApp, prisma, resetDb } from './helpers';
 
@@ -92,6 +92,36 @@ describe('Tribute checkout and paid access', () => {
       if (limit < 6) expect((await addGoal(userId, 'other')).status).toBe(409);
       expect((await accessibleChats(BigInt(userId))).filter((chat) => chat.kind === 'topic')).toHaveLength(expectedChats);
     }
+  });
+
+  it('requires each participant to use their own Mini App invitation', async () => {
+    const chat = await prisma.telegramChat.create({ data: { kind: 'topic', title: 'English', topic: 'english', telegramChatId: -100860n, active: true } });
+    for (const id of [861, 862]) {
+      await webhook(event(id));
+      await addGoal(id, 'english');
+    }
+    const oldLink = 'https://t.me/+old';
+    const newLink = 'https://t.me/+new';
+    const ourBot = { id: 123456 };
+    await prisma.chatMembership.create({ data: { chatId: chat.id, userId: 861n, inviteLink: oldLink } });
+    setTelegramTransport(async (method) => {
+      telegramCalls.push(method);
+      return (method === 'createChatInviteLink' ? { invite_link: newLink } : true) as never;
+    });
+
+    const join = (id: number, url: string, creator = ourBot) => onJoinRequest(Number(chat.telegramChatId), id, { invite_link: url, creator });
+    await join(861, oldLink);
+    expect(telegramCalls.at(-1)).toBe('declineChatJoinRequest');
+    const issued = await api('POST', `/api/chats/${chat.id}/invite`, 861);
+    expect(issued.body.url).toBe(newLink);
+    await join(861, newLink, { id: 99 });
+    expect(telegramCalls.at(-1)).toBe('declineChatJoinRequest');
+    await join(862, newLink);
+    expect(telegramCalls.at(-1)).toBe('declineChatJoinRequest');
+    expect(await approvePendingRequests()).toEqual({ tried: 0, approved: 0 });
+    await join(861, newLink);
+    expect(telegramCalls.filter((method) => method === 'approveChatJoinRequest')).toHaveLength(1);
+    expect(await prisma.chatMembership.findUnique({ where: { chatId_userId: { chatId: chat.id, userId: 861n } } })).toMatchObject({ status: 'joined', invitedFromApp: true });
   });
 
   it('retains a cancelled paid period and cannot reopen it by repeating an earlier payment', async () => {
